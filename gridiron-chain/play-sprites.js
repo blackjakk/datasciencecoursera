@@ -139,23 +139,26 @@ function _computeBodyCenter(img) {
   c.drawImage(img, 0, 0);
   let data;
   try { data = c.getImageData(0, 0, w, h).data; }
-  catch (_) { return { upperBackX: w / 2, upperBackY: h * 0.4 }; }
+  catch (_) { return { upperBackX: w / 2, upperBackY: h * 0.50 }; }
+  // Use alpha > 64 (not just > 0) to ignore semi-transparent AA edges
+  // that would otherwise inflate the bbox above the visible body.
   let minX = w, maxX = 0, minY = h, maxY = 0, count = 0;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      if (data[(y * w + x) * 4 + 3] > 0) {  // alpha
+      if (data[(y * w + x) * 4 + 3] > 64) {
         if (x < minX) minX = x; if (x > maxX) maxX = x;
         if (y < minY) minY = y; if (y > maxY) maxY = y;
         count++;
       }
     }
   }
-  if (count === 0) return { upperBackX: w / 2, upperBackY: h * 0.4 };
+  if (count === 0) return { upperBackX: w / 2, upperBackY: h * 0.50 };
   const result = {
     upperBackX: (minX + maxX) / 2,
-    // 40% from top of body bbox: upper back / between shoulder blades
-    // when standing; mid-torso on horizontal/diving poses.
-    upperBackY: minY + (maxY - minY) * 0.40,
+    // 50% from top: between the shoulder blades on standing poses,
+    // properly inside the jersey region (helmet 0-25%, jersey 25-55%,
+    // pants 55-100% roughly). Was 40% — too high, hitting shoulders.
+    upperBackY: minY + (maxY - minY) * 0.50,
     bboxTop: minY, bboxBottom: maxY,
   };
   _bodyCenterCache.set(img, result);
@@ -361,36 +364,64 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
     // Image → ctx coords. img(x,y) → ctx(x - imgW/2, top + (y/imgH)*fh)
     const cx = (bc.upperBackX - src.width / 2) * scale;
     const cy = top + (bc.upperBackY / src.height) * fh;
-    _drawJerseyNumber(ctx, String(label), secondary, cx, cy, scale);
+    _drawJerseyNumber(ctx, String(label), secondary, cx, cy, scale, dir);
   }
   return true;
 }
 
+// Per-direction perspective transform — text follows body angle instead
+// of staying axis-aligned. Tuned for the PixelLab "low top-down" view
+// where diagonals tilt the body ~30° and compress horizontal width.
+//
+//   E/W: skipped above (no jersey number on a profile view)
+//   N:   no transform (back facing camera, flat)
+//   S:   no transform (chest facing camera, flat)
+//   NE:  body tilts so back-right is closest to camera — number leans
+//        right; horizontal compressed to ~0.75 (foreshortened back)
+//   NW:  mirror of NE — leans left
+//   SE:  body tilts so chest-right is closest — number leans right too
+//   SW:  mirror of SE — leans left
+const _NUM_TX_BY_DIR = {
+  "north":      { sx: 1.00, rot:  0.00 },
+  "south":      { sx: 1.00, rot:  0.00 },
+  "north-east": { sx: 0.75, rot: -0.32 },   // back tilted away from camera
+  "north-west": { sx: 0.75, rot:  0.32 },
+  "south-east": { sx: 0.75, rot:  0.32 },   // chest tilted toward camera
+  "south-west": { sx: 0.75, rot: -0.32 },
+};
+
 // Render a chunky pixel-art-style jersey number at (cx, cy) in ctx
 // local coords. 3-layer stitched look: black outline → main color → 1-px
 // inner shadow. Pixel-aligned positions. Font size scales with sprite scale.
-function _drawJerseyNumber(ctx, label, secondary, cx, cy, scale) {
+// Applies per-direction skew/scale so text follows the body's perspective.
+function _drawJerseyNumber(ctx, label, secondary, cx, cy, scale, dir) {
   const numSize = (typeof window !== "undefined" && window.GC_SPRITE_TEXT_SIZE != null)
-    ? window.GC_SPRITE_TEXT_SIZE : Math.round(16 * scale);
+    ? window.GC_SPRITE_TEXT_SIZE : Math.round(13 * scale);
   const x = Math.round(cx);
   const y = Math.round(cy);
+  const tx = _NUM_TX_BY_DIR[dir] || { sx: 1.00, rot: 0.00 };
   ctx.save();
+  // Per-direction transform: translate to the text anchor, rotate to
+  // match the body's tilt, scale-X to foreshorten on diagonals.
+  ctx.translate(x, y);
+  ctx.rotate(tx.rot);
+  ctx.scale(tx.sx, 1);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = `bold ${numSize}px "Courier New", monospace`;
   // 1. Black stroke outline ("thread border")
-  ctx.lineWidth = Math.max(1, 1.6 * scale);
+  ctx.lineWidth = Math.max(1, 1.4 * scale);
   ctx.lineJoin = "round";
   ctx.strokeStyle = "rgba(0,0,0,0.85)";
-  ctx.strokeText(label, x, y);
+  ctx.strokeText(label, 0, 0);
   // 2. Main color fill (jersey-stitch color)
   ctx.fillStyle = secondary || "#fff";
-  ctx.fillText(label, x, y);
+  ctx.fillText(label, 0, 0);
   // 3. 1-pixel inner shadow + repaint (embossed look)
   ctx.fillStyle = "rgba(0,0,0,0.30)";
-  ctx.fillText(label, x + 1, y + 1);
+  ctx.fillText(label, 1, 1);
   ctx.fillStyle = secondary || "#fff";
-  ctx.fillText(label, x, y);
+  ctx.fillText(label, 0, 0);
   ctx.restore();
 }
 
