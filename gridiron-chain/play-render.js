@@ -2442,22 +2442,30 @@ function drawGoalposts(ctx, cx, cy) {
 }
 
 function drawBall(ctx, x, y, scale = 1, opts = {}) {
-  // CARRIER FOOT → HAND auto-shift. If (x, y) closely matches an active
-  // carrier's foot position (within 5 px, set within the last 50 ms),
-  // assume the ball is being carried and shift to that carrier's hand
-  // position. Lets ball-render call sites that pass the engine's
-  // (ballX, ballY = carrier foot) get the right visual without each
-  // site needing to do the sink lookup itself.
+  // CARRIER FOOT → HAND auto-shift. If (x, y) is within ~half a sprite
+  // width/height of an active carrier's foot position (set within the
+  // last 100 ms), assume the ball is being carried and shift to that
+  // carrier's hand position. Lets ball-render call sites that pass the
+  // engine's (ballX, ballY) approximation get the right visual without
+  // each site needing to do the sink lookup itself.
   if (!opts.skipCarryShift && drawPlayer._carryHandSink) {
     const now = performance.now();
+    // Pick the CLOSEST sink entry, not just first within tolerance —
+    // multiple players standing near each other (formation) would
+    // otherwise let the loop pick whichever is iterated first.
+    let bestDist = Infinity, bestE = null;
     for (const k in drawPlayer._carryHandSink) {
       const e = drawPlayer._carryHandSink[k];
-      if (!e || e.footX == null || (now - e.frameMs) > 50) continue;
-      if (Math.abs(x - e.footX) < 5 && Math.abs(y - e.footY) < 5) {
-        x = e.x;
-        y = e.y;
-        break;
-      }
+      if (!e || e.footX == null || (now - e.frameMs) > 100) continue;
+      const dx = x - e.footX, dy = y - e.footY;
+      const d = Math.hypot(dx, dy);
+      if (d < bestDist) { bestDist = d; bestE = e; }
+    }
+    // Tolerance: ~24 px (≈ 1.5 yds) lateral or below the foot, OR up to
+    // 8 px above (in case the engine's ball position is mid-chest already).
+    if (bestE && bestDist < 24) {
+      x = bestE.x;
+      y = bestE.y;
     }
   }
   // Broadcast camera: queue the ball draw to the upright overlay with
