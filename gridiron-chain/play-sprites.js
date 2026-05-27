@@ -68,18 +68,35 @@ const _SPRITE_POSES = {
   carry:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // ball-carrier
   tackled:   { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // on the ground
   engage:    { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // OL/DL clash
+  block:     { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // direct
   reach:     { folder: "catch",     frames: 4, dirs: _DIRECTIONS },  // receiver reach
+  catch:     { folder: "catch",     frames: 4, dirs: _DIRECTIONS },  // alt key (engine uses both)
+  leap:      { folder: "catch",     frames: 4, dirs: _DIRECTIONS },  // leaping catch — arms up
   dive:      { folder: "tackle",    frames: 4, dirs: _DIRECTIONS },  // diving forward
+  hit:       { folder: "tackle",    frames: 4, dirs: _DIRECTIONS },  // contact moment
   sack:      { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // QB sacked
   ragdoll:   { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // tossed body
+  tumble:    { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // falling + rolling
+  spin_fall: { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // falling w/ spin
+  point:     { folder: "stance",    frames: 4, dirs: _DIRECTIONS },  // DB pre-snap pointing
+  throw:     { folder: "pass",      frames: 4, dirs: _DIRECTIONS },  // QB throw motion
+  juke:      { folder: "dodge",     frames: 4, dirs: _DIRECTIONS },  // RB juke
+  spin:      { folder: "dodge",     frames: 4, dirs: _DIRECTIONS },  // RB spin move (approx)
+  jam:       { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // DB press at line
+  truck:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // running through hit
+  churn:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // legs churning
+  release:   { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // WR release off line
+  scrape:    { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // LB scrape pursuit
+  drop_step: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // QB dropback
+  backpedal: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // DB cover (faces wrong way; iterate)
 
-  // Newer folders, no engine pose emits these yet — ready for when it does
+  // Newer folders for poses the engine doesn't emit yet (ready when it does)
   pass:      { folder: "pass",      frames: 4, dirs: _DIRECTIONS },
   kick:      { folder: "kick",      frames: 4, dirs: _KICK_DIRS  },
   dodge:     { folder: "dodge",     frames: 4, dirs: _DIRECTIONS },
 
-  // Not yet sprite-backed (engine emits these → fall through to shape math):
-  // backpedal, hit, jam, scrape
+  // Still fall through to shape math (no good alias):
+  // handoff, hurdle, stiff, kick_slide
 };
 
 // Per-(pose,dir,frame) raw image cache. Keyed "pose|dir|frame".
