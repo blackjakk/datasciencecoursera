@@ -123,11 +123,9 @@ const GCPlayer = (() => {
       if (typeof drawPlayerSprite === "function") {
         offCtx.save();
         offCtx.translate(fx, fy);
-        drewSprite = drawPlayerSprite(offCtx, pose, t, vx || 0, vy || 0, color, facing);
-        if (drewSprite && typeof _drawSpriteTextOverlay === "function") {
-          // Jersey number + name overlay on top of the sprite
-          _drawSpriteTextOverlay(offCtx, label, secondary, style);
-        }
+        // drawPlayerSprite now also stamps the jersey number at the
+        // image-derived back-of-jersey position (per-frame).
+        drewSprite = drawPlayerSprite(offCtx, pose, t, vx || 0, vy || 0, color, facing, label, secondary, style);
         offCtx.restore();
       }
       if (!drewSprite) {

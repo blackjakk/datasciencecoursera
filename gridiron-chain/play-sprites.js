@@ -117,7 +117,50 @@ const _SPRITE_POSES = {
 const _spriteCache = {};
 // Per-(pose,dir,frame,color) tinted canvas cache.
 const _tintCache = new Map();
+// Per-sprite body-center cache. Computed ONCE per unique image by scanning
+// opaque pixels to find the bounding box. Used to anchor the jersey number
+// at the actual back-of-jersey position in EACH POSE, instead of a fixed
+// y-offset that only worked for upright poses.
+const _bodyCenterCache = new WeakMap();
 let _spritesEnabled = false;
+
+// Scan opaque pixels in the image to find body extents. The number sits
+// at ~40% from top of the body bbox — that's where the jersey number
+// usually lands between the shoulder blades on an upright player, and
+// rotates correctly to the upper-torso area when the body is tilted,
+// horizontal, or extended (tackled, dive, hurdle).
+function _computeBodyCenter(img) {
+  const cached = _bodyCenterCache.get(img);
+  if (cached) return cached;
+  const w = img.width, h = img.height;
+  const off = document.createElement("canvas");
+  off.width = w; off.height = h;
+  const c = off.getContext("2d");
+  c.drawImage(img, 0, 0);
+  let data;
+  try { data = c.getImageData(0, 0, w, h).data; }
+  catch (_) { return { upperBackX: w / 2, upperBackY: h * 0.4 }; }
+  let minX = w, maxX = 0, minY = h, maxY = 0, count = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (data[(y * w + x) * 4 + 3] > 0) {  // alpha
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        count++;
+      }
+    }
+  }
+  if (count === 0) return { upperBackX: w / 2, upperBackY: h * 0.4 };
+  const result = {
+    upperBackX: (minX + maxX) / 2,
+    // 40% from top of body bbox: upper back / between shoulder blades
+    // when standing; mid-torso on horizontal/diving poses.
+    upperBackY: minY + (maxY - minY) * 0.40,
+    bboxTop: minY, bboxBottom: maxY,
+  };
+  _bodyCenterCache.set(img, result);
+  return result;
+}
 
 function _loadSprite(pose, dir, frame) {
   const def = _SPRITE_POSES[pose];
@@ -269,7 +312,7 @@ function _velocityToDirection(vx, vy, facing) {
 // `vx`, `vy` are recent velocity (used to pick the 8-direction sprite).
 // `facing` is the L/R heading sign (used when stationary).
 // `t` is the pose-internal time (0..1 for animation cycles).
-function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing) {
+function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, secondary, style) {
   if (!_spritesEnabled) { _lastMiss.pose=pose; _lastMiss.reason="atlas-disabled"; _lastMiss.count++; _bumpMiss(pose,"atlas-disabled"); return false; }
   const def = _SPRITE_POSES[pose];
   if (!def) { _lastMiss.pose=pose; _lastMiss.reason="unknown-pose"; _lastMiss.count++; _bumpMiss(pose,"unknown-pose"); return false; }
@@ -296,56 +339,51 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing) {
   const foot = (typeof window !== "undefined" && window.GC_SPRITE_FOOT_OFFSET_Y != null)
     ? window.GC_SPRITE_FOOT_OFFSET_Y
     : _SPRITE_FOOT_OFFSET_Y;
-  ctx.drawImage(tinted, -fw / 2, -fh / 2 - fh * foot, fw, fh);
+  // Draw position: sprite occupies ctx [-fw/2, top] to [fw/2, top+fh],
+  // where top = -fh/2 - fh*foot. We need this to convert image-space
+  // jersey position to ctx coordinates.
+  const top = -fh / 2 - fh * foot;
+  ctx.drawImage(tinted, -fw / 2, top, fw, fh);
+  // ── Jersey-number overlay at the ACTUAL back-of-jersey position ──
+  // Sample the source image to find where the body sits in THIS frame,
+  // then place the number at the upper-back point of the body bbox.
+  // Adapts to every pose: standing puts number ~upper back, tackled
+  // puts it low on the horizontal body, dive puts it on mid-torso.
+  if (label != null && label !== "") {
+    const bc = _computeBodyCenter(src);
+    // Image → ctx coords. img(x,y) → ctx(x - imgW/2, top + (y/imgH)*fh)
+    const cx = (bc.upperBackX - src.width / 2) * scale;
+    const cy = top + (bc.upperBackY / src.height) * fh;
+    _drawJerseyNumber(ctx, String(label), secondary, cx, cy, scale);
+  }
   return true;
 }
 
-// ── Jersey number overlay ─────────────────────────────────────────────────
-// Drawn on top of a sprite. ctx must already be translated to the player's
-// local origin (foot at 0,0; body extending up to -fh). Position tuned to
-// fall on the back of the jersey between the shoulder blades — not floating
-// above the player. 104px sprite at scale 1.0: jersey middle-back ≈ y=-45.
-// Live-tunable via window.GC_SPRITE_TEXT_Y_NUM and window.GC_SPRITE_TEXT_SIZE.
-function _drawSpriteTextOverlay(ctx, label, secondary, style) {
-  const labelStr = (label != null && label !== "") ? String(label) : "";
-  if (!labelStr) return;
-  const numY = (typeof window !== "undefined" && window.GC_SPRITE_TEXT_Y_NUM != null)
-    ? window.GC_SPRITE_TEXT_Y_NUM : -45;
+// Render a chunky pixel-art-style jersey number at (cx, cy) in ctx
+// local coords. 3-layer stitched look: black outline → main color → 1-px
+// inner shadow. Pixel-aligned positions. Font size scales with sprite scale.
+function _drawJerseyNumber(ctx, label, secondary, cx, cy, scale) {
   const numSize = (typeof window !== "undefined" && window.GC_SPRITE_TEXT_SIZE != null)
-    ? window.GC_SPRITE_TEXT_SIZE : 16;
+    ? window.GC_SPRITE_TEXT_SIZE : Math.round(16 * scale);
+  const x = Math.round(cx);
+  const y = Math.round(cy);
   ctx.save();
-  // Pixel-align — sub-pixel positioning is the #1 reason text looks
-  // "floaty" over pixel art. Integer positions, no fractional shadows.
-  const x = 0;
-  const y = Math.round(numY);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  // Monospace block letter look. Impact reads as too narrow at small
-  // sizes; bold monospace gives chunky pixel-style letterforms that
-  // match the sprite art aesthetic.
   ctx.font = `bold ${numSize}px "Courier New", monospace`;
-  // Disable smoothing so text edges are sharp/aliased (more pixel art).
-  // Caveat: canvas text AA can't be fully disabled via API, but turning
-  // off imageSmoothing affects the surrounding compositing pipeline.
-  if (ctx.imageSmoothingEnabled !== undefined) ctx.imageSmoothingEnabled = false;
-  // Three-layer "stitched" rendering. Bottom-up:
-  //   1. STITCH OUTLINE — chunky black ring, 1.5 px wide. Sits on the
-  //      jersey fabric like a thread border.
-  ctx.lineWidth = 1.6;
+  // 1. Black stroke outline ("thread border")
+  ctx.lineWidth = Math.max(1, 1.6 * scale);
   ctx.lineJoin = "round";
   ctx.strokeStyle = "rgba(0,0,0,0.85)";
-  ctx.strokeText(labelStr, x, y);
-  //   2. MAIN FILL — secondary team color, pixel-aligned.
+  ctx.strokeText(label, x, y);
+  // 2. Main color fill (jersey-stitch color)
   ctx.fillStyle = secondary || "#fff";
-  ctx.fillText(labelStr, x, y);
-  //   3. INNER SHADOW — 1-pixel down-right darker shadow. Gives a
-  //      slight raised/embossed thread look.
+  ctx.fillText(label, x, y);
+  // 3. 1-pixel inner shadow + repaint (embossed look)
   ctx.fillStyle = "rgba(0,0,0,0.30)";
-  ctx.fillText(labelStr, x + 1, y + 1);
-  // Repaint the secondary color on top so the inner shadow only shows
-  // through the "thread height" gap (~1 px offset).
+  ctx.fillText(label, x + 1, y + 1);
   ctx.fillStyle = secondary || "#fff";
-  ctx.fillText(labelStr, x, y);
+  ctx.fillText(label, x, y);
   ctx.restore();
 }
 
@@ -354,5 +392,4 @@ if (typeof window !== "undefined") {
   setTimeout(_preloadAllSprites, 0);
   window.SpriteAtlas = SpriteAtlas;
   window.drawPlayerSprite = drawPlayerSprite;
-  window._drawSpriteTextOverlay = _drawSpriteTextOverlay;
 }
