@@ -509,29 +509,35 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   // visible chest area is mostly helmet). East/west are pure profile.
   const _backVisible = (dir === "north" || dir === "north-east" || dir === "north-west");
   if (_backVisible && label != null && label !== "") {
-    // Use a CANONICAL pose sprite (south, frame 0) to determine the
-    // shoulder Y once per pose. PixelLab keeps body proportions
-    // consistent across directions, but per-pixel detection drifts
-    // a few rows per direction sprite — cluster of similar players
-    // running in slightly different directions then shows numbers at
-    // visibly different heights. Standardizing on south frame 0
-    // forces every direction + frame of a pose to render the number
-    // at the same screen-relative position.
+    // Reference shoulder Y from south frame 0 (consistent across all
+    // directions/frames of a pose; avoids cluster-of-players Y drift).
     const _refKey = `${pose}|south|${def.frames > 1 ? "0" : ""}`;
     const _refImg = _spriteCache[_refKey];
     const _refSrc = (_refImg && _refImg !== "loading") ? _refImg : src;
-    const bc = _computeBodyCenter(_refSrc);
-    // Center X still comes from the CURRENT sprite — body lateral
-    // center varies per direction (NE shifts back-center left, NW
-    // right, etc.), so per-sprite X is correct.
-    const bcCurrent = (_refSrc === src) ? bc : _computeBodyCenter(src);
-    // Anchor a few image-pixels below the shoulder line — that's the
-    // upper back. Live-tunable via window.GC_NUM_BACK_OFFSET_PX.
+    const bcRef = _computeBodyCenter(_refSrc);
+    const bcCurrent = (_refSrc === src) ? bcRef : _computeBodyCenter(src);
     const _backOffset = (typeof window !== "undefined" && window.GC_NUM_BACK_OFFSET_PX != null)
       ? window.GC_NUM_BACK_OFFSET_PX : 6;
-    const upperBackY_img = bc.shoulderY + _backOffset;
-    // Image → ctx coords. img(x,y) → ctx(x - imgW/2, top + (y/imgH)*fh)
-    const cx = (bcCurrent.centerX - src.width / 2) * scale;
+    // Per-direction BACK position offset. The back surface sits
+    // OPPOSITE the facing direction. For NE-facing (body angled
+    // upper-right), back is at SW (lower-left of body), so shift the
+    // anchor LEFT + DOWN. For NW (body upper-left), back is at SE
+    // (lower-right), shift RIGHT + DOWN. N has back directly behind
+    // the body — no offset.
+    //
+    // Previously used torsoCenterX (avg of row centers below shoulderY)
+    // which sampled the UPPER body. For diagonals the upper body sits
+    // on the FRONT-shoulder side (opposite the back), so torsoCenterX
+    // pulled the number ONTO a shoulder pad. Use bboxCenterX as the
+    // base + explicit per-direction shift toward the actual back.
+    // Live-tunable via window.GC_NUM_DIAG_BACK_DX / _DY.
+    const _diagDx = (typeof window !== "undefined" && window.GC_NUM_DIAG_BACK_DX != null) ? window.GC_NUM_DIAG_BACK_DX : 7;
+    const _diagDy = (typeof window !== "undefined" && window.GC_NUM_DIAG_BACK_DY != null) ? window.GC_NUM_DIAG_BACK_DY : 5;
+    let dxOff = 0, dyOff = 0;
+    if (dir === "north-east")      { dxOff = -_diagDx; dyOff = _diagDy; }
+    else if (dir === "north-west") { dxOff =  _diagDx; dyOff = _diagDy; }
+    const upperBackY_img = bcRef.shoulderY + _backOffset + dyOff;
+    const cx = (bcCurrent.bboxCenterX - src.width / 2 + dxOff) * scale;
     const cy = top + (upperBackY_img / src.height) * fh;
     _drawJerseyNumber(ctx, String(label), secondary, cx, cy, scale, dir);
   }
