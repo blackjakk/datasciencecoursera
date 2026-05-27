@@ -979,8 +979,20 @@ function buildAnimForPlay(play, prevPlay) {
       let returnerPose = "stance";
       let returnerT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
       let returnerFacing = recvDir;
-      if (t < FLIGHT_END) {
-        const ft = t / FLIGHT_END;
+      // Ball stays at the kicker's foot until the contact frame, then
+      // launches. Synchronized with the kicker's "kick" pose window
+      // (t < FLIGHT_END * 0.08 above) — pose's contact frame and ball
+      // release happen at the same t. Old code launched the ball at
+      // t=0 while the kicker was still in his wind-up, so the leg
+      // swing trailed the ball through the air.
+      const KICK_CONTACT_T = FLIGHT_END * 0.08;
+      if (t < KICK_CONTACT_T) {
+        // Wind-up: ball at kicker's foot, still on the ground.
+        ballX = kickerLineX;
+        ballY = cy + 4;
+        returnerPose = "stance";
+      } else if (t < FLIGHT_END) {
+        const ft = (t - KICK_CONTACT_T) / (FLIGHT_END - KICK_CONTACT_T);
         ballX = kickerLineX + (catchX - kickerLineX) * ft;
         ballY = cy - Math.sin(ft * Math.PI) * 130;
         returnerPose = ft > 0.85 ? "reach" : "stance";

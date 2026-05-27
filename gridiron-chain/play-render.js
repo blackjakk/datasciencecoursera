@@ -429,12 +429,25 @@ const _LOCOMOTION_POSES = new Set(["run", "carry", "release", "scrape", "jog"]);
 const _FACING_AUTO_POSES = new Set(["run", "carry", "release", "jog"]);   // scrape stays caller-set (LB faces offense), backpedal stays caller-set
 const _locoCache = new Map();
 function _locoState(x, y, pose, style, label, facing) {
-  // Identity — player name preferred (unique within a game). Linemen
-  // typically have no name field; fall back to a stable composite.
-  // Pose is NOT in the key so phase persists across pose transitions.
-  const id = style && style.name
-    ? style.name
-    : `${(style && style.role) || "P"}|${label || ""}|${facing > 0 ? "R" : "L"}`;
+  // Identity must be unique per rendered player. The old fallback
+  // composite (`${role}|${label}|${facing}`) collided for any draw
+  // path that issued multiple drawPlayer calls with the same role
+  // (FG OL × 9, etc.) without a name — each call overwrote the prior
+  // one's lastX/lastY in the cache, and vxEMA oscillated per slot,
+  // making the sprite direction flicker between frames.
+  //
+  // Caching across frames REQUIRES a stable per-player name. Without
+  // one, return a fresh zero-velocity state per call — locomotion
+  // poses freeze at frame 0 for those callers (acceptable for static
+  // formation roles), but no flicker. Callers that want a proper
+  // locomotion cycle must pass style.name.
+  if (!(style && style.name)) {
+    return {
+      state: { lastX: x, lastY: y, distAcc: 0, vxEMA: 0, vyEMA: 0, facing: facing },
+      dist: 0, dx: 0, dy: 0, teleport: false,
+    };
+  }
+  const id = style.name;
   let s = _locoCache.get(id);
   if (!s) { s = { lastX: x, lastY: y, distAcc: 0, vxEMA: 0, vyEMA: 0, facing: facing }; _locoCache.set(id, s); }
   const dx = x - s.lastX, dy = y - s.lastY;
