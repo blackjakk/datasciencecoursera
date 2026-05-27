@@ -478,8 +478,14 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   // makes it read as a floating sticker rather than stitched fabric.
   // Diagonals (NE/NW/SE/SW) still show some of the back or chest, so
   // we keep the number there.
-  const _profileOnly = (dir === "east" || dir === "west");
-  if (!_profileOnly && label != null && label !== "") {
+  // Only show the jersey number when the BACK is visible to the
+  // camera. That's north (back facing camera), NE, and NW (back
+  // partially visible at angle). South, SE, SW have the chest facing
+  // camera — back is hidden, so a number painted on the chest reads
+  // as a floating sticker (especially on top-down sprites where the
+  // visible chest area is mostly helmet). East/west are pure profile.
+  const _backVisible = (dir === "north" || dir === "north-east" || dir === "north-west");
+  if (_backVisible && label != null && label !== "") {
     // Use a CANONICAL pose sprite (south, frame 0) to determine the
     // shoulder Y once per pose. PixelLab keeps body proportions
     // consistent across directions, but per-pixel detection drifts
