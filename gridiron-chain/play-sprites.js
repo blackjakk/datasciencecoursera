@@ -594,22 +594,16 @@ function _drawJerseyNumber(ctx, label, secondary, cx, cy, scale, dir) {
   //   - Canvas positive rotation = CW visually → text top edge gets
   //     positive slope (goes down as we go right).
   //
-  //   NE: facing 45°, right at SE → right shoulder lower-right →
-  //       shoulder line "\" (positive slope) → POSITIVE rotation
-  //   NW: facing 315°, right at NE → right shoulder upper-right →
-  //       shoulder line "/" (negative slope) → NEGATIVE rotation
-  //   SE: facing 135°, chest visible, right shoulder at SW →
-  //       shoulder line "/" (negative slope) → NEGATIVE rotation
-  //   SW: facing 225°, chest visible, right shoulder at NW →
-  //       shoulder line "\" (positive slope) → POSITIVE rotation
+  //   NW: user wants tilted LEFT (left side high) → POSITIVE rotation
+  //   NE: user wants tilted RIGHT (right side high) → NEGATIVE rotation
+  //   SE / SW: chest hidden by current visibility rule, so unused.
   //
-  // Previous signs were all inverted; NE looked tilted enough that the
-  // direction error wasn't obvious, but NW user reported "too flat"
-  // because the wrong-direction rotation visually opposes the body
-  // angle, reducing the apparent tilt.
+  // (The geometric "shoulder line slope" derivation gave the opposite
+  // signs but didn't match how PixelLab actually renders the back
+  // surface visually — trusting the eyeball over the geometry.)
   const _DIAG_ROT_SIGN = {
-    "north-east": +1, "north-west": -1,
-    "south-east": -1, "south-west": +1,
+    "north-east": -1, "north-west": +1,
+    "south-east": +1, "south-west": -1,
   };
   let tx = _NUM_TX_BY_DIR[dir];
   if (tx === null) {
