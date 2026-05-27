@@ -2465,11 +2465,14 @@ function drawBall(ctx, x, y, scale = 1, opts = {}) {
   // carrier's hand position. Lets ball-render call sites that pass the
   // engine's (ballX, ballY) approximation get the right visual without
   // each site needing to do the sink lookup itself.
+  //
+  // Pose gate: ONLY shift when the closest player is in an active pose.
+  // Pre-snap everyone is in stance/idle (nobody's holding anything yet)
+  // — without this gate, the auto-shift treats the center as a carrier
+  // and lifts the ball to his chest height, making it appear to float
+  // in the offensive backfield instead of sitting at the LOS.
   if (!opts.skipCarryShift && drawPlayer._carryHandSink) {
     const now = performance.now();
-    // Pick the CLOSEST sink entry, not just first within tolerance —
-    // multiple players standing near each other (formation) would
-    // otherwise let the loop pick whichever is iterated first.
     let bestDist = Infinity, bestE = null;
     for (const k in drawPlayer._carryHandSink) {
       const e = drawPlayer._carryHandSink[k];
@@ -2478,9 +2481,11 @@ function drawBall(ctx, x, y, scale = 1, opts = {}) {
       const d = Math.hypot(dx, dy);
       if (d < bestDist) { bestDist = d; bestE = e; }
     }
-    // Tolerance: ~24 px (≈ 1.5 yds) lateral or below the foot, OR up to
-    // 8 px above (in case the engine's ball position is mid-chest already).
-    if (bestE && bestDist < 24) {
+    // Settled poses indicate the player is set in formation, not
+    // carrying — skip the shift. Active poses (carry/run/throw/reach/
+    // dive/tackled/etc.) indicate the player may have the ball.
+    const _settled = bestE && (bestE.pose === "stance" || bestE.pose === "idle" || bestE.pose === "point");
+    if (bestE && bestDist < 24 && !_settled) {
       x = bestE.x;
       y = bestE.y;
     }
