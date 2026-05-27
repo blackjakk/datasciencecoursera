@@ -349,7 +349,14 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   // then place the number at the upper-back point of the body bbox.
   // Adapts to every pose: standing puts number ~upper back, tackled
   // puts it low on the horizontal body, dive puts it on mid-torso.
-  if (label != null && label !== "") {
+  //
+  // Skip in pure profile (east/west) — the jersey number lives on the
+  // BACK and CHEST of the jersey, not on the side. Showing it in profile
+  // makes it read as a floating sticker rather than stitched fabric.
+  // Diagonals (NE/NW/SE/SW) still show some of the back or chest, so
+  // we keep the number there.
+  const _profileOnly = (dir === "east" || dir === "west");
+  if (!_profileOnly && label != null && label !== "") {
     const bc = _computeBodyCenter(src);
     // Image → ctx coords. img(x,y) → ctx(x - imgW/2, top + (y/imgH)*fh)
     const cx = (bc.upperBackX - src.width / 2) * scale;
