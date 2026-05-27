@@ -495,12 +495,16 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   // when the sprite path skips _drawPlayerImpl. The procedural renderer
   // overwrites this with a more precise per-joint value if it runs
   // (line ~2290); drawBall reads from this either way.
-  // World coords: foot at (x, y); hand ~6 px to the carrying side and
-  // ~35 px above the foot.
+  // World coords: foot at (x, y); hand at chest height. For a 104px
+  // PixelLab sprite drawn at scale 1.0 with feet at (x, y), the head is
+  // at y-90 and chest sits ~y-55 (~60% up the body). Live override:
+  // window.GC_BALL_HAND_Y_OFFSET (default -55).
+  const _ballHandY = (typeof window !== "undefined" && window.GC_BALL_HAND_Y_OFFSET != null)
+    ? window.GC_BALL_HAND_Y_OFFSET : -55;
   drawPlayer._carryHandSink = drawPlayer._carryHandSink || {};
   drawPlayer._carryHandSink[style.name || ("p_" + label)] = {
     x: x + (facing >= 0 ? 6 : -6),
-    y: y - 35,
+    y: y + _ballHandY,
     footX: x,
     footY: y,
     frameMs: performance.now(),
