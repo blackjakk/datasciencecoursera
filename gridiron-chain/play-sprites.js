@@ -58,6 +58,11 @@ const _KICK_DIRS = [
   "south-east", "east", "north-east",
   "north-west", "west", "south-west",
 ];
+// Hurdle: north-west generation failed on PixelLab; other 7 dirs landed.
+const _HURDLE_DIRS = [
+  "south", "south-east", "east", "north-east",
+  "north", "west", "south-west",
+];
 
 // Pose-key → { folder, frames, dirs }. `folder` is the on-disk directory;
 // multiple pose keys can point at the same folder (aliasing). Pose keys
@@ -96,6 +101,8 @@ const _SPRITE_POSES = {
   backpedal: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // DB cover (faces wrong way; iterate)
   stiff:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // RB stiff-arm — still running, arm out (good enough)
   kick_slide:{ folder: "block",     frames: 4, dirs: _DIRECTIONS },  // OL pass-pro slide — crouched protective stance
+  handoff:   { folder: "handoff",   frames: 4, dirs: _DIRECTIONS },  // QB→RB exchange
+  hurdle:    { folder: "hurdle",    frames: 4, dirs: _HURDLE_DIRS }, // RB jump over defender
 
   // Newer folders for poses the engine doesn't emit yet (ready when it does)
   pass:      { folder: "pass",      frames: 4, dirs: _DIRECTIONS },
