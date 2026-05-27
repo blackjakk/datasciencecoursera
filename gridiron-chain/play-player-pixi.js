@@ -34,6 +34,13 @@ const GCPlayer = (() => {
                                  // by every render() call so each draw
                                  // gets its own sprite slot regardless
                                  // of label collisions.
+  // Sprite-atlas load tracking. Textures cached BEFORE a sprite finished
+  // loading were drawn via the procedural fallback; once the atlas is
+  // fully loaded we evict ONCE so subsequent renders use the now-loaded
+  // sprites. Without this, the first few plays of a session can pin an
+  // OL in a procedural upright pose forever because the sprite landed
+  // AFTER the cache entry was created.
+  let _atlasEvictionDone = false;
 
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
@@ -198,6 +205,17 @@ const GCPlayer = (() => {
     if (!ensure()) return;
     _frameMarker++;
     _frameIdx = 0;
+    // One-shot cache eviction when the sprite atlas finishes loading.
+    // Any texture cached during the load window was drawn via the
+    // procedural fallback; once sprites are available we want fresh
+    // renders that actually use them.
+    if (!_atlasEvictionDone && typeof SpriteAtlas !== "undefined") {
+      const s = SpriteAtlas.stats();
+      if (s.loaded > 0 && s.loading === 0) {
+        _texCache.clear();
+        _atlasEvictionDone = true;
+      }
+    }
   }
 
   // Public — call per player per frame. We use a per-frame call-order
