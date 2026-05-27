@@ -2739,16 +2739,26 @@ function buildAnimForPlay(play, prevPlay) {
         drawRunTrail(ctx, centerX, cy, ballX, ballY, runT, rgba);
       }
       // HANDS-TRACK-BALL: pull the standalone ball to the carrier's
-      // tuck-hand world position (populated by _drawPlayerImpl when
-      // it rendered the carrier with cradleBall=true). Falls back to
-      // ballX/ballY (body center) for plays where the carry pose
-      // didn't fire (pre-snap, dropped balls, ragdoll, etc.).
+      // tuck-hand world position WHEN the engine's ball position is
+      // already near the carrier's foot. Pre-snap the engine places
+      // the ball at the center (LOS) while the carrier is in the
+      // backfield — overriding to carrier-hand would put the ball in
+      // the RB's hands before the snap (user-reported "float in front
+      // of RB pre-snap"). Proximity gate (< 30px) means the override
+      // only fires when the engine itself has handed the ball off.
       const _carrierName = play.rusher || play.receiver;
-      const _carrierHand = _carrierName && drawPlayer._carryHandSink
+      const _carrierEntry = _carrierName && drawPlayer._carryHandSink
         ? drawPlayer._carryHandSink[_carrierName]
         : null;
-      const _ballDrawX = _carrierHand ? _carrierHand.x : ballX;
-      const _ballDrawY = _carrierHand ? _carrierHand.y : ballY;
+      let _ballDrawX = ballX, _ballDrawY = ballY;
+      if (_carrierEntry) {
+        const dx = ballX - _carrierEntry.footX;
+        const dy = ballY - _carrierEntry.footY;
+        if (Math.hypot(dx, dy) < 30) {
+          _ballDrawX = _carrierEntry.x;
+          _ballDrawY = _carrierEntry.y;
+        }
+      }
       drawBall(ctx, _ballDrawX, _ballDrawY);
       // SPEED OPTION banner — shows the play call. Once the read fires
       // (after PITCH_T), a secondary line shows whether the QB made the
@@ -5182,14 +5192,29 @@ function buildAnimForPlay(play, prevPlay) {
         // flickers between octants per frame = visible stutter.
         drawPlayer(ctx, losX - dir * 1 + olXOff, cy + olY[i], possColor, team.secondary, "", "stance", t, dir, { role: "OL", bodyType: "BIG", name: "fg-ol-" + i });
       }
-      // Defense — pass-rush formation (5 DL + 2 LBs crashing)
+      // Defense — 11-man FG defense: 4 interior DL, 4 edge rushers/LBs,
+      // 2 wing CBs sealing the outside, 1 deep safety for return / spy.
+      // All rushers surge toward the kicker over the first 18% of the
+      // play. Pre-fix, only 4 DL were rendered — the rest of the
+      // opposing team was missing from the screen.
       const defLineY = [-30, -10, 10, 30];
       for (let i = 0; i < 4; i++) {
-        // Defenders surge toward the kicker on rush
         const surgeT = Math.min(1, t / 0.18);
         const dxRush = -dir * 30 * surgeT;
         drawPlayer(ctx, losX + dir * 2 + dxRush, cy + defLineY[i], oppColor, oppTeam.secondary, "", t < 0.20 ? "stance" : "run", t, -dir, { role: "DL", name: "fg-dl-" + i });
       }
+      // Edge rushers + OLBs — angled in from a bit wider, also crashing.
+      const edgeY = [-55, -42, 42, 55];
+      for (let i = 0; i < 4; i++) {
+        const surgeT = Math.min(1, t / 0.18);
+        const dxRush = -dir * 26 * surgeT;
+        drawPlayer(ctx, losX + dir * 1 + dxRush, cy + edgeY[i], oppColor, oppTeam.secondary, "", t < 0.20 ? "stance" : "run", t, -dir, { role: "LB", name: "fg-lb-" + i });
+      }
+      // Wing CBs — outside the wing OL, holding their leverage.
+      drawPlayer(ctx, losX + dir * 2, cy - 92, oppColor, oppTeam.secondary, "", "stance", t, -dir, { role: "CB", name: "fg-cb-0" });
+      drawPlayer(ctx, losX + dir * 2, cy +  92, oppColor, oppTeam.secondary, "", "stance", t, -dir, { role: "CB", name: "fg-cb-1" });
+      // Deep safety — sits ~8yd off the LOS as the return / fake spy.
+      drawPlayer(ctx, losX + dir * 8 * FIELD.PX_PER_YARD, cy, oppColor, oppTeam.secondary, "", "stance", t, -dir, { role: "S", name: "fg-fs" });
 
       // Ball + kicker animation
       let ballX, ballY, arc = 0, ballScale = 1, ballHidden = false;
