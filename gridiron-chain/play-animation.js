@@ -1033,9 +1033,14 @@ function buildAnimForPlay(play, prevPlay) {
       }
 
       // ── Kicker — stays back near his 35 throughout the play ──
+      // Kick pose is the CONTACT frame; ball departs at t=0, so the
+      // pose must hit its contact frame at t=0 too. Old window was 40%
+      // of FLIGHT_END so the leg was still swinging when the ball was
+      // already 30% downfield. Now the kick spans the first 8% of
+      // flight only (~contact + brief follow-through), then idle.
       drawPlayer(ctx, kickerLineX - recvDir * 4, cy, kickTeam.primary, kickTeam.secondary,
-                 "K", t < FLIGHT_END * 0.4 ? "kick" : "idle",
-                 t < FLIGHT_END * 0.4 ? Math.min(1, t / (FLIGHT_END * 0.4)) : 0, -recvDir,
+                 "K", t < FLIGHT_END * 0.08 ? "kick" : "idle",
+                 t < FLIGHT_END * 0.08 ? Math.min(1, t / (FLIGHT_END * 0.08)) : 0, -recvDir,
                  { name: "ko-kicker" });
 
       // ── Draw blockers ──
@@ -3573,19 +3578,21 @@ function buildAnimForPlay(play, prevPlay) {
             // DL who beat his man) if present, else hash by position.
             dd.archetype = (play.dlType && _DL_ARCH.indexOf(play.dlType) >= 0)
               ? play.dlType : _archForLineman(d, "DL");
-          } else if (aT < throwFrac + 0.05) {
+          } else {
             // DL bull-rushes forward to engage the kick-sliding OL.
             // Pre-snap DL is at LOS+37.5 (legal, on defense side); push
-            // drives them ~30-40px backward (toward LOS) over the rush
-            // window so they meet the retreating OL at LOS-2 to LOS-14.
-            // Eased ramp from 0 at snap so neither side jumps the LOS.
+            // drives them ~22-30px backward (toward LOS) over the rush
+            // window so they meet the retreating OL near LOS+8-15. Old
+            // push of 30-40px overshot to LOS-2.5 = stacked sprites.
+            // No aT cutoff — DL holds engaged position through play end
+            // (was teleporting back to formation home after the throw).
             // Per-DL hash varies the punch. Live-tunable via
             // window.GC_PASS_RUSH_PUSH_{MIN,RANGE}.
             const _engageRamp = Math.min(1, tt / 0.30);
             const _engageEased = _engageRamp * _engageRamp * (3 - 2 * _engageRamp);
             const _engageHash = ((i * 19 + (play.startYard || 0) * 11) >>> 0) % 100 / 100;
-            const _pushMin   = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_MIN)   || 30;
-            const _pushRange = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_RANGE) || 10;
+            const _pushMin   = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_MIN)   || 22;
+            const _pushRange = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_RANGE) || 8;
             const _engagePush = (_pushMin + _engageHash * _pushRange) * _engageEased;
             const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
             dd.x = d.x - dir * _engagePush + wobble * 0.6;
@@ -5157,7 +5164,11 @@ function buildAnimForPlay(play, prevPlay) {
       const olY = [-50, -36, -22, -8, 6, 20, 34, 48, 62];
       for (let i = 0; i < 9; i++) {
         const olXOff = (i === 0 || i === 8) ? -dir * 4 : 0;   // wings slightly back
-        drawPlayer(ctx, losX - dir * 1 + olXOff, cy + olY[i], possColor, team.secondary, "", "stance", t, dir, { role: "OL", bodyType: "BIG" });
+        // Per-OL name so _locoState gives each its own velocity cache.
+        // Without it, all 9 OL share "OL||R" as the id, overwrite each
+        // other's lastX/lastY, and oscillate vxEMA → sprite direction
+        // flickers between octants per frame = visible stutter.
+        drawPlayer(ctx, losX - dir * 1 + olXOff, cy + olY[i], possColor, team.secondary, "", "stance", t, dir, { role: "OL", bodyType: "BIG", name: "fg-ol-" + i });
       }
       // Defense — pass-rush formation (5 DL + 2 LBs crashing)
       const defLineY = [-30, -10, 10, 30];
@@ -5165,7 +5176,7 @@ function buildAnimForPlay(play, prevPlay) {
         // Defenders surge toward the kicker on rush
         const surgeT = Math.min(1, t / 0.18);
         const dxRush = -dir * 30 * surgeT;
-        drawPlayer(ctx, losX + dir * 2 + dxRush, cy + defLineY[i], oppColor, oppTeam.secondary, "", t < 0.20 ? "stance" : "run", t, -dir, { role: "DL" });
+        drawPlayer(ctx, losX + dir * 2 + dxRush, cy + defLineY[i], oppColor, oppTeam.secondary, "", t < 0.20 ? "stance" : "run", t, -dir, { role: "DL", name: "fg-dl-" + i });
       }
 
       // Ball + kicker animation
