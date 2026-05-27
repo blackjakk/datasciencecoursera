@@ -7925,6 +7925,15 @@ function setCameraMode(mode) {
       canvasPixi.style.transformOrigin = "";
     }
   }
+  // GCPlayer PIXI overlay is only refreshed in broadcast cam (no
+  // frameStart/frameEnd in topdown). Stale sprites from a prior
+  // broadcast session would otherwise stay visible as ghost players
+  // on top of the canvas2D topdown rendering. Toggle display so the
+  // overlay only shows when broadcast is actively rendering it.
+  const pixiPlayer = document.querySelector("canvas.gc-player-pixi");
+  if (pixiPlayer) {
+    pixiPlayer.style.display = (cameraMode === "broadcast") ? "" : "none";
+  }
   // Update the button states (if those buttons exist on the page yet)
   const tdBtn = document.getElementById("camTopdownBtn");
   const bdBtn = document.getElementById("camBroadcastBtn");
