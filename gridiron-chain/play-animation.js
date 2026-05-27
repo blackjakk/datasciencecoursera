@@ -2577,11 +2577,18 @@ function buildAnimForPlay(play, prevPlay) {
           // counter: ONE guard (opposite the play side) pulls across to
           //   lead the carrier into the cutback gap. Other OL fire fwd.
           // stretch: ALL OL flow lateral toward the play side ("zone
-          //   step") — synchronous slide before engaging.
+          //   step") — synchronous slide before engagement.
           // pitch: outside OL on the play side reaches out toward the
           //   sideline; backside OL drives forward.
           // inside (default): straight-ahead drive.
-          let driveX = dir * Math.min(tt * 6, 3);
+          //
+          // Drive distances were tuned for PX_PER_YARD=12 and capped at
+          // 3px (~0.25yd) — OL never reached the DL who sit at LOS+37.5
+          // (2.5yd × 15px/yd). Bumped to 20px (~1.3yd) so the OL sprite
+          // physically arrives at the DL row and engagement reads on
+          // screen. Live-tunable via window.GC_OL_RUN_DRIVE.
+          const _olDriveMax = (typeof window !== "undefined" && window.GC_OL_RUN_DRIVE) || 20;
+          let driveX = dir * Math.min(tt * _olDriveMax * 1.4, _olDriveMax);
           let driveY = 0;
           if (rt === "counter") {
             const pullSlot = -_counterSide * 1;     // guard opposite play side pulls
@@ -2593,9 +2600,11 @@ function buildAnimForPlay(play, prevPlay) {
               driveY = _counterSide * pullT * 18;
             }
           } else if (rt === "stretch") {
-            // Whole line flows toward the play side before engagement
+            // Whole line flows toward the play side before engagement.
+            // Lateral flow is the focus, so X drive is smaller than
+            // inside runs but still enough to reach the DL.
             const flowT = Math.min(1, tt * 1.4);
-            driveX = dir * Math.min(tt * 3.5, 2);
+            driveX = dir * Math.min(tt * 16, 12);
             driveY = _stretchSide * flowT * 5;
           } else if (rt === "pitch") {
             const isPlaySideOuter = Math.sign(slot) === Math.sign(_pitchSide) && Math.abs(slot) >= 1.5;
@@ -3564,19 +3573,20 @@ function buildAnimForPlay(play, prevPlay) {
             dd.archetype = (play.dlType && _DL_ARCH.indexOf(play.dlType) >= 0)
               ? play.dlType : _archForLineman(d, "DL");
           } else if (aT < throwFrac + 0.05) {
-            // DL engaged with the kick-sliding OL. Was held at d.x with
-            // ~1px wobble — but DL starts 2.5yd ahead of LOS while OL
-            // starts ~0.2yd behind LOS, so they were ~32px apart and
-            // never visually clashed ("dancing without touching" report).
-            // Drive the DL backward toward the OL ~22px (~1.8yd) over
-            // the rush window so the two sprites overlap at the LOS.
-            // Per-DL hash modulates magnitude so each rusher engages
-            // a little differently. -dir = toward defense's own endzone
-            // = toward the LOS from a DL on offense's side of the ball.
+            // DL engaged with the kick-sliding OL. DL starts at
+            // losX + dir * 2.5yd = LOS+37.5px (PX_PER_YARD = 15). OL
+            // starts at LOS-2px and kick-slides back to LOS-14px. To
+            // VISUALLY clash, the DL has to drive ~32-42px backward
+            // (toward defense's endzone, i.e. -dir) over the rush
+            // window so they arrive at the LOS itself. Per-DL hash
+            // varies the punch so each rusher engages differently.
+            // Live-tunable via window.GC_PASS_RUSH_PUSH_{MIN,RANGE}.
             const _engageRamp = Math.min(1, tt / 0.30);
             const _engageEased = _engageRamp * _engageRamp * (3 - 2 * _engageRamp);
             const _engageHash = ((i * 19 + (play.startYard || 0) * 11) >>> 0) % 100 / 100;
-            const _engagePush = (18 + _engageHash * 8) * _engageEased;   // 18-26px
+            const _pushMin   = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_MIN)   || 32;
+            const _pushRange = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_RANGE) || 10;
+            const _engagePush = (_pushMin + _engageHash * _pushRange) * _engageEased;
             const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
             dd.x = d.x - dir * _engagePush + wobble * 0.6;
             dd.y = d.y + wobble;
