@@ -314,19 +314,38 @@ function _drawSpriteTextOverlay(ctx, label, secondary, style) {
   const numSize = (typeof window !== "undefined" && window.GC_SPRITE_TEXT_SIZE != null)
     ? window.GC_SPRITE_TEXT_SIZE : 16;
   ctx.save();
+  // Pixel-align — sub-pixel positioning is the #1 reason text looks
+  // "floaty" over pixel art. Integer positions, no fractional shadows.
+  const x = 0;
+  const y = Math.round(numY);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `bold ${numSize}px Impact, Arial Black, sans-serif`;
-  // Drop shadow — softens the text into the jersey, more "stitched" feel
-  ctx.fillStyle = "rgba(0,0,0,0.7)";
-  ctx.fillText(labelStr, 0.7, numY + 0.7);
-  // Main fill — secondary (jersey number) color
+  // Monospace block letter look. Impact reads as too narrow at small
+  // sizes; bold monospace gives chunky pixel-style letterforms that
+  // match the sprite art aesthetic.
+  ctx.font = `bold ${numSize}px "Courier New", monospace`;
+  // Disable smoothing so text edges are sharp/aliased (more pixel art).
+  // Caveat: canvas text AA can't be fully disabled via API, but turning
+  // off imageSmoothing affects the surrounding compositing pipeline.
+  if (ctx.imageSmoothingEnabled !== undefined) ctx.imageSmoothingEnabled = false;
+  // Three-layer "stitched" rendering. Bottom-up:
+  //   1. STITCH OUTLINE — chunky black ring, 1.5 px wide. Sits on the
+  //      jersey fabric like a thread border.
+  ctx.lineWidth = 1.6;
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.strokeText(labelStr, x, y);
+  //   2. MAIN FILL — secondary team color, pixel-aligned.
   ctx.fillStyle = secondary || "#fff";
-  ctx.fillText(labelStr, 0, numY);
-  // Slim outline for legibility against any jersey color
-  ctx.strokeStyle = "rgba(0,0,0,0.55)";
-  ctx.lineWidth = 0.8;
-  ctx.strokeText(labelStr, 0, numY);
+  ctx.fillText(labelStr, x, y);
+  //   3. INNER SHADOW — 1-pixel down-right darker shadow. Gives a
+  //      slight raised/embossed thread look.
+  ctx.fillStyle = "rgba(0,0,0,0.30)";
+  ctx.fillText(labelStr, x + 1, y + 1);
+  // Repaint the secondary color on top so the inner shadow only shows
+  // through the "thread height" gap (~1 px offset).
+  ctx.fillStyle = secondary || "#fff";
+  ctx.fillText(labelStr, x, y);
   ctx.restore();
 }
 
