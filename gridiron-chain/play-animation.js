@@ -2549,21 +2549,31 @@ function buildAnimForPlay(play, prevPlay) {
                                 FIELD.EZ_PX + 20, FIELD.W - FIELD.EZ_PX - 20);
           const targetY = clamp(rb.y + Math.sin(angle) * radius,
                                 FIELD.TOP + 20, FIELD.BOT - 20);
-          if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
-          // Distance-proportional speed with a max-yps cap. Was a hard
-          // "if far → max speed; else snap to target" lerp — produced
-          // abrupt stops when the celebration target stopped moving.
-          // Speed scales with remaining distance so the converge eases
-          // in naturally.
+          if (p._followX == null) {
+            p._followX = p.x; p._followY = p.y;
+            p._followVX = 0;  p._followVY = 0;
+          }
+          // Velocity-based motion with per-celebrator variation so they
+          // arrive on different frames instead of stopping in unison.
           const _fdx = targetX - p._followX;
           const _fdy = targetY - p._followY;
           const _fd  = Math.hypot(_fdx, _fdy);
           const _maxPF = 14 * FIELD.PX_PER_YARD * 16 / 1000;   // ≈3.36 px/frame
+          const _cHash = ((p.y * 17 + p.x * 13) >>> 0) % 100 / 100;
           if (_fd > 0.001) {
-            const _speed = Math.min(_maxPF, _fd * 0.16);
-            p._followX += (_fdx / _fd) * _speed;
-            p._followY += (_fdy / _fd) * _speed;
+            const _desiredSpeed = Math.min(_maxPF, _fd * 0.18);
+            const _dvx = (_fdx / _fd) * _desiredSpeed;
+            const _dvy = (_fdy / _fd) * _desiredSpeed;
+            const _accel = 0.13 + _cHash * 0.06;   // 0.13-0.19
+            p._followVX += (_dvx - p._followVX) * _accel;
+            p._followVY += (_dvy - p._followVY) * _accel;
+          } else {
+            const _decay = 0.85 + _cHash * 0.08;
+            p._followVX *= _decay;
+            p._followVY *= _decay;
           }
+          p._followX += p._followVX;
+          p._followY += p._followVY;
           const _gap = Math.hypot(p._followX - targetX, p._followY - targetY);
           const celebPose = _gap < 18 ? "celebrate" : "run";
           return { ...p,
@@ -4302,7 +4312,10 @@ function buildAnimForPlay(play, prevPlay) {
             targetY = wr.y + dyYd * FIELD.PX_PER_YARD;
           }
           if (targetX != null) {
-            if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
+            if (p._followX == null) {
+              p._followX = p.x; p._followY = p.y;
+              p._followVX = 0;  p._followVY = 0;
+            }
             // Speed-capped converge motion. Cap at 15 yps (celebration
             // sprint) or 14 yps (downfield blocker — must equal or
             // exceed WR_TOP_YPS_VISUAL = 13 so they can hold the slot
@@ -4313,18 +4326,40 @@ function buildAnimForPlay(play, prevPlay) {
             const _fdx = targetX - p._followX;
             const _fdy = targetY - p._followY;
             const _fd  = Math.hypot(_fdx, _fdy);
-            // Distance-proportional speed → natural deceleration. Old
-            // code was "full speed until close, then snap to target":
-            // when the carrier got tackled, target stopped moving and
-            // the blocker's velocity dropped 14yps → 0 in one frame,
-            // producing the "fast then abrupt stop" user report. Now
-            // speed scales with remaining distance (capped at _maxPF),
-            // so the blocker decelerates smoothly as the gap closes.
-            if (_fd > 0.001) {
-              const _speed = Math.min(_maxPF, _fd * 0.16);
-              p._followX += (_fdx / _fd) * _speed;
-              p._followY += (_fdy / _fd) * _speed;
+            // Velocity-based motion with per-blocker decay variation.
+            // Was: position lerps toward target proportional to distance
+            // — when the carrier was tackled, every blocker reached
+            // their slot simultaneously and stopped at the same frame.
+            // Now: each blocker accumulates velocity (capped); during
+            // the tackle/post-play phase, velocity DECAYS at a
+            // per-blocker rate so blockers coast varying distances past
+            // their slot before stopping. Looks like real momentum +
+            // staggered reactions instead of synchronized halt.
+            const _postPlay = aT > TACKLE_START_AT + 0.02 && !isTDCeleb;
+            // Per-blocker hash → individual decay rate + responsiveness.
+            // Slower decay = more glide; varies by 6-12 frames between
+            // blockers so they stop on different frames.
+            const _bHash = ((p.y * 17 + p.x * 13) >>> 0) % 100 / 100;
+            if (_postPlay) {
+              // Coast with hash-derived decay. Range 0.85-0.93 per
+              // frame → exponential stop over 0.4-1.0s.
+              const _decay = 0.85 + _bHash * 0.08;
+              p._followVX *= _decay;
+              p._followVY *= _decay;
+            } else if (_fd > 0.001) {
+              // Pre-tackle: accelerate toward target. Target velocity
+              // is distance-proportional (smooth approach when close);
+              // velocity update is a low-pass filter so direction
+              // changes blend over ~6 frames instead of snapping.
+              const _desiredSpeed = Math.min(_maxPF, _fd * 0.18);
+              const _dvx = (_fdx / _fd) * _desiredSpeed;
+              const _dvy = (_fdy / _fd) * _desiredSpeed;
+              const _accel = 0.15 + _bHash * 0.06;   // 0.15-0.21
+              p._followVX += (_dvx - p._followVX) * _accel;
+              p._followVY += (_dvy - p._followVY) * _accel;
             }
+            p._followX += p._followVX;
+            p._followY += p._followVY;
             return { ...p,
                      x: p._followX, y: p._followY,
                      pose: targetPose,
