@@ -2582,11 +2582,14 @@ function buildAnimForPlay(play, prevPlay) {
           //   sideline; backside OL drives forward.
           // inside (default): straight-ahead drive.
           //
-          // Small drive distances are correct now that DL_DEPTH_YD=0.5
-          // puts the DL right on the LOS — OL and DL sprites overlap
-          // pre-snap, so the OL only needs a short forward push to read
-          // as "winning the rep" rather than closing a 37px gap.
-          let driveX = dir * Math.min(tt * 6, 3);
+          // DL sits at LOS+37.5px pre-snap (DL_DEPTH_YD=2.5 × 15) and
+          // OL at LOS-2px, so the snap-time gap is ~39.5px. For run
+          // blocking to READ as engagement, the OL has to drive forward
+          // ~22px (~1.5yd) to reach the DL row. Eased ramp = OL stays
+          // legal pre-snap, then fires off the ball post-snap to clash.
+          // Live-tunable via window.GC_OL_RUN_DRIVE.
+          const _olDriveMax = (typeof window !== "undefined" && window.GC_OL_RUN_DRIVE) || 22;
+          let driveX = dir * Math.min(tt * _olDriveMax * 1.4, _olDriveMax);
           let driveY = 0;
           if (rt === "counter") {
             const pullSlot = -_counterSide * 1;     // guard opposite play side pulls
@@ -2598,9 +2601,11 @@ function buildAnimForPlay(play, prevPlay) {
               driveY = _counterSide * pullT * 18;
             }
           } else if (rt === "stretch") {
-            // Whole line flows toward the play side before engagement
+            // Whole line flows toward the play side. X drive smaller
+            // than inside since the lateral flow is the focus, but
+            // still enough to engage the DL row.
             const flowT = Math.min(1, tt * 1.4);
-            driveX = dir * Math.min(tt * 3.5, 2);
+            driveX = dir * Math.min(tt * 16, 12);
             driveY = _stretchSide * flowT * 5;
           } else if (rt === "pitch") {
             const isPlaySideOuter = Math.sign(slot) === Math.sign(_pitchSide) && Math.abs(slot) >= 1.5;
@@ -3569,12 +3574,21 @@ function buildAnimForPlay(play, prevPlay) {
             dd.archetype = (play.dlType && _DL_ARCH.indexOf(play.dlType) >= 0)
               ? play.dlType : _archForLineman(d, "DL");
           } else if (aT < throwFrac + 0.05) {
-            // DL engaged with the kick-sliding OL. With DL_DEPTH_YD=0.5
-            // the DL is already nose-to-nose with the OL at the snap;
-            // jitter alone reads as a live LOS battle without the magic
-            // engagement push the deeper formation required.
+            // DL bull-rushes forward to engage the kick-sliding OL.
+            // Pre-snap DL is at LOS+37.5 (legal, on defense side); push
+            // drives them ~30-40px backward (toward LOS) over the rush
+            // window so they meet the retreating OL at LOS-2 to LOS-14.
+            // Eased ramp from 0 at snap so neither side jumps the LOS.
+            // Per-DL hash varies the punch. Live-tunable via
+            // window.GC_PASS_RUSH_PUSH_{MIN,RANGE}.
+            const _engageRamp = Math.min(1, tt / 0.30);
+            const _engageEased = _engageRamp * _engageRamp * (3 - 2 * _engageRamp);
+            const _engageHash = ((i * 19 + (play.startYard || 0) * 11) >>> 0) % 100 / 100;
+            const _pushMin   = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_MIN)   || 30;
+            const _pushRange = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_RANGE) || 10;
+            const _engagePush = (_pushMin + _engageHash * _pushRange) * _engageEased;
             const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
-            dd.x = d.x + wobble * 0.6;
+            dd.x = d.x - dir * _engagePush + wobble * 0.6;
             dd.y = d.y + wobble;
             dd.pose = "engage";
             dd.t = tt;
@@ -4308,11 +4322,12 @@ function buildAnimForPlay(play, prevPlay) {
             return { ...p, x: p.x + downfield, y: cy + driftY, pose: "run", t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: dir };
           }
           const tt = Math.min(1, aT / 0.55);
-          // OL kick-slides BACKWARDS to anchor the pocket. Small retreat
-          // because the new DL_DEPTH_YD=0.5 starts the rusher right at
-          // the LOS — the OL is already engaged at the snap and only
-          // needs a token retreat as the pocket compresses.
-          const dropBack = 3 * tt;
+          // OL kick-slides BACKWARDS to anchor the pocket (~1yd retreat
+          // over the rush window). Pre-snap OL is at LOS-2 (legal); the
+          // dropback only fires post-snap so the pre-snap shot stays
+          // clean. Pairs with the DL push below — both ramp from 0 at
+          // the snap so neither side jumps the LOS.
+          const dropBack = 12 * tt;
           const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.3;
           // OL pass-pro archetype: prefer play.olType (specific OL beat
           // on the sack play) when present, else hash by slot.
