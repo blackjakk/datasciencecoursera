@@ -490,6 +490,19 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   const tOverride = _locomotionT(loco, pose, style);
   if (tOverride != null) t = tOverride;
   facing = _locomotionFacing(loco, pose, facing);
+  // CARRY-HAND ESTIMATE — populated for every drawn player so the ball
+  // can be positioned at the carrier's tuck hand instead of body center
+  // when the sprite path skips _drawPlayerImpl. The procedural renderer
+  // overwrites this with a more precise per-joint value if it runs
+  // (line ~2290); only the actual carrier's entry is read by drawBall.
+  // World coords: ~6 px to the carrying side, ~35 px above foot.
+  drawPlayer._carryHandSink = drawPlayer._carryHandSink || {};
+  drawPlayer._carryHandSink[style.name || ("p_" + label)] = {
+    x: x + (facing >= 0 ? 6 : -6),
+    y: y - 35,
+    frameMs: performance.now(),
+    pose,
+  };
   // SPRITE FAST-PATH (top-down camera only for now). If a PixelLab
   // sprite is loaded for this pose + 8-direction, draw it and skip
   // the entire shape-math implementation. Broadcast camera falls
