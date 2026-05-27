@@ -1798,11 +1798,11 @@ class GameSimulator {
       out[`dl${s}`] = {
         role: "DL",
         waypoints: [
-          { t: 0.00, dxYd: 2.5,                 dyYd: offY },           // LOS engagement (matches formation)
-          { t: 0.20, dxYd: 2.5 - pushBack * 0.5, dyYd: offY },          // taking the punch
-          { t: 0.45, dxYd: 2.5 - pushBack,       dyYd: offY },          // driven back
-          { t: 0.78, dxYd: 2.5 - pushBack,       dyYd: offY },
-          { t: 1.00, dxYd: 2.5 - pushBack,       dyYd: offY },
+          { t: 0.00, dxYd: 0.5,                 dyYd: offY },           // LOS engagement (matches DL_DEPTH_YD=0.5)
+          { t: 0.20, dxYd: 0.5 - pushBack * 0.5, dyYd: offY },          // taking the punch
+          { t: 0.45, dxYd: 0.5 - pushBack,       dyYd: offY },          // driven back
+          { t: 0.78, dxYd: 0.5 - pushBack,       dyYd: offY },
+          { t: 1.00, dxYd: 0.5 - pushBack,       dyYd: offY },
         ],
       };
     }
@@ -4398,15 +4398,17 @@ class GameSimulator {
           return null;
         })();
         const _sackerStart = (() => {
-          // DL slot positions in YARDS (LOS+0.5, lateral by slot).
+          // DL slot positions in YARDS — must match DL_DEPTH_YD in
+          // play-render.js:makeFormation. Currently DL_DEPTH_YD=0.5
+          // (DL on the LOS, real-football accurate).
           // de1 (left end): dyYd ≈ -8;  dt1 (left tackle): dyYd ≈ -2.5
           // dt2 (right tackle): dyYd ≈ +2.5;  de2 (right end): dyYd ≈ +8
-          // LB blitzer: dyYd ≈ 0, dxYd ≈ +4
+          // LB blitzer: dyYd ≈ 0, dxYd ≈ +4 (matches lbDepth-ish)
           switch (_sackerSlot) {
-            case "de1": return { dxYd: 2.5, dyYd: -8 };
-            case "dt1": return { dxYd: 2.5, dyYd: -2.5 };
-            case "dt2": return { dxYd: 2.5, dyYd:  2.5 };
-            case "de2": return { dxYd: 2.5, dyYd:  8 };
+            case "de1": return { dxYd: 0.5, dyYd: -8 };
+            case "dt1": return { dxYd: 0.5, dyYd: -2.5 };
+            case "dt2": return { dxYd: 0.5, dyYd:  2.5 };
+            case "de2": return { dxYd: 0.5, dyYd:  8 };
             case "lb1": return { dxYd: 4,   dyYd: -3 };
             case "lb2": return { dxYd: 4,   dyYd:  0 };
             case "lb3": return { dxYd: 4,   dyYd:  3 };
@@ -4414,7 +4416,7 @@ class GameSimulator {
             case "fs":  return { dxYd: 12,  dyYd:  0 };
             case "cb1": return { dxYd: 5,   dyYd: -16 };
             case "cb2": return { dxYd: 5,   dyYd:  16 };
-            default:    return { dxYd: 2.5, dyYd:  0 };
+            default:    return { dxYd: 0.5, dyYd:  0 };
           }
         })();
         // QB at his drop position is roughly -6 yards behind LOS during

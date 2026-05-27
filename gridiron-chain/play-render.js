@@ -2692,8 +2692,19 @@ function makeFormation(losX, poss, opts = {}) {
   // NOTE: engine motion tracks (_buildPassZoneDrops in play-engine.js,
   // sacker starts, run blockers) hardcode matching depths. If you
   // change DL_DEPTH_YD or LB_BEHIND_DL_YD, also update those.
-  const DL_DEPTH_YD     = isGL ? 1.0 : 2.5;     // DL on the ball
-  const LB_BEHIND_DL_YD = isGL ? 1.5 : 3.0;     // gap-fill depth behind front
+  //
+  // DL_DEPTH_YD was 2.5 for years — calibrated for smaller sprites at a
+  // looser PX scale. At today's 104px sprites + 15 PX_PER_YARD, that
+  // 2.5yd buffer (=37.5px) is wider than the sprite half-width, so OL
+  // and DL physically can't engage at the snap. Real football has the
+  // DL on the LOS (inches off). Set to 0.5yd (=7.5px) so OL/DL overlap
+  // at the snap and the post-snap animation only has to model who's
+  // winning the rep, not where the clash happens.
+  // LB_BEHIND_DL_YD bumped to 5.0 so lbDepth stays 5.5yd — preserves
+  // existing LB positioning (LB row + every engine track that uses
+  // lbDepth=5.5 keeps working unchanged).
+  const DL_DEPTH_YD     = isGL ? 0.25 : 0.5;    // DL on the ball
+  const LB_BEHIND_DL_YD = isGL ? 2.25 : 5.0;    // gap-fill depth behind front
   const lbDepth         = DL_DEPTH_YD + LB_BEHIND_DL_YD;
 
   // Defensive line (4) — wider stance to match the OL spread.
