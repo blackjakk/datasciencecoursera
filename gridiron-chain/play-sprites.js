@@ -304,13 +304,16 @@ function _tintedSprite(srcImg, key, hexColor) {
 //   3: 2-point stance — medium crouch, LB-style set
 const _SETTLED_POSES = new Set(["stance", "idle", "point"]);
 
-// Role → stance frame. Anything not listed defaults to frame 0 (upright).
-const _ROLE_STANCE_FRAME = {
-  OL: 2, C: 2, G: 2, T: 2, LG: 2, RG: 2, LT: 2, RT: 2,
-  DL: 2, DE: 2, DT: 2, NT: 2,
-  TE: 2, TE1: 2, TE2: 2,
-  LB: 3, MLB: 3, OLB: 3, ILB: 3, ROLB: 3, LOLB: 3, WLB: 3, SLB: 3,
-};
+// Role → category. Linemen always hold the line stance; LBs hold a
+// 2-point set except when actively pointing pre-snap.
+const _LINE_ROLES = new Set([
+  "OL","C","G","T","LG","RG","LT","RT",
+  "DL","DE","DT","NT",
+  "TE","TE1","TE2",
+]);
+const _LB_ROLES = new Set([
+  "LB","MLB","OLB","ILB","ROLB","LOLB","WLB","SLB",
+]);
 
 function _stableHash(s) {
   let h = 2166136261;
@@ -324,14 +327,16 @@ function _stableHash(s) {
 
 function _settledFrame(pose, label, frames, role) {
   if (!frames || frames <= 1) return 0;
-  // Linemen and LB-class hold their position-specific stance with no twitch.
-  if (pose === "stance" && role && _ROLE_STANCE_FRAME[role] != null) {
-    return _ROLE_STANCE_FRAME[role];
-  }
-  // Skill players + idle/point: hold frame 0, with a sparse twitch so the
+  // Linemen are at the LOS in their stance regardless of which settled
+  // pose the engine emits — run plays use "stance" for OL pre-snap, pass
+  // plays fall through to "idle". Both should render the 3-point set.
+  if (_LINE_ROLES.has(role)) return 2;
+  // LBs hold a 2-point crouch unless they're the pre-snap pointer
+  // (pose="point" → upright, mimicking the call-out).
+  if (_LB_ROLES.has(role)) return pose === "point" ? 0 : 3;
+  // Skill players: frame 0 with a sparse, deterministic twitch so the
   // pre-snap shot isn't perfectly still. ~18% of players twitch briefly
-  // (8% of a 2.0–5.5s period) to a random non-zero frame; per-player
-  // hash of the jersey label keeps the choice deterministic.
+  // (8% of a 2.0–5.5s period) to a random non-zero frame.
   const h = _stableHash((label || "") + "|" + pose);
   if ((h % 100) >= 18) return 0;
   const periodMs = 2000 + (h % 3500);
@@ -364,6 +369,15 @@ function _velocityToDirection(vx, vy, facing) {
 // `t` is the pose-internal time (0..1 for animation cycles).
 function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, secondary, style) {
   if (!_spritesEnabled) { _lastMiss.pose=pose; _lastMiss.reason="atlas-disabled"; _lastMiss.count++; _bumpMiss(pose,"atlas-disabled"); return false; }
+  // Lineman/LB pose re-bucketing — the engine emits "idle" for OL pre-snap
+  // on pass plays (line 4359 in play-animation.js, default catch-all), but
+  // a lineman is never truly "idle"; they're set at the LOS. Reroute to
+  // the multi-frame "stance" folder so _settledFrame can pick the
+  // position-appropriate frame (3-point / 2-point).
+  const _role = style && style.role;
+  if (pose === "idle" && (_LINE_ROLES.has(_role) || _LB_ROLES.has(_role))) {
+    pose = "stance";
+  }
   const def = _SPRITE_POSES[pose];
   if (!def) { _lastMiss.pose=pose; _lastMiss.reason="unknown-pose"; _lastMiss.count++; _bumpMiss(pose,"unknown-pose"); return false; }
   const dir = _velocityToDirection(vx || 0, vy || 0, facing);
