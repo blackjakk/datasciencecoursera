@@ -39,9 +39,14 @@
 const _SPRITE_BASE_URL = "sprites/";
 const _SPRITE_FRAME_SIZE = 92;   // PixelLab default; tracks generator output
 // Multiplier applied to native sprite pixel size when drawing on field.
-// Our 104px PixelLab sprites need to scale down to match the ~25-30px
-// procedural player render. Tune live (window.GC_SPRITE_SCALE override).
-const _SPRITE_SCALE = 0.3;
+// 104px PixelLab sprite × 0.6 = ~62px on-field; matches procedural player
+// height. Tune live via window.GC_SPRITE_SCALE.
+const _SPRITE_SCALE = 0.6;
+// Procedural _drawPlayerImpl renders with FEET at the (x, y) point and
+// the body extending up. Our sprite has its visual center near the chest,
+// so we offset the draw downward by half a sprite height to align feet.
+// PixelLab "low top-down" sprites have feet at ~85% Y, so offset = 0.35.
+const _SPRITE_FOOT_OFFSET_Y = 0.35;
 
 // Direction order matches PixelLab's rotation set.
 const _DIRECTIONS = [
@@ -242,8 +247,13 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing) {
     : _SPRITE_SCALE;
   const fw = src.width * scale;
   const fh = src.height * scale;
-  // Sprite is drawn centered on the player's local origin.
-  ctx.drawImage(tinted, -fw / 2, -fh / 2, fw, fh);
+  // Draw with feet at the local origin (procedural _drawPlayerImpl puts
+  // feet at (x,y)). PixelLab sprites have head at top, feet near bottom,
+  // so the foot is at ~+_SPRITE_FOOT_OFFSET_Y * sprite_height from center.
+  const foot = (typeof window !== "undefined" && window.GC_SPRITE_FOOT_OFFSET_Y != null)
+    ? window.GC_SPRITE_FOOT_OFFSET_Y
+    : _SPRITE_FOOT_OFFSET_Y;
+  ctx.drawImage(tinted, -fw / 2, -fh / 2 - fh * foot, fw, fh);
   return true;
 }
 
