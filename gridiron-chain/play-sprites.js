@@ -95,6 +95,7 @@ const _SPRITE_POSES = {
   drop_step: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // QB dropback
   backpedal: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // DB cover (faces wrong way; iterate)
   stiff:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // RB stiff-arm — still running, arm out (good enough)
+  kick_slide:{ folder: "block",     frames: 4, dirs: _DIRECTIONS },  // OL pass-pro slide — crouched protective stance
 
   // Newer folders for poses the engine doesn't emit yet (ready when it does)
   pass:      { folder: "pass",      frames: 4, dirs: _DIRECTIONS },
