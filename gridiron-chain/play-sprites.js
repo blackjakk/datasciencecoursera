@@ -532,7 +532,7 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
     // base + explicit per-direction shift toward the actual back.
     // Live-tunable via window.GC_NUM_DIAG_BACK_DX / _DY.
     const _diagDx = (typeof window !== "undefined" && window.GC_NUM_DIAG_BACK_DX != null) ? window.GC_NUM_DIAG_BACK_DX : 5;
-    const _diagDy = (typeof window !== "undefined" && window.GC_NUM_DIAG_BACK_DY != null) ? window.GC_NUM_DIAG_BACK_DY : 0;
+    const _diagDy = (typeof window !== "undefined" && window.GC_NUM_DIAG_BACK_DY != null) ? window.GC_NUM_DIAG_BACK_DY : 3;
     let dxOff = 0, dyOff = 0;
     if (dir === "north-east")      { dxOff = -_diagDx; dyOff = _diagDy; }
     else if (dir === "north-west") { dxOff =  _diagDx; dyOff = _diagDy; }
