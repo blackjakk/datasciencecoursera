@@ -2992,6 +2992,15 @@ function buildAnimForPlay(play, prevPlay) {
         incOffsetX = dir * 15;
         incOffsetY = sideSign * 30;
         incArcMul = 1.0;
+      } else if (r === "pd") {
+        // PASS DEFLECTION — defender's hand gets to the ball at the
+        // catch frame, knocking it short of the WR. Without an offset
+        // the ball flew clean to the WR's hands and just dropped — no
+        // visible deflection. Small backward + lateral offset puts
+        // the ball in front of the WR after the swat.
+        incOffsetX = -dir * 18;
+        incOffsetY = sideSign * 10;
+        incArcMul = 0.92;
       }
     }
     // Pick receiver lane deterministically per play (screens always go to the RB)
@@ -3059,9 +3068,13 @@ function buildAnimForPlay(play, prevPlay) {
                   : wrChoice === "te"  ? (targetY < cy ? idxS1 : idxS2)
                   :                       (targetY < cy ? idxLB3 : idxLB1);  // LB for RB checkdown
     // INT: engine emits `defender`. Dropped pick (incomplete with
-    // isDroppedPick): engine emits `dropper`. Same resolution path.
+    // isDroppedPick): engine emits `dropper`. Pass deflection
+    // (incomplete, incReason="pd"): engine emits `defender`. Same
+    // resolution path — each puts a single named defender at the ball.
+    const _isPDPlay = play.kind === "incomplete" && play.incReason === "pd";
     const _intName = (play.kind === "int" && play.defender) ? play.defender
                    : (play.isDroppedPick && play.dropper)   ? play.dropper
+                   : (_isPDPlay && play.defender)           ? play.defender
                    : null;
     if (_intName) {
       const resolved = formation.defense.findIndex(d => d && d.name === _intName);
@@ -4090,6 +4103,35 @@ function buildAnimForPlay(play, prevPlay) {
             // After the drop — frustrated, on the ground
             dd.pose = "tackled";
             dd.t = Math.min(1, (t - throwPhase - 0.15) / 0.2);
+          }
+        }
+        // PASS DEFLECTION — named PD defender (covering CB / safety /
+        // LB) leaps at the ball at the catch frame, swats it down.
+        // Distinct from a dropped pick: defender HITS the ball before
+        // the WR's hands close on it. Closes on the ball trajectory,
+        // jumps at the catch moment, lands and watches the ball drop.
+        if (_isPDPlay && i === intDefIdx) {
+          if (t < throwPhase) {
+            // Close on the ball arrival point.
+            const tt = Math.min(1, aT / throwFrac);
+            const _pdEaseT = easeOutCubic(tt);
+            dd.x = d.x + (targetX - d.x) * _pdEaseT;
+            dd.y = d.y + (targetY - d.y) * _pdEaseT;
+            if (aT > throwFrac * 0.88) dd.pose = "leap";   // wind up for the swat
+          } else if (t < throwPhase + 0.10) {
+            // SWAT FRAME — at the ball, arms extended upward.
+            dd.x = targetX - dir * 3;
+            dd.y = targetY + 2;
+            dd.pose = "leap";
+            dd.t = Math.min(1, (t - throwPhase) / 0.10);
+            dd.facing = -dir;
+          } else {
+            // Lands — back to feet, watches the ball roll away.
+            dd.x = targetX - dir * 3;
+            dd.y = targetY + 6;
+            dd.pose = aT < 0.92 ? "stiff" : "idle";
+            dd.t = 0;
+            dd.facing = -dir;
           }
         }
         return dd;
