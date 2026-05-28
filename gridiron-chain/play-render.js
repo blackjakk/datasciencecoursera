@@ -2735,7 +2735,27 @@ function makeFormation(losX, poss, opts = {}) {
   // your side until the ball moves.
   const DL_DEPTH_YD     = isGL ? 1.0 : 2.5;     // DL on the ball
   const LB_BEHIND_DL_YD = isGL ? 1.5 : 3.0;     // gap-fill depth behind front
-  const lbDepth         = DL_DEPTH_YD + LB_BEHIND_DL_YD;
+  // 3RD-AND-LONG (and PREVENT package) defensive depth rotation. Real
+  // long-yardage defenses retreat the second level into intermediate
+  // zones so nothing breaks past the sticks: LBs to "depth of marker",
+  // safeties to deep halves, CBs to off coverage. Without this every
+  // down looked the same. Triggered on (3rd/4th + 8yds+) or absurd
+  // distance (15+ regardless of down), or when engine calls PREVENT.
+  const _down = opts.down ?? 0;
+  const _ytg  = opts.ytg ?? 10;
+  const _defPkg = opts.defPackage || "";
+  const _isLongYd = !isGL && (
+    (_down >= 3 && _ytg >= 8) ||
+    _ytg >= 15 ||
+    _defPkg === "PREVENT"
+  );
+  // Base LB depth = front stack + buffer. Long-yardage pushes LBs to
+  // around the first-down marker (-2 yds so they're not chasing on the
+  // catch). Clamp to a sane intermediate (max 18yd — past that you're
+  // playing safety, not LB).
+  const _lbBase = DL_DEPTH_YD + LB_BEHIND_DL_YD;
+  const lbDepth = _isLongYd ? Math.min(18, Math.max(_lbBase, _ytg - 2))
+                            : _lbBase;
 
   // Defensive line (4) — wider stance to match the OL spread.
   // Goal-line: tighter and crashing harder.
@@ -2748,14 +2768,18 @@ function makeFormation(losX, poss, opts = {}) {
   // ── LINEBACKERS (0-3 by package) ──
   // BASE_43: 3 LBs (W/M/S). NICKEL: 2 LBs (W/M, drop SAM). DIME: 1 LB (M).
   // QUARTER: 0 LBs (5-DB look vs empty/00).
+  // Long-yardage: LBs widen the splits so the seams aren't open.
+  // Default Y offsets ~44px; long-yd ~62px.
+  const _lbYSpread = _isLongYd ? 62 : (isGL ? 28 : 44);
+  const _lbYNickel = _isLongYd ? 30 : 22;
   const lbs = [];
   if (dpDef.lb === 3) {
-    lbs.push({ x: losX + dir * lbDepth * PX, y: cy - (isGL ? 28 : 44), role: "LB" });
-    lbs.push({ x: losX + dir * lbDepth * PX, y: cy,                     role: "LB" });
-    lbs.push({ x: losX + dir * lbDepth * PX, y: cy + (isGL ? 28 : 44), role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy - _lbYSpread, role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy,              role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy + _lbYSpread, role: "LB" });
   } else if (dpDef.lb === 2) {
-    lbs.push({ x: losX + dir * lbDepth * PX, y: cy - 22, role: "LB" });
-    lbs.push({ x: losX + dir * lbDepth * PX, y: cy + 22, role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy - _lbYNickel, role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy + _lbYNickel, role: "LB" });
   } else if (dpDef.lb === 1) {
     lbs.push({ x: losX + dir * lbDepth * PX, y: cy, role: "LB" });
   }
@@ -2763,20 +2787,25 @@ function makeFormation(losX, poss, opts = {}) {
   // ── CORNERBACKS / NICKEL DBs (2-5 by package) ──
   // cb1 / cb2 press the outside WRs. cb3 (nickel) covers the slot WR3.
   // cb4 (dime) covers WR4. cb5 covers WR5 in QUARTER.
+  // Long-yardage: corners bail to off coverage (9yd) so no quick out
+  // takes the marker. Goal-line and standard down keep the press look.
   const cbWide = isGL ? 110 : 240;
+  const _cbDepth = isGL ? 3 : (_isLongYd ? 9 : 7);
+  const _nbDepth = isGL ? 3 : (_isLongYd ? 8 : 5);
   const cbs = [];
-  if (dpDef.cb >= 1) cbs.push({ x: losX + dir * (isGL ? 3 : 7) * PX, y: cy - cbWide, role: "CB" });
-  if (dpDef.cb >= 2) cbs.push({ x: losX + dir * (isGL ? 3 : 7) * PX, y: cy + cbWide, role: "CB" });
+  if (dpDef.cb >= 1) cbs.push({ x: losX + dir * _cbDepth * PX, y: cy - cbWide, role: "CB" });
+  if (dpDef.cb >= 2) cbs.push({ x: losX + dir * _cbDepth * PX, y: cy + cbWide, role: "CB" });
   // Nickel back over the slot WR3 (left-slot)
-  if (dpDef.cb >= 3) cbs.push({ x: losX + dir * 5 * PX, y: cy - slotWide - 6, role: "NB" });
+  if (dpDef.cb >= 3) cbs.push({ x: losX + dir * _nbDepth * PX, y: cy - slotWide - 6, role: "NB" });
   // Dime back over WR4 (right-slot) — sits a tick deeper
-  if (dpDef.cb >= 4) cbs.push({ x: losX + dir * 5 * PX, y: cy + slotWide - 6, role: "DB" });
+  if (dpDef.cb >= 4) cbs.push({ x: losX + dir * _nbDepth * PX, y: cy + slotWide - 6, role: "DB" });
   // QUARTER: 5th DB in the middle of the field (covers WR5 / acts as deep MIKE)
   if (dpDef.cb >= 5) cbs.push({ x: losX + dir * 7 * PX, y: cy + slotInner, role: "DB" });
 
   // 2 Safeties — goal-line: walk them into the box (single-high replaced
-  // by two-deep loaded).
-  const sDepth = isGL ? 4 : 14;
+  // by two-deep loaded). Long-yardage: drop to deep halves so nothing
+  // breaks over the top (~18-20yd vs the standard 14yd).
+  const sDepth = isGL ? 4 : (_isLongYd ? Math.min(20, Math.max(16, _ytg + 4)) : 14);
   const s1 = { x: losX + dir * sDepth * PX, y: cy - (isGL ? 30 : 56), role: "S" };
   const s2 = { x: losX + dir * sDepth * PX, y: cy + (isGL ? 30 : 56), role: "S" };
 
@@ -2819,6 +2848,15 @@ function makeFormation(losX, poss, opts = {}) {
     oline, // expose for style attachment
     personnel,
     defPackage,
+    // Long-yardage flag + computed depths. Exposed so the per-play
+    // renderer can shift engine-emitted zone-drop tracks to match
+    // the deeper formation pre-snap (engine emits tracks starting at
+    // dxYd=5.5 / fixed baselines; without a shift the LB/CB/S would
+    // snap back to standard depth on the first post-snap frame).
+    isLongYd: _isLongYd,
+    lbDepthYd: lbDepth,
+    sDepthYd:  sDepth,
+    cbDepthYd: _cbDepth,
     // Real (non-phantom) handles for code that needs to know if the slot is
     // actually on the field for this personnel (e.g., target picker).
     realRb: rb,

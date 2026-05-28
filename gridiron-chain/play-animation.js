@@ -1145,6 +1145,8 @@ function buildAnimForPlay(play, prevPlay) {
     isGoalLine: (play.startYard ?? 0) >= 95,
     personnel: play.personnel,
     defPackage: play.defPackage,
+    down: play.down,
+    ytg: play.ytg,
   });
   const team = poss === "home" ? homeTeam : awayTeam;
   const oppTeam = poss === "home" ? awayTeam : homeTeam;
@@ -3784,9 +3786,12 @@ function buildAnimForPlay(play, prevPlay) {
             }
             dd.pose = cbPose;
             dd.facing = cbFacing;
-            // Cushion (yards downfield of WR) by phase
-            const _manTrail = (typeof window !== "undefined" && window.GC_CB_TRAIL_YD != null) ? window.GC_CB_TRAIL_YD : 2;
-            const _zoneTrail = 6;
+            // Cushion (yards downfield of WR) by phase. Long-yardage
+            // bumps both man + zone cushion so the corner can't be
+            // beaten by a quick 8-12yd dig at the marker.
+            const _manTrailBase = (typeof window !== "undefined" && window.GC_CB_TRAIL_YD != null) ? window.GC_CB_TRAIL_YD : 2;
+            const _manTrail  = formation.isLongYd ? Math.max(_manTrailBase, 5) : _manTrailBase;
+            const _zoneTrail = formation.isLongYd ? 9 : 6;
             let _trailYd;
             if (jamT > 0 && aT < jamT) {
               _trailYd = 0;   // pressed at WR
@@ -3899,7 +3904,24 @@ function buildAnimForPlay(play, prevPlay) {
         if (_applySecondary && typeof MotionPlayback !== "undefined") {
           const sample = MotionPlayback.sampleTrack(_passSecondaryTrack, aT);
           if (sample) {
-            dd.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
+            // Long-yardage track shift — engine emits zone-drop tracks
+            // with baselines tied to the standard front (LB at 5.5yd,
+            // safeties at 14yd). When the formation places defenders
+            // deeper for 3rd-and-long, sampling the track without a
+            // shift would snap them back to standard depth on the first
+            // post-snap frame. Shift everything by the formation
+            // depth delta so the deeper coverage carries through the
+            // entire play.
+            let _xYdShift = 0;
+            if (formation.isLongYd) {
+              const isLBIdx2 = (i >= idxLB1 && i < idxCB1);
+              if (isLBIdx2) {
+                _xYdShift = (formation.lbDepthYd || 5.5) - 5.5;
+              } else if (i === idxS1 || i === idxS2) {
+                _xYdShift = (formation.sDepthYd || 14) - 14;
+              }
+            }
+            dd.x = losX + dir * (sample.dxYd + _xYdShift) * FIELD.PX_PER_YARD;
             dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
             // Sync sim to track ONLY if the defender is NOT actively
             // pursuing. Once pursue() takes over (post-throw, tackler
