@@ -3699,10 +3699,16 @@ function buildAnimForPlay(play, prevPlay) {
                   const toMidSign = Math.sign(cy - wrTarget.y) || 1;
                   const wrX = wrTarget.x + dir * sample.dxYd * FIELD.PX_PER_YARD;
                   const wrY = wrTarget.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
-                  // Outside leverage — CB stays a step head-on and
-                  // slightly to the WR's outside-sideline.
-                  const _cbTargetX = wrX + dir * 2;
-                  const _cbTargetY = wrY + toMidSign * -3;
+                  // Proper coverage distance — CB trails the WR by
+                  // ~2 yards with outside leverage (a few pixels to
+                  // the sideline side). Was wrX + dir * 2 = 2 PIXELS
+                  // ahead of the WR (stacked sprites, not coverage).
+                  // Only at the catch/tackle moment should the CB and
+                  // WR converge — until then they're independent.
+                  // Live-tunable via window.GC_CB_TRAIL_YD (default 2).
+                  const _cbTrailYd = (typeof window !== "undefined" && window.GC_CB_TRAIL_YD != null) ? window.GC_CB_TRAIL_YD : 2;
+                  const _cbTargetX = wrX - dir * _cbTrailYd * FIELD.PX_PER_YARD;
+                  const _cbTargetY = wrY + toMidSign * -8;   // 8px outside leverage
                   // SMOOTH FOLLOW — was a direct position copy each
                   // frame; the CB instantly teleported onto the WR at
                   // the throw moment (when this branch first fires
@@ -4837,12 +4843,14 @@ function buildAnimForPlay(play, prevPlay) {
           const tt = (t - PRE) / (1 - PRE);
           return { ...p, x: p.x + dir * tt * 80, pose: tt > 0.8 ? "idle" : "run", t: (t < 0.95 ? ((performance.now() / 333) + 0.5) % 1 : 0), facing: dir };
         }
-        // RB pass-protects on the sack. Was falling through to the
-        // idle catch-all = RB stuck at formation home (~8yd behind LOS)
-        // while everything else animated, reading as "RB disappeared".
+        // RB pass-protects on the sack. Pre-snap RB falls through to
+        // the "idle" catch-all (formation home). Post-snap, RB steps
+        // UP toward the LOS to engage a blitzer. slideX = +dir =
+        // TOWARD defense (was -dir, which moved RB DEEPER into the
+        // backfield = away from action).
         if ((p.role === "RB" || p.role === "FB") && t > PRE) {
           const tt = (t - PRE) / (1 - PRE);
-          const slideX = -dir * Math.min(tt * 12, 6);     // step up ~0.4yd
+          const slideX = dir * Math.min(tt * 30, 20);     // step up ~1.3yd toward LOS
           const slideY = (cy - p.y) * Math.min(tt * 1.3, 0.35);  // drift toward middle
           const rbPose = tt < 0.40 ? "run" : "block";
           return { ...p,
