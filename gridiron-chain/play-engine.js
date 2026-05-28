@@ -1463,6 +1463,24 @@ class GameSimulator {
   _buildPassRouteTracks(opts) {
     const { targetSlot, targetDepth, yac = 0, concept, throwT } = opts;
     const slotRouteShape = (slot, conc) => {
+      // SHORT TE/RB target — override the concept shape with a SWING/
+      // FLAT shape. At targetDepth <= 3 the QUICK_GAME shape gave the
+      // TE 0.4yd forward + 1yd sideways by break = "TE catches the ball
+      // standing on the LOS". Real 1-3yd TE/RB throws are flats and
+      // swings — early break, big lateral release, almost no vertical.
+      if (slot === targetSlot && (slot === "te" || slot === "rb") && targetDepth <= 3) {
+        // dyYd convention: positive = toward midfield, negative = toward
+        // sideline. A flat / swing leak goes OUTWARD toward the sideline
+        // the player started on (the route is direction-agnostic — the
+        // animation projects via toMidSign).
+        return {
+          breakF: 0.18,                              // very early release
+          depthFAtBreak: 0.05,                       // by break: mostly lateral
+          depth: Math.max(1, targetDepth),
+          latAtBreak: slot === "rb" ? -4.0 : -4.5,  // outward release
+          latAtCatch: slot === "rb" ? -7.0 : -7.5,  // wide flat to sideline
+        };
+      }
       switch (conc) {
         case "QUICK_GAME":   return { breakF: 0.30, depthFAtBreak: 0.40, depth: 6,  latAtBreak: 0.5, latAtCatch: slot === "te" ? -1.5 : 2.5 };
         case "DRAG_MESH":
