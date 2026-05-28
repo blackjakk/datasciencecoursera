@@ -2488,6 +2488,24 @@ function drawBall(ctx, x, y, scale = 1, opts = {}) {
     if (bestE && bestDist < 24 && !_settled) {
       x = bestE.x;
       y = bestE.y;
+      // Sprite-has-ball suppression: many of our pose sprites have a
+      // football drawn in (run/carry/stiff/etc. show the player
+      // tucking the ball; throw shows QB cocked with ball). Drawing
+      // the standalone ball on TOP of those produces a visible
+      // duplicate ("ball floating in front of RB"). Skip the
+      // standalone when the auto-shift matched such a pose — the
+      // sprite already shows the ball.
+      const _BALL_IN_SPRITE = (
+        bestE.pose === "carry"   || bestE.pose === "run"     ||
+        bestE.pose === "stiff"   || bestE.pose === "truck"   ||
+        bestE.pose === "churn"   || bestE.pose === "juke"    ||
+        bestE.pose === "spin"    || bestE.pose === "hurdle"  ||
+        bestE.pose === "throw"   || bestE.pose === "pass"    ||
+        bestE.pose === "tackled" || bestE.pose === "fall"    ||
+        bestE.pose === "ragdoll" || bestE.pose === "tumble"  ||
+        bestE.pose === "spin_fall"
+      );
+      if (_BALL_IN_SPRITE) return;
     }
   }
   // Broadcast camera: queue the ball draw to the upright overlay with
