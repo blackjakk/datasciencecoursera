@@ -4232,7 +4232,7 @@ function buildAnimForPlay(play, prevPlay) {
           qbPose = "reach";   // arms out for the pitch back
           qbT = 0;
         } else {
-          qbPose = "carry";   // got the ball, holding it
+          qbPose = "qb_carry";   // got the ball, holding it at chest (dedicated QB cradle, not RB tuck)
           qbT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
         }
       } else {
@@ -5077,10 +5077,11 @@ function buildAnimForPlay(play, prevPlay) {
           // endzone". drop_step keeps caller-set facing intact.
           qbPose = "drop_step";
         } else {
-          // Post-dropback, pre-contact — QB is scanning. Use "throw"
-          // pose (cradled ball at chest, scanning) which also keeps
-          // caller-set facing.
-          qbPose = "throw";
+          // Post-dropback, pre-contact — QB is scanning, ball at chest.
+          // Use dedicated qb_carry sprite (two-handed cradle at sternum)
+          // instead of the throw motion. Throw was a stand-in before
+          // qb_carry existed.
+          qbPose = "qb_carry";
         }
       }
       // Strip-sack ball target this frame — referenced by primary-sacker
@@ -5163,6 +5164,12 @@ function buildAnimForPlay(play, prevPlay) {
               dd.x = _stripBall.x + dir * 4;   // sacker's body slightly past the ball
               dd.y = _stripBall.y - 3;
               dd.t = Math.min(1, (tt - contactT - 0.03) / 0.20);
+              dd.facing = -dir;
+            } else if (isPrimary && _isStripSack && tt > contactT - 0.10 && tt <= contactT + 0.03) {
+              // Strip-sack contact window — arm-chop at the ball. Just
+              // before the ball pops loose and the sacker dives on it.
+              dd.pose = "strip_swat";
+              dd.t = Math.min(1, (tt - (contactT - 0.10)) / 0.13);
               dd.facing = -dir;
             } else if (isPrimary && !_isStripSack && tt > contactT + 0.15) {
               dd.pose = "celebrate";
