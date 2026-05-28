@@ -75,14 +75,22 @@ const _SPRITE_POSES = {
   celebrate: { folder: "celebrate", frames: 4, dirs: _DIRECTIONS },
 
   // Engine-emitted poses → closest existing folder
-  carry:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // ball-carrier
+  // NEW dedicated sprites (PixelLab v3, 8 directions × 4 frames):
+  carry:     { folder: "carry",        frames: 4, dirs: _DIRECTIONS },  // ball tucked under arm — every RB carry, post-catch WR
+  kick_slide:{ folder: "kick_slide",   frames: 4, dirs: _DIRECTIONS },  // OL pass-pro slide
+  backpedal: { folder: "backpedal",    frames: 4, dirs: _DIRECTIONS },  // DB cover (now faces correctly)
+  dive_forward:{ folder: "dive_forward", frames: 4, dirs: _DIRECTIONS },// horizontal lay-out dive
+  // Aliases — engine pose names that map to the new dedicated sprites.
+  // The dive/fumble-recovery/goal-line dive poses all use dive_forward.
+  dive:      { folder: "dive_forward", frames: 4, dirs: _DIRECTIONS },  // diving forward
+
+  // Existing aliased folders (no dedicated sprite yet, share base art):
   tackled:   { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // on the ground
   engage:    { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // OL/DL clash
   block:     { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // direct
   reach:     { folder: "catch",     frames: 4, dirs: _DIRECTIONS },  // receiver reach
   catch:     { folder: "catch",     frames: 4, dirs: _DIRECTIONS },  // alt key (engine uses both)
   leap:      { folder: "catch",     frames: 4, dirs: _DIRECTIONS },  // leaping catch — arms up
-  dive:      { folder: "tackle",    frames: 4, dirs: _DIRECTIONS },  // diving forward
   hit:       { folder: "tackle",    frames: 4, dirs: _DIRECTIONS },  // contact moment
   sack:      { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // QB sacked
   ragdoll:   { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // tossed body
@@ -93,14 +101,15 @@ const _SPRITE_POSES = {
   juke:      { folder: "dodge",     frames: 4, dirs: _DIRECTIONS },  // RB juke
   spin:      { folder: "dodge",     frames: 4, dirs: _DIRECTIONS },  // RB spin move (approx)
   jam:       { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // DB press at line
-  truck:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // running through hit
-  churn:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // legs churning
-  release:   { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // WR release off line
+  // Ball-in-hand poses — all use the football-tucked-under carry sprite.
+  // Per user direction: "for the carry, or any animation with ball in
+  // hand, please use 'football tucked under' sprite."
+  truck:     { folder: "carry",     frames: 4, dirs: _DIRECTIONS },  // running through hit (ball in hand)
+  churn:     { folder: "carry",     frames: 4, dirs: _DIRECTIONS },  // legs churning (ball in hand)
+  stiff:     { folder: "carry",     frames: 4, dirs: _DIRECTIONS },  // RB stiff-arm (ball in hand)
+  release:   { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // WR release off line (no ball)
   scrape:    { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // LB scrape pursuit
-  drop_step: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // QB dropback
-  backpedal: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // DB cover (faces wrong way; iterate)
-  stiff:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // RB stiff-arm — still running, arm out (good enough)
-  kick_slide:{ folder: "block",     frames: 4, dirs: _DIRECTIONS },  // OL pass-pro slide — crouched protective stance
+  drop_step: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // QB dropback (cradling ball — handled via shape math overlay)
   handoff:   { folder: "handoff",   frames: 4, dirs: _DIRECTIONS },  // QB→RB exchange
   hurdle:    { folder: "hurdle",    frames: 4, dirs: _HURDLE_DIRS }, // RB jump over defender
 
@@ -110,7 +119,7 @@ const _SPRITE_POSES = {
   dodge:     { folder: "dodge",     frames: 4, dirs: _DIRECTIONS },
 
   // Still fall through to shape math (no good alias):
-  // handoff, hurdle, stiff, kick_slide
+  // (nothing critical — all engine-emitted poses are now mapped)
 };
 
 // Per-(pose,dir,frame) raw image cache. Keyed "pose|dir|frame".
