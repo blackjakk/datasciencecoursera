@@ -690,48 +690,60 @@ function _simulateKickoffAgents(opts) {
         c.y += (dy / d) * speed;
       }
     }
-    // === BLOCKERS + ENGAGEMENT ===
-    // One unified pass: each lead's engagement check (distance + leverage,
-    // primary-exempt, fails-exempt) drives BOTH its own slowdown/drift AND
-    // the cov.engaged flag the drag loop reads below. Previously these
-    // were two separate checks that could disagree — blocker slowed while
-    // cov sprinted untouched.
+    // === BLOCKERS — POCKET MODEL + ENGAGEMENT ===
+    // Real KR blocking: blockers form a pocket AROUND the returner,
+    // interposing themselves between returner and incoming cover.
+    // They face the cover (backpedal technique) and move WITH the
+    // returner. Old code had each blocker chase their assigned cover
+    // directly — they all met cover at midfield, far from the
+    // returner. Now blockers anchor relative to the returner:
+    //   target = returner.position + (POCKET_RADIUS_YD yards toward
+    //            their assigned cov defender's bearing)
+    // So blockers fan out around the returner, each oriented toward
+    // the cov they're responsible for. As returner moves, pocket
+    // moves with him. When cov closes inside the pocket radius,
+    // blocker pivots in to engage.
+    const POCKET_RADIUS_PX = 8 * PX_PER_YD;
     for (let i = 0; i < NUM_COVER; i++) { cover[i].engaged = false; cover[i].engagedBy = -1; }
     for (let i = 0; i < NUM_BLOCKERS; i++) {
       const b = blockers[i];
       const a = blockerAssignments[i];
       const cov = cover[b.targetCov];
       let isEngaged = false;
-      // LEAD: chase cov's current position. Failed leads still chase
-      // (visible whiff at 40% speed) but never engage. Primary tackler's
-      // lead also doesn't engage — primary breaks through by design.
-      const targetX = cov.x;
-      const targetY = cov.y;
+      // POCKET TARGET — interposition point between returner and cov,
+      // at POCKET_RADIUS yards from returner along the bearing to cov.
+      let targetX, targetY;
+      const dxRC = cov.x - returner.x;
+      const dyRC = cov.y - returner.y;
+      const distRC = Math.hypot(dxRC, dyRC);
+      if (distRC > POCKET_RADIUS_PX) {
+        // Cov outside pocket — interpose at the edge of the pocket
+        targetX = returner.x + (dxRC / distRC) * POCKET_RADIUS_PX;
+        targetY = returner.y + (dyRC / distRC) * POCKET_RADIUS_PX;
+      } else {
+        // Cov breached the pocket — close on cov directly to engage
+        targetX = cov.x;
+        targetY = cov.y;
+      }
       const speedCap = a.fails ? BLOCKER_BASE_PX_F * 0.4 : BLOCKER_BASE_PX_F;
       if (!a.fails && b.targetCov !== primaryTacklerIdx) {
-        const dxc = b.x - cov.x;
-        const dyc = b.y - cov.y;
-        const distSq = dxc * dxc + dyc * dyc;
+        // Contact check uses blocker-to-cov distance
+        const dxBC = b.x - cov.x;
+        const dyBC = b.y - cov.y;
+        const distBCSq = dxBC * dxBC + dyBC * dyBC;
         if (b._engaged) {
-          // STICKY: stay engaged through normal drift jitter (36 px ≈
-          // 2.4 yd, well past the 22 px contact radius). BUT also
-          // release when the returner has clearly moved past the
-          // engaged pair — without this, a reverse-field return leaves
-          // 9 wrestling pairs stranded at midfield while the returner
-          // sprints the other way alone. Drag-toward-blocker keeps
-          // distSq small forever, so distance alone never releases.
           const distToReturner = Math.hypot(b.x - returner.x, b.y - returner.y);
           const RELEASE_DIST = 35 * PX_PER_YD;
-          if (distSq < 36 * 36 && distToReturner < RELEASE_DIST) {
+          if (distBCSq < 36 * 36 && distToReturner < RELEASE_DIST) {
             isEngaged = true;
             cov.engaged = true;
             cov.engagedBy = i;
           } else {
             b._engaged = false;
           }
-        } else if (distSq < 22 * 22) {
-          // First contact — leverage required so head-on convergences
-          // don't engage as "passing each other in open field".
+        } else if (distBCSq < 22 * 22) {
+          // First contact — leverage check: cov is on the returner side
+          // of blocker (blocker successfully interposed)
           const covToReturnerX = returner.x - cov.x;
           const covToBlockerX  = b.x - cov.x;
           if (covToReturnerX * covToBlockerX > 0
@@ -752,7 +764,7 @@ function _simulateKickoffAgents(opts) {
         b.x += (dx / d) * speed;
         b.y += (dy / d) * speed;
       }
-      // Engagement drift — engaged pair gets shoved upfield by the play.
+      // Engagement drift — engaged pair gets shoved by the play.
       if (isEngaged) {
         b.x += recvDir * ENGAGE_DRIFT_PX_F;
       }
@@ -1456,32 +1468,30 @@ function buildAnimForPlay(play, prevPlay) {
   // to be tackled — "teleport then wait" feel. Now adaptive: cap ragdoll
   // wall-time at ~1000ms by pushing cruiseEnd up on big plays.
   function runPacing(runT, actionMs) {
-    const meshEnd = 0.10;     // QB-RB exchange + first step
-    const readEnd = 0.22;     // reading the blocks, building speed
-    // Cruise window extended on long plays so the carrier doesn't stop
-    // and wait. Was 1 - 1000/dur (1s ragdoll) — left ~1s of carrier
-    // standing still at the tackle spot on long plays. 1 - 600/dur cuts
-    // that to ~600ms which is enough for the tackle visual to play.
+    // Real RBs hit top speed within 1-2 yards of the handoff, then
+    // sustain. The old curve had a long mesh+read phase (22% of time
+    // covering only 14% of yards = 0.6× speed) followed by a cruise
+    // (63% of time covering 86% of yards = 1.37× speed) — RB visibly
+    // sprinted ULTRA-FAST in the cruise to compensate for the slow
+    // start. User: "lets make normal speed throughout."
+    //
+    // New curve: brief acceleration ramp (5% of time = ~3% of yards
+    // = real handoff burst), then LINEAR cruise to 100%. Constant
+    // speed throughout the cruise.
+    const accelEnd = 0.05;
+    const accelDist = 0.03;
     const cruiseEnd = actionMs
       ? Math.max(0.78, Math.min(0.96, 1 - 600 / actionMs))
       : 0.78;
-    const meshDist  = 0.04;
-    const readDist  = 0.14;
-    const cruiseDist = 1.0;
-    if (runT < meshEnd) {
-      const t = runT / meshEnd;
-      return t * meshDist;
-    }
-    if (runT < readEnd) {
-      const t = (runT - meshEnd) / (readEnd - meshEnd);
-      const eased = t * t;
-      return meshDist + (readDist - meshDist) * eased;
+    if (runT < accelEnd) {
+      const t = runT / accelEnd;
+      return t * t * accelDist;   // ease-in for the burst
     }
     if (runT < cruiseEnd) {
-      const t = (runT - readEnd) / (cruiseEnd - readEnd);
-      return readDist + (cruiseDist - readDist) * t;
+      const t = (runT - accelEnd) / (cruiseEnd - accelEnd);
+      return accelDist + (1.0 - accelDist) * t;   // linear cruise
     }
-    return cruiseDist;                // RB has stopped; tackle / ragdoll
+    return 1.0;                      // RB has stopped; tackle / ragdoll
   }
 
   // Pre-snap callouts: only AUDIBLE (when relevant) + the "BALL SNAPPED!"
