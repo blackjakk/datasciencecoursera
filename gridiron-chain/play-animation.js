@@ -4745,12 +4745,14 @@ function buildAnimForPlay(play, prevPlay) {
       }
       // In-canvas TOUCHDOWN! banner removed — cinema overlay + chyron
       // + result card cover the scoring chrome.
-      // INT CONTEXT CARD — same treatment as fumble. User: "interception
-      // needs to have context info too." Pulls from play.passer /
-      // play.defender (intercepter) / play.intended / play.intReturnYds.
-      if (play.kind === "int" && aT > throwPhase) {
-        const intLocalT = (aT - throwPhase) / Math.max(0.001, 1 - throwPhase);
-        const fadeT = Math.min(1, intLocalT * 4) * Math.min(1, (1 - intLocalT) * 6);
+      // INT CONTEXT CARD — held until the return resolves (aT > 0.85)
+      // so the "PICK SIX" / "Touchback" / "Returned X yds" sub-line
+      // doesn't reveal the return outcome before the user has watched
+      // the runback. Was firing at aT > throwPhase = immediately after
+      // the pick, naming the result before the picker had even started
+      // running.
+      if (play.kind === "int" && aT > 0.85) {
+        const fadeT = Math.min(1, (aT - 0.85) / 0.04) * Math.min(1, (1 - aT) / 0.05);
         const lastName = (n) => String(n || "").split(/\s+/).pop().toUpperCase();
         const passer  = lastName(play.passer);
         const picker  = lastName(play.defender);
@@ -5170,9 +5172,12 @@ function buildAnimForPlay(play, prevPlay) {
         _sackBallX = qb.x; _sackBallY = qb.y;
       }
       drawBall(ctx, _sackBallX, _sackBallY, 1, _sackBallOpts);
-      // Pressure indicator — pulsing red ring around QB during the dance
+      // Pressure indicator — pulsing red ring around QB once the rush
+      // has visually broken through. Was sackT > 0.20 which tipped the
+      // user that "this is a sack" before the rusher even released. Now
+      // gated on the same rushReleaseT used by the rusher motion.
       const sackT = Math.max(0, (t - PRE) / (1 - PRE));
-      if (sackT > 0.20 && sackT < 0.86) {
+      if (sackT >= _sackRushReleaseT && sackT < 0.86) {
         const ringAlpha = 0.15 + Math.sin(sackT * Math.PI * 6) * 0.10;
         ctx.strokeStyle = `rgba(214,90,90,${ringAlpha})`;
         ctx.lineWidth = 3;
@@ -5196,8 +5201,10 @@ function buildAnimForPlay(play, prevPlay) {
         }
       }
       // STRIP-SACK banner — distinct from a clean sack. Fades in after
-      // the ball has clearly popped loose (sackT > contactT + 0.10) and
-      // resolves into the recovery call once the scrum forms.
+      // the ball has clearly popped loose (sackT > contactT + 0.10).
+      // The recovery sub-line is held until the pile has visibly
+      // settled (sackT > 0.92) so the user discovers who got it from
+      // the on-field scrum, not from the banner.
       if (_isStripSack && sackT > contactT + 0.08) {
         const fadeT = Math.min(1, (sackT - contactT - 0.08) / 0.10);
         ctx.save();
@@ -5209,9 +5216,9 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.font = "900 36px monospace";
         ctx.strokeText("STRIP-SACK!", FIELD.W / 2, 70);
         ctx.fillText("STRIP-SACK!", FIELD.W / 2, 70);
-        if (sackT > contactT + 0.30) {
-          const subFade = Math.min(1, (sackT - contactT - 0.30) / 0.10);
-          ctx.globalAlpha = fadeT * subFade;
+        if (sackT > 0.92) {
+          const subFade = Math.min(1, (sackT - 0.92) / 0.05);
+          ctx.globalAlpha = subFade;
           ctx.font = "900 22px monospace";
           ctx.fillStyle = play.recoveredByDef ? "#ff7070" : "#9be09b";
           const sub = play.recoveredByDef ? "DEFENSE RECOVERS — TURNOVER" : "OFFENSE RECOVERS";
@@ -5575,9 +5582,11 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText("LOOSE BALL — DIVE!", FIELD.W / 2, 60);
         ctx.restore();
       }
-      // Recovery callout
-      if (t > 0.82) {
-        const fadeT = Math.min(1, (t - 0.82) / 0.10);
+      // Recovery callout — held until the pile has visibly settled
+      // (was t > 0.82, before SCRUM_END = 0.88). Telling the user who
+      // got the ball before the scrum resolves is an outcome leak.
+      if (t > SCRUM_END) {
+        const fadeT = Math.min(1, (t - SCRUM_END) / 0.05);
         const isRecOff = recoveredBy === "off";
         const lbl = isRecOff
           ? `${(poss === "home" ? homeTeam : awayTeam).name.toUpperCase()} RECOVERS!`
@@ -5592,12 +5601,14 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText(lbl, FIELD.W / 2, 60);
         ctx.restore();
       }
-      // CONTEXT CARD — what play, who fumbled, who forced it, when.
-      // User: "what play did the fumble occur on? who fumbled doing
-      // what and when?" Was missing on fumble plays entirely. Pulls
-      // from play.rusher / forcedBy / yards / down / ytg.
-      if (t > 0.18 && t < 0.95) {
-        const fadeT = Math.min(1, (t - 0.18) / 0.10) * Math.min(1, (0.95 - t) / 0.05);
+      // CONTEXT CARD — what play, who fumbled, who forced it, who
+      // recovered. Held until SCRUM_END so the card never names the
+      // outcome before the user has seen it resolve on-field. Was
+      // appearing at t > 0.18 — about 200ms into the play, before the
+      // carrier had even taken the handoff, fully revealing who would
+      // fumble, who would force it, and who would recover.
+      if (t > SCRUM_END && t < 0.99) {
+        const fadeT = Math.min(1, (t - SCRUM_END) / 0.04) * Math.min(1, (0.99 - t) / 0.03);
         const lastName = (n) => String(n || "").split(/\s+/).pop().toUpperCase();
         const carrier = lastName(play.rusher);
         const forcer  = lastName(play.forcedBy);
