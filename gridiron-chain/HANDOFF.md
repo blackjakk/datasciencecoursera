@@ -12,9 +12,9 @@ Mature, deeply-featured. Recent work has shifted from contract/extension UX (set
 
 ## 2. Repository / environment
 
-- **Repo path**: `/home/user/datasciencecoursera/gridiron-chain/`
+- **Repo path**: `/home/user/datasciencecoursera/gridiron-chain/` (or Windows: `C:\Users\bsg50\PyCharmMiscProject\datasciencecoursera\gridiron-chain\`)
 - **Active branch**: `claude/football-sim-blockchain-game-b3sdq`
-- **Latest commit**: `7814b93` (scrubbable timeline + replay-clips backfill)
+- **Latest commit**: `44e26c9` (animation realism + sprite-atlas expansion arc; broadcast/replay arc shipped earlier — see § 3A)
 - **Stack**: vanilla JS, no bundler. Files concatenated via `<script src>` in `play.html` in this order: `play-data.js` → `play-franchise-core.js` → `play-franchise-season.js` → `play-franchise-stats.js` → `play-franchise-offseason.js` → `play-engine.js` → `play-broadcast.js` → `play-render.js` → `play-animation.js`. Top-level `const`/`function` declarations are cross-file accessible.
 - **Lint/test**: `node -c <file>.js` for syntax checks (no other tests). User views via CDN: `https://rawcdn.githack.com/blackjakk/datasciencecoursera/<commit>/gridiron-chain/play.html`
 - **Save layer**: `_idbPut`/`_idbGet` is primary; localStorage is the fast mirror. Auto-trim at 4MB via `_trimFranchiseForStorage`. Diagnostic: `frnSaveDiagnostics()` from devtools.
@@ -22,7 +22,150 @@ Mature, deeply-featured. Recent work has shifted from contract/extension UX (set
 
 ---
 
-## 3. Current arc — visual / broadcast / replay (this session)
+## 3. Current arc — animation realism + sprite atlas expansion (this session)
+
+The shipped focus this session was making each play TYPE read distinctly and
+realistically (so a sack doesn't look like a clean dropback, a fumble doesn't
+look like a tackle, etc.), plus generating dedicated PixelLab sprites for the
+most-aliased poses. ~40 commits, ~700 sprite files added.
+
+### Principle saved to memory (durable feedback)
+
+**`no-outcome-preview`** — the game must never tip a play's result before
+the on-field moment. No crowd cheer / SFX / banner / pressure indicator
+before its cause is visible. Five gate fixes shipped this session for the
+known leaks (sack pressure ring, strip-sack sub-banner, fumble recovery
+banner, fumble context card, INT context card). Reference memory file:
+`C:\Users\bsg50\.claude\projects\C--Users-bsg50-PyCharmMiscProject\memory\feedback_no_outcome_preview.md`.
+
+### Sprite atlas — 14 new dedicated pose folders
+
+All ball-in-hand variants live on the `football tucked unde` PixelLab character
+(`ed3c9fef-4048-48a5-b22e-1d3f17162ab0`). Defensive/OL poses on `Default`
+(`6f395002-3f23-475d-a406-f17b51605f6b`). Refs on user's capped variant
+(`488d33da-c825-44c5-a15d-23f15c646a75`).
+
+| Pose | Source | Notes |
+|---|---|---|
+| `carry` | football-tucked-under | Ball tucked, foundation for all carry-derived poses |
+| `juke` | ball-tucked | RB juke move |
+| `spin` | ball-tucked, **8 frames** | Full 360°; east/west iterated separately by user |
+| `hurdle` | ball-tucked | All 8 directions now (was 7) |
+| `truck` | ball-tucked | Pads-low driving through contact |
+| `stiff_arm` | ball-tucked | Free arm extended |
+| `kick_slide` | Default | OL pass-pro |
+| `backpedal` | Default | DB facing forward, moving back (replaces wrong-way `run` alias) |
+| `dive_forward` | Default | Lay-out dive |
+| `ref_idle` / `ref_td_signal` / `ref_first_down` / `ref_flag` / `ref_whistle` | capped ref | Penalty feature prereq |
+
+Extraction script: `sprites/_extract.py` reads downloaded PixelLab ZIPs (named
+`_carry-character.zip`, `_default-character.zip`, `_ref-character.zip`),
+remaps `frame_001..N → 0..N-1` (PixelLab v3 mode emits a reference frame at
+000 that we skip), writes to `sprites/<pose>/<direction>_<idx>.png`. The
+`SOURCES` table maps PixelLab folder-name prefixes → pose name. **When
+extending: be careful with prefixes** — `"running"` would match
+`"running_back_executing_*"` too. Use `"running-"` (with trailing dash) to
+target only the template animation folder.
+
+Atlas wiring lives in `play-sprites.js`. Each entry is `{ folder, frames, dirs }`.
+Spin is the only pose currently at `frames: 8`; all others 4. `dirs` is
+`_DIRECTIONS` for everything except `kick` (`_KICK_DIRS`, 6 dirs).
+
+### Gameplay polish (one commit per area)
+
+**Sacks** — rework into a 3-beat play: developing pass play → rusher wins
+visibly → contact + pile + celebration.
+
+- `2800-4500ms` action duration (was scaledDuration formula)
+- `contactT` range 0.62-0.75 (was 0.62-0.88); first ~65% looks like a normal pass play
+- `rushReleaseT = max(0.45, contactT - 0.12)` (was contactT - 0.35); rusher wins shortly before contact
+- QB drift is closeness-scaled bias AWAY from estimated primary rusher position (was random seeded sin)
+- All non-rushing DL release from OL at `contactT + 0.05` and converge on QB
+- Primary sacker transitions sack → celebrate at `contactT + 0.15`
+- WRs run real routes (streak/out/dig) during scan so the developing play reads
+- Per-frame rumble + crowd `bigplay` swell fire AT contact (was at snap from `_isBigPlay`)
+- OL matched to primary rusher by position-index (`primaryIdx → LT/LG/RG/RT`) gets visible extra
+  shove + lean + `engage → stiff` transition at `rushReleaseT`
+- Strip-sack (engine surfaces `play.isStripSack` / `play.recoveredByDef`): ball pops loose with
+  bounce physics, primary sacker dives onto ball instead of celebrating, pile converges on ball,
+  STRIP-SACK + recovery banner
+
+**Fumbles** — `play.forcedBy` now resolved against `formation.defense`; forcer sprints to carrier
+and arrives AT `CARRY_END` in `dive → tackled` for the visible hit. Pulsing amber halo around
+loose ball during strip + roll window. Strip arc bumped 10→16 px, roll uses 3 decaying bounces.
+Recoverer (closest pile member on recovering side) stands + celebrates at `SCRUM_END`.
+
+**Pass plays** —
+- Catch-arrival and post-catch-carry hand-tracking branches gated to `play.kind === "complete"`
+  so incomplete passes show the bounce physics instead of being yanked onto the WR's hand
+- `incOffsetX/Y` added for `incReason === "pd"` (defender swats ball off trajectory)
+- Named PD defender (`play.defender`) closes on the ball, leaps and swats at the catch frame, lands
+- Catch pose t no longer cycled by wall-clock — now driven once across the catch window (no more
+  pump-catch loop)
+- INT freeze (`280ms slowMo` + amber field flash + bigplay swell) synced to the actual pick frame
+- Big-catch / big-run / interception **pulled out of start-of-play `_isBigPlay`** — crowd
+  reactions now inline-fired from per-play render at the catch / break-through / pick moment
+- Deep-ball WR teleport fixed at the root: engine and renderer used DIFFERENT formulas to compute
+  the catch waypoint. Engine emits `play.motion.throwT`; renderer now uses that as `throwFrac`
+  when motion is present so the route-track sample at the catch frame and the post-catch `_wrSim`
+  initialization land at the same `aT`. Drop ratio kept constant at 0.42 of throwFrac.
+- Short TE/RB throws (`targetDepth <= 3` && target slot is te/rb) get a SWING/FLAT shape in
+  `_buildPassRouteTracks` — early break, big lateral release. Was QUICK_GAME shape that gave
+  the TE 0.4 yd forward + 1 yd lateral at the catch ("standing on the LOS").
+
+**Screens** — engine now emits ~30% of `isScreenCall` as WR screens (`isWRScreen` + `targetSlot=wr1|wr2`,
+`isStripSack`/`recoveredByDef`-style structured payload). Render unblocked: `wrChoice` honors
+engine's `targetSlot` on screens instead of hardcoding "rb". `screenSide` follows the carrier
+(wr1 → top, wr2 → bottom). OL on screens: sell window 0→0.18, release ~6.3 yd downfield, anchor
+on `cy + screenSide * 60` so convoy STACKS on the catch-side sideline.
+
+**3rd-and-long defense** (`makeFormation` in `play-render.js`) — triggers on `(down>=3 && ytg>=8)`,
+`ytg >= 15`, or `defPackage === "PREVENT"`. LBs to depth `max(base, ytg - 2)` capped 18 yd,
+splits widen 44→62 px laterally. Safeties to `min(20, max(16, ytg + 4))`. CBs press 7 → off 9.
+CB cushion in coverage man 2 → 5, zone 6 → 9. Engine zone-drop tracks shifted by formation depth
+delta in `def.map` secondary-track sample so LBs/S don't snap back to standard hook depth
+post-snap. Formation exposes `isLongYd / lbDepthYd / sDepthYd / cbDepthYd`.
+
+**Stride frequency** — was fixed wall-clock 3 Hz on run carrier + pre-catch WR. Decoupled from
+world motion → ice-skating at high speeds (long runs read as "too fast") and leg-flailing at low
+speeds (short routes read as "teleport at catch"). Both now use velocity-derived
+`strideHz = clamp(yps / 2, 2.0, 5.5)`.
+
+**TD callout timing** — bumped nine in-play thresholds (run-TD carrier celebrate, run-TD
+fireworks, pass-TD celebrators, run-TD celebrators, pass-TD cinema fireworks, KR RETURN TD!,
+blocked-FG TOUCHDOWN!, punt cinema HOUSE-CALL, punt top-down HOUSE-CALL) so celebrations only fire
+after the carrier has visibly crossed the goal line. Per the `no-outcome-preview` principle.
+
+**KR/PR** — facings fixed across the punt return path (returner, engaged chaser, free pursuer,
+blockers; geometry analysis around `aheadOffset` in the punt render). KR was already correct.
+
+**FG** — good-FG flight window extended from `t < 0.78` to `t < 0.95` (was leaving ballX/ballY
+undefined for the IT'S GOOD! banner window, invisible-ball bug). Post-uprights overshoot bumped
+30 → 55 px so the ball visibly arcs THROUGH the posts during the banner.
+
+### Latest commits on this arc
+
+- `44e26c9` — empty commit to retry CI after a runner-allocation transient
+- `9170f8e` — ref animation pack (5 poses, 8 dirs, 160 files)
+- `ad07150` — spin 8-frame regen + dedicated `stiff_arm` folder
+- `c8bb9c2` — RB highlight pack (juke / spin / hurdle / truck)
+- `370c273` — carry / kick_slide / backpedal / dive_forward (first sprite batch)
+- `ab14f50` — short TE/RB swing-flat route override
+- `7bacbbd` — catch pose single-fire + crowd-at-contact + INT freeze
+- `6dbc681` — TD callout threshold sweep
+- `efbd043` — no-outcome-preview audit gates
+- `4b9cded` — deep-ball WR teleport root-cause fix
+- `9b0230c` — velocity-derived stride
+- `ae5a8a4` — 3rd-and-long defense
+- `6d4d899` — strip-sack visual
+- `900bb9f` — sack realism rework
+- `4ed1ad9` — fumble polish
+
+---
+
+## 3A. Earlier arc — visual / broadcast / replay (prior sessions)
+
+Foundation for the current arc. Don't redo.
 
 Recent commits on this arc:
 - `82000b7` — replay system + saved highlights (SportsCenter Top 10 style)
@@ -228,6 +371,15 @@ NFL 2024 uses 11 personnel (TRIPS) on ~62% of plays. All five playbooks (BALANCE
 
 | Symptom | Cause | Status |
 |---|---|---|
+| Crowd cheered before sack happened | Sack in `_isBigPlay`; SFX fired at snap | Fixed (`7ff8650`) — per-frame trigger at contactT |
+| WR teleports under deep ball at catch | Engine `throwT` and renderer `throwFrac` from different formulas (2200/1000 floor vs 1200/700) — engine track waypoints at one aT, renderer transitions at another | Fixed (`4b9cded`) — renderer uses engine `throwT` when `play.motion` present |
+| 1-yard TE pass — TE barely moves, ball arrives at LOS | QUICK_GAME shape with `targetDepth=1` gave TE 0.4 yd forward + 1 yd lateral by catch | Fixed (`ab14f50`) — swing/flat shape override at `targetDepth <= 3` for TE/RB target |
+| 26-yard run looks too fast / 4-yard catch teleports | Wall-clock 3 Hz stride decoupled from world motion — ice-skating at high speeds, leg-flailing at low | Fixed (`9b0230c`) — velocity-derived stride for run carrier + pre-catch WR |
+| FG ball disappears before uprights on good kick | `t < 0.78` branch closed with no continuation; `ballX/ballY` undefined at banner time | Fixed (`7ff8650`) — extended flight window to 0.95 |
+| TD callouts fire while runner still 10 yd from goal | Per-play t-thresholds at 0.82-0.88 don't track actual goal-line crossing on long plays | Fixed (`6dbc681`) — bumped to 0.92-0.95 across run / pass / KR / punt / blocked-FG TD callouts |
+| Incomplete pass ball invisible during bounce | Catch-arrival hand-track and post-catch tuck both pulled ball to receiver hand regardless of `play.kind` | Fixed (`859336e`) — branches gated to `complete`; `skipCarryShift: true` on bounces |
+| Punt return blockers face the returner | Position math correct but `facing` sign inverted for the punt path | Fixed (`859336e`) — facings flipped for chasers / blockers / free pursuer |
+| `2026-05-28` CI failed at "Set up job" in 2s | GitHub Actions runner-allocation transient (no setup happened, no log) | Resolved (`44e26c9`) — empty commit re-triggered, green |
 | WR lining up out of bounds in broadcast cam | `projectBroadcast` used canvas-internal coords, didn't match upright canvas geometry | Fixed (`a68d701`) — full CSS pipeline math |
 | Players landing off-field after tilt tweak | Changed TILT/PERSPECTIVE constants without re-deriving sprite layer positions | Reverted (`f3099b3`) |
 | Replays tab crashed on old saves | `franchise.replayClips` undefined; two stale `franchise.highlights` refs | Fixed (`7814b93`) — backfill + property rename |
@@ -246,6 +398,16 @@ NFL 2024 uses 11 personnel (TRIPS) on ~62% of plays. All five playbooks (BALANCE
 ---
 
 ## 8. Next steps (prioritized)
+
+### Top of queue (animation arc continuation)
+
+1. **Penalty feature** — engine emits `play.kind === "penalty"` (or flag-on-the-play during another kind), render shows the ref throwing the flag + banner + accept/decline UI + yardage apply. **Ref sprites are ready** (`ref_idle / ref_td_signal / ref_first_down / ref_flag / ref_whistle` all 8 dirs landed `9170f8e`). Largest visible feature gap left.
+2. **Strip/swat sprite** — ~8 generations on Default character. Closes the strip-sack visual gap (DL/CB swiping at ball during forced fumble).
+3. **Fall variant split** — ~24 generations. Break the single `fall` sprite into `tackled_forward` / `tackled_back` / `ragdoll` so the 5 aliased events (tackled, sack, ragdoll, tumble, spin_fall) read more distinctly.
+4. **QB ball-in-hand poses** — `qb_set` (ball cocked at ear), `qb_scramble` (running with ball). 16 generations. Current `pass` sprite covers throw motion but no ball-in-hand pre-throw.
+5. **Pre-snap motion / shifts** — engine emit + render slide. Visually free variety; every play looks less identical.
+6. **Verification sit-and-watch pass** — recommended before next big feature. Lots of changes since last full review.
+7. **Task #47 ball position (RB area)** — lingering pre-snap ball-near-RB report; needs new sprite-aware repro.
 
 ### PIXI / WebGL migration (committed direction — Tier 3 from session art-direction discussion)
 
@@ -384,23 +546,27 @@ You're continuing mid-session work on GridironChain. Read this carefully:
 
 ## 10. Compact context (paste this as the opening message)
 
-> Continuing work on **GridironChain**, a vanilla JS NFL franchise simulation at `/home/user/datasciencecoursera/gridiron-chain/`. Active branch: `claude/football-sim-blockchain-game-b3sdq`. Latest commit: `7814b93`. Files concatenated via `<script src>` in `play.html` — top-level `const`/`function` declarations are cross-file accessible. No build step. Syntax check with `node -c <file>.js`. After commit + push, share `https://rawcdn.githack.com/blackjakk/datasciencecoursera/<commit>/gridiron-chain/play.html`.
+> Continuing work on **GridironChain**, a vanilla JS NFL franchise simulation at `/home/user/datasciencecoursera/gridiron-chain/`. Active branch: `claude/football-sim-blockchain-game-b3sdq`. Latest commit: `44e26c9`. Files concatenated via `<script src>` in `play.html` — top-level `const`/`function` declarations are cross-file accessible. No build step. Syntax check with `node -c <file>.js`. Deploys to GitHub Pages on push (`.github/workflows/pages.yml`).
 >
-> **Current arc — visual / broadcast / replay** (last ~5 commits):
-> - Broadcast cam is now default. Two-canvas architecture: `#field` tilted via CSS rotateX(38°) scaleY(1/cos(38°)), `#field-uprights` flat overlay for billboarded sprites depth-sorted via `_spriteQueue`.
-> - `projectBroadcast` does the full CSS pipeline (scaleY → rotateX around transformOrigin → wrap perspective with 50%/80% origin → screen → upright-canvas internal). Geometry cached in `_bcastGeom`, invalidated on resize + camera change. **Don't tweak `BROADCAST_TILT_DEG=38` or `BROADCAST_PERSPECTIVE_PX=1100` in isolation** — coupled across JS and CSS.
-> - Replay system: `_scoreHighlight` + `_extractReplayClips` save top 7 plays per game to `franchise.replayClips`. `frnReplayClip` plays a synthetic gameResult at 0.5x. Replays tab has scope tabs (Top 10 week / All week / My Team / Season Top 25).
-> - Week-recap modal pops once per completed week via `_showWeekRecapIfReady()`, gated by `franchise._lastRecapSeen`.
-> - Scrubbable timeline DOM-injected into field-wrap (NOT part of HUD render — HUD rebuilds inner HTML). Play/pause, restart (↺), drag track, elapsed time.
-> - `_backfillReplayClips()` initializes empty array for old saves; historical games can't be reconstructed since sim drops plays after storage.
+> **Current arc — animation realism + sprite atlas expansion** (~40 commits this session):
+> - 14 new dedicated pose folders in `sprites/`. Ball-in-hand on `football tucked unde` PixelLab character (`ed3c9fef`). Defensive/OL on `Default` (`6f395002`). Refs on user's capped variant (`488d33da`). New poses: `carry / juke / spin (8-frame) / hurdle / truck / stiff_arm / kick_slide / backpedal / dive_forward / ref_idle / ref_td_signal / ref_first_down / ref_flag / ref_whistle`.
+> - Extract script at `sprites/_extract.py`. Maps PixelLab folder prefixes → pose name. **Be careful with prefix collisions** — e.g. `"running"` matches `"running_back_executing_*"` too; use `"running-"` (trailing dash) for the template folder.
+> - **`no-outcome-preview` principle saved to feedback memory** — never tip a play's result before it visually resolves on field. Reference: `~/.claude/projects/.../memory/feedback_no_outcome_preview.md`. Already gated 5+ leaks (sack pressure ring, strip-sack sub-banner, fumble recovery banner + context card, INT context card, TD callout timing across run/pass/KR/punt/blocked-FG).
+> - **Sack rework**: action 2800-4500ms, contactT 0.62-0.75, rushReleaseT = max(0.45, contactT-0.12), QB drift biased away from estimated rusher, pile convergence, matched-OL "lost the rep" beat at rushReleaseT, strip-sack visual + recovery banner. Crowd reaction fires per-frame at contactT (not at snap from `_isBigPlay`).
+> - **Pass play**: catch flash + INT freeze (per-frame trigger), catch pose single-fire (no pump-loop), PD viz, deep-ball teleport fixed (use engine `throwT` as renderer `throwFrac` when `play.motion` present), short TE/RB swing-flat shape override at `targetDepth <= 3`.
+> - **Screens**: WR screen variant emit (~30% of `isScreenCall`), `wrChoice` honors engine `targetSlot`, `screenSide` follows carrier, OL convoy stacks on catch-side sideline.
+> - **3rd-and-long defense** in `makeFormation` — LBs to `max(base, ytg-2)` capped 18, S to deep halves, CBs off 9. Engine zone-drop tracks shifted by formation depth delta in def.map.
+> - **Stride frequency** velocity-derived (was fixed 3 Hz wall-clock) for run carrier + pre-catch WR.
 >
 > **Earlier shipped foundations** (settled, don't redo): all three contract screens have portraits + tier-styled names + raise math + hover-preview cap bars + `_buildExtensionPitch` data block. Demand cooldown via `contract.startSeason` (7 creation sites, backfilled for legacy). Player legacy tier system (LEGEND/ICON/ELITE/PRO) via `playerLink`. Nicknames flag-only (never rewrite `p.name`). HOF voting annual + class-based. Engine physics layer with `p._wear`/`p._stress`/`p._bodyWear` (21 regions), force-scaled hit wear, bimodal ACL spike, concussion engine with CTE arc, hit mechanism + UR/ejection discipline. All major stat categories in NFL elite bands.
 >
-> **Open priorities** (from arc + prior reassessments):
-> 1. Sideline graphic flush with field bottom (visual continuity)
-> 2. Player art rebuild (current sprites look flat vs upgraded field — ask user first)
-> 3. Mechanism / UR / ejection visuals in real-time play log
-> 4. Engine Phase 5 — smart pickers (share/count/touches modes per slot)
-> 5. Contract follow-ups: AI inbound offers for unhappy stars, custom AAV slider, price-aware verdict, comp pick surplus value
+> **Open priorities** (top of queue):
+> 1. **Penalty feature** — engine emits flag-on-play, render uses the new ref sprites (flag/whistle/first_down/td_signal/idle) for accept/decline UI + yardage apply. Largest visible feature gap.
+> 2. Strip/swat sprite (~8 gens, closes strip-sack polish).
+> 3. Fall variant split (~24 gens, breaks 5-event `fall` aliasing into 3 distinct poses).
+> 4. QB ball-in-hand poses (`qb_set` + `qb_scramble`, ~16 gens).
+> 5. Pre-snap motion / shifts (engine + render).
+> 6. Verification sit-and-watch pass on user side.
+> 7. PIXI / WebGL migration (Tier 3) — multi-session work, see § 8.
 >
 > **Conventions**: never rewrite `p.name`. Tier system through `playerLink(p)`. Migrations version-flagged on `franchise.*`. Contracts include `startSeason` + `signedOvr`. Verify with `node -c`. For UI, also verify in browser via Playwright (templates in `/tmp/snap_*.mjs` — `python3 -m http.server 8765` in repo root). Commit + push each change. Ask before broad architectural moves or before touching broadcast cam math.
