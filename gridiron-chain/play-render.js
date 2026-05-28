@@ -508,15 +508,21 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   // when the sprite path skips _drawPlayerImpl. The procedural renderer
   // overwrites this with a more precise per-joint value if it runs
   // (line ~2290); drawBall reads from this either way.
-  // World coords: foot at (x, y); hand at chest height. For a 104px
-  // PixelLab sprite drawn at scale 1.0 with feet at (x, y), the head is
-  // at y-90 and chest sits ~y-55 (~60% up the body). Live override:
-  // window.GC_BALL_HAND_Y_OFFSET (default -55).
+  // World coords: foot at (x, y); ball tucked at waist/hip height.
+  // For a 104px PixelLab sprite at scale 1.0 with feet at (x, y),
+  // the head is at y-90, chest ~y-55, waist ~y-35. A real football
+  // tuck is at the WAIST under the arm — the previous -55 put the
+  // ball at neck/shoulder height, looking like it floats above the
+  // body. Live override: window.GC_BALL_HAND_Y_OFFSET (default -35).
+  // X offset is small (±4) so the ball sits at the side of the body
+  // rather than visibly detached in front of it.
   const _ballHandY = (typeof window !== "undefined" && window.GC_BALL_HAND_Y_OFFSET != null)
-    ? window.GC_BALL_HAND_Y_OFFSET : -55;
+    ? window.GC_BALL_HAND_Y_OFFSET : -35;
+  const _ballHandX = (typeof window !== "undefined" && window.GC_BALL_HAND_X_OFFSET != null)
+    ? window.GC_BALL_HAND_X_OFFSET : 4;
   drawPlayer._carryHandSink = drawPlayer._carryHandSink || {};
   drawPlayer._carryHandSink[style.name || ("p_" + label)] = {
-    x: x + (facing >= 0 ? 6 : -6),
+    x: x + (facing >= 0 ? _ballHandX : -_ballHandX),
     y: y + _ballHandY,
     footX: x,
     footY: y,
@@ -2488,24 +2494,6 @@ function drawBall(ctx, x, y, scale = 1, opts = {}) {
     if (bestE && bestDist < 24 && !_settled) {
       x = bestE.x;
       y = bestE.y;
-      // Sprite-has-ball suppression: many of our pose sprites have a
-      // football drawn in (run/carry/stiff/etc. show the player
-      // tucking the ball; throw shows QB cocked with ball). Drawing
-      // the standalone ball on TOP of those produces a visible
-      // duplicate ("ball floating in front of RB"). Skip the
-      // standalone when the auto-shift matched such a pose — the
-      // sprite already shows the ball.
-      const _BALL_IN_SPRITE = (
-        bestE.pose === "carry"   || bestE.pose === "run"     ||
-        bestE.pose === "stiff"   || bestE.pose === "truck"   ||
-        bestE.pose === "churn"   || bestE.pose === "juke"    ||
-        bestE.pose === "spin"    || bestE.pose === "hurdle"  ||
-        bestE.pose === "throw"   || bestE.pose === "pass"    ||
-        bestE.pose === "tackled" || bestE.pose === "fall"    ||
-        bestE.pose === "ragdoll" || bestE.pose === "tumble"  ||
-        bestE.pose === "spin_fall"
-      );
-      if (_BALL_IN_SPRITE) return;
     }
   }
   // Broadcast camera: queue the ball draw to the upright overlay with
