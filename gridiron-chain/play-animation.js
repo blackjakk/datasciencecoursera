@@ -511,7 +511,17 @@ const _momentCinema = (() => {
 // the end-fraction of that phase (0..1). Animation uses these
 // instead of hard-coded constants so the ball-flight + return ratios
 // automatically scale with the play's actual yardage.
-const ST_YPS_VISUAL = 14;     // real-NFL-ish (~13 yps). Was 24 = double speed.
+// Ball travels FAST on ST plays (real kickoff ~20-25 yps horizontal,
+// hangs in the air). Players move at real-football top speed (~14 yps).
+// Separating these matters because:
+//   - Ball must arrive faster than coverage can converge (otherwise
+//     cov beats the ball to the catch point = unrealistic)
+//   - Returner running back the ball does so at NORMAL human speed
+const ST_BALL_YPS    = 24;
+const ST_PLAYER_YPS  = 14;
+// Legacy alias — anything outside the ST timing function still uses
+// this as a single "speed" knob; tune player speed via ST_PLAYER_YPS.
+const ST_YPS_VISUAL  = ST_PLAYER_YPS;
 function _stPlayTiming(opts) {
   const {
     ballYds        = 0,
@@ -521,14 +531,16 @@ function _stPlayTiming(opts) {
     minActionMs    = 1400,
     maxActionMs    = 8000,
   } = opts || {};
-  const distYds   = Math.abs(ballYds) + Math.abs(runYds);
-  const rawAction = (distYds / ST_YPS_VISUAL) * 1000;
-  const actionMs  = clamp(rawAction, minActionMs, maxActionMs);
-  // When the action min/max clamps, scale ball/run proportionally
-  // so phase ratios stay honest.
-  const scale     = rawAction > 0 ? actionMs / rawAction : 1;
-  const ballMs    = Math.abs(ballYds) / ST_YPS_VISUAL * 1000 * scale;
-  const runMs     = Math.abs(runYds)  / ST_YPS_VISUAL * 1000 * scale;
+  // Ball and player phases use DIFFERENT speeds. Ball travels fast
+  // (hangtime + arc), players move at real-football speed during the
+  // run-back. Defenders are therefore slower than the ball (correct).
+  const rawBallMs   = Math.abs(ballYds) / ST_BALL_YPS   * 1000;
+  const rawRunMs    = Math.abs(runYds)  / ST_PLAYER_YPS * 1000;
+  const rawAction   = rawBallMs + rawRunMs;
+  const actionMs    = clamp(rawAction, minActionMs, maxActionMs);
+  const scale       = rawAction > 0 ? actionMs / rawAction : 1;
+  const ballMs      = rawBallMs * scale;
+  const runMs       = rawRunMs  * scale;
   const duration  = Math.round(presnapMs + actionMs + payoffMs);
   return {
     duration,
