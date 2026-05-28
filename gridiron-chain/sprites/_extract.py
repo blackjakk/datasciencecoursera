@@ -63,6 +63,18 @@ SOURCES = [
     ("quarterback_executing_a_three_step_drop_after_the",   "drop_step",    True),
     ("football_player_getting_violently_knocked_through",   "ragdoll",      True),
     ("football_player_getting_violently_knocked_backward",   "ragdoll",      True),
+    # P2/P3 batch — break fall/, block/, run/ aliasing and add net-new poses.
+    ("football_ball-carrier_tumbling_forward_after_a_hit",   "tumble",       True),
+    ("football_ball-carrier_spinning_sideways_while",        "spin_fall",    True),
+    ("ball-carrier_corkscrewing_through_the_air",            "spin_fall",    True),
+    ("quarterback_sprinting_forward_out_of_pocket",          "qb_scramble",  True),
+    ("quarterback_standing_tall_both_hands_gripping",        "qb_carry",     True),
+    ("football_player_standing_tall_both_arms_fully",        "jam",          True),
+    ("defensive_back_snapping_both_arms_forward",            "jam",          True),
+    ("defender_chopping_down_with_extended_arm",             "strip_swat",   True),
+    ("defender_violently_chopping_arm_downward",             "strip_swat",   True),
+    ("wide_receiver_exploding_off_line_of_scrimmage",        "release",      True),
+    ("linebacker_shuffling_laterally_reading_the_play",      "scrape",       True),
     # Ref pack — all on the capped referee character (488d33da)
     ("NFL_referee_standing_in_his_idle_on-field_stance",   "ref_idle",       True),
     ("NFL_referee_signaling_a_touchdown_both_arms_raised", "ref_td_signal",  True),

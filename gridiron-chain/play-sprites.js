@@ -94,13 +94,13 @@ const _SPRITE_POSES = {
   hit:       { folder: "tackle",    frames: 4, dirs: _DIRECTIONS },  // contact moment
   sack:      { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // QB sacked
   ragdoll:   { folder: "ragdoll",   frames: 4, dirs: _DIRECTIONS },  // tossed body — dedicated mid-air tumble
-  tumble:    { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // falling + rolling
-  spin_fall: { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // falling w/ spin
+  tumble:    { folder: "tumble",    frames: 4, dirs: _DIRECTIONS },  // post-contact end-over-end roll (ball in hand)
+  spin_fall: { folder: "spin_fall", frames: 4, dirs: _DIRECTIONS },  // mid-air corkscrew off a side hit (ball in hand)
   point:     { folder: "stance",    frames: 4, dirs: _DIRECTIONS },  // DB pre-snap pointing
   throw:     { folder: "pass",      frames: 4, dirs: _DIRECTIONS },  // QB throw motion
   juke:      { folder: "juke",      frames: 4, dirs: _DIRECTIONS },  // RB juke (ball in hand)
   spin:      { folder: "spin",      frames: 8, dirs: _DIRECTIONS },  // RB 360 spin (ball in hand) — 8 frames for smooth rotation
-  jam:       { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // DB press at line
+  jam:       { folder: "jam",       frames: 4, dirs: _DIRECTIONS },  // DB press at line — dedicated
   // Ball-in-hand poses — all use a football-tucked-under sprite.
   // Per user direction: "for the carry, or any animation with ball in
   // hand, please use 'football tucked under' sprite."
@@ -108,8 +108,15 @@ const _SPRITE_POSES = {
   churn:     { folder: "carry",     frames: 4, dirs: _DIRECTIONS },  // legs churning (ball in hand)
   stiff:     { folder: "stiff_arm", frames: 4, dirs: _DIRECTIONS },  // RB stiff-arm (ball in hand, free arm extended)
   stiff_arm: { folder: "stiff_arm", frames: 4, dirs: _DIRECTIONS },  // alt key
-  release:   { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // WR release off line (no ball)
-  scrape:    { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // LB scrape pursuit
+  release:   { folder: "release",   frames: 4, dirs: _DIRECTIONS },  // WR release off line — dedicated
+  scrape:    { folder: "scrape",    frames: 4, dirs: _DIRECTIONS },  // LB lateral shuffle pursuit — dedicated
+  // QB ball-in-hand poses — chest cradle (pocket) and 2-handed scramble.
+  qb_carry:   { folder: "qb_carry",    frames: 4, dirs: _DIRECTIONS },  // QB ball at chest, ready to throw
+  qb_scramble:{ folder: "qb_scramble", frames: 4, dirs: _DIRECTIONS },  // QB sprinting with ball
+  // Strip / swat — DB punch-out arm chop.
+  strip_swat: { folder: "strip_swat", frames: 4, dirs: _DIRECTIONS },
+  strip:      { folder: "strip_swat", frames: 4, dirs: _DIRECTIONS },  // alias
+  swat:       { folder: "strip_swat", frames: 4, dirs: _DIRECTIONS },  // alias (PD arm chop)
   // QB dropback only ever reads well as a 3/4-view diagonal — body
   // faces downfield (E or W on the field) while stepping backward, so
   // only SE (east-facing offense) and SW (west-facing offense) are
