@@ -3845,6 +3845,15 @@ function buildAnimForPlay(play, prevPlay) {
             // different tackler; they then never reached the carrier and
             // the unified tackle block couldn't see them as close.
             _postCatchPursuerSet.add(intDefIdx);
+            // SAFETIES on deep / extended plays — last line of defense
+            // must commit. Was leaving safeties parked at deep zone
+            // even when the WR ran past them into a 30yd gain. Both
+            // safeties join the pursuit on plays of 10+ yards.
+            const _projectedYards = play.yards ?? 0;
+            if (_projectedYards > 10) {
+              _postCatchPursuerSet.add(idxS1);
+              _postCatchPursuerSet.add(idxS2);
+            }
           }
 
           const isPursuer = _postCatchPursuerSet.has(i) || _isPassTacklerByName;
