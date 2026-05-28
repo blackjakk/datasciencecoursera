@@ -5181,6 +5181,19 @@ function buildAnimForPlay(play, prevPlay) {
         }
         return dd;
       });
+      // LOSING OL — the lineman who got beaten by the primary rusher.
+      // Engine credits play.olName but we don't have name handles on
+      // formation slots. Map by position: DL primaryIdx (de1/dt1/dt2/de2,
+      // 0..3) -> OL slot (LT/LG/RG/RT). Center (middle OL) is rarely the
+      // pure loss spot in the engine model.
+      const _sackOlList = formation.offense
+        .filter(o => o.role === "OL")
+        .sort((a, b) => a.y - b.y);   // sorted top -> bottom (LT first)
+      const _losingOlSlot = primaryIdx === 0 ? 0
+                          : primaryIdx === 1 ? 1
+                          : primaryIdx === 2 ? 3
+                          :                    4;
+      const _losingOl = _sackOlList[_losingOlSlot] || null;
       const off = formation.offense.map(p => {
         if (p.role === "QB") {
           // throw and drop_step are SETTLED poses during the sack scan
@@ -5194,8 +5207,22 @@ function buildAnimForPlay(play, prevPlay) {
         if (p.role === "OL" && t > PRE) {
           const tt = (t - PRE) / (1 - PRE);
           const slotDepth = Math.abs((p.y - cy) / 14);
-          // OL get pushed back into the pocket — looks like they're losing
-          return { ...p, x: p.x - dir * (6 + slotDepth * 3) * tt, y: p.y + Math.sin(tt * Math.PI * 5 + p.y) * 2.5, pose: "engage", facing: dir };
+          // OL get pushed back into the pocket — looks like they're losing.
+          // The matched OL (whose man wins the rep) gets a bigger drive
+          // back + a "lost it" pose at rushReleaseT so the rusher's win
+          // is visibly the OL's loss. Pre-rushRelease: identical to peers.
+          let _olX = p.x - dir * (6 + slotDepth * 3) * tt;
+          let _olY = p.y + Math.sin(tt * Math.PI * 5 + p.y) * 2.5;
+          let _olPose = "engage";
+          if (p === _losingOl && tt > _sackRushReleaseT) {
+            // Win window — bigger push back, slight lean, transitions
+            // from engaged to stiff (= out of the play) as winT grows.
+            const _winT = Math.min(1, (tt - _sackRushReleaseT) / Math.max(0.001, contactT - _sackRushReleaseT));
+            _olX -= dir * _winT * 22;                       // extra ~1.5yd shove back
+            _olY += _winT * 4;                              // slight lean
+            _olPose = _winT > 0.55 ? "stiff" : "engage";    // posts up, watches the QB go down
+          }
+          return { ...p, x: _olX, y: _olY, pose: _olPose, facing: dir };
         }
         if ((p.role === "WR1" || p.role === "WR2" || p.role === "TE") && t > PRE) {
           // Receivers run real routes during the scan so the play looks
