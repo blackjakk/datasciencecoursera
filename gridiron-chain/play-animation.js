@@ -4792,8 +4792,15 @@ function buildAnimForPlay(play, prevPlay) {
       // middle of the field" before anything happened).
       if (!_sackRumbled && t > PRE) {
         const tt = (t - PRE) / (1 - PRE);
-        if (tt >= contactT - 0.01 && typeof GCFx !== "undefined") {
-          GCFx.shake(5, 200);
+        if (tt >= contactT - 0.01) {
+          if (typeof GCFx !== "undefined") GCFx.shake(5, 200);
+          // Crowd reacts AT contact — was firing at play start (sack in
+          // _isBigPlay) which made the cheer arrive before the rush even
+          // released. Now synced to the actual hit.
+          if (typeof GCAudio !== "undefined") {
+            GCAudio.play("bigplay");
+            GCAudio.crowd.swell(0.20, 1000, 1400);
+          }
           _sackRumbled = true;
         }
       }
@@ -5205,7 +5212,10 @@ function buildAnimForPlay(play, prevPlay) {
       // rumble and then people pile on top of the pile."
       if (!_rumbled && t >= CARRY_END && typeof GCFx !== "undefined") {
         GCFx.shake(6, 240);
-        if (typeof GCAudio !== "undefined") GCAudio.play("bigplay");
+        if (typeof GCAudio !== "undefined") {
+          GCAudio.play("bigplay");
+          GCAudio.crowd.swell(0.18, 900, 1300);
+        }
         _rumbled = true;
       }
 
@@ -5624,27 +5634,32 @@ function buildAnimForPlay(play, prevPlay) {
           arc = Math.max(0, 25 - wp * 25) + Math.abs(Math.sin(wp * Math.PI * 4)) * 8;
         }
         ballScale = 0.9;
-      } else if (!isBlocked && t < 0.78) {
-        // Normal kick flight
-        const kt = (t - 0.22) / 0.56;
+      } else if (!isBlocked && t >= 0.22 && (!isReturned || t < 0.78)) {
+        // Normal kick flight — extends to ~0.95 (was 0.78) so the ball
+        // stays visible while the IT'S GOOD! banner appears at 0.82.
+        // For good kicks the trajectory continues PAST the uprights into
+        // the netting; previously the branch closed at 0.78 leaving
+        // ballX/ballY undefined → invisible "stopped at the posts" ball.
+        const FLIGHT_END_T = 0.95;
+        const kt = Math.min(1, (t - 0.22) / (FLIGHT_END_T - 0.22));
         if (missType === "short") {
           const reach = 0.78;
           ballX = holderX + (goalX - holderX) * kt * reach;
           ballY = holderY;
           arc = Math.sin(kt * Math.PI) * 50;
         } else if (missType === "good") {
-          // Ball clears the crossbar and continues PAST the uprights.
-          // Without overshoot + lingering elevation, the ball lands at
-          // (goalX, cy, arc=0) — looks like it stopped at the posts =
-          // looks like a miss. Now it flies past the posts at altitude.
-          const endXForGood = goalX + dir * 30;   // 2 yds past the uprights
+          // Ball clears the crossbar and continues PAST the uprights
+          // into the netting / behind the goal. Extended flight window
+          // means the ball is still visible (and elevated) when the
+          // banner fires at t=0.82.
+          const endXForGood = goalX + dir * 55;   // ~3.5 yds past the uprights
           ballX = holderX + (endXForGood - holderX) * kt;
           ballY = cy;
-          // Asymmetric arc: peak at kt=0.55, still 60px elevated at kt=1
-          // so the ball is well over the crossbar as it crosses.
+          // Asymmetric arc: peak at kt=0.55, still 50px elevated at kt=1
+          // so the ball is well over the crossbar throughout the cross.
           arc = kt < 0.55
-              ? Math.sin(kt / 0.55 * Math.PI / 2) * 110
-              : 110 - (kt - 0.55) / 0.45 * (110 - 60);
+              ? Math.sin(kt / 0.55 * Math.PI / 2) * 120
+              : 120 - (kt - 0.55) / 0.45 * (120 - 50);
         } else {
           // wide_l / wide_r — lands on the ground beside the uprights.
           let goalY = cy;
@@ -8672,9 +8687,13 @@ function startNextPlay() {
   const _bigYards = play.yards ?? 0;
   const _isBigCatch = _kind === "complete" && _bigYards >= 20;
   const _isBigRun   = _kind === "run"      && _bigYards >= 15;
+  // sack/fumble are big plays but their crowd reaction fires AT CONTACT
+  // from inside the per-play renderer (not at the snap). Including them
+  // here played the bigplay SFX + crowd swell as the play started —
+  // crowd cheering before anything happened.
   const _isBigPlay = _kind === "int_no_td" || _kind === "interception" ||
-                     _kind === "fumble"    || _kind === "long_run" ||
-                     _kind === "long_pass" || _kind === "sack" ||
+                     _kind === "long_run" ||
+                     _kind === "long_pass" ||
                      _isBigCatch || _isBigRun;
   // Plays that begin with a QB snap — fire the synthetic "HIKE!" vocal
   // in addition to the snap click so the cadence is audible.
