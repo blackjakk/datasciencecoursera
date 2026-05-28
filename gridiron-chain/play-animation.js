@@ -3641,24 +3641,22 @@ function buildAnimForPlay(play, prevPlay) {
           const isMan = !cov || cov === "C0_BLITZ" || cov === "C1_MAN";
           if (i === idxCB1 || i === idxCB2) {
             // UNIFIED CB MODEL — position is anchored to the WR's
-            // current sampled position with a phase-appropriate trail
-            // distance. Pose changes (jam → backpedal → run) are
-            // INDEPENDENT of position. Previous code drove position
-            // differently per phase so the CB would "lose" the WR
-            // during backpedal (CB drifts -8px while WR sprints
-            // forward), then have to catch up via sprint = visible
-            // "CB falls behind then rubber-bands".
+            // current sampled position. CB plays OVER THE TOP (between
+            // WR and endzone), not in front of the WR (toward QB).
+            // "Cushion" = how many yards the CB is on the endzone
+            // side of the WR. In our coords, that's +dir from WR
+            // (offense moves in +dir direction toward endzone).
             //
-            // Trail distance by phase:
-            //   jam (man press only, brief): 0yd — nose-to-nose
-            //   backpedal: 0→4yd ramping — CB gives cushion as WR commits
-            //   run (post-backpedal): isMan ? 2yd : 5yd
+            // Cushion by phase:
+            //   jam (man press only, brief): 0yd — at WR
+            //   press post-jam: ramps 0 → 2yd over backpedal
+            //   off coverage: 6yd cushion throughout (no jam/ramp)
             const cbSlot = (i === idxCB1) ? "wr1" : (i === idxCB2) ? "wr2" : null;
             const wrTarget = (cbSlot === "wr1") ? formation.wr1 : (cbSlot === "wr2") ? formation.wr2 : null;
             const trk = (cbSlot && play.motion && play.motion.tracks) ? play.motion.tracks[cbSlot] : null;
             const jamT = isMan ? throwFrac * 0.07 : 0;
             const backpedalT = throwFrac * 0.30;
-            // Pose / facing by phase
+            // Pose / facing by phase (independent of cushion)
             let cbPose, cbFacing;
             if (jamT > 0 && aT < jamT) {
               cbPose = "jam"; cbFacing = -dir;
@@ -3673,17 +3671,24 @@ function buildAnimForPlay(play, prevPlay) {
             }
             dd.pose = cbPose;
             dd.facing = cbFacing;
-            // Trail distance by phase
+            // Cushion (yards downfield of WR) by phase
+            const _manTrail = (typeof window !== "undefined" && window.GC_CB_TRAIL_YD != null) ? window.GC_CB_TRAIL_YD : 2;
+            const _zoneTrail = 6;
             let _trailYd;
             if (jamT > 0 && aT < jamT) {
               _trailYd = 0;   // pressed at WR
-            } else if (aT < backpedalT) {
+            } else if (isMan && aT < backpedalT) {
+              // Press release: cushion grows 0 → manTrail as CB peels off
               const bpProg = (aT - jamT) / Math.max(0.001, backpedalT - jamT);
-              _trailYd = isMan ? bpProg * 3 : bpProg * 4;   // build to 3-4yd over backpedal
+              _trailYd = bpProg * _manTrail;
+            } else if (!isMan) {
+              _trailYd = _zoneTrail;
             } else {
-              _trailYd = (typeof window !== "undefined" && window.GC_CB_TRAIL_YD != null) ? window.GC_CB_TRAIL_YD : (isMan ? 2 : 5);
+              _trailYd = _manTrail;
             }
-            // Compute target position
+            // Compute target position — CB on the ENDZONE side of WR
+            // (+dir direction). Previous code used -dir which put CB
+            // TOWARD QB = "in front of receiver" instead of over the top.
             let _cbTargetX = null, _cbTargetY = null;
             if (cbSlot && trk && typeof MotionPlayback !== "undefined" && wrTarget) {
               const sample = MotionPlayback.sampleTrack(trk, aT);
@@ -3691,13 +3696,13 @@ function buildAnimForPlay(play, prevPlay) {
                 const toMidSign = Math.sign(cy - wrTarget.y) || 1;
                 const wrX = wrTarget.x + dir * sample.dxYd * FIELD.PX_PER_YARD;
                 const wrY = wrTarget.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
-                _cbTargetX = wrX - dir * _trailYd * FIELD.PX_PER_YARD;
+                _cbTargetX = wrX + dir * _trailYd * FIELD.PX_PER_YARD;   // ENDZONE side
                 _cbTargetY = wrY + toMidSign * -8;   // 8px outside leverage
               }
             }
             if (_cbTargetX == null) {
               // Fallback: hold formation home (pre-route, no track)
-              _cbTargetX = d.x + dir * (isMan ? 4 : 12);
+              _cbTargetX = d.x;
               _cbTargetY = d.y;
             }
             // Speed-capped sprint toward target. Initialize follow
