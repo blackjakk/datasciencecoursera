@@ -2529,13 +2529,21 @@ function _drawBallImpl(ctx, x, y, scale = 1, opts = {}) {
   // against player sprites.
   ctx.save();
   ctx.translate(x, y);
-  // Yellow visibility halo first (drawn under the ball)
+  // Visibility halo first (drawn under the ball). Catch-flash uses a
+  // bigger green halo to celebrate the reception moment.
   if (opts.glow !== false) {
-    const haloRadius = 12 * scale;
+    const _catchFlash = opts.highlight === "catch";
+    const haloRadius = (_catchFlash ? 22 : 12) * scale;
     const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloRadius);
-    halo.addColorStop(0,    "rgba(255,225,90,0.55)");
-    halo.addColorStop(0.45, "rgba(255,200,40,0.28)");
-    halo.addColorStop(1,    "rgba(255,200,40,0)");
+    if (_catchFlash) {
+      halo.addColorStop(0,    "rgba(120,255,120,0.85)");
+      halo.addColorStop(0.45, "rgba(80,220,80,0.45)");
+      halo.addColorStop(1,    "rgba(80,220,80,0)");
+    } else {
+      halo.addColorStop(0,    "rgba(255,225,90,0.55)");
+      halo.addColorStop(0.45, "rgba(255,200,40,0.28)");
+      halo.addColorStop(1,    "rgba(255,200,40,0)");
+    }
     ctx.fillStyle = halo;
     ctx.beginPath();
     ctx.arc(0, 0, haloRadius, 0, Math.PI * 2);

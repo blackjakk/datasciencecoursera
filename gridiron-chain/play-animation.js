@@ -4509,6 +4509,22 @@ function buildAnimForPlay(play, prevPlay) {
         const h = _carrierSink[_rcvrName];
         _ballDrawX = h.x; _ballDrawY = h.y;
       }
+      // CATCH FLASH — on the first frame after the ball arrives at a
+      // completed catch, freeze the action briefly + tint the ball
+      // green to celebrate the moment (NFL replay style). One-shot
+      // per play via play._catchFlashFired.
+      if (play.kind === "complete" && at >= throwEndAT && !play._catchFlashFired) {
+        play._catchFlashFired = true;
+        const _now = performance.now();
+        if (typeof animState !== "undefined" && animState) {
+          animState.slowMoUntil = _now + 220;   // hold the frame ~0.22s
+          animState.slowMoMul = 0;                // total freeze (t doesn't advance)
+        }
+        play._catchFlashUntil = _now + 350;       // green tint a bit longer than the freeze
+        if (typeof GCFx !== "undefined") {
+          GCFx.flash("#7cff7c", 180, 0.10);       // brief green field flash
+        }
+      }
       // Post-catch carry: ball at receiver's tuck hand
       else if (at > throwEndAT + 0.04 && _rcvrName) {
         const h = _carrierSink[_rcvrName];
@@ -4526,7 +4542,14 @@ function buildAnimForPlay(play, prevPlay) {
           _ballDrawY = ballY - 4;
         }
       }
-      if (showStandalone) drawBall(ctx, _ballDrawX, _ballDrawY, arc > 30 ? 1.3 : 1, { angle: _ballDrawAng });
+      if (showStandalone) {
+        const _ballOpts = { angle: _ballDrawAng };
+        // Green-tint the ball during the catch flash window
+        if (play._catchFlashUntil && performance.now() < play._catchFlashUntil) {
+          _ballOpts.highlight = "catch";
+        }
+        drawBall(ctx, _ballDrawX, _ballDrawY, arc > 30 ? 1.3 : 1, _ballOpts);
+      }
       // Play-action / Flea-flicker / Throw-on-run banner at the top of the field
       if ((play.isPlayAction || play.isTOR || play.isFleaFlicker) && t < throwPhase + 0.08) {
         ctx.save();
