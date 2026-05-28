@@ -2585,12 +2585,15 @@ function buildAnimForPlay(play, prevPlay) {
         // hash uses the formation home (p.y, p.x) which is constant
         // per personnel; that determinism is fine — gives stable per-
         // slot angles around the scorer.
-        if (isTD && runT > 0.85) {
+        // Held until runT > 0.92 so the QB/OL aren't already in
+        // celebration pose while the carrier is still 5-10 yards short
+        // of the goal line on long TD runs.
+        if (isTD && runT > 0.92) {
           if (p.role === "QB" || p.role === "OL") {
             // Celebrate in place. Pose-only override; no position lerp.
             return { ...p,
                      pose: "celebrate",
-                     t: Math.min(1, (runT - 0.85) / 0.15),
+                     t: Math.min(1, (runT - 0.92) / 0.08),
                      facing: dir };
           }
           const hash = ((p.y * 17 + p.x * 13) >>> 0) % 1000;
@@ -4449,7 +4452,11 @@ function buildAnimForPlay(play, prevPlay) {
             _downfieldBlockerMap = new Map();
             candidates.slice(0, 2).forEach((c, idx) => _downfieldBlockerMap.set(c.ref, idx));
           }
-          const isTDCeleb = passIsTD && aT > 0.85;
+          // Was aT > 0.85 — celebrators converged on the scorer before
+          // the WR had visibly crossed the goal line on long YAC TDs.
+          // 0.92 keeps them running routes / blocking until the scoring
+          // moment is unambiguous, then collapses on the carrier.
+          const isTDCeleb = passIsTD && aT > 0.92;
           const slotIdx = _downfieldBlockerMap.get(p);   // 0, 1, or undefined
           let targetX = null, targetY = null, targetPose = "run";
           if (isTDCeleb) {
@@ -5926,8 +5933,10 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText("BLOCKED!", FIELD.W / 2, 60);
         ctx.restore();
       }
-      if ((isBlocked || isReturned) && isReturnTD && t > 0.85) {
-        const fadeT = Math.min(1, (t - 0.85) / 0.10);
+      // TOUCHDOWN! on blocked-FG return — held until t > 0.95 so the
+      // recoverer is visibly in the endzone (was 0.85).
+      if ((isBlocked || isReturned) && isReturnTD && t > 0.95) {
+        const fadeT = Math.min(1, (t - 0.95) / 0.04);
         ctx.save();
         ctx.globalAlpha = fadeT;
         ctx.fillStyle = "#f0cc30";
@@ -6046,8 +6055,11 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText("BLOCKED!", FIELD.W / 2, 60);
         ctx.restore();
       }
-      if (isReturnTD && t > 0.85) {
-        const fadeT = Math.min(1, (t - 0.85) / 0.10);
+      // RETURN TD! held until t > 0.95 so the returner has reached the
+      // endzone before the banner fires (was 0.85 — on long 95yd
+      // returns the returner was still ~14yd short of the goal line).
+      if (isReturnTD && t > 0.95) {
+        const fadeT = Math.min(1, (t - 0.95) / 0.04);
         ctx.save();
         ctx.globalAlpha = fadeT;
         ctx.fillStyle = "#f0cc30";
@@ -6221,7 +6233,10 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText(isTouchback ? "TOUCHBACK" : isFairCatch ? "FAIR CATCH" : "FIELDED!", landX, returnerY - 24);
         ctx.restore();
       }
-      if (phase === "return" && returnYards >= 20 && t > 0.88) {
+      // Big-return callout held until the returner has nearly completed
+      // the runback (t > 0.94 vs prior 0.88) so the call doesn't fire
+      // 5-12 yds before the actual end of the return.
+      if (phase === "return" && returnYards >= 20 && t > 0.94) {
         ctx.save();
         ctx.fillStyle = "#f0cc30";
         ctx.font = "900 32px sans-serif";
@@ -7538,8 +7553,11 @@ function buildCinemaAnim(play, prevPlay) {
         }
       } else carrierFrame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
       if (runT > 0.88 && yards < 90 && !isTD) carrierFrame = "tackled";
-      // TD celebration on the carrier
-      if (isTD && runT > 0.85) carrierFrame = "celebrate";
+      // TD celebration on the carrier — held until runT > 0.92 so the
+      // carrier is visibly in the endzone before he starts celebrating.
+      // Was 0.85, which on long TDs put the carrier in pre-celebration
+      // pose 5-10 yards short of the goal line.
+      if (isTD && runT > 0.92) carrierFrame = "celebrate";
       sprites.push({ x: worldToScreenX(carrierWX), y: lateralToScreenY(carrierLat), team: offTeam, frame: carrierFrame, flipped: false, faceSeed: rusherSeed });
 
       // Defenders — DL, LB, S, CB
@@ -7577,9 +7595,10 @@ function buildCinemaAnim(play, prevPlay) {
         const tauntT = (runT - 0.70) / 0.26;
         drawTaunt(ctx, worldToScreenX(carrierWX), lateralToScreenY(carrierLat) - 60, pickTaunt(play, 0), "#f0cc30", tauntT);
       }
-      // TD fireworks
-      if (isTD && runT > 0.82) {
-        const ageMs = (runT - 0.82) * 2400;
+      // TD fireworks — held until runT > 0.92 (was 0.82) so the
+      // fireworks don't start before the carrier has crossed the line.
+      if (isTD && runT > 0.92) {
+        const ageMs = (runT - 0.92) * 2400;
         drawFireworksShow(ctx, ageMs);
       }
 
@@ -7788,9 +7807,10 @@ function buildCinemaAnim(play, prevPlay) {
         drawHeadCallout(ctx, intX, intY - 92, "PICK!", "#e07070", cScale);
       }
 
-      // TD fireworks
-      if (isTD && t > 0.88 && !inFreeze) {
-        const ageMs = (t - 0.88) * totalDur;
+      // TD fireworks — held until t > 0.94 so the fireworks start
+      // after the WR has crossed the line (was 0.88).
+      if (isTD && t > 0.94 && !inFreeze) {
+        const ageMs = (t - 0.94) * totalDur;
         drawFireworksShow(ctx, ageMs);
       }
       // BIG PLAY taunt
@@ -8091,7 +8111,9 @@ function buildCinemaAnim(play, prevPlay) {
         else if (isFairCatch) showCallout("FAIR CATCH");
         else showCallout("FIELDED!");
       }
-      if (phase === "return" && returnYards >= 20 && t > 0.85 && !play._bigRetFired) {
+      // Big-return / house-call held until t > 0.92 so the call lands
+      // on the actual return outcome, not 85% into the runback.
+      if (phase === "return" && returnYards >= 20 && t > 0.92 && !play._bigRetFired) {
         play._bigRetFired = true;
         showCallout(returnYards >= 40 ? "TAKE IT TO THE HOUSE!" : "BIG RETURN!");
       }
