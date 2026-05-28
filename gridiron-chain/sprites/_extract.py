@@ -60,6 +60,7 @@ SOURCES = [
     ("football_player_launching_horizontally_forward_in",  "dive_forward", True),
     # P1 batch — break run/ and fall/ aliasing.
     ("quarterback_dropping_back_from_center_taking_quick",  "drop_step",    True),
+    ("quarterback_executing_a_three_step_drop_after_the",   "drop_step",    True),
     ("football_player_getting_violently_knocked_through",   "ragdoll",      True),
     ("football_player_getting_violently_knocked_backward",   "ragdoll",      True),
     # Ref pack — all on the capped referee character (488d33da)
