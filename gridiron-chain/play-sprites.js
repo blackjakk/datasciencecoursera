@@ -110,7 +110,11 @@ const _SPRITE_POSES = {
   stiff_arm: { folder: "stiff_arm", frames: 4, dirs: _DIRECTIONS },  // alt key
   release:   { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // WR release off line (no ball)
   scrape:    { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // LB scrape pursuit
-  drop_step: { folder: "drop_step", frames: 4, dirs: _DIRECTIONS },  // QB dropback — dedicated, ball handled via shape math overlay
+  // QB dropback only ever reads well as a 3/4-view diagonal — body
+  // faces downfield (E or W on the field) while stepping backward, so
+  // only SE (east-facing offense) and SW (west-facing offense) are
+  // used. The facing-only direction picker maps facing → SE/SW below.
+  drop_step: { folder: "drop_step", frames: 4, dirs: ["south-east", "south-west"] },
   handoff:   { folder: "handoff",   frames: 4, dirs: _DIRECTIONS },  // QB→RB exchange
   hurdle:    { folder: "hurdle",    frames: 4, dirs: _DIRECTIONS },  // RB jump over defender (ball in hand, all 8 dirs now)
 
@@ -476,9 +480,11 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   }
   const def = _SPRITE_POSES[pose];
   if (!def) { _lastMiss.pose=pose; _lastMiss.reason="unknown-pose"; _lastMiss.count++; _bumpMiss(pose,"unknown-pose"); return false; }
-  const dir = _FACING_ONLY_POSES.has(pose)
-    ? (facing == null || facing >= 0 ? "east" : "west")
-    : _velocityToDirection(vx || 0, vy || 0, facing);
+  const dir = pose === "drop_step"
+    ? (facing == null || facing >= 0 ? "south-east" : "south-west")
+    : _FACING_ONLY_POSES.has(pose)
+      ? (facing == null || facing >= 0 ? "east" : "west")
+      : _velocityToDirection(vx || 0, vy || 0, facing);
   if (!def.dirs.includes(dir)) { _lastMiss.pose=pose; _lastMiss.dir=dir; _lastMiss.reason="dir-not-in-pose"; _lastMiss.count++; _bumpMiss(pose,"dir-not-in-pose"); return false; }
   const frameIdx = def.frames > 1
     ? (_SETTLED_POSES.has(pose)
