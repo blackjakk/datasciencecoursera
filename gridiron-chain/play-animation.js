@@ -2582,10 +2582,12 @@ function buildAnimForPlay(play, prevPlay) {
           const hash = ((p.y * 17 + p.x * 13) >>> 0) % 1000;
           const angle = (hash / 1000) * Math.PI * 2;
           const radius = (4 + (hash % 4)) * FIELD.PX_PER_YARD;
-          // Clamp the cluster to the field — sideline + goal-line TDs
-          // were pushing celebrators off-canvas.
+          // Clamp the cluster so celebrators stay on-canvas but allow
+          // them INTO the endzone (the scorer is there). Was excluded
+          // from the endzone, leaving celebrators stuck at the goal
+          // line instead of converging on the scorer.
           const targetX = clamp(rb.x + Math.cos(angle) * radius,
-                                FIELD.EZ_PX + 20, FIELD.W - FIELD.EZ_PX - 20);
+                                FIELD.EZ_PX * 0.3, FIELD.W - FIELD.EZ_PX * 0.3);
           const targetY = clamp(rb.y + Math.sin(angle) * radius,
                                 FIELD.TOP + 20, FIELD.BOT - 20);
           if (p._followX == null) {
@@ -4361,28 +4363,34 @@ function buildAnimForPlay(play, prevPlay) {
           const slotIdx = _downfieldBlockerMap.get(p);   // 0, 1, or undefined
           let targetX = null, targetY = null, targetPose = "run";
           if (isTDCeleb) {
-            // Cluster around scorer with deterministic angle per player.
+            // Cluster around scorer (who's in the endzone). Allow into
+            // the endzone — was clamped to playing field (excluded the
+            // endzone) so celebrators stopped at the goal line instead
+            // of converging on the scorer. Now: tight clamp keeps them
+            // off the very back / sidelines but they CAN enter the
+            // endzone.
             const hash = ((p.y * 17 + p.x * 13) >>> 0) % 1000;
             const angle = (hash / 1000) * Math.PI * 2;
             const radius = (4 + (hash % 4)) * FIELD.PX_PER_YARD;
-            // Clamp inside the field of play — sideline + goal-line
-            // TDs were pushing celebrators off-canvas.
             targetX = clamp(wr.x + Math.cos(angle) * radius,
-                            FIELD.EZ_PX + 20, FIELD.W - FIELD.EZ_PX - 20);
+                            FIELD.EZ_PX * 0.3, FIELD.W - FIELD.EZ_PX * 0.3);
             targetY = clamp(wr.y + Math.sin(angle) * radius,
                             FIELD.TOP + 20, FIELD.BOT - 20);
-            // Once we're close to the target spot, switch to celebrate
-            // pose. Hash gives some celebration variety.
             const _curX = p._followX != null ? p._followX : p.x;
             const _curY = p._followY != null ? p._followY : p.y;
             const _gap = Math.hypot(_curX - targetX, _curY - targetY);
             targetPose = _gap < 18 ? "celebrate" : "run";
           } else if (slotIdx != null) {
-            // Downfield blocker — 6-9 yd ahead of carrier, lateral offset.
+            // Downfield blocker — 6-9 yd ahead of carrier, lateral
+            // offset. Clamp target to field bounds so on long TDs
+            // blockers don't aim off the back of the endzone (was
+            // 1810px for TD-side blocker on a play that ended at 1600).
             const dxYd = 6 + slotIdx * 3;
             const dyYd = slotIdx === 0 ? -4 : 4;
-            targetX = wr.x + dir * dxYd * FIELD.PX_PER_YARD;
-            targetY = wr.y + dyYd * FIELD.PX_PER_YARD;
+            targetX = clamp(wr.x + dir * dxYd * FIELD.PX_PER_YARD,
+                            FIELD.EZ_PX * 0.3, FIELD.W - FIELD.EZ_PX * 0.3);
+            targetY = clamp(wr.y + dyYd * FIELD.PX_PER_YARD,
+                            FIELD.TOP + 20, FIELD.BOT - 20);
           }
           if (targetX != null) {
             if (p._followX == null) {
