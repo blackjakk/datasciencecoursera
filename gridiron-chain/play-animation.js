@@ -5230,19 +5230,24 @@ function buildAnimForPlay(play, prevPlay) {
         ballY = startY + (fumY - startY) * sm;
         ballScale = 0.95;
       } else if (t < STRIP_END) {
-        // STRIP PHASE — ball POPS loose at the hit. Small upward arc
-        // off the carrier's hands at the moment of contact.
+        // STRIP PHASE — ball POPS loose at the hit. Bigger pop (16px)
+        // than the old 10px so the moment reads as impact.
         const pt = (t - CARRY_END) / (STRIP_END - CARRY_END);
-        ballX = fumX + dir * pt * 8;
-        ballY = fumY - Math.sin(pt * Math.PI) * 10;
-        ballScale = 1.0 + Math.sin(pt * Math.PI) * 0.15;
+        ballX = fumX + dir * pt * 10;
+        ballY = fumY - Math.sin(pt * Math.PI) * 16;
+        ballScale = 1.0 + Math.sin(pt * Math.PI) * 0.20;
       } else if (t < SCRUM_END - 0.05) {
-        // ROLL PHASE — ball bounces forward, settling near restX.
+        // ROLL PHASE — ball rolls forward toward restX with 3 decaying
+        // bounces (was sin(pt*PI*5) = 5 bouncelets that read as buzz).
+        // 3 bigger bounces feel like a real loose ball: pop-pop-pop-roll.
         const pt = (t - STRIP_END) / (SCRUM_END - 0.05 - STRIP_END);
         const sm = pt * pt * (3 - 2 * pt);
-        ballX = fumX + dir * 8 + (restX - fumX - dir * 8) * sm + Math.sin(pt * Math.PI * 6) * 2;
-        ballY = fumY + (restY - fumY) * sm - Math.abs(Math.sin(pt * Math.PI * 5)) * 4;
-        ballScale = 0.95 + Math.abs(Math.cos(pt * Math.PI * 5)) * 0.1;
+        ballX = fumX + dir * 10 + (restX - fumX - dir * 10) * sm;
+        const bounceIdx = Math.floor(pt * 3);
+        const localT = pt * 3 - bounceIdx;
+        const amp = 12 * Math.pow(0.5, bounceIdx);
+        ballY = fumY + (restY - fumY) * sm - Math.sin(localT * Math.PI) * amp;
+        ballScale = 0.95 + Math.sin(localT * Math.PI) * 0.06;
       } else {
         // SETTLED — ball at rest, pile forming on top.
         ballX = restX;
@@ -5271,6 +5276,21 @@ function buildAnimForPlay(play, prevPlay) {
         Math.hypot(a.x - fumX, a.y - fumY) - Math.hypot(b.x - fumX, b.y - fumY));
       const scrumParticipants = new Set(allNonCarriers.slice(0, SCRUM_SIZE));
       const missers = new Set(allNonCarriers.slice(0, scrumMisses));
+      // FORCER — the defender who knocked the ball loose. Engine emits
+      // play.forcedBy as a name. Resolve to formation slot; on hit he
+      // arrives AT the carrier at CARRY_END instead of trickling in
+      // with the rest of the pile post-strip.
+      const forcer = play.forcedBy
+        ? defPlayers.find(p => p && p.name === play.forcedBy)
+        : null;
+      if (forcer) scrumParticipants.add(forcer);
+      // RECOVERER — closest scrum participant on the recovering side.
+      // Featured pose after SCRUM_END (stands up + celebrates).
+      const _recOff = recoveredBy === "off";
+      const recoverer = allNonCarriers.find(p => {
+        const isOffP = offPlayers.includes(p);
+        return scrumParticipants.has(p) && (_recOff ? isOffP : !isOffP);
+      }) || null;
 
       const renderConverging = (players, isOff) => {
         const color = isOff ? possColor : oppColor;
@@ -5301,6 +5321,54 @@ function buildAnimForPlay(play, prevPlay) {
               pPose = "tackled";
               pT = collapseT;
             }
+          } else if (p === forcer) {
+            // FORCER — sprints from his formation slot to the carrier
+            // and ARRIVES at CARRY_END for the visible hit. Then sticks
+            // around briefly (tackled pose) before peeling off to the
+            // ball with the rest of the pile.
+            const _hitX = fumX - dir * 6;
+            const _hitY = fumY;
+            if (t < CARRY_END) {
+              const sprintT = Math.min(1, t / CARRY_END);
+              pX = p.x + (_hitX - p.x) * sprintT;
+              pY = p.y + (_hitY - p.y) * sprintT;
+              if (sprintT < 0.85) {
+                pPose = "run";
+              } else {
+                pPose = "dive";
+                pT = (sprintT - 0.85) / 0.15;
+              }
+            } else if (t < STRIP_END + 0.06) {
+              // Wrap-up at the hit — frozen tackled frame
+              pX = _hitX;
+              pY = _hitY;
+              pPose = "tackled";
+              pT = 1;
+            } else {
+              // Peel off toward the loose ball
+              const fromX = _hitX, fromY = _hitY;
+              const tConverge = Math.max(0, t - STRIP_END - 0.06);
+              const dx = ballX - fromX, dy = ballY - fromY;
+              const dist = Math.hypot(dx, dy);
+              const maxMove = tConverge * SPRINT_PX;
+              const moveFrac = Math.min(1, maxMove / Math.max(1, dist));
+              pX = fromX + dx * moveFrac;
+              pY = fromY + dy * moveFrac;
+              if (Math.hypot(ballX - pX, ballY - pY) < 22) {
+                pPose = "tackled";
+                pT = 1;
+              } else {
+                pPose = "run";
+              }
+            }
+          } else if (p === recoverer && t > SCRUM_END + 0.01) {
+            // RECOVERER — stands up off the pile holding the ball,
+            // celebrates briefly so the result reads visually.
+            const celebT = Math.min(1, (t - SCRUM_END - 0.01) / 0.10);
+            pX = ballX + dir * 4;
+            pY = ballY - 18 * celebT;        // stand up from prone
+            pPose = celebT < 0.5 ? "tackled" : "celebrate";
+            pT = celebT < 0.5 ? 1 : (celebT - 0.5) / 0.5;
           } else if (missers.has(p)) {
             // Designated misser — only starts converging AFTER the ball
             // is loose (STRIP_END). Stays in formation pose during the
@@ -5380,6 +5448,21 @@ function buildAnimForPlay(play, prevPlay) {
       renderConverging(offPlayers, true);
       renderConverging(defPlayers, false);
 
+      // LOOSE-BALL HALO — pulsing amber ring around the ball during the
+      // strip + roll window so the viewer can track it through the pile.
+      // Draws BEFORE the ball so the sprite sits on top of the halo.
+      if (t > CARRY_END && t < 0.78) {
+        const pulse = 0.6 + Math.sin(performance.now() / 110) * 0.4;
+        const radius = 24 + pulse * 4;
+        const halo = ctx.createRadialGradient(ballX, ballY, 0, ballX, ballY, radius);
+        halo.addColorStop(0,    `rgba(255,200,80,${0.55 * pulse})`);
+        halo.addColorStop(0.45, `rgba(255,170,40,${0.28 * pulse})`);
+        halo.addColorStop(1,    "rgba(255,170,40,0)");
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
       // Ball drawn on top of everyone EXCEPT after the pile has formed (then
       // it's buried under the dogpile)
       if (t < 0.78) drawBall(ctx, ballX, ballY, ballScale);
