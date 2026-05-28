@@ -3026,15 +3026,26 @@ function buildAnimForPlay(play, prevPlay) {
     // covering CB shadows the actual catcher). Falls back to the
     // legacy hash for older plays/non-standard kinds.
     const _engineSlot = play.motion && play.motion.targetSlot;
-    const wrChoice = isScreen ? "rb"
-                   : (_engineSlot === "wr1" || _engineSlot === "wr2" || _engineSlot === "te" || _engineSlot === "rb")
-                     ? _engineSlot
+    // Screens used to be hardcoded to wrChoice="rb". Engine can now
+    // emit WR screens (play.isWRScreen) with targetSlot=wr1|wr2, so
+    // honor the engine slot when it's a valid receiver. Fallback to
+    // "rb" preserves the legacy behavior for older plays / paths.
+    const _validSlot = _engineSlot === "wr1" || _engineSlot === "wr2"
+                    || _engineSlot === "te"  || _engineSlot === "rb";
+    const wrChoice = isScreen ? (_validSlot ? _engineSlot : "rb")
+                   : _validSlot ? _engineSlot
                    : wrRoll < 0.45 ? "wr1"
                    : wrRoll < 0.78 ? "wr2"
                    : wrRoll < 0.92 ? "te"
                    :                  "rb";
     // Screen RB releases to the strong-side flat; normal receivers run their lane
-    const screenSide = ((play.startYard * 17) >>> 0) % 2 ? 1 : -1;
+    // Screen side — which sideline the convoy + carrier work toward.
+    // For WR screens the side is determined by which WR caught it
+    // (wr1 = top sideline, wr2 = bottom). RB screens still hash so
+    // the side is deterministic per play but varied.
+    const screenSide = wrChoice === "wr1" ? -1
+                     : wrChoice === "wr2" ?  1
+                     : ((play.startYard * 17) >>> 0) % 2 ? 1 : -1;
     // Derive catchTargetX/Y from the engine-emitted route track when
     // present — so the ball lands EXACTLY where the motion-driven
     // receiver will be at throwT, no last-frame snap. The hardcoded
@@ -4586,13 +4597,29 @@ function buildAnimForPlay(play, prevPlay) {
         }
         if (p.role === "OL" && aT > 0) {
           if (isScreen) {
-            if (aT < 0.2) {
+            // SCREEN OL behavior: sell pass block briefly, then RELEASE
+            // downfield as a convoy. Previously the OL only released
+            // 32px (~2yd) and drifted modestly toward screenSide —
+            // looked like "OL pushed back" not "OL leading the screen."
+            // Now: 5-6yd downfield by mid-play, strong lateral drift
+            // toward the catch side, so the convoy is clearly leading
+            // the carrier into YAC.
+            if (aT < 0.18) {
+              // Sell the pass set
               return { ...p, x: p.x, y: p.y, pose: "engage", t: aT, facing: dir };
             }
-            const tt = Math.min(1, (aT - 0.2) / 0.6);
-            const downfield = dir * tt * 32;
-            const driftY = (p.y - cy) * (1 - tt * 0.4) + tt * (cy + screenSide * 35 - p.y) * 0.4;
-            return { ...p, x: p.x + downfield, y: cy + driftY, pose: "run", t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: dir };
+            const tt = Math.min(1, (aT - 0.18) / 0.70);
+            const downfield = dir * tt * 95;                          // ~6.3yd downfield by mid-play
+            // Strong drift toward catch side — convoy stacks ahead of
+            // carrier on the WR's sideline.
+            const tgtY = cy + screenSide * 60;
+            const driftY = p.y + (tgtY - p.y) * Math.min(1, tt * 1.2);
+            return { ...p,
+                     x: p.x + downfield,
+                     y: driftY,
+                     pose: "run",
+                     t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0),
+                     facing: dir };
           }
           const tt = Math.min(1, aT / 0.55);
           // OL kick-slides BACKWARDS to anchor the pocket (~1yd retreat

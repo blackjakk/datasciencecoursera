@@ -4497,8 +4497,20 @@ class GameSimulator {
       // Skip on 3rd & long (screens get blown up by overzealous blitzers).
       const isScreenCall = !(isThird && this.ytg >= 9) && Math.random() < 0.085;
       if (isScreenCall) {
-        const rcvr = this.offR.starters.rb;
-        this._ensurePlayerStat(this.poss, rcvr, "RB");
+        // Screen TARGET — ~70% RB, ~30% WR (wr1 or wr2 50/50). Engine
+        // emitted only RB screens before, so every screen looked the
+        // same — RB stepping toward QB. Real playbooks include WR/now/
+        // tunnel screens and bubble screens off the slot.
+        const _scrPick = Math.random();
+        const _isWRScreen = _scrPick < 0.30;
+        const _scrWrSlot = _isWRScreen
+          ? (Math.random() < 0.5 ? "wr1" : "wr2")
+          : null;
+        const rcvr = _isWRScreen
+          ? this.offR.starters[_scrWrSlot]
+          : this.offR.starters.rb;
+        const _scrRole = _isWRScreen ? "WR" : "RB";
+        this._ensurePlayerStat(this.poss, rcvr, _scrRole);
         const rcvrStats = off.players[rcvr];
         if (Math.random() < 0.84) {
           // Completed screen
@@ -4537,8 +4549,25 @@ class GameSimulator {
           // and runs downfield; engine emits carrier path + decoy
           // routes for WRs/TE.
           this._lastPassConcept = "SCREEN";
-          const _scrThrowT = 0.30;     // RB catches very early (short toss)
-          const _scrCarrierTrack = {
+          const _scrThrowT = 0.30;     // carrier catches very early (short toss)
+          // Carrier shape varies by screen type:
+          //   RB screen: step in toward the QB to receive a checkdown,
+          //     then forward through the convoy.
+          //   WR screen: WR drifts back ~1 yd outside (bubble) instead
+          //     of stepping toward the QB. Catch is a lateral toss
+          //     behind LOS; YAC goes forward with blockers leading.
+          //     dyYd negative = away from midfield (toward sideline).
+          const _scrCarrierTrack = _isWRScreen ? {
+            role: _scrWrSlot.toUpperCase(), origin: { slot: _scrWrSlot },
+            waypoints: [
+              { t: 0,                          dxYd: 0,      dyYd: 0    },                              // formation (wide)
+              { t: 0.10,                       dxYd: -1,     dyYd: -0.5 },                              // bubble back/outside
+              { t: _scrThrowT,                 dxYd: airYds, dyYd: -1.2 },                              // catch outside-and-behind
+              { t: Math.min(1, _scrThrowT + (1 - _scrThrowT) * 0.85),
+                                                dxYd: yards, dyYd: -1 + Math.min(1, yac * 0.04) },     // YAC heading downfield with slight midfield drift
+              { t: 1,                          dxYd: yards, dyYd: -1 + Math.min(1, yac * 0.04) },
+            ],
+          } : {
             role: "RB", origin: { slot: "rb" },
             waypoints: [
               { t: 0,                          dxYd: 0, dyYd: 0 },                                      // formation
@@ -4549,27 +4578,33 @@ class GameSimulator {
               { t: 1,                          dxYd: yards, dyYd: Math.min(2, yac * 0.05) },
             ],
           };
-          // WR/TE decoys go vertical to clear coverage
+          // Other receivers run vertical decoys to clear coverage. On
+          // WR screens the SLOT/TE blockers convoy back toward the
+          // carrier instead; route helper keeps the others on verticals.
           const _scrRoutes = this._buildPassRouteTracks({
             targetSlot: null, targetDepth: 18, yac: 0,
             concept: "VERTICAL", throwT: _scrThrowT,
           });
-          delete _scrRoutes.rb;     // RB has its own track
+          // Carrier slot owns its own track — strip the helper's stub.
+          if (_isWRScreen) delete _scrRoutes[_scrWrSlot];
+          else             delete _scrRoutes.rb;
           const _scrZoneDrops = this._buildPassZoneDrops({
             tacklerSlot: this._resolveDefSlot(tacklerName),
             throwT: _scrThrowT, coverage: this._lastPassCoverage,
           });
+          const _scrCarrierKey = _isWRScreen ? _scrWrSlot : "rb";
           this._pushVisual({
             kind: "complete", desc: `Screen to ${rcvr} for ${yards} yds${screenEndTag}`,
             startYard, targetDepth: airYds, catchDepth: airYds, yac, yards,
             endYard: clamp(startYard + yards, 0, 100), receiver: rcvr,
             passer: this.offR.starters.qb, tackler: tacklerName, isScreen: true,
+            isWRScreen: _isWRScreen || undefined,
             throwType: "CHECKDOWN",
             motion: {
-              targetSlot: "rb",
+              targetSlot: _scrCarrierKey,
               throwT: _scrThrowT,
               dropDepth: 2,
-              tracks: { ..._scrRoutes, rb: _scrCarrierTrack, ..._scrZoneDrops },
+              tracks: { ..._scrRoutes, [_scrCarrierKey]: _scrCarrierTrack, ..._scrZoneDrops },
             },
           });
           return { yards };
