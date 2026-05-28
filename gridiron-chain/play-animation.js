@@ -4578,8 +4578,14 @@ function buildAnimForPlay(play, prevPlay) {
         const h = _carrierSink[_passerName];
         _ballDrawX = h.x; _ballDrawY = h.y;
       }
-      // At catch arrival: ball lands at receiver's raised hands
-      else if (at >= throwEndAT - 0.02 && at < throwEndAT + 0.04 && _rcvrName && _carrierSink[_rcvrName]) {
+      // At catch arrival: ball lands at receiver's raised hands.
+      // INCOMPLETE / INT: skip hand-track — the bounce/roll (incomplete)
+      // or DB-pickup (int) trajectory in ballX/ballY is authoritative.
+      // Pulling to the WR's hands here teleports the ball onto a body
+      // that isn't holding it, hiding the visual bounce.
+      else if (play.kind === "complete"
+               && at >= throwEndAT - 0.02 && at < throwEndAT + 0.04
+               && _rcvrName && _carrierSink[_rcvrName]) {
         const h = _carrierSink[_rcvrName];
         _ballDrawX = h.x; _ballDrawY = h.y;
       }
@@ -4599,8 +4605,10 @@ function buildAnimForPlay(play, prevPlay) {
           GCFx.flash("#7cff7c", 180, 0.10);       // brief green field flash
         }
       }
-      // Post-catch carry: ball at receiver's tuck hand
-      else if (at > throwEndAT + 0.04 && _rcvrName) {
+      // Post-catch carry: ball at receiver's tuck hand. Completed catches
+      // only — on incomplete, ballX/ballY follows the engine bounce/roll
+      // trajectory and must not be overridden to the receiver body.
+      else if (play.kind === "complete" && at > throwEndAT + 0.04 && _rcvrName) {
         const h = _carrierSink[_rcvrName];
         // Sink freshness check — if the sink is stale (older than 50ms,
         // which happens during tackle poses where the carry-hand logic
@@ -4621,6 +4629,12 @@ function buildAnimForPlay(play, prevPlay) {
         // Green-tint the ball during the catch flash window
         if (play._catchFlashUntil && performance.now() < play._catchFlashUntil) {
           _ballOpts.highlight = "catch";
+        }
+        // On incomplete, the ball is on the ground bouncing/rolling near
+        // the receiver — disable drawBall's carrier auto-shift so the ball
+        // isn't yanked up to the WR's hand position.
+        if (play.kind === "incomplete" && at > throwEndAT - 0.02) {
+          _ballOpts.skipCarryShift = true;
         }
         drawBall(ctx, _ballDrawX, _ballDrawY, arc > 30 ? 1.3 : 1, _ballOpts);
       }
@@ -5752,7 +5766,13 @@ function buildAnimForPlay(play, prevPlay) {
         chaserPositions.push({ x: cx_, y: cy_, isFree });
         const isEngaged = phase === "return" && !isFree;
         const pose = isEngaged ? "engage" : "run";
-        const facing = isEngaged ? -dir : dir;  // engaged chasers face the blocker / returner
+        // Geometry during return: returner runs -dir; engaged chasers are
+        // AHEAD of him (-dir side), blockers wedged between them (-dir of
+        // returner, +dir of chaser). So engaged chaser faces blocker
+        // (+dir of chaser → +dir). Free pursuer closes from landX (+dir
+        // of returner) toward returner running -dir → faces -dir.
+        // Pre-return: everyone is sprinting downfield with the punt (+dir).
+        const facing = (phase === "return" && isFree) ? -dir : dir;
         drawPlayer(ctx, cx_, cy_, possColor, team.secondary, "", pose, (t < 0.95 ? ((performance.now() / 333) + i * 0.2) % 1 : 0), facing, { name: "punt-cov-" + i });
       }
       // ── 3 RETURN-TEAM BLOCKERS — each glued to their assigned chaser during the return ──
@@ -5772,12 +5792,17 @@ function buildAnimForPlay(play, prevPlay) {
           bx = (targetChaser.x + landX) / 2;
           by = (targetChaser.y + returnerY) / 2;
         } else {
-          // RETURN — stick to the chaser, on the returner side. Visible engagement.
+          // RETURN — wedge between returner (at ballX) and chaser (ahead
+          // of returner at ballX - dir*~24, since returner runs -dir).
+          // Blocker sits on the RETURNER side of the chaser (+dir of
+          // chaser) so cov has to fight through him to reach the carrier.
           bx = targetChaser.x + dir * 7;
           by = targetChaser.y + (returnerY - targetChaser.y) * 0.10;
         }
         const blockerPose = (phase === "return" || phase === "field") ? "engage" : "run";
-        const facing = dir;  // blockers face the chasers coming from the punt direction
+        // Pre-return: blockers run downfield toward the landing area (+dir).
+        // Return: chaser is on -dir side of blocker → face -dir to look at him.
+        const facing = (phase === "return") ? -dir : dir;
         drawPlayer(ctx, bx, by, oppColor, oppTeam.secondary, "", blockerPose, (t < 0.95 ? ((performance.now() / 333) + i * 0.15) % 1 : 0), facing, { name: "punt-block-" + i });
       }
       // Returner (with ball after fielding)
