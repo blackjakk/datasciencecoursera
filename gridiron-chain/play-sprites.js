@@ -114,6 +114,14 @@ const _SPRITE_POSES = {
   handoff:   { folder: "handoff",   frames: 4, dirs: _DIRECTIONS },  // QB→RB exchange
   hurdle:    { folder: "hurdle",    frames: 4, dirs: _DIRECTIONS },  // RB jump over defender (ball in hand, all 8 dirs now)
 
+  // Referee poses — prereq for the penalty feature. Not currently
+  // emitted by the engine; rendered when penalty plays land.
+  ref_idle:       { folder: "ref_idle",       frames: 4, dirs: _DIRECTIONS },
+  ref_td_signal:  { folder: "ref_td_signal",  frames: 4, dirs: _DIRECTIONS },
+  ref_first_down: { folder: "ref_first_down", frames: 4, dirs: _DIRECTIONS },
+  ref_flag:       { folder: "ref_flag",       frames: 4, dirs: _DIRECTIONS },
+  ref_whistle:    { folder: "ref_whistle",    frames: 4, dirs: _DIRECTIONS },
+
   // Newer folders for poses the engine doesn't emit yet (ready when it does)
   pass:      { folder: "pass",      frames: 4, dirs: _DIRECTIONS },
   kick:      { folder: "kick",      frames: 4, dirs: _KICK_DIRS  },

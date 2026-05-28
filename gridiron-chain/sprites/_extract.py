@@ -58,9 +58,21 @@ SOURCES = [
     ("defensive_back_backpedaling_facing_forward_toward",  "backpedal",    True),
     ("defensive_back_in_a_low_crouched_athletic_stance",   "backpedal",    True),
     ("football_player_launching_horizontally_forward_in",  "dive_forward", True),
+    # Ref pack — all on the capped referee character (488d33da)
+    ("NFL_referee_standing_in_his_idle_on-field_stance",   "ref_idle",       True),
+    ("NFL_referee_signaling_a_touchdown_both_arms_raised", "ref_td_signal",  True),
+    ("NFL_referee_signaling_first_down_one_arm_extended",  "ref_first_down", True),
+    ("NFL_referee_throwing_a_yellow_penalty_flag_arm_coc", "ref_flag",       True),
+    ("NFL_referee_blowing_his_whistle_one_hand_brought_u", "ref_whistle",    True),
 ]
+# ZIPs to scan (extracts everything matching SOURCES across all archives)
+# — already covered by ZIPS list above, this is just a sanity comment.
 
-ZIPS = [ROOT / "_carry-character.zip", ROOT / "_default-character.zip"]
+ZIPS = [
+    ROOT / "_carry-character.zip",
+    ROOT / "_default-character.zip",
+    ROOT / "_ref-character.zip",
+]
 DIRS = ("south", "north", "east", "west",
         "south-east", "south-west", "north-east", "north-west")
 
