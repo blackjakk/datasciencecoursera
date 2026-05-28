@@ -93,7 +93,7 @@ const _SPRITE_POSES = {
   leap:      { folder: "catch",     frames: 4, dirs: _DIRECTIONS },  // leaping catch — arms up
   hit:       { folder: "tackle",    frames: 4, dirs: _DIRECTIONS },  // contact moment
   sack:      { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // QB sacked
-  ragdoll:   { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // tossed body
+  ragdoll:   { folder: "ragdoll",   frames: 4, dirs: _DIRECTIONS },  // tossed body — dedicated mid-air tumble
   tumble:    { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // falling + rolling
   spin_fall: { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // falling w/ spin
   point:     { folder: "stance",    frames: 4, dirs: _DIRECTIONS },  // DB pre-snap pointing
@@ -110,7 +110,7 @@ const _SPRITE_POSES = {
   stiff_arm: { folder: "stiff_arm", frames: 4, dirs: _DIRECTIONS },  // alt key
   release:   { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // WR release off line (no ball)
   scrape:    { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // LB scrape pursuit
-  drop_step: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // QB dropback (cradling ball — handled via shape math overlay)
+  drop_step: { folder: "drop_step", frames: 4, dirs: _DIRECTIONS },  // QB dropback — dedicated, ball handled via shape math overlay
   handoff:   { folder: "handoff",   frames: 4, dirs: _DIRECTIONS },  // QB→RB exchange
   hurdle:    { folder: "hurdle",    frames: 4, dirs: _DIRECTIONS },  // RB jump over defender (ball in hand, all 8 dirs now)
 

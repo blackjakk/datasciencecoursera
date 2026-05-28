@@ -58,6 +58,9 @@ SOURCES = [
     ("defensive_back_backpedaling_facing_forward_toward",  "backpedal",    True),
     ("defensive_back_in_a_low_crouched_athletic_stance",   "backpedal",    True),
     ("football_player_launching_horizontally_forward_in",  "dive_forward", True),
+    # P1 batch — break run/ and fall/ aliasing.
+    ("quarterback_dropping_back_from_center_taking_quick",  "drop_step",    True),
+    ("football_player_getting_violently_knocked_through",   "ragdoll",      True),
     # Ref pack — all on the capped referee character (488d33da)
     ("NFL_referee_standing_in_his_idle_on-field_stance",   "ref_idle",       True),
     ("NFL_referee_signaling_a_touchdown_both_arms_raised", "ref_td_signal",  True),
