@@ -41,10 +41,18 @@ SOURCES = [
     ("running-",                                           "carry",        False),
     # RB highlight pack — all on football-tucked-under (ball-in-hand)
     ("running_back_executing_a_juke_move_with_the_footba", "juke",         True),
+    # Spin has several attempts — all valid prefixes routed to the same
+    # pose. The most recent overwrites for any given direction; the
+    # extractor uses whichever matches.
     ("running_back_executing_a_FULL_360-degree_spin_move", "spin",         True),
     ("running_back_executing_a_spin_move_with_the_footba", "spin",         True),
+    ("running_back_doing_a_quick_whirling_360-degree_spi", "spin",         True),
     ("running_back_hurdling_over_a_defender_with_the_foo", "hurdle",       True),
     ("power_running_back_trucking_through_a_would-be_tac", "truck",        True),
+    # Stiff-arm — multiple prompt variants
+    ("running_back_stiff-arming_a_defender",               "stiff_arm",    True),
+    ("running_back_delivering_a_stiff-arm_to_a_defender",  "stiff_arm",    True),
+    ("running_back_sprinting_forward_with_one_arm_fully",  "stiff_arm",    True),
     # Default character poses
     ("offensive_lineman_in_pass-pro_kick-slide_stance",    "kick_slide",   True),
     ("defensive_back_backpedaling_facing_forward_toward",  "backpedal",    True),
@@ -76,15 +84,17 @@ for zip_path in ZIPS:
                 if not anim_name.startswith(prefix):
                     continue
                 frame_idx = int(frame_str)
+                # Spin uses 8 frames; everything else uses 4.
+                max_frames = 8 if pose == "spin" else 4
                 if is_v3:
-                    # Skip the reference frame; remap 1..4 -> 0..3
+                    # Skip the reference frame; remap 1..N -> 0..N-1
                     if frame_idx == 0:
                         continue
                     out_frame = frame_idx - 1
                 else:
-                    # Template uses 0..3 directly
+                    # Template uses 0..N-1 directly
                     out_frame = frame_idx
-                if out_frame > 3:
+                if out_frame >= max_frames:
                     continue
                 target_dir = ROOT / pose
                 target_dir.mkdir(exist_ok=True)

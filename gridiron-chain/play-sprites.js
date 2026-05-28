@@ -99,14 +99,15 @@ const _SPRITE_POSES = {
   point:     { folder: "stance",    frames: 4, dirs: _DIRECTIONS },  // DB pre-snap pointing
   throw:     { folder: "pass",      frames: 4, dirs: _DIRECTIONS },  // QB throw motion
   juke:      { folder: "juke",      frames: 4, dirs: _DIRECTIONS },  // RB juke (ball in hand)
-  spin:      { folder: "spin",      frames: 4, dirs: _DIRECTIONS },  // RB 360 spin (ball in hand)
+  spin:      { folder: "spin",      frames: 8, dirs: _DIRECTIONS },  // RB 360 spin (ball in hand) — 8 frames for smooth rotation
   jam:       { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // DB press at line
   // Ball-in-hand poses — all use a football-tucked-under sprite.
   // Per user direction: "for the carry, or any animation with ball in
   // hand, please use 'football tucked under' sprite."
   truck:     { folder: "truck",     frames: 4, dirs: _DIRECTIONS },  // running through hit (ball in hand)
   churn:     { folder: "carry",     frames: 4, dirs: _DIRECTIONS },  // legs churning (ball in hand)
-  stiff:     { folder: "carry",     frames: 4, dirs: _DIRECTIONS },  // RB stiff-arm (ball in hand) — until dedicated stiff_arm sprite lands
+  stiff:     { folder: "stiff_arm", frames: 4, dirs: _DIRECTIONS },  // RB stiff-arm (ball in hand, free arm extended)
+  stiff_arm: { folder: "stiff_arm", frames: 4, dirs: _DIRECTIONS },  // alt key
   release:   { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // WR release off line (no ball)
   scrape:    { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // LB scrape pursuit
   drop_step: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // QB dropback (cradling ball — handled via shape math overlay)
