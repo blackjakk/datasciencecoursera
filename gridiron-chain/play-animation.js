@@ -511,7 +511,7 @@ const _momentCinema = (() => {
 // the end-fraction of that phase (0..1). Animation uses these
 // instead of hard-coded constants so the ball-flight + return ratios
 // automatically scale with the play's actual yardage.
-const ST_YPS_VISUAL = 24;     // ~2x compression vs real NFL (~13 yps)
+const ST_YPS_VISUAL = 14;     // real-NFL-ish (~13 yps). Was 24 = double speed.
 function _stPlayTiming(opts) {
   const {
     ballYds        = 0,
@@ -3640,111 +3640,82 @@ function buildAnimForPlay(play, prevPlay) {
           const cov = play.coverage;
           const isMan = !cov || cov === "C0_BLITZ" || cov === "C1_MAN";
           if (i === idxCB1 || i === idxCB2) {
-            if (isMan) {
-              dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85;
-            } else {
-              // Zone — small forward bail / read-step only
-              dd.x += dir * Math.min(tt * 4, 4);
-            }
-            // BACKPEDAL on the snap. CB faces the offense, pushes off
-            // alternating feet to move backward into coverage depth
-            // before turning to run with the WR. Real DB footwork —
-            // currently every CB just used the run pose. After the
-            // backpedal window (~30% of pre-catch action), they
-            // transition to run/chase. Safeties also get a brief
-            // backpedal beat.
-            // PRESS JAM — when CB is in press coverage (C0/C1), they
-            // open with a brief punch at the WR's chest before backing
-            // off. ~7% of throw window = ~140ms for a typical pass.
-            // CB stays nose-to-nose with WR during the jam, then
-            // transitions to backpedal.
+            // UNIFIED CB MODEL — position is anchored to the WR's
+            // current sampled position with a phase-appropriate trail
+            // distance. Pose changes (jam → backpedal → run) are
+            // INDEPENDENT of position. Previous code drove position
+            // differently per phase so the CB would "lose" the WR
+            // during backpedal (CB drifts -8px while WR sprints
+            // forward), then have to catch up via sprint = visible
+            // "CB falls behind then rubber-bands".
+            //
+            // Trail distance by phase:
+            //   jam (man press only, brief): 0yd — nose-to-nose
+            //   backpedal: 0→4yd ramping — CB gives cushion as WR commits
+            //   run (post-backpedal): isMan ? 2yd : 5yd
+            const cbSlot = (i === idxCB1) ? "wr1" : (i === idxCB2) ? "wr2" : null;
+            const wrTarget = (cbSlot === "wr1") ? formation.wr1 : (cbSlot === "wr2") ? formation.wr2 : null;
+            const trk = (cbSlot && play.motion && play.motion.tracks) ? play.motion.tracks[cbSlot] : null;
             const jamT = isMan ? throwFrac * 0.07 : 0;
             const backpedalT = throwFrac * 0.30;
+            // Pose / facing by phase
+            let cbPose, cbFacing;
             if (jamT > 0 && aT < jamT) {
-              dd.pose = "jam";
-              // jam pose t advances 0→1 across the jam window so the
-              // punch arc completes mid-window
+              cbPose = "jam"; cbFacing = -dir;
               dd.t = aT / jamT;
-              dd.facing = -dir;
-              // Stay locked to WR position during the jam
-              const wrTarget = (i === idxCB1) ? formation.wr1
-                            : (i === idxCB2) ? formation.wr2
-                            : null;
-              if (wrTarget) {
-                dd.x = d.x + dir * 1.5;   // half-step into WR
-                dd.y = wrTarget.y;
-              }
             } else if (aT < backpedalT) {
-              dd.pose = "backpedal";
+              cbPose = "backpedal"; cbFacing = -dir;
               dd.t = ((t * (dur / 1000)) * 2.0) % 1;
-              dd.facing = -dir;     // face the offense throughout
-              // Movement backward (deeper into coverage) during backpedal
-              const bpProg = (aT - jamT) / Math.max(0.001, backpedalT - jamT);
-              dd.x = d.x + dir * bpProg * 8;
             } else {
-              // After backpedal — CB is HOLDING their coverage.
-              // PATH B Phase 3b — if the engine emitted a route track
-              // for THIS CB's assigned WR, shadow the WR's current
-              // position (with outside leverage). Solves the long-
-              // standing "CB stares at QB while WR runs free" bug.
-              // PHASE 5b — Phase 4 emits per-slot routes for ALL
-              // receivers, so both CB1 and CB2 can shadow their
-              // assigned WR (not just the targeted one).
-              const cbSlot = (i === idxCB1) ? "wr1" : (i === idxCB2) ? "wr2" : null;
-              const trk = (cbSlot && play.motion && play.motion.tracks) ? play.motion.tracks[cbSlot] : null;
-              if (cbSlot && trk && typeof MotionPlayback !== "undefined") {
-                const wrTarget = (cbSlot === "wr1") ? formation.wr1 : formation.wr2;
-                const sample = MotionPlayback.sampleTrack(trk, aT);
-                if (sample && wrTarget) {
-                  const toMidSign = Math.sign(cy - wrTarget.y) || 1;
-                  const wrX = wrTarget.x + dir * sample.dxYd * FIELD.PX_PER_YARD;
-                  const wrY = wrTarget.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
-                  // Proper coverage distance — CB trails the WR by
-                  // ~2 yards with outside leverage (a few pixels to
-                  // the sideline side). Was wrX + dir * 2 = 2 PIXELS
-                  // ahead of the WR (stacked sprites, not coverage).
-                  // Only at the catch/tackle moment should the CB and
-                  // WR converge — until then they're independent.
-                  // Live-tunable via window.GC_CB_TRAIL_YD (default 2).
-                  const _cbTrailYd = (typeof window !== "undefined" && window.GC_CB_TRAIL_YD != null) ? window.GC_CB_TRAIL_YD : 2;
-                  const _cbTargetX = wrX - dir * _cbTrailYd * FIELD.PX_PER_YARD;
-                  const _cbTargetY = wrY + toMidSign * -8;   // 8px outside leverage
-                  // SPEED-CAPPED SPRINT — was a 0.18 lerp which lets
-                  // the CB cover impossibly large per-frame distances
-                  // when far from target (rubber-band: huge jump then
-                  // asymptote). Real CBs sprint at ~14 yps top speed.
-                  // Distance-proportional speed CAPPED at top-speed-
-                  // per-frame gives steady catch-up + smooth slowdown.
-                  if (d._cbFollowX == null) { d._cbFollowX = dd.x; d._cbFollowY = dd.y; }
-                  const _cbTopYps = (typeof window !== "undefined" && window.GC_CB_TOP_YPS != null) ? window.GC_CB_TOP_YPS : 14;
-                  const _cbMaxPF = _cbTopYps * FIELD.PX_PER_YARD * 16 / 1000;
-                  const _cbDx = _cbTargetX - d._cbFollowX;
-                  const _cbDy = _cbTargetY - d._cbFollowY;
-                  const _cbDist = Math.hypot(_cbDx, _cbDy);
-                  if (_cbDist > 0.001) {
-                    const _cbSpeed = Math.min(_cbMaxPF, _cbDist * 0.20);
-                    d._cbFollowX += (_cbDx / _cbDist) * _cbSpeed;
-                    d._cbFollowY += (_cbDy / _cbDist) * _cbSpeed;
-                  }
-                  dd.x = d._cbFollowX;
-                  dd.y = d._cbFollowY;
-                  // RUN pose — CB sprinting downfield with the route.
-                  dd.pose = "run";
-                  // CB running with WR only if the WR is actually moving;
-                  // freeze legs when both are parked at the catch spot.
-                  const moving = MotionPlayback.isMoving(trk, aT);
-                  dd.t = moving ? (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0) : 0;
-                  dd.facing = dir;     // running with the route, downfield
-                } else {
-                  // Position mostly static (set above). Freeze legs.
-                  dd.t = 0;
-                }
-              } else {
-                // Position mostly static (set above by isMan/zone block).
-                // Freeze the leg cycle so they don't visibly run-in-place.
-                dd.t = 0;
+              cbPose = "run"; cbFacing = dir;
+              const moving = trk && typeof MotionPlayback !== "undefined" ? MotionPlayback.isMoving(trk, aT) : true;
+              dd.t = moving ? (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0) : 0;
+            }
+            dd.pose = cbPose;
+            dd.facing = cbFacing;
+            // Trail distance by phase
+            let _trailYd;
+            if (jamT > 0 && aT < jamT) {
+              _trailYd = 0;   // pressed at WR
+            } else if (aT < backpedalT) {
+              const bpProg = (aT - jamT) / Math.max(0.001, backpedalT - jamT);
+              _trailYd = isMan ? bpProg * 3 : bpProg * 4;   // build to 3-4yd over backpedal
+            } else {
+              _trailYd = (typeof window !== "undefined" && window.GC_CB_TRAIL_YD != null) ? window.GC_CB_TRAIL_YD : (isMan ? 2 : 5);
+            }
+            // Compute target position
+            let _cbTargetX = null, _cbTargetY = null;
+            if (cbSlot && trk && typeof MotionPlayback !== "undefined" && wrTarget) {
+              const sample = MotionPlayback.sampleTrack(trk, aT);
+              if (sample) {
+                const toMidSign = Math.sign(cy - wrTarget.y) || 1;
+                const wrX = wrTarget.x + dir * sample.dxYd * FIELD.PX_PER_YARD;
+                const wrY = wrTarget.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
+                _cbTargetX = wrX - dir * _trailYd * FIELD.PX_PER_YARD;
+                _cbTargetY = wrY + toMidSign * -8;   // 8px outside leverage
               }
             }
+            if (_cbTargetX == null) {
+              // Fallback: hold formation home (pre-route, no track)
+              _cbTargetX = d.x + dir * (isMan ? 4 : 12);
+              _cbTargetY = d.y;
+            }
+            // Speed-capped sprint toward target. Initialize follow
+            // position to current dd.x/y so jam starts at the CB's
+            // pre-snap spot, not the WR's position.
+            if (d._cbFollowX == null) { d._cbFollowX = dd.x; d._cbFollowY = dd.y; }
+            const _cbTopYps = (typeof window !== "undefined" && window.GC_CB_TOP_YPS != null) ? window.GC_CB_TOP_YPS : 14;
+            const _cbMaxPF = _cbTopYps * FIELD.PX_PER_YARD * 16 / 1000;
+            const _cbDx = _cbTargetX - d._cbFollowX;
+            const _cbDy = _cbTargetY - d._cbFollowY;
+            const _cbDist = Math.hypot(_cbDx, _cbDy);
+            if (_cbDist > 0.001) {
+              const _cbSpeed = Math.min(_cbMaxPF, _cbDist * 0.22);
+              d._cbFollowX += (_cbDx / _cbDist) * _cbSpeed;
+              d._cbFollowY += (_cbDy / _cbDist) * _cbSpeed;
+            }
+            dd.x = d._cbFollowX;
+            dd.y = d._cbFollowY;
           }
           // SAFETIES also backpedal briefly (smaller window)
           if (i === idxS1 || i === idxS2) {

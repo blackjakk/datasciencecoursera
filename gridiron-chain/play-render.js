@@ -508,16 +508,13 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   // when the sprite path skips _drawPlayerImpl. The procedural renderer
   // overwrites this with a more precise per-joint value if it runs
   // (line ~2290); drawBall reads from this either way.
-  // World coords: foot at (x, y); ball tucked at waist/hip height.
-  // For a 104px PixelLab sprite at scale 1.0 with feet at (x, y),
-  // the head is at y-90, chest ~y-55, waist ~y-35. A real football
-  // tuck is at the WAIST under the arm — the previous -55 put the
-  // ball at neck/shoulder height, looking like it floats above the
-  // body. Live override: window.GC_BALL_HAND_Y_OFFSET (default -35).
-  // X offset is small (±4) so the ball sits at the side of the body
-  // rather than visibly detached in front of it.
+  // World coords: foot at (x, y); ball tucked at chest height where
+  // the carrier's hand cradles it. For a 104px PixelLab sprite at
+  // scale 1.0 with feet at (x, y), chest sits around y-50 (visually).
+  // -35 was at knee/hip per user feedback; -50 is chest. Live
+  // override: window.GC_BALL_HAND_Y_OFFSET (default -50).
   const _ballHandY = (typeof window !== "undefined" && window.GC_BALL_HAND_Y_OFFSET != null)
-    ? window.GC_BALL_HAND_Y_OFFSET : -35;
+    ? window.GC_BALL_HAND_Y_OFFSET : -50;
   const _ballHandX = (typeof window !== "undefined" && window.GC_BALL_HAND_X_OFFSET != null)
     ? window.GC_BALL_HAND_X_OFFSET : 4;
   drawPlayer._carryHandSink = drawPlayer._carryHandSink || {};
@@ -2494,6 +2491,11 @@ function drawBall(ctx, x, y, scale = 1, opts = {}) {
     if (bestE && bestDist < 24 && !_settled) {
       x = bestE.x;
       y = bestE.y;
+      // Ball is being tucked under the arm — should read as parallel
+      // to the ground (horizontal in top-down view), not at the
+      // default in-flight tilt (-0.35 rad). Override unless caller
+      // explicitly set an angle.
+      if (opts.angle == null) opts = { ...opts, angle: 0 };
     }
   }
   // Broadcast camera: queue the ball draw to the upright overlay with
