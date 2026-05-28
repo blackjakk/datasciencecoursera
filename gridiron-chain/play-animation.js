@@ -690,20 +690,30 @@ function _simulateKickoffAgents(opts) {
         c.y += (dy / d) * speed;
       }
     }
+    // Field-of-play clamp for cov — keep them inbounds even when
+    // pursuing past the goal line on a TD return.
+    for (let i = 0; i < NUM_COVER; i++) {
+      const c = cover[i];
+      c.x = Math.max(FIELD.EZ_PX * 0.5, Math.min(FIELD.W - FIELD.EZ_PX * 0.5, c.x));
+      c.y = Math.max(FIELD.TOP + 10, Math.min(FIELD.BOT - 10, c.y));
+    }
     // === BLOCKERS — SPREAD-POCKET MODEL + ENGAGEMENT ===
     // Real KR blocking: blockers SPREAD ACROSS the field in front of
-    // and around the returner, each covering a lateral lane. NOT
-    // bunched up. Previous pocket model anchored every blocker along
-    // the bearing to their assigned cov, so when most covs came from
-    // similar directions all blockers stacked on one side ("tight
-    // like a line").
-    //
-    // New: each blocker maintains their FORMATION LATERAL OFFSET
-    // (blockerLanes[i] relative to cy) anchored to the returner.
-    // Forward distance varies by slot — center blockers tight (4yd),
-    // edge blockers wider lead (10-12yd). When cov breaches the
-    // pocket, blocker pivots in to engage.
+    // and around the returner, each covering a lateral lane. Each
+    // maintains their FORMATION LATERAL OFFSET (blockerLanes[i]
+    // relative to cy) anchored to the returner. Forward distance
+    // varies by slot — center blockers tight (4yd), edge blockers
+    // wider lead (10-12yd). When cov breaches the pocket, blocker
+    // pivots in to engage.
     const aheadSign = Math.sign(kickerLineX - catchX) || 1;
+    // Field-of-play bounds — blockers and cov clamped to keep them
+    // ON THE FIELD even on TD returns (returner finishes at the goal
+    // line; blockers ahead by 6-10yd would otherwise be OUT THE BACK
+    // of the endzone).
+    const _fieldMinX = FIELD.EZ_PX * 0.5;             // tiny buffer in endzone
+    const _fieldMaxX = FIELD.W - FIELD.EZ_PX * 0.5;
+    const _fieldMinY = FIELD.TOP + 10;
+    const _fieldMaxY = FIELD.BOT - 10;
     for (let i = 0; i < NUM_COVER; i++) { cover[i].engaged = false; cover[i].engagedBy = -1; }
     for (let i = 0; i < NUM_BLOCKERS; i++) {
       const b = blockers[i];
@@ -771,6 +781,10 @@ function _simulateKickoffAgents(opts) {
       if (isEngaged) {
         b.x += recvDir * ENGAGE_DRIFT_PX_F;
       }
+      // Field-of-play clamp — keep blockers on the field, especially
+      // during TD returns where returner ends at the goal line.
+      b.x = Math.max(_fieldMinX, Math.min(_fieldMaxX, b.x));
+      b.y = Math.max(_fieldMinY, Math.min(_fieldMaxY, b.y));
     }
     // Cov drag — engaged cov gets pulled toward its lead each frame.
     for (let i = 0; i < NUM_COVER; i++) {
