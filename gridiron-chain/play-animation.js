@@ -1999,7 +1999,17 @@ function buildAnimForPlay(play, prevPlay) {
         else                     rbPose = "churn";   // high-knee carry through cruise
 
       }
-      let rbT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
+      // RB stride frequency — scale with the carrier's cruise speed so
+      // foot strikes match world motion. Was a fixed 3Hz wall-clock
+      // cycle (performance.now() / 333), which made long carries look
+      // like ice-skating: legs cycled at jogging pace while the body
+      // moved at sprint speed = "too fast" / sliding. cruiseYPS is
+      // estimated from yards / actionDur, with a 1.22 fudge for the
+      // runPacing cruise-vs-average ratio. Natural stride ~2yd, so
+      // strideHz = yps / 2. Clamped to 2.0..5.5 Hz.
+      const _runCruiseYPS = Math.max(0.1, Math.abs(yards)) / (actionDur / 1000) * 1.22;
+      const _runStrideHz  = clamp(_runCruiseYPS / 2, 2.0, 5.5);
+      let rbT = (t < 0.95 ? ((t * (dur / 1000)) * _runStrideHz) % 1 : 0);
       let rbLateral = 0;
       let dodgeIdx = -1;
       let moveCallout = null;
@@ -4363,16 +4373,21 @@ function buildAnimForPlay(play, prevPlay) {
       // per stride while the legs cycled at jogging pace ("stuttered
       // to the endzone"). Natural stride is ~2 yd; strideHz = yps / 2,
       // clamped to a believable 2.5–5.5 Hz range.
-      let strideHz = 3.0;   // baseline for pre-catch route running
+      // Pre-catch baseline derived from the route geometry: WR covers
+      // ~targetDepth yards over throwFrac*actionDur ms. At 3.0Hz the
+      // legs cycled at jogging pace regardless of speed, so a 4yd hitch
+      // had the WR's legs flailing while his body crept forward, and a
+      // 22yd streak had the legs jogging while the body sprinted. Both
+      // read as the WR "teleporting" — body motion decoupled from foot
+      // strikes. Now stride matches the route's average ground speed.
+      const _routeYds = Math.max(2, play.targetDepth || play.catchDepth || 8);
+      const _routeMs  = Math.max(400, throwFrac * actionDur);
+      const _routeYPS = _routeYds / (_routeMs / 1000);
+      let strideHz = clamp(_routeYPS / 2, 2.0, 5.5);
       if (isPostCatch && _wrSim) {
         // Sim-driven: use instantaneous velocity so the stride ramps
         // up during accel, sits high at top speed, and slows on the
         // tackle clamp — natural foot-strike timing throughout.
-        // (Pre-existing "fallback" branch was dead-on-arrival —
-        // referenced _effEndX from a const-block scope that ended ~700
-        // lines earlier, so it would have thrown ReferenceError. With
-        // SimPlayer always loaded the branch never fired, but the safe
-        // default is just to keep the 3.0 baseline.)
         const _carrierYPS = Math.hypot(_wrSim.vx, _wrSim.vy) / FIELD.PX_PER_YARD;
         strideHz = clamp(_carrierYPS / 2, 2.5, 5.5);
       }
