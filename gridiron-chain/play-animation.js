@@ -4986,7 +4986,15 @@ function buildAnimForPlay(play, prevPlay) {
         return dd;
       });
       const off = formation.offense.map(p => {
-        if (p.role === "QB") return { ...qb, pose: qbPose, t: (t < 0.95 ? ((performance.now() / 333) + 0.4) % 1 : 0), facing: dir };
+        if (p.role === "QB") {
+          // throw and drop_step are SETTLED poses during the sack scan
+          // window — frame 0 is the cradle/scanning silhouette. Cycling
+          // t through wall-clock made the throw pose loop the full
+          // throwing motion = visible "pump fake" every 333ms.
+          const _qbCarryPose = qbPose === "throw" || qbPose === "drop_step" || qbPose === "idle";
+          const _qbT = _qbCarryPose ? 0 : (t < 0.95 ? ((performance.now() / 333) + 0.4) % 1 : 0);
+          return { ...qb, pose: qbPose, t: _qbT, facing: dir };
+        }
         if (p.role === "OL" && t > PRE) {
           const tt = (t - PRE) / (1 - PRE);
           const slotDepth = Math.abs((p.y - cy) / 14);
