@@ -1680,6 +1680,20 @@ function buildAnimForPlay(play, prevPlay) {
     return { duration: dur, kind: "run", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
+      // BIG-RUN crowd reaction — fires at the break-through moment
+      // (runT > 0.40) for 15+yd carries. Was firing at the snap from
+      // _isBigPlay = "crowd cheers before the back hits the hole."
+      // One-shot via play._bigRunFired.
+      if (!play._bigRunFired && t > PRE && (play.yards ?? 0) >= 15) {
+        const _runT = (t - PRE) / (1 - PRE);
+        if (_runT >= 0.40) {
+          play._bigRunFired = true;
+          if (typeof GCAudio !== "undefined") {
+            GCAudio.play("bigplay");
+            GCAudio.crowd.swell(0.20, 1100, 1500);
+          }
+        }
+      }
       const rb = { ...formation.rb };
       const qb = { ...formation.qb };
       const isScramble = !!play.isScramble;
@@ -4271,8 +4285,18 @@ function buildAnimForPlay(play, prevPlay) {
         const _carrierYPS = Math.hypot(_wrSim.vx, _wrSim.vy) / FIELD.PX_PER_YARD;
         strideHz = clamp(_carrierYPS / 2, 2.5, 5.5);
       }
+      // CATCH POSE — when wrPose is "reach" (during the catch window),
+      // progress its t once from 0 → 1 across the window. Was falling
+      // through to the stride-cycle expression which replayed the full
+      // reach/catch animation every 333ms — looked like the WR was
+      // catch-faking on a loop. Single-fire matches a real catch.
+      const _isReachCatch = isCatching && !inLeapWindow;
+      const reachInternalT = _isReachCatch
+        ? Math.min(1, Math.max(0, (t - (throwPhase - 0.05)) / 0.15))
+        : 0;
       const wrTackleT = wrIsTackled ? Math.min(1, (aT - TACKLE_START_AT) / (1 - TACKLE_START_AT))
                        : inLeapWindow ? leapInternalT
+                       : _isReachCatch ? reachInternalT
                        : ((t * (dur / 1000)) * strideHz) % 1;
       const wrWithPose = { ...wr,
         pose: wrPose,
@@ -4603,6 +4627,34 @@ function buildAnimForPlay(play, prevPlay) {
         play._catchFlashUntil = _now + 350;       // green tint a bit longer than the freeze
         if (typeof GCFx !== "undefined") {
           GCFx.flash("#7cff7c", 180, 0.10);       // brief green field flash
+        }
+        // BIG-CATCH crowd reaction — fires AT the catch (was at snap from
+        // _isBigPlay). >= 20 yds threshold; matches the audio classifier.
+        const _bigCatchYds = play.yards ?? 0;
+        if (_bigCatchYds >= 20 && typeof GCAudio !== "undefined") {
+          GCAudio.play("bigplay");
+          GCAudio.crowd.swell(0.22, 1200, 1600);
+        }
+      }
+      // INT FLASH — equivalent moment when the defender hauls in the
+      // interception. Brief slow-mo freeze + crowd reaction synced to
+      // the actual pick frame. Was: groan fired at snap (before the
+      // throw even left the QB's hand).
+      if (play.kind === "int" && at >= throwEndAT && !play._intFlashFired) {
+        play._intFlashFired = true;
+        const _now = performance.now();
+        if (typeof animState !== "undefined" && animState) {
+          animState.slowMoUntil = _now + 280;   // slightly longer than catch
+          animState.slowMoMul = 0;
+        }
+        if (typeof GCFx !== "undefined") {
+          GCFx.flash("#ffaa30", 220, 0.12);     // amber field flash
+        }
+        if (typeof GCAudio !== "undefined") {
+          // Picking team crowd reacts (bigplay). Offense groan deferred
+          // here too so the QB-side and DB-side reactions both sync.
+          GCAudio.play("bigplay");
+          GCAudio.crowd.swell(0.25, 1400, 1700);
         }
       }
       // Post-catch carry: ball at receiver's tuck hand. Completed catches
@@ -8760,9 +8812,12 @@ function startNextPlay() {
   const _isHit  = _kind === "big_hit" || _kind === "ejection";
   const _isSeg  = _kind === "halftime" || _kind === "quarter" ||
                   _kind === "ot" || _kind === "two_min_warning";
+  // _isGroan plays at play start. "interception"/"int" fire their crowd
+  // reaction at the actual pick frame from inside the pass-play renderer
+  // (slow-mo + bigplay swell), so they're NOT in the start-of-play groan
+  // — the crowd reacting before the QB even drops back was unmistakable.
   const _isGroan = _kind === "incomplete" || _kind === "fg_miss" ||
-                   _kind === "xp_miss"   || _kind === "to_downs" ||
-                   _kind === "interception";
+                   _kind === "xp_miss"   || _kind === "to_downs";
   // Big-play yardage classifier. Engine never actually emits "long_pass"
   // or "long_run" — those buckets stayed empty. Detect big gains by
   // yardage instead so the crowd reacts to the explosive plays it
@@ -8770,14 +8825,14 @@ function startNextPlay() {
   const _bigYards = play.yards ?? 0;
   const _isBigCatch = _kind === "complete" && _bigYards >= 20;
   const _isBigRun   = _kind === "run"      && _bigYards >= 15;
-  // sack/fumble are big plays but their crowd reaction fires AT CONTACT
-  // from inside the per-play renderer (not at the snap). Including them
-  // here played the bigplay SFX + crowd swell as the play started —
-  // crowd cheering before anything happened.
-  const _isBigPlay = _kind === "int_no_td" || _kind === "interception" ||
-                     _kind === "long_run" ||
-                     _kind === "long_pass" ||
-                     _isBigCatch || _isBigRun;
+  // Same rule as sack/fumble: big catches + big runs + interceptions
+  // fire their crowd reaction inline from the per-play renderer, at the
+  // moment the catch / break-through / pick lands. Including them in
+  // the start-of-play _isBigPlay group caused the SFX + swell to fire
+  // BEFORE the play even developed (user-reported "crowd cheers before
+  // the deep ball arrives").
+  const _isBigPlay = _kind === "int_no_td" || _kind === "long_run" ||
+                     _kind === "long_pass";
   // Plays that begin with a QB snap — fire the synthetic "HIKE!" vocal
   // in addition to the snap click so the cadence is audible.
   const _isSnapPlay = _kind === "run" || _kind === "complete" ||
