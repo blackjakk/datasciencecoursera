@@ -3618,7 +3618,12 @@ function buildAnimForPlay(play, prevPlay) {
             const _pushRange = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_RANGE) || 8;
             const _engagePush = (_pushMin + _engageHash * _pushRange) * _engageEased;
             const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
-            dd.x = d.x - dir * _engagePush + wobble * 0.6;
+            // Post-throw drift: DL continues to push slowly so OL/DL
+            // don't visibly FREEZE the moment the ball is released.
+            // ~3px extra push + sin wobble over the post-throw window.
+            const _postThrowT_dl = aT > throwFrac ? Math.min(1, (aT - throwFrac) / Math.max(0.001, 1 - throwFrac)) : 0;
+            const _postPushExtra = _postThrowT_dl * 3 + Math.sin(aT * Math.PI * 5 + d.y * 0.09) * _postThrowT_dl * 1.5;
+            dd.x = d.x - dir * (_engagePush + _postPushExtra) + wobble * 0.6;
             dd.y = d.y + wobble;
             dd.pose = "engage";
             dd.t = tt;
@@ -3695,10 +3700,20 @@ function buildAnimForPlay(play, prevPlay) {
                   const wrX = wrTarget.x + dir * sample.dxYd * FIELD.PX_PER_YARD;
                   const wrY = wrTarget.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
                   // Outside leverage — CB stays a step head-on and
-                  // slightly to the WR's outside-sideline. Tracks the
-                  // WR's break naturally without rubber-banding.
-                  dd.x = wrX + dir * 2;
-                  dd.y = wrY + toMidSign * -3;   // 3 yds outside (away from middle)
+                  // slightly to the WR's outside-sideline.
+                  const _cbTargetX = wrX + dir * 2;
+                  const _cbTargetY = wrY + toMidSign * -3;
+                  // SMOOTH FOLLOW — was a direct position copy each
+                  // frame; the CB instantly teleported onto the WR at
+                  // the throw moment (when this branch first fires
+                  // after the backpedal phase) and any time the route
+                  // track sample jumped. Lerp with momentum so the CB
+                  // closes on the WR over ~5-6 frames instead of one.
+                  if (d._cbFollowX == null) { d._cbFollowX = dd.x; d._cbFollowY = dd.y; }
+                  d._cbFollowX += (_cbTargetX - d._cbFollowX) * 0.18;
+                  d._cbFollowY += (_cbTargetY - d._cbFollowY) * 0.18;
+                  dd.x = d._cbFollowX;
+                  dd.y = d._cbFollowY;
                   // CB running with WR only if the WR is actually moving;
                   // freeze legs when both are parked at the catch spot.
                   const moving = MotionPlayback.isMoving(trk, aT);
@@ -4381,21 +4396,21 @@ function buildAnimForPlay(play, prevPlay) {
           }
           const tt = Math.min(1, aT / 0.55);
           // OL kick-slides BACKWARDS to anchor the pocket (~1yd retreat
-          // over the rush window). Pre-snap OL is at LOS-2 (legal); the
-          // dropback only fires post-snap so the pre-snap shot stays
-          // clean. Pairs with the DL push below — both ramp from 0 at
-          // the snap so neither side jumps the LOS.
+          // over the rush window). Post-throw OL continues to drift
+          // (extra dropback + wobble) so OL and DL don't visibly
+          // FREEZE the moment the ball leaves the QB's hand.
           const dropBack = 12 * tt;
           const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.3;
-          // OL pass-pro archetype: prefer play.olType (specific OL beat
-          // on the sack play) when present, else hash by slot.
+          // After throw: continue blocking, with extra wobble and a
+          // small further retreat as DL keeps pushing. Was stuck at
+          // dropBack=12 forever from aT=0.55 onward.
+          const _postThrowT = aT > throwFrac ? Math.min(1, (aT - throwFrac) / Math.max(0.001, 1 - throwFrac)) : 0;
+          const _postDrift = _postThrowT > 0
+            ? Math.sin(aT * Math.PI * 5 + p.y * 0.11) * 2.0 + (-dir * _postThrowT * 3)
+            : 0;
           const olArch = (play.olType && _OL_ARCH.indexOf(play.olType) >= 0)
             ? play.olType : _archForLineman(p, "OL");
-          // Pass-pro = KICK-SLIDE footwork: wide base, low squat, arms
-          // punched out. Not generic "engage". Was the same engage pose
-          // OL use on run blocks — pass pro has a completely different
-          // visual signature in real football.
-          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble,
+          return { ...p, x: p.x - dir * dropBack + _postDrift, y: p.y + wobble,
                    pose: "kick_slide",
                    t: ((t * (dur / 1000)) * 2.2) % 1,
                    facing: dir, archetype: olArch };
@@ -4757,13 +4772,12 @@ function buildAnimForPlay(play, prevPlay) {
             dd.y = d.y + wig;
             dd.pose = "engage";
             dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
-          } else {
-            // RUSH PHASE — primary closes on QB at top speed; others
-            // continue engaged or release late.
-            let speedFactor;
-            if (isPrimary) speedFactor = 1.05;
-            else if (isSecondary) speedFactor = 0.88;
-            else speedFactor = 0.70;
+          } else if (isPrimary || isSecondary) {
+            // RUSH PHASE — only the PRIMARY (and optional SECONDARY)
+            // break free and chase the QB. Other DL stay engaged at
+            // the LOS (real football: a sack play has 1-2 rushers
+            // winning, not all 4 simultaneously crashing the backfield).
+            const speedFactor = isPrimary ? 1.05 : 0.88;
             const _rushElapsed = Math.max(0, tt - rushReleaseT) * dur * speedFactor;
             const angleOffset = isPrimary ? 0 : (i - primaryIdx) * 4;
             // Sync pursue start position to the engagement-end spot so
@@ -4777,9 +4791,6 @@ function buildAnimForPlay(play, prevPlay) {
             if (!np.moved) dd.t = 0;
             if (isPrimary && tt > contactT + 0.03) {
               dd.pose = "sack";
-              // Pose progress drives the fall animation (drive → crumple
-              // → horizontal). Was using wall-clock stride; sack pose
-              // ended at "still standing wrapping the QB".
               dd.t = Math.min(1, (tt - contactT) / Math.max(0.001, 1 - contactT));
             } else if (isSecondary && tt > contactT + 0.05) {
               dd.pose = "sack";
@@ -4787,13 +4798,29 @@ function buildAnimForPlay(play, prevPlay) {
             } else {
               dd.pose = "run";
             }
+          } else {
+            // Non-rushing DL: continue engaged with OL at the LOS.
+            // No pursue (was: speedFactor 0.70 → all 4 DL converged
+            // on the QB = "4 defenders teleport into backfield").
+            const wig = Math.sin(tt * Math.PI * 4 + i * 0.7) * 1.5;
+            dd.x = d.x + wig * 0.6;
+            dd.y = d.y + wig;
+            dd.pose = "engage";
+            dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
           }
         } else if (i >= 4 && i <= 6) {
-          // LBs spy the QB but stay disciplined — drift toward him slowly
-          const elapsedMs = Math.max(0, tt) * dur * 0.55;
-          const np = pursue(d, qb.x + dir * 6, qb.y + (i - 5) * 12, elapsedMs, 0.7);
-          dd.x = np.x; dd.y = np.y;
-          if (!np.moved) dd.t = 0;
+          // LBs: hold their drop depth, drift FORWARD only ~1yd over
+          // the whole play. Was pursue() to qb.x + dir*6 which put
+          // them ~5yd from QB by mid-play (teleport into backfield).
+          // LBs in real pass plays cover zones, they don't crash the
+          // QB unless blitzing (and a sack play already has a named
+          // blitzer/primary handling that).
+          const lbProg = Math.min(1, tt * 1.2);
+          const wigLB = Math.sin(tt * Math.PI * 3 + i * 0.5) * 1.2;
+          dd.x = d.x - dir * lbProg * 12;   // drift ~1yd forward (toward LOS)
+          dd.y = d.y + wigLB;
+          dd.pose = "scrape";
+          dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
         }
         return dd;
       });
@@ -4809,6 +4836,20 @@ function buildAnimForPlay(play, prevPlay) {
           // Receivers ran routes but are now standing around (no one to throw to)
           const tt = (t - PRE) / (1 - PRE);
           return { ...p, x: p.x + dir * tt * 80, pose: tt > 0.8 ? "idle" : "run", t: (t < 0.95 ? ((performance.now() / 333) + 0.5) % 1 : 0), facing: dir };
+        }
+        // RB pass-protects on the sack. Was falling through to the
+        // idle catch-all = RB stuck at formation home (~8yd behind LOS)
+        // while everything else animated, reading as "RB disappeared".
+        if ((p.role === "RB" || p.role === "FB") && t > PRE) {
+          const tt = (t - PRE) / (1 - PRE);
+          const slideX = -dir * Math.min(tt * 12, 6);     // step up ~0.4yd
+          const slideY = (cy - p.y) * Math.min(tt * 1.3, 0.35);  // drift toward middle
+          const rbPose = tt < 0.40 ? "run" : "block";
+          return { ...p,
+                   x: p.x + slideX, y: p.y + slideY,
+                   pose: rbPose,
+                   t: rbPose === "run" ? (t < 0.95 ? ((performance.now() / 333) + 0.3) % 1 : 0) : tt,
+                   facing: dir };
         }
         return { ...p, pose: "idle", facing: dir };
       });
