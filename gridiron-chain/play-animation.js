@@ -690,38 +690,41 @@ function _simulateKickoffAgents(opts) {
         c.y += (dy / d) * speed;
       }
     }
-    // === BLOCKERS — POCKET MODEL + ENGAGEMENT ===
-    // Real KR blocking: blockers form a pocket AROUND the returner,
-    // interposing themselves between returner and incoming cover.
-    // They face the cover (backpedal technique) and move WITH the
-    // returner. Old code had each blocker chase their assigned cover
-    // directly — they all met cover at midfield, far from the
-    // returner. Now blockers anchor relative to the returner:
-    //   target = returner.position + (POCKET_RADIUS_YD yards toward
-    //            their assigned cov defender's bearing)
-    // So blockers fan out around the returner, each oriented toward
-    // the cov they're responsible for. As returner moves, pocket
-    // moves with him. When cov closes inside the pocket radius,
-    // blocker pivots in to engage.
-    const POCKET_RADIUS_PX = 8 * PX_PER_YD;
+    // === BLOCKERS — SPREAD-POCKET MODEL + ENGAGEMENT ===
+    // Real KR blocking: blockers SPREAD ACROSS the field in front of
+    // and around the returner, each covering a lateral lane. NOT
+    // bunched up. Previous pocket model anchored every blocker along
+    // the bearing to their assigned cov, so when most covs came from
+    // similar directions all blockers stacked on one side ("tight
+    // like a line").
+    //
+    // New: each blocker maintains their FORMATION LATERAL OFFSET
+    // (blockerLanes[i] relative to cy) anchored to the returner.
+    // Forward distance varies by slot — center blockers tight (4yd),
+    // edge blockers wider lead (10-12yd). When cov breaches the
+    // pocket, blocker pivots in to engage.
+    const aheadSign = Math.sign(kickerLineX - catchX) || 1;
     for (let i = 0; i < NUM_COVER; i++) { cover[i].engaged = false; cover[i].engagedBy = -1; }
     for (let i = 0; i < NUM_BLOCKERS; i++) {
       const b = blockers[i];
       const a = blockerAssignments[i];
       const cov = cover[b.targetCov];
       let isEngaged = false;
-      // POCKET TARGET — interposition point between returner and cov,
-      // at POCKET_RADIUS yards from returner along the bearing to cov.
-      let targetX, targetY;
+      // SPREAD TARGET — lateral lane offset preserved, forward lead
+      // varies. Returner runs toward kicker side; "ahead" = aheadSign.
+      const laneOffsetY = blockerLanes[i] - cy;
+      const midSlot = (NUM_BLOCKERS - 1) / 2;
+      const edgeFactor = Math.abs(i - midSlot) / Math.max(1, midSlot);   // 0=center, 1=edge
+      const leadYd = 4 + edgeFactor * 6;   // 4-10yd lead, edges further out
+      let targetX = returner.x + aheadSign * leadYd * PX_PER_YD;
+      let targetY = returner.y + laneOffsetY * 0.8;   // 80% of original lateral spread
+      // If cov is closing on returner, blocker pivots to interpose
       const dxRC = cov.x - returner.x;
       const dyRC = cov.y - returner.y;
       const distRC = Math.hypot(dxRC, dyRC);
-      if (distRC > POCKET_RADIUS_PX) {
-        // Cov outside pocket — interpose at the edge of the pocket
-        targetX = returner.x + (dxRC / distRC) * POCKET_RADIUS_PX;
-        targetY = returner.y + (dyRC / distRC) * POCKET_RADIUS_PX;
-      } else {
-        // Cov breached the pocket — close on cov directly to engage
+      const POCKET_CLOSE_PX = 10 * PX_PER_YD;
+      if (distRC < POCKET_CLOSE_PX) {
+        // Cov inside pocket area — close on cov directly to engage
         targetX = cov.x;
         targetY = cov.y;
       }
@@ -4827,15 +4830,18 @@ function buildAnimForPlay(play, prevPlay) {
           // when the primary wins his block.
           const rushReleaseT = Math.max(0.25, contactT - 0.35);
           if (tt < rushReleaseT) {
-            // Hold at LOS with a tiny back-and-forth (engagement
-            // struggle). Primary makes slight forward progress (winning
-            // the block); others held flat.
-            const wig = Math.sin(tt * Math.PI * 6 + i) * 1.5;
+            // Hold at LOS with a small slow struggle. Was wig 6π (3+
+            // Hz = ~12 cycles in a 4s play = "dancing"). Reduced to
+            // 1.5π (~1.5 cycles total) for a natural engaged sway.
+            const wig = Math.sin(tt * Math.PI * 1.5 + i) * 1.2;
             const fwdProgress = isPrimary ? Math.min(3, tt * 4) : 0;
             dd.x = d.x + dir * fwdProgress;
             dd.y = d.y + wig;
             dd.pose = "engage";
-            dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
+            // Hold the engage pose on frame 0 (was wall-clock cycling
+            // through the 4-frame engage anim at ~3 Hz = visible
+            // shuffle). Frame 0 reads as "locked in the block".
+            dd.t = 0;
           } else if (isPrimary || isSecondary) {
             // RUSH PHASE — only the PRIMARY (and optional SECONDARY)
             // break free and chase the QB. Other DL stay engaged at
@@ -4863,28 +4869,24 @@ function buildAnimForPlay(play, prevPlay) {
               dd.pose = "run";
             }
           } else {
-            // Non-rushing DL: continue engaged with OL at the LOS.
-            // No pursue (was: speedFactor 0.70 → all 4 DL converged
-            // on the QB = "4 defenders teleport into backfield").
-            const wig = Math.sin(tt * Math.PI * 4 + i * 0.7) * 1.5;
-            dd.x = d.x + wig * 0.6;
+            // Non-rushing DL hold the LOS engaged with OL. Slow sway,
+            // frozen pose-frame to avoid the dancing look from rapid
+            // wall-clock cycling.
+            const wig = Math.sin(tt * Math.PI * 1.2 + i * 0.7) * 1.0;
+            dd.x = d.x + wig * 0.5;
             dd.y = d.y + wig;
             dd.pose = "engage";
-            dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
+            dd.t = 0;
           }
         } else if (i >= 4 && i <= 6) {
-          // LBs: hold their drop depth, drift FORWARD only ~1yd over
-          // the whole play. Was pursue() to qb.x + dir*6 which put
-          // them ~5yd from QB by mid-play (teleport into backfield).
-          // LBs in real pass plays cover zones, they don't crash the
-          // QB unless blitzing (and a sack play already has a named
-          // blitzer/primary handling that).
+          // LBs hold their drop depth with a slow scrape — slight
+          // forward drift, gentle sway, frozen pose-frame.
           const lbProg = Math.min(1, tt * 1.2);
-          const wigLB = Math.sin(tt * Math.PI * 3 + i * 0.5) * 1.2;
-          dd.x = d.x - dir * lbProg * 12;   // drift ~1yd forward (toward LOS)
+          const wigLB = Math.sin(tt * Math.PI * 1.0 + i * 0.5) * 0.8;
+          dd.x = d.x - dir * lbProg * 12;
           dd.y = d.y + wigLB;
           dd.pose = "scrape";
-          dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
+          dd.t = 0;
         }
         return dd;
       });
@@ -4920,7 +4922,12 @@ function buildAnimForPlay(play, prevPlay) {
         return { ...p, pose: "idle", facing: dir };
       });
       drawPlayers(off, def);
-      drawBall(ctx, qb.x, qb.y);
+      // Pre-snap: ball at the LOS (between center's legs). Was at
+      // qb.x = LOS-90px ≈ 30px in front of RB — user-reported "ball
+      // floats in front of RB pre-snap" on audible sacks.
+      const _sackBallX = (t < PRE) ? (losX - dir * 2) : qb.x;
+      const _sackBallY = (t < PRE) ? cy : qb.y;
+      drawBall(ctx, _sackBallX, _sackBallY);
       // Pressure indicator — pulsing red ring around QB during the dance
       const sackT = Math.max(0, (t - PRE) / (1 - PRE));
       if (sackT > 0.20 && sackT < 0.86) {
@@ -5094,6 +5101,7 @@ function buildAnimForPlay(play, prevPlay) {
             pY = p.y + dy * moveFrac;
             if (t < STRIP_END) {
               pPose = "engage";   // still in their assignment
+              pT = 0;             // freeze engage frame — no shuffle
             } else if (t >= diveStart && t < diveEnd) {
               pPose = "dive";
               pT = (t - diveStart) / 0.18;
@@ -5121,6 +5129,7 @@ function buildAnimForPlay(play, prevPlay) {
             pY = p.y + dy * moveFrac;
             if (t < STRIP_END + waveDelay) {
               pPose = "engage";
+              pT = 0;       // freeze engage frame — no shuffle
             } else {
               const newDist = Math.hypot(ballX - pX, ballY - pY);
               if (newDist < 28) {
@@ -5140,7 +5149,12 @@ function buildAnimForPlay(play, prevPlay) {
             const moveFrac = Math.min(0.6, maxMove / Math.max(1, dist));
             pX = p.x + dx * moveFrac;
             pY = p.y + dy * moveFrac;
-            pPose = t < STRIP_END ? "engage" : "run";
+            if (t < STRIP_END) {
+              pPose = "engage";
+              pT = 0;       // freeze engage frame
+            } else {
+              pPose = "run";
+            }
           }
           drawPlayer(ctx, pX, pY, color, sec, p.label || "", pPose, pT, isOff ? dir : -dir, p);
         }
