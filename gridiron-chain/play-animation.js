@@ -3140,6 +3140,20 @@ function buildAnimForPlay(play, prevPlay) {
                         : play.kind === "incomplete" ? 1800   // ball bounce + roll settle window
                         : 1000;
     const actionDur = basePass + POST_CATCH_MS;
+    // When the engine emits motion, IT computes its own throwT (the
+    // catch waypoint on the route tracks) from a SLIGHTLY DIFFERENT
+    // formula than the renderer's basePass/actionDur ratio (different
+    // floor + offset on scaledDuration, different POST_CATCH window).
+    // The renderer was sampling track waypoints at its own throwFrac,
+    // but the engine's catch waypoint lives at engine.throwT. On a
+    // 20-yd throw to a wr1 streak, the render's throwFrac landed at
+    // ~75% of the engine catch waypoint — so the WR was at 75% depth
+    // (~15 yds) when the renderer fired the post-catch transition,
+    // then _wrSim teleported him to the 20-yd catch target. User-
+    // visible "WR teleports under the ball" on deep throws.
+    // Honor engine's throwT when present so both sides agree on when
+    // the catch happens in normalized action time.
+    const _engineMotionThrowT = play.motion && typeof play.motion.throwT === "number" ? play.motion.throwT : null;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
     return { duration: dur, kind: play.kind, render: (t, c) => {
@@ -3153,8 +3167,18 @@ function buildAnimForPlay(play, prevPlay) {
       // bug — it told the play that 78% of action was pre-catch even
       // when basePass was reduced for screens, leaving only 22% for the
       // RB to cover all the YAC.
-      const dropFrac  = (basePass * 0.42) / actionDur;
-      const throwFrac = basePass / actionDur;
+      // throwFrac defines WHEN the catch happens in normalized action
+      // time. Engine motion tracks place their catch waypoint at engine
+      // throwT (a slightly different formula). When motion is present
+      // we adopt engine throwT so the route track's catch waypoint and
+      // the renderer's catch transition fire at the same aT — without
+      // this alignment the WR's track sample at render.throwFrac is at
+      // an earlier waypoint than the catch target, and _wrSim teleports
+      // him forward to the catch position. (See _engineMotionThrowT
+      // comment above.) Drop ratio held constant at 0.42 of throwFrac.
+      const throwFrac = _engineMotionThrowT != null ? _engineMotionThrowT
+                                                    : basePass / actionDur;
+      const dropFrac  = throwFrac * 0.42;
       const dropPhase  = PRE + (1 - PRE) * dropFrac;
       const throwPhase = PRE + (1 - PRE) * throwFrac;
       // ACTION-relative time — 0 at snap, 1 at end of play. Use this for any
