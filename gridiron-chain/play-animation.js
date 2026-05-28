@@ -3091,7 +3091,7 @@ function buildAnimForPlay(play, prevPlay) {
                         : isFirstDownPassPlay       ? Math.max(3000, _yacScaleMs + 1800)
                         : play.kind === "complete"  ? Math.max(2400, _yacScaleMs + 1500)
                         : play.kind === "int"       ? 1800
-                        : play.kind === "incomplete" ? 250
+                        : play.kind === "incomplete" ? 1800   // ball bounce + roll settle window
                         : 1000;
     const actionDur = basePass + POST_CATCH_MS;
     const dur = actionDur + PRE_MS;
@@ -3468,17 +3468,35 @@ function buildAnimForPlay(play, prevPlay) {
           wr.x = ballX;
           wr.y = ballY;
         } else if (play.kind === "incomplete") {
-          // Ball CONTINUES past the catch point on its trajectory, then
-          // falls. Previously it stopped at the receiver position and
-          // slowly drifted down (25px over the whole post-throw window),
-          // which looked like the receiver caught it and dropped it.
-          // Now: continues forward AND drops faster, so the ball clearly
-          // leaves the catch zone like a real incomplete pass.
-          const fallVy = incDropFast ? 90 : 65;
-          ballX = targetX + incOffsetX + dir * tt * 35;
-          ballY = targetY + incOffsetY + tt * fallVy;
-          // Tumbling spiral — ball keeps pointing in its motion direction
-          ballAngle = Math.atan2(dir * 35, -fallVy);
+          // BOUNCE + ROLL — ball hits the turf, bounces 3 times with
+          // diminishing amplitude, then rolls to a stop. Was a static
+          // drift-and-sink over 250ms. POST_CATCH_MS for incomplete
+          // was extended to 1800ms to give the settle window room.
+          //
+          // Phase model (tt is normalized post-catch time 0→1):
+          //   tt 0.00 → 0.55: 3 bounces, amplitudes 14 / 6.3 / 2.8 px
+          //   tt 0.55 → 1.00: rolling, friction decays forward motion
+          // Forward roll: exponential decay (asymptotes to landX + maxRoll).
+          const landX = targetX + incOffsetX;
+          const landY = targetY + incOffsetY;
+          const maxRollPx = 60;
+          const xProg = 1 - Math.exp(-2.5 * tt);
+          ballX = landX + dir * maxRollPx * xProg;
+          // Vertical arc: 3 bounces with damping (each ~45% of prior).
+          let arc = 0;
+          const bounceWindow = 0.55;
+          if (tt < bounceWindow) {
+            const bounceT = tt / bounceWindow;       // 0-1 across all 3 bounces
+            const bounceIdx = Math.floor(bounceT * 3);
+            const localT = (bounceT * 3) - bounceIdx;
+            const amp = 14 * Math.pow(0.45, bounceIdx);
+            arc = Math.sin(localT * Math.PI) * amp;
+          }
+          ballY = landY - arc;
+          // Tumble spin — ball spins fast on impact, settles to flat
+          // as it stops rolling.
+          const spinFalloff = Math.max(0, 1 - tt * 1.5);
+          ballAngle = (tt * 12) * spinFalloff;
         } else {
           // INT — defender catches the ball. Return distance varies:
           // ~55% short (0-2 yds, WR tackles immediately), 30% medium (3-12 yds),
