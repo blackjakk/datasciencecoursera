@@ -4365,18 +4365,20 @@ class GameSimulator {
         // ball security) are more vulnerable; high-AWR feel the rush and
         // tuck the ball.
         const stripChance = clamp(0.10 - (qbAwr - 70) / 400, 0.04, 0.18);
-        let isStripSack = false;
-        if (Math.random() < stripChance) {
-          isStripSack = true;
+        const isStripSack = Math.random() < stripChance;
+        let recoveredByDef = false;
+        let recoveredBy = null;
+        if (isStripSack) {
           off.team.fumbles = (off.team.fumbles || 0) + 1;
           if (qbStats) qbStats.fumbles = (qbStats.fumbles || 0) + 1;
           // ~55% of strip-sacks are recovered by the defense
           if (Math.random() < 0.55) {
+            recoveredByDef = true;
             off.team.fumbles_lost = (off.team.fumbles_lost || 0) + 1;
             off.team.turnovers = (off.team.turnovers || 0) + 1;
             def.team.takeaways = (def.team.takeaways || 0) + 1;
-            const frBy = sackedBy || this._creditDefStat("fr", { DL: 0.50, LB: 0.30, S: 0.10, CB: 0.10 });
-            if (frBy && def.players[frBy]) def.players[frBy].fr = (def.players[frBy].fr || 0) + 1;
+            recoveredBy = sackedBy || this._creditDefStat("fr", { DL: 0.50, LB: 0.30, S: 0.10, CB: 0.10 });
+            if (recoveredBy && def.players[recoveredBy]) def.players[recoveredBy].fr = (def.players[recoveredBy].fr || 0) + 1;
           }
           // Credit forced fumble to the sacker
           if (sackedBy && def.players[sackedBy]) def.players[sackedBy].ff = (def.players[sackedBy].ff || 0) + 1;
@@ -4450,6 +4452,9 @@ class GameSimulator {
           dlName: reps.dl?.name, dlType: reps.dlType, dlMove: move,
           olName: reps.ol?.name, olType: reps.olType,
           isPlayAction, isFleaFlicker,
+          isStripSack,
+          recoveredByDef: isStripSack ? recoveredByDef : undefined,
+          recoveredBy:    isStripSack ? recoveredBy    : undefined,
           motion: _sackerTrack ? {
             sackerName: _sackerName,
             sackerSlot: _sackerSlot,

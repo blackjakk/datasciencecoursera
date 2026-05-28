@@ -4801,6 +4801,29 @@ function buildAnimForPlay(play, prevPlay) {
       // release). Floor 0.45 keeps the rush from winning before the QB
       // finishes his drop and first read.
       const _sackRushReleaseT = Math.max(0.45, contactT - 0.12);
+      // STRIP-SACK ball physics — pops loose at contact, bounces 3 times
+      // toward the sacker (+dir), then settles. Returns null when not in
+      // a strip-sack post-contact window.
+      const _isStripSack = !!play.isStripSack;
+      function _stripBallAt(tt, qbX, qbY) {
+        if (!_isStripSack || tt < contactT) return null;
+        const stripT = (tt - contactT) / Math.max(0.001, 1 - contactT);
+        const settleX = qbX + dir * 28;
+        const settleY = qbY + ((sackSeed % 13) - 6);
+        const bx = qbX + (settleX - qbX) * Math.min(1, stripT * 2.4);
+        let by, ang;
+        if (stripT < 0.50) {
+          const bounceT = stripT / 0.50;
+          const bounceIdx = Math.floor(bounceT * 3);
+          const localT = bounceT * 3 - bounceIdx;
+          const amp = 18 * Math.pow(0.45, bounceIdx);
+          by = settleY - Math.sin(localT * Math.PI) * amp;
+        } else {
+          by = settleY;
+        }
+        ang = stripT * 14 * Math.max(0, 1 - stripT * 1.6);
+        return { x: bx, y: by, ang };
+      }
       // Estimated primary rusher position at this tt — used to bias the
       // QB's wiggle AWAY from the closing rusher instead of randomly.
       const _primaryStart = formation.defense[primaryIdx] || formation.defense[0];
@@ -4862,6 +4885,9 @@ function buildAnimForPlay(play, prevPlay) {
           qbPose = "throw";
         }
       }
+      // Strip-sack ball target this frame — referenced by primary-sacker
+      // dive + pile-follower convergence below.
+      const _stripBall = (t > PRE) ? _stripBallAt((t - PRE) / (1 - PRE), qb.x, qb.y) : null;
       const def = formation.defense.map((d, i) => {
         const dd = { ...d, pose: t < PRE ? "stance" : "run", t: (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0), facing: -dir };
         if (t < PRE) {
@@ -4929,9 +4955,18 @@ function buildAnimForPlay(play, prevPlay) {
             const np = pursue(dd, qb.x + dir * 2 + angleOffset, qb.y + (isSecondary ? 6 : 0), _rushElapsed, isPrimary ? 1.0 : 0.85);
             dd.x = np.x; dd.y = np.y;
             if (!np.moved) dd.t = 0;
-            // Primary sacker: takedown pose, then arms-up celebration
-            // (sack pose held for ~0.15 of duration, then celebrate).
-            if (isPrimary && tt > contactT + 0.15) {
+            // Primary sacker post-contact:
+            //   STRIP-SACK: dive onto the loose ball (tackled pose) — no
+            //     celebration until recovery is confirmed.
+            //   CLEAN SACK: hold 'sack' briefly, then 'celebrate' (steps
+            //     off QB, arms up).
+            if (isPrimary && _isStripSack && _stripBall && tt > contactT + 0.03) {
+              dd.pose = "tackled";
+              dd.x = _stripBall.x + dir * 4;   // sacker's body slightly past the ball
+              dd.y = _stripBall.y - 3;
+              dd.t = Math.min(1, (tt - contactT - 0.03) / 0.20);
+              dd.facing = -dir;
+            } else if (isPrimary && !_isStripSack && tt > contactT + 0.15) {
               dd.pose = "celebrate";
               dd.t = Math.min(1, (tt - contactT - 0.15) / Math.max(0.001, 0.85 - contactT));
               // Stand up slightly off the QB — sacker steps back to flex
@@ -4948,19 +4983,24 @@ function buildAnimForPlay(play, prevPlay) {
               dd.pose = "run";
             }
           } else if (tt >= PILE_START) {
-            // PILE FOLLOWERS — release from OL and converge on QB. Use
-            // a per-slot offset so they don't stack on top of each other.
+            // PILE FOLLOWERS — release from OL and converge on the
+            // carrier/ball. Per-slot offset so they don't stack.
+            // Strip-sack: target the loose ball, not the QB.
             const _pileT = (tt - PILE_START) * dur / 1000;
             const offX = ((i - primaryIdx) * 6) + (i * 3 - 4);
             const offY = ((i & 1) ? 8 : -8) + (i - 2) * 3;
+            const tgtCx = (_isStripSack && _stripBall) ? _stripBall.x : qb.x;
+            const tgtCy = (_isStripSack && _stripBall) ? _stripBall.y : qb.y;
             if (!d._sackRushSynced) {
               if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; d._sim._lastMs = null; }
               d._sackRushSynced = true;
             }
-            const np = pursue(dd, qb.x + offX, qb.y + offY, _pileT, 0.80);
+            const np = pursue(dd, tgtCx + offX, tgtCy + offY, _pileT, 0.80);
             dd.x = np.x; dd.y = np.y;
-            const arrived = Math.hypot(dd.x - (qb.x + offX), dd.y - (qb.y + offY)) < 8;
-            dd.pose = arrived ? "engage" : "run";
+            const arrived = Math.hypot(dd.x - (tgtCx + offX), dd.y - (tgtCy + offY)) < 8;
+            // On the pile, settle into engage/scrum; on strip-sacks the
+            // scrum reads as a dogpile diving on the ball.
+            dd.pose = arrived ? (_isStripSack ? "tackled" : "engage") : "run";
             if (arrived) dd.t = 0;
             else if (!np.moved) dd.t = 0;
           } else {
@@ -5057,9 +5097,20 @@ function buildAnimForPlay(play, prevPlay) {
       // Pre-snap: ball at the LOS (between center's legs). Was at
       // qb.x = LOS-90px ≈ 30px in front of RB — user-reported "ball
       // floats in front of RB pre-snap" on audible sacks.
-      const _sackBallX = (t < PRE) ? (losX - dir * 2) : qb.x;
-      const _sackBallY = (t < PRE) ? cy : qb.y;
-      drawBall(ctx, _sackBallX, _sackBallY);
+      // STRIP-SACK: after contact the ball follows the bounce/roll
+      // trajectory from _stripBallAt instead of staying with the QB.
+      let _sackBallX, _sackBallY;
+      const _sackBallOpts = {};
+      if (t < PRE) {
+        _sackBallX = losX - dir * 2; _sackBallY = cy;
+      } else if (_stripBall) {
+        _sackBallX = _stripBall.x; _sackBallY = _stripBall.y;
+        _sackBallOpts.angle = _stripBall.ang;
+        _sackBallOpts.skipCarryShift = true;   // ball is on the ground; don't yank to a body
+      } else {
+        _sackBallX = qb.x; _sackBallY = qb.y;
+      }
+      drawBall(ctx, _sackBallX, _sackBallY, 1, _sackBallOpts);
       // Pressure indicator — pulsing red ring around QB during the dance
       const sackT = Math.max(0, (t - PRE) / (1 - PRE));
       if (sackT > 0.20 && sackT < 0.86) {
@@ -5084,6 +5135,31 @@ function buildAnimForPlay(play, prevPlay) {
           ctx.lineTo(qb.x + Math.cos(ang) * outer, qb.y + Math.sin(ang) * outer);
           ctx.stroke();
         }
+      }
+      // STRIP-SACK banner — distinct from a clean sack. Fades in after
+      // the ball has clearly popped loose (sackT > contactT + 0.10) and
+      // resolves into the recovery call once the scrum forms.
+      if (_isStripSack && sackT > contactT + 0.08) {
+        const fadeT = Math.min(1, (sackT - contactT - 0.08) / 0.10);
+        ctx.save();
+        ctx.globalAlpha = fadeT;
+        ctx.textAlign = "center";
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.lineWidth = 4;
+        ctx.fillStyle = "#ffaa30";
+        ctx.font = "900 36px monospace";
+        ctx.strokeText("STRIP-SACK!", FIELD.W / 2, 70);
+        ctx.fillText("STRIP-SACK!", FIELD.W / 2, 70);
+        if (sackT > contactT + 0.30) {
+          const subFade = Math.min(1, (sackT - contactT - 0.30) / 0.10);
+          ctx.globalAlpha = fadeT * subFade;
+          ctx.font = "900 22px monospace";
+          ctx.fillStyle = play.recoveredByDef ? "#ff7070" : "#9be09b";
+          const sub = play.recoveredByDef ? "DEFENSE RECOVERS — TURNOVER" : "OFFENSE RECOVERS";
+          ctx.strokeText(sub, FIELD.W / 2, 102);
+          ctx.fillText(sub, FIELD.W / 2, 102);
+        }
+        ctx.restore();
       }
       // PRESSURE! callout removed — was firing on every sack, contributed
       // to the per-play text wall. The SACK! result card carries the
