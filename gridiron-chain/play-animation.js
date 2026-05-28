@@ -3709,17 +3709,27 @@ function buildAnimForPlay(play, prevPlay) {
                   const _cbTrailYd = (typeof window !== "undefined" && window.GC_CB_TRAIL_YD != null) ? window.GC_CB_TRAIL_YD : 2;
                   const _cbTargetX = wrX - dir * _cbTrailYd * FIELD.PX_PER_YARD;
                   const _cbTargetY = wrY + toMidSign * -8;   // 8px outside leverage
-                  // SMOOTH FOLLOW — was a direct position copy each
-                  // frame; the CB instantly teleported onto the WR at
-                  // the throw moment (when this branch first fires
-                  // after the backpedal phase) and any time the route
-                  // track sample jumped. Lerp with momentum so the CB
-                  // closes on the WR over ~5-6 frames instead of one.
+                  // SPEED-CAPPED SPRINT — was a 0.18 lerp which lets
+                  // the CB cover impossibly large per-frame distances
+                  // when far from target (rubber-band: huge jump then
+                  // asymptote). Real CBs sprint at ~14 yps top speed.
+                  // Distance-proportional speed CAPPED at top-speed-
+                  // per-frame gives steady catch-up + smooth slowdown.
                   if (d._cbFollowX == null) { d._cbFollowX = dd.x; d._cbFollowY = dd.y; }
-                  d._cbFollowX += (_cbTargetX - d._cbFollowX) * 0.18;
-                  d._cbFollowY += (_cbTargetY - d._cbFollowY) * 0.18;
+                  const _cbTopYps = (typeof window !== "undefined" && window.GC_CB_TOP_YPS != null) ? window.GC_CB_TOP_YPS : 14;
+                  const _cbMaxPF = _cbTopYps * FIELD.PX_PER_YARD * 16 / 1000;
+                  const _cbDx = _cbTargetX - d._cbFollowX;
+                  const _cbDy = _cbTargetY - d._cbFollowY;
+                  const _cbDist = Math.hypot(_cbDx, _cbDy);
+                  if (_cbDist > 0.001) {
+                    const _cbSpeed = Math.min(_cbMaxPF, _cbDist * 0.20);
+                    d._cbFollowX += (_cbDx / _cbDist) * _cbSpeed;
+                    d._cbFollowY += (_cbDy / _cbDist) * _cbSpeed;
+                  }
                   dd.x = d._cbFollowX;
                   dd.y = d._cbFollowY;
+                  // RUN pose — CB sprinting downfield with the route.
+                  dd.pose = "run";
                   // CB running with WR only if the WR is actually moving;
                   // freeze legs when both are parked at the catch spot.
                   const moving = MotionPlayback.isMoving(trk, aT);
