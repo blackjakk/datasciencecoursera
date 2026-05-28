@@ -33,9 +33,18 @@ ROOT = Path(__file__).parent
 
 # (prefix, pose, is_v3)
 SOURCES = [
-    # carry — both halves of the football-tucked-under character merge into one pose
+    # Carry — football-tucked-under, both halves merge into one pose
     ("football_player_sprinting_forward_with_the_footbal", "carry",        True),
-    ("running",                                            "carry",        False),
+    # "running-" with trailing dash — matches "running-<hash>" (the
+    # template animation folder) but NOT "running_back_*" which would
+    # otherwise grab juke/spin/hurdle/etc. as carry.
+    ("running-",                                           "carry",        False),
+    # RB highlight pack — all on football-tucked-under (ball-in-hand)
+    ("running_back_executing_a_juke_move_with_the_footba", "juke",         True),
+    ("running_back_executing_a_FULL_360-degree_spin_move", "spin",         True),
+    ("running_back_executing_a_spin_move_with_the_footba", "spin",         True),
+    ("running_back_hurdling_over_a_defender_with_the_foo", "hurdle",       True),
+    ("power_running_back_trucking_through_a_would-be_tac", "truck",        True),
     # Default character poses
     ("offensive_lineman_in_pass-pro_kick-slide_stance",    "kick_slide",   True),
     ("defensive_back_backpedaling_facing_forward_toward",  "backpedal",    True),
