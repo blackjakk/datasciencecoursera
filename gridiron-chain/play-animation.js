@@ -4744,7 +4744,11 @@ function buildAnimForPlay(play, prevPlay) {
 
   if (play.kind === "sack") {
     const endX = yardToAbsX(play.endYard, poss);
-    const actionDur = scaledDuration(8 + Math.abs(play.sackLoss || 0));
+    // Sack action plays out like a normal pass play first (drop + scan
+    // through the QB's progressions) before pressure breaks through.
+    // Floor at 2800ms (~drop + 1.5s of scan) so the rush doesn't arrive
+    // before the play visually develops.
+    const actionDur = clamp(2800 + Math.abs(play.sackLoss || 0) * 100, 2800, 4500);
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
     // Per-sack variation seed — no two sacks look the same.
@@ -4762,10 +4766,13 @@ function buildAnimForPlay(play, prevPlay) {
     }
     // Use engine-emitted contactT when present so the QB tackle pose
     // and the sacker pursuit track converge on the same frame. Falls
-    // back to per-play random for plays without motion.
+    // back to per-play random for plays without motion. Range 0.62-0.75
+    // keeps the first ~65% of the play looking like a normal pass play,
+    // with the takedown + fall + pile/celebration occupying the last
+    // 35% of the action.
     const contactT = (play.motion && typeof play.motion.contactT === "number")
       ? play.motion.contactT
-      : 0.62 + r(1) * 0.26;
+      : 0.62 + r(1) * 0.13;
     const danceFreq = 3.5 + r(2) * 4.5;              // pocket wiggle frequency
     const danceAmpY = 4 + r(3) * 12;                 // Y wiggle amplitude
     const danceAmpX = 2 + r(4) * 8;                  // X drift amplitude
@@ -4790,6 +4797,22 @@ function buildAnimForPlay(play, prevPlay) {
           _sackRumbled = true;
         }
       }
+      // Shared release timing — used by both QB (evade bias) + DL (rush
+      // release). Floor 0.45 keeps the rush from winning before the QB
+      // finishes his drop and first read.
+      const _sackRushReleaseT = Math.max(0.45, contactT - 0.12);
+      // Estimated primary rusher position at this tt — used to bias the
+      // QB's wiggle AWAY from the closing rusher instead of randomly.
+      const _primaryStart = formation.defense[primaryIdx] || formation.defense[0];
+      function _estRusherPos(tt, qbX, qbY) {
+        if (tt < _sackRushReleaseT) return { x: _primaryStart.x, y: _primaryStart.y };
+        if (tt < contactT) {
+          const rT = (tt - _sackRushReleaseT) / Math.max(0.001, contactT - _sackRushReleaseT);
+          return { x: _primaryStart.x + (qbX - _primaryStart.x) * rT,
+                   y: _primaryStart.y + (qbY - _primaryStart.y) * rT };
+        }
+        return { x: qbX, y: qbY };
+      }
       const qb = { ...formation.qb };
       let qbPose = "idle";
       if (t > PRE) {
@@ -4798,13 +4821,27 @@ function buildAnimForPlay(play, prevPlay) {
         const dropFrac = Math.min(1, tt / 0.30);
         qb.x = formation.qb.x - dir * dropFrac * dropDepth * FIELD.PX_PER_YARD;
         qb.y = cy;
-        // Pocket dance — frequency and amplitude vary per play
+        // Pocket pressure — small seeded idle motion + evade bias AWAY
+        // from the closing primary rusher. Was a pure sin wiggle on a
+        // random direction (xDir/yFlavor) which let the QB drift INTO
+        // the rusher. Now the evade term scales with rusher closeness
+        // so the QB visibly steps up / leans away as pressure arrives.
         if (tt > 0.12 && tt < contactT) {
           const danceT = (tt - 0.12) / (contactT - 0.12);
-          const wigY = Math.sin(tt * Math.PI * danceFreq + (sackSeed % 11)) * danceAmpY * (0.4 + danceT * 0.6);
-          const wigX = Math.cos(tt * Math.PI * (danceFreq - 1) + (sackSeed % 5)) * danceAmpX * danceT * xDir;
+          const wigY = Math.sin(tt * Math.PI * danceFreq + (sackSeed % 11)) * danceAmpY * 0.35;
+          const wigX = Math.cos(tt * Math.PI * (danceFreq - 1) + (sackSeed % 5)) * danceAmpX * danceT * 0.35;
           qb.y += wigY * yFlavor;
-          qb.x += wigX;
+          qb.x += wigX * xDir;
+          // Evade — fades in after rusher release, grows with closeness.
+          if (tt > _sackRushReleaseT) {
+            const rPos = _estRusherPos(tt, qb.x, qb.y);
+            const dxA = qb.x - rPos.x, dyA = qb.y - rPos.y;
+            const dA = Math.hypot(dxA, dyA) || 1;
+            const closeness = Math.max(0, 1 - dA / (FIELD.PX_PER_YARD * 6));
+            const evade = closeness * 11;
+            qb.x += (dxA / dA) * evade;
+            qb.y += (dyA / dA) * evade;
+          }
         }
         // Final takedown — fall point shifts based on flavor
         if (tt > contactT) {
@@ -4857,14 +4894,13 @@ function buildAnimForPlay(play, prevPlay) {
         if (i < 4) {
           const isPrimary = i === primaryIdx;
           const isSecondary = secondChaser && i === secondIdx;
-          // ENGAGEMENT PHASE — for the first ~half of the play the DL
-          // are engaged with the OL at the LOS, like a normal pass play.
-          // The primary breaks free at rushReleaseT. Previously every
-          // DL rushed the QB from frame 0; sack plays looked like 4
-          // pass rushers running through unblocked OL from the snap.
-          // Now sacks start like normal pass plays and TURN INTO sacks
-          // when the primary wins his block.
-          const rushReleaseT = Math.max(0.25, contactT - 0.35);
+          const rushReleaseT = _sackRushReleaseT;
+          // PILE CONVERGENCE — once the QB is down, ALL remaining DL
+          // release from their OL blocks and converge on the carrier.
+          // Real sacks: 2-4 defenders typically arrive within the
+          // first second of the takedown. Was: non-rushers held OL
+          // engagement for the entire play even after contact.
+          const PILE_START = contactT + 0.05;
           if (tt < rushReleaseT) {
             // Hold at LOS with a small slow struggle. Was wig 6π (3+
             // Hz = ~12 cycles in a 4s play = "dancing"). Reduced to
@@ -4879,10 +4915,8 @@ function buildAnimForPlay(play, prevPlay) {
             // shuffle). Frame 0 reads as "locked in the block".
             dd.t = 0;
           } else if (isPrimary || isSecondary) {
-            // RUSH PHASE — only the PRIMARY (and optional SECONDARY)
-            // break free and chase the QB. Other DL stay engaged at
-            // the LOS (real football: a sack play has 1-2 rushers
-            // winning, not all 4 simultaneously crashing the backfield).
+            // RUSH PHASE — primary (and optional secondary) break free
+            // and chase the QB. Pile-followers join after PILE_START.
             const speedFactor = isPrimary ? 1.05 : 0.88;
             const _rushElapsed = Math.max(0, tt - rushReleaseT) * dur * speedFactor;
             const angleOffset = isPrimary ? 0 : (i - primaryIdx) * 4;
@@ -4895,15 +4929,40 @@ function buildAnimForPlay(play, prevPlay) {
             const np = pursue(dd, qb.x + dir * 2 + angleOffset, qb.y + (isSecondary ? 6 : 0), _rushElapsed, isPrimary ? 1.0 : 0.85);
             dd.x = np.x; dd.y = np.y;
             if (!np.moved) dd.t = 0;
-            if (isPrimary && tt > contactT + 0.03) {
+            // Primary sacker: takedown pose, then arms-up celebration
+            // (sack pose held for ~0.15 of duration, then celebrate).
+            if (isPrimary && tt > contactT + 0.15) {
+              dd.pose = "celebrate";
+              dd.t = Math.min(1, (tt - contactT - 0.15) / Math.max(0.001, 0.85 - contactT));
+              // Stand up slightly off the QB — sacker steps back to flex
+              dd.x = qb.x + dir * 10;
+              dd.y = qb.y - 6;
+              dd.facing = -dir;
+            } else if (isPrimary && tt > contactT + 0.03) {
               dd.pose = "sack";
-              dd.t = Math.min(1, (tt - contactT) / Math.max(0.001, 1 - contactT));
+              dd.t = Math.min(1, (tt - contactT) / 0.18);
             } else if (isSecondary && tt > contactT + 0.05) {
               dd.pose = "sack";
               dd.t = Math.min(1, (tt - contactT - 0.05) / Math.max(0.001, 0.95 - contactT));
             } else {
               dd.pose = "run";
             }
+          } else if (tt >= PILE_START) {
+            // PILE FOLLOWERS — release from OL and converge on QB. Use
+            // a per-slot offset so they don't stack on top of each other.
+            const _pileT = (tt - PILE_START) * dur / 1000;
+            const offX = ((i - primaryIdx) * 6) + (i * 3 - 4);
+            const offY = ((i & 1) ? 8 : -8) + (i - 2) * 3;
+            if (!d._sackRushSynced) {
+              if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; d._sim._lastMs = null; }
+              d._sackRushSynced = true;
+            }
+            const np = pursue(dd, qb.x + offX, qb.y + offY, _pileT, 0.80);
+            dd.x = np.x; dd.y = np.y;
+            const arrived = Math.hypot(dd.x - (qb.x + offX), dd.y - (qb.y + offY)) < 8;
+            dd.pose = arrived ? "engage" : "run";
+            if (arrived) dd.t = 0;
+            else if (!np.moved) dd.t = 0;
           } else {
             // Non-rushing DL hold the LOS engaged with OL. Slow sway,
             // frozen pose-frame to avoid the dancing look from rapid
@@ -4935,9 +4994,38 @@ function buildAnimForPlay(play, prevPlay) {
           return { ...p, x: p.x - dir * (6 + slotDepth * 3) * tt, y: p.y + Math.sin(tt * Math.PI * 5 + p.y) * 2.5, pose: "engage", facing: dir };
         }
         if ((p.role === "WR1" || p.role === "WR2" || p.role === "TE") && t > PRE) {
-          // Receivers ran routes but are now standing around (no one to throw to)
+          // Receivers run real routes during the scan so the play looks
+          // like a developing pass play (not just bodies shuffling 5yd).
+          // WR1: streak (vertical 15-18yd). WR2: 10yd out (forward then
+          // breaks toward sideline). TE: 6yd dig (forward then crosses
+          // toward middle). Routes complete around contactT; after that
+          // they're covered/standing.
           const tt = (t - PRE) / (1 - PRE);
-          return { ...p, x: p.x + dir * tt * 80, pose: tt > 0.8 ? "idle" : "run", t: (t < 0.95 ? ((performance.now() / 333) + 0.5) % 1 : 0), facing: dir };
+          const routeT = Math.min(1, tt / Math.max(0.4, contactT));   // route done by contact
+          let dx = 0, dy = 0;
+          if (p.role === "WR1") {
+            // Streak — fast vertical, slight outside angle.
+            dx = routeT * 16 * FIELD.PX_PER_YARD;
+            dy = (p.y < cy ? -1 : 1) * routeT * 1.5 * FIELD.PX_PER_YARD;
+          } else if (p.role === "WR2") {
+            // Out — 8yd vertical, then break toward nearest sideline.
+            const stem = Math.min(1, routeT / 0.55);
+            const breakT = Math.max(0, routeT - 0.55) / 0.45;
+            dx = stem * 8 * FIELD.PX_PER_YARD + breakT * 2 * FIELD.PX_PER_YARD;
+            dy = (p.y < cy ? -1 : 1) * breakT * 6 * FIELD.PX_PER_YARD;
+          } else {
+            // TE dig — 6yd vertical, then cross toward middle.
+            const stem = Math.min(1, routeT / 0.60);
+            const breakT = Math.max(0, routeT - 0.60) / 0.40;
+            dx = stem * 6 * FIELD.PX_PER_YARD + breakT * 2 * FIELD.PX_PER_YARD;
+            dy = (p.y < cy ? 1 : -1) * breakT * 5 * FIELD.PX_PER_YARD;
+          }
+          return { ...p,
+                   x: p.x + dir * dx,
+                   y: p.y + dy,
+                   pose: routeT >= 1 ? "idle" : "run",
+                   t: (t < 0.95 ? ((performance.now() / 333) + 0.5) % 1 : 0),
+                   facing: dir };
         }
         // RB pass-protects on the sack. Pre-snap RB falls through to
         // the "idle" catch-all (formation home). Post-snap, RB steps
