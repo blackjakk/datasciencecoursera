@@ -75,6 +75,7 @@ SOURCES = [
     ("defender_violently_chopping_arm_downward",             "strip_swat",   True),
     ("wide_receiver_exploding_off_line_of_scrimmage",        "release",      True),
     ("linebacker_shuffling_laterally_reading_the_play",      "scrape",       True),
+    ("ball-carrier_laying_on_the_ground_after_being",        "tackled_carry", True),
     # Ref pack — all on the capped referee character (488d33da)
     ("NFL_referee_standing_in_his_idle_on-field_stance",   "ref_idle",       True),
     ("NFL_referee_signaling_a_touchdown_both_arms_raised", "ref_td_signal",  True),

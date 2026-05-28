@@ -85,7 +85,8 @@ const _SPRITE_POSES = {
   dive:      { folder: "dive_forward", frames: 4, dirs: _DIRECTIONS },  // diving forward
 
   // Existing aliased folders (no dedicated sprite yet, share base art):
-  tackled:   { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // on the ground
+  tackled:   { folder: "fall",      frames: 4, dirs: _DIRECTIONS },  // on the ground (defenders, QBs — no ball)
+  tackled_carry: { folder: "tackled_carry", frames: 4, dirs: _DIRECTIONS },  // ballcarrier prone, arms wrapping ball
   engage:    { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // OL/DL clash
   block:     { folder: "block",     frames: 4, dirs: _DIRECTIONS },  // direct
   reach:     { folder: "catch",     frames: 4, dirs: _DIRECTIONS },  // receiver reach

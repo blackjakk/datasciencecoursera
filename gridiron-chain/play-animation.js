@@ -1044,7 +1044,7 @@ function buildAnimForPlay(play, prevPlay) {
       } else {
         ballX = returnerX;
         ballY = returnerY;
-        returnerPose = "tackled";
+        returnerPose = "tackled_carry";  // KR/PR has the ball
         returnerT = Math.min(1, (t - RETURN_END) / (1 - RETURN_END));
         if (tackleStyle === 2) returnerFacing = -recvDir;
       }
@@ -4147,7 +4147,7 @@ function buildAnimForPlay(play, prevPlay) {
             dd.x = ballX;
             dd.y = ballY;
             dd.facing = -dir;
-            dd.pose = aT > 0.92 ? "tackled" : "run";
+            dd.pose = aT > 0.92 ? "tackled_carry" : "run";  // INT defender has the ball — prone-with-ball
           }
         }
         // DROPPED PICK — play.isDroppedPick + play.dropper. The defender
@@ -4336,7 +4336,7 @@ function buildAnimForPlay(play, prevPlay) {
       //   spin_fall – side hit, carrier spins to one side
       let _wrFallDir = 1;
       let _wrSideDir = 1;
-      let _wrFallPose = "tackled";
+      let _wrFallPose = "tackled_carry";  // WR has caught the ball — ballcarrier prone sprite
       if (_isTackleNow && _outerTacklerName) {
         const _tk = def.find(d => d && d.name === _outerTacklerName);
         if (_tk) {
@@ -4377,7 +4377,7 @@ function buildAnimForPlay(play, prevPlay) {
         :  (isPostCatch ? "carry"
         :  (inRelease ? "release"
         :   "run")))))))));
-      const wrIsTackled = wrPose === "tackled" || wrPose === "tumble" || wrPose === "spin_fall";
+      const wrIsTackled = wrPose === "tackled" || wrPose === "tackled_carry" || wrPose === "tumble" || wrPose === "spin_fall";
       // For the tackled fall, pass fall-progress (not stride cycle).
       // For run/carry, scale stride frequency with the carrier's actual
       // motion speed — fixed 2 Hz meant a long YAC TD covered 6+ yd
@@ -5597,7 +5597,7 @@ function buildAnimForPlay(play, prevPlay) {
             const celebT = Math.min(1, (t - SCRUM_END - 0.01) / 0.10);
             pX = ballX + dir * 4;
             pY = ballY - 18 * celebT;        // stand up from prone
-            pPose = celebT < 0.5 ? "tackled" : "celebrate";
+            pPose = celebT < 0.5 ? "tackled_carry" : "celebrate";  // recoverer has the ball
             pT = celebT < 0.5 ? 1 : (celebT - 0.5) / 0.5;
           } else if (missers.has(p)) {
             // Designated misser — only starts converging AFTER the ball
