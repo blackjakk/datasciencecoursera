@@ -5924,14 +5924,27 @@ class GameSimulator {
     // this track) stopped dead on the white stripe while the same-yardage
     // TD on a stretch ran into the EZ — divergent end position by runType.
     const _carrierEndDxYd = yards + (isRushTD ? 5 : 0);
+    // Pace the carrier waypoints by DISTANCE so the RB moves at a CONSTANT
+    // speed from the backfield through the mesh and into the hole. The old
+    // fixed t-values (mesh 0.10, LOS 0.22) front-loaded the 8-yd backfield
+    // approach into the first 22% of the play — the RB BURST to the LOS at
+    // ~13yps and then crawled the gain ("extra speed when the RB takes the
+    // handoff"). t now ∝ cumulative forward distance, reaching the tackle
+    // spot at 0.78. Handles losses via abs distances.
+    const _d01 = 4;                                                // -8 → -4 (mesh)
+    const _d12 = Math.abs(_carrierReadDxYd - (-4));                // mesh → read/LOS
+    const _d23 = Math.abs(_carrierEndDxYd - _carrierReadDxYd);     // read → end
+    const _dTot = Math.max(1, _d01 + _d12 + _d23);
+    const _tMesh = (_d01 / _dTot) * 0.78;
+    const _tRead = ((_d01 + _d12) / _dTot) * 0.78;
     const _carrierTrack = {
       role: isQBRun ? "QB" : "RB",
       waypoints: [
-        { t: 0.00, dxYd: -8,                  dyYd: 1.87 },                   // formation
-        { t: 0.10, dxYd: -4,                  dyYd: 1.00 },                   // mesh / handoff
-        { t: 0.22, dxYd: _carrierReadDxYd,    dyYd: 0.50 },                   // read at LOS
-        { t: 0.78, dxYd: _carrierEndDxYd,     dyYd: _carrierLateralEndYd },   // goal line / tackle spot
-        { t: 1.00, dxYd: _carrierEndDxYd,     dyYd: _carrierLateralEndYd },   // settled (in EZ on a TD)
+        { t: 0.00,    dxYd: -8,                  dyYd: 1.87 },                   // formation
+        { t: _tMesh,  dxYd: -4,                  dyYd: 1.00 },                   // mesh / handoff
+        { t: _tRead,  dxYd: _carrierReadDxYd,    dyYd: 0.50 },                   // read at LOS
+        { t: 0.78,    dxYd: _carrierEndDxYd,     dyYd: _carrierLateralEndYd },   // goal line / tackle spot
+        { t: 1.00,    dxYd: _carrierEndDxYd,     dyYd: _carrierLateralEndYd },   // settled (in EZ on a TD)
       ],
     };
     // ── PRIMARY TACKLER TRACK (Path B Phase 3a) ─────────────────────

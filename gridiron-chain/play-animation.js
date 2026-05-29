@@ -1765,7 +1765,10 @@ function buildAnimForPlay(play, prevPlay) {
     // TD runs: push the endX 5 yards INTO the endzone so the carrier
     // runs THROUGH the goal line and celebrates in the EZ instead of
     // stopping at the white stripe.
-    const endX = yardToAbsX(play.endYard, poss) + (isTD ? dir * 5 * FIELD.PX_PER_YARD : 0);
+    // TD: carry ~3yd INTO the end zone (crosses the plane, celebrates in the
+    // EZ) — was 5yd, which on the ~6.7yd-deep rendered EZ put the scorer back
+    // at the goalpost base, so he celebrated "standing on the post".
+    const endX = yardToAbsX(play.endYard, poss) + (isTD ? dir * 3 * FIELD.PX_PER_YARD : 0);
     // Extra time at the end. Non-TDs get a tackle-ragdoll window; TDs
     // get a celebration window where the scorer raises arms + a banner
     // flashes. Big-play TDs get more celebration time — let it breathe.
@@ -2849,12 +2852,13 @@ function buildAnimForPlay(play, prevPlay) {
           const hash = ((p.y * 17 + p.x * 13) >>> 0) % 1000;
           const angle = (hash / 1000) * Math.PI * 2;
           const radius = (4 + (hash % 4)) * FIELD.PX_PER_YARD;
-          // Clamp the cluster so celebrators stay on-canvas but allow
-          // them INTO the endzone (the scorer is there). Was excluded
-          // from the endzone, leaving celebrators stuck at the goal
-          // line instead of converging on the scorer.
+          // Clamp the cluster INTO the endzone (the scorer is there) but
+          // keep it IN FRONT of the goalpost (base ~18px from the back edge)
+          // — EZ_PX*0.3 (30px) let celebrators reach the post and, in the 3D
+          // broadcast projection, their tall sprites overlapped the uprights
+          // ("standing on the goal post"). 0.5 (50px) keeps a clear ~30px gap.
           const targetX = clamp(rb.x + Math.cos(angle) * radius,
-                                FIELD.EZ_PX * 0.3, FIELD.W - FIELD.EZ_PX * 0.3);
+                                FIELD.EZ_PX * 0.5, FIELD.W - FIELD.EZ_PX * 0.5);
           const targetY = clamp(rb.y + Math.sin(angle) * radius,
                                 FIELD.TOP + 20, FIELD.BOT - 20);
           if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
@@ -3420,7 +3424,9 @@ function buildAnimForPlay(play, prevPlay) {
     // of stopping right at the white stripe. Real NFL plays use the
     // endzone depth — receiver carries the ball 3-7 yards in.
     const _isTDComplete = isComplete && (play.endYard ?? 0) >= 100;
-    const _tdEZBonus = _isTDComplete ? dir * 5 * FIELD.PX_PER_YARD : 0;
+    // ~3yd into the EZ (was 5yd — put the scorer at the goalpost base on the
+    // shallow rendered end zone, so he celebrated on top of the post).
+    const _tdEZBonus = _isTDComplete ? dir * 3 * FIELD.PX_PER_YARD : 0;
     const endX = isComplete ? yardToAbsX(play.endYard, poss) + _tdEZBonus : targetX;
     // Which defender picks off the pass on an INT — match the receiver's side
     // 7=cb1 (top), 8=cb2 (bottom), 9=s1 (top safety), 10=s2 (bottom safety).
@@ -5071,8 +5077,11 @@ function buildAnimForPlay(play, prevPlay) {
             const hash = ((p.y * 17 + p.x * 13) >>> 0) % 1000;
             const angle = (hash / 1000) * Math.PI * 2;
             const radius = (4 + (hash % 4)) * FIELD.PX_PER_YARD;
+            // Keep the cluster IN FRONT of the goalpost (base ~18px from the
+            // back edge) — 0.3 (30px) let celebrators overlap the uprights in
+            // the broadcast projection ("standing on the post"). 0.5 = ~30px gap.
             targetX = clamp(wr.x + Math.cos(angle) * radius,
-                            FIELD.EZ_PX * 0.3, FIELD.W - FIELD.EZ_PX * 0.3);
+                            FIELD.EZ_PX * 0.5, FIELD.W - FIELD.EZ_PX * 0.5);
             targetY = clamp(wr.y + Math.sin(angle) * radius,
                             FIELD.TOP + 20, FIELD.BOT - 20);
             const _curX = p._followX != null ? p._followX : p.x;
