@@ -5923,7 +5923,12 @@ class GameSimulator {
     // pitch) already do. Without this, inside/default runs (which use
     // this track) stopped dead on the white stripe while the same-yardage
     // TD on a stretch ran into the EZ — divergent end position by runType.
-    const _carrierEndDxYd = yards + (isRushTD ? 5 : 0);
+    // Rush TD: carry ~3yd INTO the end zone (crosses the plane, celebrates in
+    // the EZ). Was +5, which on the shallow rendered EZ ended the (motion-
+    // track-driven) scorer back at the goalpost base — the animation-side
+    // endX bonus was reduced to 3yd to match, but most runs use THIS track,
+    // so the scorer still finished on the post until this matched it.
+    const _carrierEndDxYd = yards + (isRushTD ? 3 : 0);
     // Pace the carrier waypoints by DISTANCE so the RB moves at a CONSTANT
     // speed from the backfield through the mesh and into the hole. The old
     // fixed t-values (mesh 0.10, LOS 0.22) front-loaded the 8-yd backfield
