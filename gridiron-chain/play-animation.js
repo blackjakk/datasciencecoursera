@@ -1996,15 +1996,19 @@ function buildAnimForPlay(play, prevPlay) {
       if (t < PRE) {
         rbPose = "idle";
       } else if (isScramble) {
-        if (runT < 0.34)        rbPose = "throw";   // looking downfield, ball cocked
-        else                     rbPose = "carry";
+        // QB breaks pocket, ball in 2 hands at chest. Was "carry"
+        // (RB ball-tucked-under-arm), wrong silhouette for a QB.
+        if (runT < 0.34)        rbPose = "throw";        // looking downfield, ball cocked
+        else                     rbPose = "qb_scramble"; // 2-handed sprint
       } else if (isQBRun) {
-        if (runT < 0.16)        rbPose = "handoff";  // arms at belly, not over head
-        else                     rbPose = "carry";
+        // Designed QB keeper. Use qb_scramble sprite (ball at chest)
+        // instead of carry (RB tuck).
+        if (runT < 0.16)        rbPose = "handoff";      // arms at belly, not over head
+        else                     rbPose = "qb_scramble";
       } else {
-        if (runT < 0.14)        rbPose = "handoff";  // arms at belly, not over head
+        if (runT < 0.14)        rbPose = "handoff";      // arms at belly, not over head
         else if (runT < 0.30)   rbPose = "run";
-        else                     rbPose = "churn";   // high-knee carry through cruise
+        else                     rbPose = "churn";       // high-knee carry through cruise
 
       }
       // RB stride frequency — scale with the carrier's cruise speed so
@@ -5610,6 +5614,16 @@ function buildAnimForPlay(play, prevPlay) {
                 pPose = "dive";
                 pT = (sprintT - 0.85) / 0.15;
               }
+            } else if (t < STRIP_END) {
+              // Strip attempt — forcer's arm chopping at the ball just
+              // before it pops loose. New: uses dedicated strip_swat
+              // sprite (the same one the sack-play forcer uses) so
+              // the cause of the fumble visibly reads as a punch-out
+              // instead of a generic wrap-up.
+              pX = _hitX;
+              pY = _hitY;
+              pPose = "strip_swat";
+              pT = Math.min(1, (t - CARRY_END) / Math.max(0.001, STRIP_END - CARRY_END));
             } else if (t < STRIP_END + 0.06) {
               // Wrap-up at the hit — frozen tackled frame
               pX = _hitX;
