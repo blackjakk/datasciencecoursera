@@ -494,6 +494,46 @@ function _locomotionFacing(loco, pose, providedFacing) {
   return loco.state.facing;
 }
 
+// Drop shadow under a player. Drawn before the sprite/procedural body
+// so they sit on top of it. Bulk + scale are bodyType-dependent so
+// HUGE/BIG players cast a bigger shadow than LEAN/COMPACT.
+//
+// Ragdoll suppression: when the player is in physics-driven ragdoll
+// (style._ragdoll), the shadow stays planted at the impact spot — it
+// doesn't lift off the ground with the body. Mid-fall (rot > ~0.6 rad)
+// we fade the shadow out a bit since the body is no longer planted.
+function _drawPlayerShadow(ctx, x, y, style, pose) {
+  if (typeof GCField !== "undefined" && GCField.active()) {
+    const bt = (typeof BODY_TYPES !== "undefined")
+      ? (BODY_TYPES[style && style.bodyType] || BODY_TYPES.NORMAL)
+      : { scale: 1, bulk: 1 };
+    GCField.addShadow(x, y, bt.bulk, (bt.scale || 1) * 1.55);
+    return;
+  }
+  const bt = (typeof BODY_TYPES !== "undefined")
+    ? (BODY_TYPES[style && style.bodyType] || BODY_TYPES.NORMAL)
+    : { scale: 1, bulk: 1 };
+  const totalScale = (bt.scale || 1) * 1.55;
+  const bulk = bt.bulk || 1;
+  // Fade shadow during ragdoll — body's airborne, less light occlusion.
+  const rd = style && style._ragdoll;
+  const alpha = rd ? Math.max(0.25, 1 - Math.abs(rd.rot || 0) / 2.5) : 1;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(totalScale, totalScale);
+  const shR = 9.0 + bulk * 0.9;
+  const shY = 0.5;  // just below the foot origin
+  const grad = ctx.createRadialGradient(0, shY, 0.4, 0, shY, shR);
+  grad.addColorStop(0,    `rgba(0,0,0,${0.55 * alpha})`);
+  grad.addColorStop(0.55, `rgba(0,0,0,${0.30 * alpha})`);
+  grad.addColorStop(1,    "rgba(0,0,0,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(0, shY, shR, 2.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
   // Derive locomotion-driven pose-t and facing from per-player position
   // deltas. Caller's t and facing are used as fallback / for non-
@@ -526,6 +566,10 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     frameMs: performance.now(),
     pose,
   };
+  // Drop shadow — runs BEFORE the sprite path so the sprite render
+  // sits on top of its own shadow. Previously the shadow was only
+  // drawn inside _drawPlayerImpl, which is now suppressed.
+  _drawPlayerShadow(ctx, x, y, style, pose);
   // SPRITE FAST-PATH (top-down camera only for now). If a PixelLab
   // sprite is loaded for this pose + 8-direction, draw it and skip
   // the entire shape-math implementation. Broadcast camera falls
