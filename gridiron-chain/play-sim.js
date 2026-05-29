@@ -158,13 +158,21 @@ class Engagement {
     this.pull     = opts.pull     != null ? opts.pull     : 0.28;
     this.wobble   = opts.wobble   != null ? opts.wobble   : 1.2;
     this.wobblePhase = Math.random() * Math.PI * 2;
-    // Position state — anchor begins at midpoint.
+    // Position state. The anchor begins at the CONTACT POINT just in
+    // front of the blocker (on the defense side) — not the raw midpoint
+    // of the two pre-snap spots, which sits ~2.5yd downfield because the
+    // DL aligns off the ball. Anchoring at the blocker keeps the OL at
+    // the LOS and pulls the DL DOWN into the line (reads as the rush
+    // meeting the block) rather than both drifting to no-man's-land.
     this.blockerX = opts.startBX;
     this.blockerY = opts.startBY;
     this.defenderX = opts.startDX;
     this.defenderY = opts.startDY;
-    this.anchorX = (this.blockerX + this.defenderX) / 2;
-    this.anchorY = (this.blockerY + this.defenderY) / 2;
+    // −axis = defense side of the blocker. anchor = blocker − axis*offset
+    // makes blocker's own target resolve back to its start; defender is
+    // pulled to blocker + 2*offset on the defense side.
+    this.anchorX = this.blockerX - this.axisX * this.offsetPx;
+    this.anchorY = this.blockerY * 0.7 + this.defenderY * 0.3;
   }
 
   step(nowMs) {
@@ -178,11 +186,15 @@ class Engagement {
     const w = Math.sin((elapsed / 220) + this.wobblePhase) * this.wobble;
     const perpX = -this.axisY;
     const perpY =  this.axisX;
-    // Blocker target = anchor − axis*offset (on his side); defender = +axis*offset.
-    const bTx = this.anchorX - this.axisX * this.offsetPx + perpX * w;
-    const bTy = this.anchorY - this.axisY * this.offsetPx + perpY * w;
-    const dTx = this.anchorX + this.axisX * this.offsetPx + perpX * w * -0.6;
-    const dTy = this.anchorY + this.axisY * this.offsetPx + perpY * w * -0.6;
+    // axis points in the DEFENDER's attack direction (toward the QB /
+    // offense side). So +axis from the anchor is the OFFENSE side
+    // (where the blocker belongs) and −axis is the DEFENSE side (where
+    // the defender belongs). Getting these backwards put the DL behind
+    // the OL — the "D-line past the O-line" bug.
+    const bTx = this.anchorX + this.axisX * this.offsetPx + perpX * w;
+    const bTy = this.anchorY + this.axisY * this.offsetPx + perpY * w;
+    const dTx = this.anchorX - this.axisX * this.offsetPx + perpX * w * -0.6;
+    const dTy = this.anchorY - this.axisY * this.offsetPx + perpY * w * -0.6;
     // EMA pull each body toward its target.
     this.blockerX += (bTx - this.blockerX) * this.pull;
     this.blockerY += (bTy - this.blockerY) * this.pull;
