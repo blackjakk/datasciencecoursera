@@ -1231,8 +1231,17 @@ function buildAnimForPlay(play, prevPlay) {
     // (sidelines). Runs after separation so a push can't escape bounds.
     const _BX = 12, _BY = 6;
     for (const p of all) {
-      p.x = Math.max(_BX, Math.min(FIELD.W - _BX, p.x));
-      p.y = Math.max(FIELD.TOP + _BY, Math.min(FIELD.BOT - _BY, p.y));
+      const _cx = Math.max(_BX, Math.min(FIELD.W - _BX, p.x));
+      const _cy = Math.max(FIELD.TOP + _BY, Math.min(FIELD.BOT - _BY, p.y));
+      // If clamped against an endzone BACK line, turn the player to face
+      // back toward the field — a body pinned at the back wall can't run
+      // through it, and leaving the velocity/facing pointing into the
+      // wall left defenders "staring at the back of the endzone when
+      // there's no room". Only override on an actual X-clamp; the sprite
+      // direction picker uses this facing once the body is stopped.
+      if (_cx !== p.x) p.facing = (_cx < FIELD.W / 2) ? 1 : -1;
+      p.x = _cx;
+      p.y = _cy;
     }
     for (const p of off) drawPlayer(ctx, p.x, p.y, possColor, team.secondary, p.label, p.pose, p.t, p.facing ?? (dir), p);
     for (const p of def) drawPlayer(ctx, p.x, p.y, oppColor, oppTeam.secondary, p.label, p.pose, p.t, p.facing ?? (-dir), p);
