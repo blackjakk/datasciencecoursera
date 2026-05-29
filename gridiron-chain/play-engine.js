@@ -5881,12 +5881,21 @@ class GameSimulator {
     // Future phases will add jukes (lateral spike + dodge defender
     // dive), counter motion (false step), pitch fan-out, etc.
     const _carrierLateralEndYd = (_carrierEndDY || 0) / 15;
+    // Carrier track. Old "read" waypoint had dxYd = yards * 0.14 at
+    // t=0.22, which meant on a 30-yd run the RB had to cover 8 yards
+    // in 12% of the action window — ~28 yps (60 mph) burst through
+    // the line. That's where the "first part of run is faster than
+    // normal running" comes from. New: read waypoint stays near the
+    // LOS (capped between -1 and +2 yd) regardless of total play
+    // distance, so the post-LOS run gets the full 0.26-0.78 cruise
+    // window at a believable speed.
+    const _carrierReadDxYd = clamp(yards * 0.05, -1, 2);
     const _carrierTrack = {
       role: isQBRun ? "QB" : "RB",
       waypoints: [
         { t: 0.00, dxYd: -8,                  dyYd: 1.87 },                   // formation
-        { t: 0.10, dxYd: -4,                  dyYd: 1.00 },                   // mesh
-        { t: 0.22, dxYd: yards * 0.14,        dyYd: 0.50 },                   // read
+        { t: 0.10, dxYd: -4,                  dyYd: 1.00 },                   // mesh / handoff
+        { t: 0.22, dxYd: _carrierReadDxYd,    dyYd: 0.50 },                   // read at LOS
         { t: 0.78, dxYd: yards,               dyYd: _carrierLateralEndYd },   // tackle spot
         { t: 1.00, dxYd: yards,               dyYd: _carrierLateralEndYd },   // settled
       ],
