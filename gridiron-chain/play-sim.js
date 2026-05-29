@@ -133,18 +133,25 @@ class Engagement {
   // formation player reference. The Engagement only uses them for
   // lookup (engagementFor); positions are stored on the Engagement.
   //
+  // BLOCKER-ANCHORED model (forms a pocket cup):
+  //   The blocker rides toward (home + setback + pressureDrift). The
+  //   defender stays locked a short depth on the DEFENSE side of the
+  //   blocker. So the pocket shape comes from per-blocker setbacks
+  //   (tackles deep + wide, center shallow) and compresses under
+  //   pressure as the drift grows. The DL follows its man — it doesn't
+  //   independently bull a shared midpoint (which produced a flat wall).
+  //
   // opts:
-  //   axisX, axisY: unit vector — defender's attack direction
-  //                 (+x toward QB on a pass play if dir=+1 offense)
-  //   leverage:    -1..+1 — negative = defender winning (drifts anchor
-  //                along +axis); +ve = blocker winning. 0 = stalemate.
-  //   startBX/Y, startDX/Y: initial positions (typically formation home
-  //                of each)
-  //   offsetPx:    half the lockup depth — blocker sits at anchor-offset
-  //                in -axis, defender at anchor+offset in +axis
-  //   driftPx:     px/frame the anchor moves at full |leverage|
-  //   pull:        EMA strength toward target positions
-  //   wobble:      small lateral jitter so engagement reads alive
+  //   axisX, axisY: unit vector — defender's attack direction (toward QB)
+  //   leverage:    -1..+1 — negative = defender winning → blocker driven
+  //                back toward the QB.
+  //   homeX/Y:     blocker's pre-snap spot (the cup is built off this)
+  //   setbackX/Y:  resting offset from home that shapes the pocket cup
+  //   defX/Y:      defender's pre-snap spot (start position only)
+  //   lockDepth:   px the defender sits on the defense side of the blocker
+  //   driftPx:     px/frame the pressure drift grows at full |leverage|
+  //   pull:        EMA strength toward targets
+  //   wobble:      lateral jitter so the lock-up reads alive
   constructor(blockerKey, defenderKey, opts = {}) {
     this.blockerKey = blockerKey;
     this.defenderKey = defenderKey;
@@ -153,53 +160,52 @@ class Engagement {
     this.leverage = opts.leverage || 0;
     this.shed = false;
     this.startMs = null;
-    this.offsetPx = opts.offsetPx != null ? opts.offsetPx : 7;
-    this.driftPx  = opts.driftPx  != null ? opts.driftPx  : 0.5;
-    this.pull     = opts.pull     != null ? opts.pull     : 0.28;
-    this.wobble   = opts.wobble   != null ? opts.wobble   : 1.2;
+    this.homeX = opts.homeX;
+    this.homeY = opts.homeY;
+    this.setbackX = opts.setbackX || 0;
+    this.setbackY = opts.setbackY || 0;
+    this.lockDepth = opts.lockDepth != null ? opts.lockDepth : 8;
+    this.driftPx  = opts.driftPx  != null ? opts.driftPx  : 0.95;
+    this.pull     = opts.pull     != null ? opts.pull     : 0.30;
+    this.wobble   = opts.wobble   != null ? opts.wobble   : 1.0;
     this.wobblePhase = Math.random() * Math.PI * 2;
-    // Position state. The anchor begins at the CONTACT POINT just in
-    // front of the blocker (on the defense side) — not the raw midpoint
-    // of the two pre-snap spots, which sits ~2.5yd downfield because the
-    // DL aligns off the ball. Anchoring at the blocker keeps the OL at
-    // the LOS and pulls the DL DOWN into the line (reads as the rush
-    // meeting the block) rather than both drifting to no-man's-land.
-    this.blockerX = opts.startBX;
-    this.blockerY = opts.startBY;
-    this.defenderX = opts.startDX;
-    this.defenderY = opts.startDY;
-    // −axis = defense side of the blocker. anchor = blocker − axis*offset
-    // makes blocker's own target resolve back to its start; defender is
-    // pulled to blocker + 2*offset on the defense side.
-    this.anchorX = this.blockerX - this.axisX * this.offsetPx;
-    this.anchorY = this.blockerY * 0.7 + this.defenderY * 0.3;
+    // Accumulated pressure drift (grows along axis toward the QB).
+    this.driftX = 0;
+    this.driftY = 0;
+    // Position state.
+    this.blockerX = opts.homeX;
+    this.blockerY = opts.homeY;
+    this.defenderX = opts.defX != null ? opts.defX : opts.homeX;
+    this.defenderY = opts.defY != null ? opts.defY : opts.homeY;
+    // Anchor exposed for pocketCenter() — tracks the blocker.
+    this.anchorX = this.blockerX;
+    this.anchorY = this.blockerY;
   }
 
   step(nowMs) {
     if (this.shed) return;
     if (this.startMs == null) this.startMs = nowMs;
     const elapsed = nowMs - this.startMs;
-    // Anchor drift along defender's attack axis. -leverage → +axis (def wins).
-    this.anchorX += this.axisX * this.driftPx * -this.leverage;
-    this.anchorY += this.axisY * this.driftPx * -this.leverage;
-    // Wobble — perpendicular jitter so locked bodies don't read frozen.
+    // Pressure drift accumulates along the defender's attack axis when
+    // leverage is negative (rush winning) → blocker pushed toward QB.
+    this.driftX += this.axisX * this.driftPx * -this.leverage;
+    this.driftY += this.axisY * this.driftPx * -this.leverage;
     const w = Math.sin((elapsed / 220) + this.wobblePhase) * this.wobble;
     const perpX = -this.axisY;
     const perpY =  this.axisX;
-    // axis points in the DEFENDER's attack direction (toward the QB /
-    // offense side). So +axis from the anchor is the OFFENSE side
-    // (where the blocker belongs) and −axis is the DEFENSE side (where
-    // the defender belongs). Getting these backwards put the DL behind
-    // the OL — the "D-line past the O-line" bug.
-    const bTx = this.anchorX + this.axisX * this.offsetPx + perpX * w;
-    const bTy = this.anchorY + this.axisY * this.offsetPx + perpY * w;
-    const dTx = this.anchorX - this.axisX * this.offsetPx + perpX * w * -0.6;
-    const dTy = this.anchorY - this.axisY * this.offsetPx + perpY * w * -0.6;
-    // EMA pull each body toward its target.
+    // Blocker rides to home + setback (the cup shape) + accumulated drift.
+    const bTx = this.homeX + this.setbackX + this.driftX + perpX * w;
+    const bTy = this.homeY + this.setbackY + this.driftY + perpY * w;
     this.blockerX += (bTx - this.blockerX) * this.pull;
     this.blockerY += (bTy - this.blockerY) * this.pull;
+    // Defender locks a short depth on the DEFENSE side of the blocker
+    // (−axis = away from QB = downfield). Stays glued to its man.
+    const dTx = this.blockerX - this.axisX * this.lockDepth + perpX * w * -0.6;
+    const dTy = this.blockerY - this.axisY * this.lockDepth + perpY * w * -0.6;
     this.defenderX += (dTx - this.defenderX) * this.pull;
     this.defenderY += (dTy - this.defenderY) * this.pull;
+    this.anchorX = this.blockerX;
+    this.anchorY = this.blockerY;
   }
 
   releaseShed() { this.shed = true; }
@@ -216,16 +222,26 @@ class PassProSim {
     this.losX = opts.losX || 0;
   }
 
-  // Add a blocker↔defender engagement. Defender attacks toward -dir
-  // (toward QB by default).
+  // Add a blocker↔defender engagement. `lanePx` is the blocker's Y
+  // offset from the pocket center (0 = center, ±32 = guard, ±64 = tackle).
+  // It shapes the cup: tackles set deepest and widen outward, the center
+  // holds firmest. Defender attacks toward -dir (toward QB) by default.
   addPair(blocker, defender, opts = {}) {
+    const lanePx = opts.lanePx || 0;
+    const absLane = Math.abs(lanePx);
+    // Pocket cup. setbackX is along -dir (retreat); deeper for wider OL
+    // so tackles sit ~2yd behind the center → backward-bowing arc.
+    // setbackY widens the cup mouth (tackles kick outward).
+    const setbackX = -this.dir * (6 + absLane * 0.45);   // center ~6px, tackle ~35px (~2.3yd)
+    const setbackY = (lanePx === 0 ? 0 : Math.sign(lanePx)) * absLane * 0.18;
     const eng = new Engagement(blocker, defender, {
       axisX: -this.dir,
       axisY: 0,
-      startBX: blocker.x, startBY: blocker.y,
-      startDX: defender.x, startDY: defender.y,
+      homeX: blocker.x, homeY: blocker.y,
+      defX: defender.x, defY: defender.y,
+      setbackX, setbackY,
       leverage: opts.leverage || 0,
-      offsetPx: opts.offsetPx,
+      lockDepth: opts.lockDepth,
       driftPx:  opts.driftPx,
       pull:     opts.pull,
       wobble:   opts.wobble,

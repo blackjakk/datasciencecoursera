@@ -3701,8 +3701,11 @@ function buildAnimForPlay(play, prevPlay) {
           }
           if (best) {
             const eng = _passPro.addPair(ol, best, {
+              // lanePx shapes the pocket cup — tackles (±64px off center)
+              // set deepest and widen, the center (~0) holds firmest.
+              lanePx: ol.y - cy,
               // Leverage seeded from play.pressure (-1.5..1.9). Negative
-              // leverage = the rush winning → the anchor (and the pocket)
+              // leverage = the rush winning → the blocker (and pocket)
               // drifts back toward the QB. Mapped to ±0.7 and combined
               // with a higher driftPx so the pocket compression is
               // actually READABLE on a pressured dropback (the prior
