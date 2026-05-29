@@ -2654,6 +2654,13 @@ function buildAnimForPlay(play, prevPlay) {
                                 FIELD.TOP + 20, FIELD.BOT - 20);
           if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
           if (p._followVX == null) { p._followVX = 0; p._followVY = 0; }
+          // Frame-time factor (see pass downfield-blocker block) — keeps
+          // the per-frame position accumulation at a true 14 yps cap
+          // regardless of display refresh / playback speed.
+          const _nowF = performance.now();
+          const _dtF = (p._followMs == null) ? 1
+                     : Math.max(0, Math.min(3, (_nowF - p._followMs) / 16.67));
+          p._followMs = _nowF;
           // Velocity-based motion with per-celebrator variation so they
           // arrive on different frames instead of stopping in unison.
           const _fdx = targetX - p._followX;
@@ -2673,8 +2680,8 @@ function buildAnimForPlay(play, prevPlay) {
             p._followVX *= _decay;
             p._followVY *= _decay;
           }
-          p._followX += p._followVX;
-          p._followY += p._followVY;
+          p._followX += p._followVX * _dtF;
+          p._followY += p._followVY * _dtF;
           const _gap = Math.hypot(p._followX - targetX, p._followY - targetY);
           const celebPose = _gap < 18 ? "celebrate" : "run";
           return { ...p,
@@ -4676,6 +4683,16 @@ function buildAnimForPlay(play, prevPlay) {
             // play. Init velocities whenever they're missing.
             if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
             if (p._followVX == null) { p._followVX = 0; p._followVY = 0; }
+            // Frame-time factor — _followVX is px-per-60fps-frame, but the
+            // position step below runs once per RENDER frame. Without dt
+            // scaling a 120/144Hz display (or playback-speed scaling)
+            // integrated it 2-2.4× too often → blockers at 28-33 yps
+            // ("superhuman speed"), desynced from the dt-based WR sim.
+            // Scale every accumulation by real elapsed/16.67ms.
+            const _nowF = performance.now();
+            const _dtF = (p._followMs == null) ? 1
+                       : Math.max(0, Math.min(3, (_nowF - p._followMs) / 16.67));
+            p._followMs = _nowF;
             // Speed-capped converge motion. Cap at 15 yps (celebration
             // sprint) or 14 yps (downfield blocker — must equal or
             // exceed WR_TOP_YPS_VISUAL = 13 so they can hold the slot
@@ -4718,8 +4735,8 @@ function buildAnimForPlay(play, prevPlay) {
               p._followVX += (_dvx - p._followVX) * _accel;
               p._followVY += (_dvy - p._followVY) * _accel;
             }
-            p._followX += p._followVX;
-            p._followY += p._followVY;
+            p._followX += p._followVX * _dtF;
+            p._followY += p._followVY * _dtF;
             return { ...p,
                      x: p._followX, y: p._followY,
                      pose: targetPose,
