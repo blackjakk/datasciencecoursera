@@ -2148,7 +2148,10 @@ function buildAnimForPlay(play, prevPlay) {
       }
       // EARLY CRUISE: ELUSIVE → juke; POWER → truck stick at/just past the line.
       // Moves happen during cruise (0.22 - 0.72) since tackle now starts at 0.72.
-      else if (yards >= 2 && inWindow(0.28, 0.44)) {
+      // Windows widened (was 0.16/0.14/0.15 → 0.22/0.20/0.18 of action time)
+      // so each move takes ~0.5-0.8s in absolute time instead of 0.25-0.35s,
+      // which read as a teleport-cut.
+      else if (yards >= 2 && inWindow(0.22, 0.44)) {
         const wantsJuke = rbArch === "ELUSIVE" || rbArch === "RECEIVING" || (rbArch !== "POWER" && seedA < 0.55);
         const wantsTruck = rbArch === "POWER" && seedA < powerProb;
         if (wantsTruck) {
@@ -2158,15 +2161,9 @@ function buildAnimForPlay(play, prevPlay) {
         } else if (wantsJuke && seedA < eluciveProb) {
           rbPose = "juke";
           const cutDir = seedA < eluciveProb / 2 ? 1 : -1;
-          const within = (runT - 0.34) / 0.18;
-          // Bigger lateral cut (22 → 38) so the carrier visibly clears
-          // the dodged defender's tackle radius (28px). With a 22px cut
-          // the defender's dive ended within tackle range — looked like
-          // they "stayed near" the carrier rather than overshooting.
-          // Anticipation lean — slight pre-cut load 60ms before the
-          // burst (opposite direction = setup) for the visible "head
-          // fake" beat.
-          const anticT = Math.max(0, Math.min(1, (runT - 0.30) / 0.04));
+          // Window 0.22-0.44 (22%). Anticipation at 0.22-0.27; cut 0.27-0.44.
+          const within = (runT - 0.27) / 0.17;
+          const anticT = Math.max(0, Math.min(1, (runT - 0.22) / 0.05));
           const cutT   = Math.max(0, within);
           rbLateral = (-cutDir * anticT * 6 * (1 - cutT)) +
                       (cutDir * Math.sin(within * Math.PI) * 38);
@@ -2174,21 +2171,19 @@ function buildAnimForPlay(play, prevPlay) {
           moveCallout = "JUKE!";
         }
       }
-      // MID CRUISE: spin (ELUSIVE/WORKHORSE) on plays ≥ 5 yds
-      else if (yards >= 5 && inWindow(0.44, 0.58) && (rbArch === "ELUSIVE" || rbArch === "WORKHORSE" || seedB < 0.4)) {
+      // MID CRUISE: spin (ELUSIVE/WORKHORSE) on plays ≥ 5 yds. Window widened.
+      else if (yards >= 5 && inWindow(0.44, 0.62) && (rbArch === "ELUSIVE" || rbArch === "WORKHORSE" || seedB < 0.4)) {
         rbPose = "spin";
-        rbT = (runT - 0.44) / 0.14;
+        rbT = (runT - 0.44) / 0.18;
         const cutDir = seedB < 0.5 ? 1 : -1;
-        const within = (runT - 0.44) / 0.14;
-        // Bigger lateral travel during the spin (14 → 28) so the carrier
-        // visibly moves OUT of the dodged defender's tackle radius
-        // rather than spinning more-or-less in place.
+        const within = (runT - 0.44) / 0.18;
         rbLateral = cutDir * Math.sin(within * Math.PI) * 28;
         dodgeIdx = 6;
         moveCallout = "SPIN!";
       }
-      // LATE CRUISE: stiff arm / hurdle on plays ≥ 6 yds
-      else if (yards >= 6 && inWindow(0.55, 0.70)) {
+      // LATE CRUISE: stiff arm / hurdle on plays ≥ 6 yds. Window widened
+      // (was 0.55-0.70 = 15% → 0.55-0.72 = 17%).
+      else if (yards >= 6 && inWindow(0.55, 0.72)) {
         if ((rbArch === "POWER" || rbArch === "WORKHORSE") && seedB > 0.55) {
           rbPose = "hurdle";
           dodgeIdx = 9;
