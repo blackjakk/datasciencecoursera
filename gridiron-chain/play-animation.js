@@ -740,7 +740,11 @@ function _simulateKickoffAgents(opts) {
         targetX = cov.x;
         targetY = cov.y;
       }
-      const speedCap = a.fails ? BLOCKER_BASE_PX_F * 0.4 : BLOCKER_BASE_PX_F;
+      // The blocker who "fails" is already excluded from engagement below
+      // (his cover man slips past) — so he doesn't ALSO need to crawl. 0.4x
+      // made one blocker jog the whole way back ("one guy super slow"); 0.85
+      // is just a step slow, reads as beaten, not broken.
+      const speedCap = a.fails ? BLOCKER_BASE_PX_F * 0.85 : BLOCKER_BASE_PX_F;
       if (!a.fails && b.targetCov !== primaryTacklerIdx) {
         // Contact check uses blocker-to-cov distance
         const dxBC = b.x - cov.x;
@@ -776,8 +780,11 @@ function _simulateKickoffAgents(opts) {
       const dy = targetY - b.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > 1) {
-        b.x += (dx / d) * speed;
+        b._vx = (dx / d) * speed;   // record X-velocity for facing/pose
+        b.x += b._vx;
         b.y += (dy / d) * speed;
+      } else {
+        b._vx = 0;
       }
       // Engagement drift — engaged pair gets shoved by the play.
       if (isEngaged) {
@@ -800,7 +807,7 @@ function _simulateKickoffAgents(opts) {
     frames.push({
       returner: { x: returner.x, y: returner.y },
       cover: cover.map(c => ({ x: c.x, y: c.y, engaged: c.engaged, engagedBy: c.engagedBy })),
-      blockers: blockers.map(b => ({ x: b.x, y: b.y, role: b.role })),
+      blockers: blockers.map(b => ({ x: b.x, y: b.y, role: b.role, vx: b._vx || 0 })),
     });
   }
   return { frames, NUM_FRAMES, DT_MS, duration_ms };
@@ -1113,8 +1120,17 @@ function buildAnimForPlay(play, prevPlay) {
       for (let i = 0; i < NUM_BLOCKERS; i++) {
         const bpos = snap.blockers[i];
         const isEngaged = !!snap.cover.find(c => c.engagedBy === i);
+        // A KR blocker ALWAYS faces downfield (recvDir) — he's blocking the
+        // coverage coming from that way. While he RETREATS to set the pocket
+        // (moving back toward the returner, vx opposite recvDir), use the
+        // "backpedal" pose: it's facing-locked, so he keeps facing the
+        // coverage instead of flipping to face the returner. "run" auto-faces
+        // by velocity, which is why he looked like he was sprinting AT the
+        // returner while backing up. Forward (leading the return) stays "run".
+        const _retreating = (bpos.vx || 0) * recvDir < -0.1;
         const bPose = (t < FLIGHT_END * 0.05) ? "stance"
                     : isEngaged                 ? "engage"
+                    : _retreating               ? "backpedal"
                     :                             "run";
         const bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
         const bFacing = recvDir;
