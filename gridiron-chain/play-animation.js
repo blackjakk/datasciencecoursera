@@ -5076,10 +5076,24 @@ function buildAnimForPlay(play, prevPlay) {
     // formation index so the visual sacker matches the named one.
     // Falls back to hash pick when name resolution fails.
     let primaryIdx = Math.floor(r(0) * 4);
-    if (play.dlName) {
-      const resolved = formation.defense.findIndex(d => d && d.name === play.dlName);
-      if (resolved >= 0 && resolved < 4) primaryIdx = resolved;   // DL is idx 0-3
+    // Resolve the VISUAL primary sacker from the CREDITED sacker
+    // (motion.sackerName) — which may be a blitzing LB/DB (idx >= 4), not
+    // just a DL. Resolving from dlName (the beaten OL's man) and clamping
+    // to <4 put a SEPARATE DL on the takedown while the LB's sacker-track
+    // ran in parallel: two bodies converged and the chyron/box named
+    // different players. When the sacker is an LB, primaryIdx becomes his
+    // index; the DL-rush block (i<4) then never flags a DL as primary, so
+    // only the track-driven blitzer makes the sack. Fall back to dlName,
+    // then the random DL.
+    const _crSacker = (play.motion && play.motion.sackerName) || play.dlName;
+    if (_crSacker) {
+      const resolved = formation.defense.findIndex(d => d && d.name === _crSacker);
+      if (resolved >= 0) primaryIdx = resolved;
     }
+    // Is the primary sacker a non-lineman blitzer (LB/DB, idx >= 4)? Used
+    // to drive his rush when no engine track is present, and to skip the
+    // "beaten OL" override (a clean blitz wasn't a one-on-one OL loss).
+    const _primaryIsBlitzer = primaryIdx >= 4;
     // Use engine-emitted contactT when present so the QB tackle pose
     // and the sacker pursuit track converge on the same frame. Falls
     // back to per-play random for plays without motion. Range 0.62-0.75
@@ -5413,11 +5427,15 @@ function buildAnimForPlay(play, prevPlay) {
       const _sackOlList = formation.offense
         .filter(o => o.role === "OL")
         .sort((a, b) => a.y - b.y);   // sorted top -> bottom (LT first)
-      const _losingOlSlot = primaryIdx === 0 ? 0
+      // Only a DL primary (idx 0-3) maps to a beaten OL. On a BLITZ
+      // (primaryIdx >= 4 = LB/DB), no lineman lost a one-on-one rep —
+      // the blitzer came free through a gap — so no OL posts up "beaten".
+      const _losingOlSlot = _primaryIsBlitzer ? -1   // blitzer: no beaten OL
+                          : primaryIdx === 0 ? 0
                           : primaryIdx === 1 ? 1
                           : primaryIdx === 2 ? 3
                           :                    4;
-      const _losingOl = _sackOlList[_losingOlSlot] || null;
+      const _losingOl = _losingOlSlot >= 0 ? (_sackOlList[_losingOlSlot] || null) : null;
       const off = formation.offense.map(p => {
         if (p.role === "QB") {
           // throw and drop_step are SETTLED poses during the sack scan
@@ -8558,10 +8576,14 @@ function formatPlayResult(play) {
     case "int":
       return { title: "INTERCEPTION!", sub: `${passer} picked off — turnover`, color: "#e07070", big: true };
     case "sack": {
-      const dlName = lastNameUpper(play.dlName);
+      // Name the CREDITED sacker (motion.sackerName — the LB on a blitz,
+      // else the DL). play.dlName is only the beaten OL's man, which on a
+      // blitz is a different player than who got the sack: the chyron used
+      // to name the DL while the box credited the LB. One source of truth.
+      const sackerName = lastNameUpper((play.motion && play.motion.sackerName) || play.dlName);
       const move = play.dlMove;
-      const sub = dlName && move
-        ? `${dlName} with the ${move} — ${passer} dropped for −${play.sackLoss ?? 0}`
+      const sub = sackerName && move
+        ? `${sackerName} with the ${move} — ${passer} dropped for −${play.sackLoss ?? 0}`
         : `${passer} dropped for −${play.sackLoss ?? 0} in the backfield`;
       return { title: "SACK!", sub, color: "#e07070" };
     }
