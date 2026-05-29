@@ -5042,18 +5042,34 @@ function buildAnimForPlay(play, prevPlay) {
       // kept drawing a second ball that stuck to the carrier's body
       // through the whole YAC). Per design: show it coming out into the
       // air and arcing, hide it AT both hands and during the carry.
+      // SINGLE BALL ON THE FIELD — the catch/reach/leap sprites have a ball
+      // baked into the hands (and the carry sprites a tucked ball). Whenever
+      // one of those is on screen it IS the ball, so the standalone flight
+      // ball must be suppressed or two balls show at once. The old gate cut
+      // the standalone at ~throwEndAT (the catch INSTANT), but the catch
+      // sprite engages up to 0.10 EARLIER (the windup) — that lead window
+      // drew both the sprite's hand-ball and the flight ball.
+      const _flightSpan = Math.max(0.001, throwEndAT - releaseAT);
+      const _airStart = releaseAT + _flightSpan * 0.08;
+      const _airEnd   = throwEndAT - _flightSpan * 0.06;
+      // Is the receiver's ball-bearing catch sprite (reach/leap) on screen?
+      const _spriteHoldsCatchBall = inLeapWindow || isCatching;
       let showStandalone;
       if (t < PRE || at < snapMotionAT) {
         showStandalone = true;            // pre-snap + C→QB snap toss
+      } else if (play.kind === "complete") {
+        // Flight only, and hand off to the catch sprite the moment it
+        // engages — its hand-ball becomes the single ball through the carry.
+        showStandalone = at >= _airStart && at < _airEnd && !_spriteHoldsCatchBall;
       } else if (play.kind === "incomplete") {
-        showStandalone = at >= releaseAT;  // flight + loose ground bounce
+        // A MISS (overthrow / underthrow / leapmiss / PD) keeps the standalone
+        // — it's the real ball flying PAST the receiver, somewhere the
+        // sprite's (wrong) hand-ball isn't. Only a DROP has the ball briefly
+        // in the hands, so suppress the standalone there during the reach.
+        showStandalone = at >= releaseAT && !(play.isDrop && _spriteHoldsCatchBall);
       } else {
-        // complete / int: pure-flight window only. Small gaps clear the
-        // throwing hand (start) and let the catch sprite take over (end);
-        // hidden before release (cradle) and after the catch (carry).
-        const _flightSpan = Math.max(0.001, throwEndAT - releaseAT);
-        const _airStart = releaseAT + _flightSpan * 0.08;
-        const _airEnd   = throwEndAT - _flightSpan * 0.06;
+        // int: the ball continues to the DEFENDER, so the intended
+        // receiver's reach sprite must NOT suppress it. Pure-flight window.
         showStandalone = at >= _airStart && at < _airEnd;
       }
       // PASS TRAIL — once the ball is in flight, draw a fading parabolic
