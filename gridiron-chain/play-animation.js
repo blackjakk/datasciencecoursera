@@ -3102,14 +3102,18 @@ function buildAnimForPlay(play, prevPlay) {
         incOffsetY = sideSign * 30;
         incArcMul = 1.0;
       } else if (r === "pd") {
-        // PASS DEFLECTION — defender's hand gets to the ball at the
-        // catch frame, knocking it short of the WR. Without an offset
-        // the ball flew clean to the WR's hands and just dropped — no
-        // visible deflection. Small backward + lateral offset puts
-        // the ball in front of the WR after the swat.
-        incOffsetX = -dir * 18;
-        incOffsetY = sideSign * 10;
-        incArcMul = 0.92;
+        // PASS DEFLECTION — the THROW is on-target (a catchable ball into
+        // the receiver's hands). The deflection is an EVENT at the contact
+        // frame, not a bad throw: the defender's hand reaches in and knocks
+        // the ball away. So the flight carries NO landing offset (ball flies
+        // clean to the WR); the visible "broken up" beat is a sharp pop-and-
+        // fall applied in the post-contact branch below. The old −18/+10
+        // offset made the ball ease to a spot just short of the WR and drop
+        // with no directional change — it read as a generic incompletion,
+        // never as a defender swatting the ball.
+        incOffsetX = 0;
+        incOffsetY = 0;
+        incArcMul = 1.0;
       }
     }
     // Pick receiver lane deterministically per play (screens always go to the RB)
@@ -3753,6 +3757,29 @@ function buildAnimForPlay(play, prevPlay) {
           // Receiver carries the ball — keep them locked together
           wr.x = ballX;
           wr.y = ballY;
+        } else if (play.kind === "incomplete" && play.incReason === "pd") {
+          // DEFLECTION — the ball arrived on-target at the WR's hands
+          // (targetX, targetY at hand height); the defender's hand knocks
+          // it away HERE, at the contact frame. The visible beat: the ball
+          // pops UP off the swat, then tumbles down to the turf and drifts
+          // AWAY from the receiver (lateral, swat side). The sharp pop-and-
+          // fall — a kink in the path at contact — is what reads as "broken
+          // up" instead of the smooth ease-and-drop of a generic miss.
+          // Heights are screen-px above the field spot (larger = higher).
+          let h;
+          if (tt < 0.15)       { h = 14 + (tt / 0.15) * 20; }              // 14 → 34: knocked UP off the hand
+          else if (tt < 0.55)  { const u = (tt - 0.15) / 0.40; h = 34 * (1 - u); } // 34 → 0: falls to the turf
+          else                 { const u = (tt - 0.55) / 0.45; h = Math.sin(u * Math.PI) * 6; } // small settle bounce
+          // Lateral knock (swat direction) + a touch back toward the LOS,
+          // eased so the kink is sharp at contact then settles. Recompute
+          // the swat side locally — the `sideSign` used during flight is
+          // block-scoped to the incOffset block above and isn't visible here.
+          const _swatSide = ((play.startYard * 23) >>> 0) % 2 === 0 ? 1 : -1;
+          const _drift = 1 - Math.exp(-3 * tt);
+          ballX = targetX - dir * 16 * _drift;
+          ballY = targetY - h + _swatSide * 34 * _drift;
+          // Fast tumble on the swat, settling flat as it stops.
+          ballAngle = (tt * 14) * Math.max(0, 1 - tt * 1.4);
         } else if (play.kind === "incomplete") {
           // BOUNCE + ROLL — ball hits the turf, bounces 3 times with
           // diminishing amplitude, then rolls to a stop. Was a static
@@ -4434,11 +4461,10 @@ function buildAnimForPlay(play, prevPlay) {
         // jumps at the catch moment, lands and watches the ball drop.
         if (_isPDPlay && i === intDefIdx) {
           if (t < throwPhase) {
-            // Close on the ball's DEFLECTION point (where the swat sends
-            // it) — not the bare target. The ball flies to
-            // (targetX+incOffsetX, targetY+incOffsetY) on a PD; aiming the
-            // defender at the bare target left his hand ~1yd from the ball
-            // so he batted air while the ball deflected on its own.
+            // Close on the CONTACT point — the WR's hands (targetX,targetY).
+            // On a PD the throw is on-target (incOffset is 0), so the ball
+            // and the receiver meet here and the defender's hand reaches in
+            // at the same spot to knock it away.
             const _pdBallX = targetX + incOffsetX;
             const _pdBallY = targetY + incOffsetY;
             const tt = Math.min(1, aT / throwFrac);
@@ -4446,17 +4472,19 @@ function buildAnimForPlay(play, prevPlay) {
             dd.x = d.x + (_pdBallX - d.x) * _pdEaseT;
             dd.y = d.y + (_pdBallY - d.y) * _pdEaseT;
             if (aT > throwFrac * 0.88) {
-              dd.pose = "leap";   // wind up for the swat
+              dd.pose = "leap";   // rise up to contest the ball (windup)
               // Progress once into the leap (no explicit t → wall-clock
               // loop → flopping leap windup).
               dd.t = Math.min(1, (aT - throwFrac * 0.88) / Math.max(0.001, throwFrac * 0.12));
             }
           } else if (t < throwPhase + 0.10) {
-            // SWAT FRAME — body at the deflection point, raised arms on
-            // the ball as it ricochets away.
+            // SWAT FRAME — the dedicated arm-chop. Was "leap" (a one-arm
+            // diving CATCH reach), which looked like the defender trying to
+            // catch it, not knock it away. "swat" maps to the strip_swat
+            // sprite (DB punch-out) and the procedural arm-chop fallback.
             dd.x = targetX + incOffsetX;
             dd.y = targetY + incOffsetY + 6;
-            dd.pose = "leap";
+            dd.pose = "swat";
             dd.t = Math.min(1, (t - throwPhase) / 0.10);
             dd.facing = -dir;
           } else {
@@ -8770,6 +8798,23 @@ function formatPlayResult(play) {
       if (play.isDrop) {
         return { title: "DROP!", sub: intended ? `${intended} can't hang on` : `Receiver drops it`, color: "#e07070" };
       }
+      // PASS BREAKUP — a defender knocked the ball away. The engine
+      // emits incReason "pd" with play.defender (the DB) or "batted"
+      // with play.defender (the DL at the LOS). Both deserve a distinct
+      // call-out that NAMES the defender — otherwise the breakup reads
+      // as a generic incompletion and the swat goes unnoticed. (This was
+      // the whole "I've never seen a deflection" report: the animation
+      // ran the swat but the banner never said one happened.)
+      const breakupBy = lastNameUpper(play.defender);
+      if (play.incReason === "pd") {
+        return {
+          title: "BROKEN UP!",
+          sub: breakupBy
+            ? (intended ? `${breakupBy} breaks up the pass to ${intended}` : `${breakupBy} knocks it away`)
+            : (intended ? `Pass to ${intended} broken up` : `Pass broken up`),
+          color: "#7fb8ff",
+        };
+      }
       // Use the specific incomplete reason for the banner sub-text so
       // the viewer knows WHAT happened, not just that the pass was
       // incomplete. Maps incReason → human-readable phrase.
@@ -8777,7 +8822,7 @@ function formatPlayResult(play) {
         overthrown:  intended ? `${passer} overthrows ${intended}`       : `Pass sails high`,
         underthrown: intended ? `${passer} throws short of ${intended}`   : `Pass falls short`,
         throwaway:   `${passer} throws it away — out of bounds`,
-        batted:      `Batted down at the line`,
+        batted:      breakupBy ? `Batted down at the line by ${breakupBy}` : `Batted down at the line`,
         offtarget:   intended ? `${passer} off-target to ${intended}`     : `Pass off-target`,
       };
       const sub = reasonMap[play.incReason]
