@@ -2363,23 +2363,42 @@ function buildAnimForPlay(play, prevPlay) {
       // Determine which DL "wins" his rep — for big runs, the OL is winning at every gap
       // (we ALSO need at least one DL to break free if the run is short / for losses)
       const dlBreaksFree = yards < 2 ? 1 : 0;  // on stuffs, one rusher penetrates
-      // ── RUN-BLOCK ENGAGEMENT SIM (standard runs) ──
-      // Pair each ENGAGED DL with its nearest OL; winning blocks SEAL the DL
-      // off the hole, opening the lane the carrier hits. The penetrator
-      // (dlBreaksFree) is left OUT of the sim — it beats its block and
-      // pursues via the existing DL logic below. Special runs (counter /
-      // stretch / pitch pulls, option, reverse, QB keep, scramble) keep their
-      // scripted blocking.
-      const _isStandardRun = !play.isScramble && !play.isQBRun && !play.isSpeedOption
-        && !play.isReverse && play.runType !== "counter"
-        && play.runType !== "stretch" && play.runType !== "pitch";
-      if (t > PRE && _runBlock == null && _isStandardRun && typeof RunBlockSim !== "undefined") {
+      // ── RUN-BLOCK ENGAGEMENT SIM ──
+      // Pair each ENGAGED DL with its nearest OL; a winning block SEALS the
+      // DL out of the carrier's LANE (the corridor from the LOS center to the
+      // hole), opening the path the back hits. The penetrator (dlBreaksFree)
+      // is left OUT — it beats its block and pursues via the DL logic below.
+      // Runs on inside/power AND the gap/zone concepts (counter, stretch,
+      // pitch): the lane corridor + the away-from-hole seal naturally produce
+      // the A-gap split (inside) and the play-side wash/reach (stretch/pitch).
+      // On a COUNTER the pulling guard is excluded so he pulls via his own
+      // track. Still scripted (special carrier mechanics, not a straight
+      // trench): scramble, QB keep, speed option, reverse.
+      const _isTrenchRun = !play.isScramble && !play.isQBRun
+        && !play.isSpeedOption && !play.isReverse;
+      if (t > PRE && _runBlock == null && _isTrenchRun && typeof RunBlockSim !== "undefined") {
         const _PX = FIELD.PX_PER_YARD;
         const _holeY = cy + ((play.motion && play.motion.gapYd) || 0) * _PX;
         _runBlock = new RunBlockSim({ dir, losX, holeY: _holeY });
         const _rbOLs = formation.offense.filter(o => o.role === "OL");
         const _rbDLs = formation.defense.filter(x => x.role === "DL");
+        // Counter: the backside guard PULLS. The engine's pull is on OL slot
+        // (2 - sign(gapYd)) by Y rank (matches _buildRunBlockerTracks). Reserve
+        // him out of the sim so he runs his pull track instead of locking a DL.
+        let _pullerOL = null;
+        if (play.runType === "counter") {
+          const _engCS = Math.sign((play.motion && play.motion.gapYd) || 0) || 1;
+          const _pr = Math.max(0, Math.min(4, 2 - _engCS));
+          _pullerOL = [..._rbOLs].sort((a, b) => a.y - b.y)[_pr];
+        }
+        // Lane corridor: LOS center → hole, ±1.6yd cushion. A DL inside it is
+        // in the carrier's path (gets sealed); outside it just holds. Inside
+        // run: holeY≈cy → corridor = the A-gaps. Stretch/pitch: holeY wide →
+        // corridor = the whole play side, so those DL get washed away from it.
+        const _loY = Math.min(cy, _holeY) - 1.6 * _PX;
+        const _hiY = Math.max(cy, _holeY) + 1.6 * _PX;
         const _usedOL = new Set();
+        if (_pullerOL) _usedOL.add(_pullerOL);   // puller pulls via its track, not the sim
         for (let di = 0; di < _rbDLs.length; di++) {
           if (di === dlBreaksFree) continue;   // penetrator pursues (not in the sim)
           const dl = _rbDLs[di];
@@ -2391,8 +2410,8 @@ function buildAnimForPlay(play, prevPlay) {
           }
           if (!best) continue;
           _usedOL.add(best);
-          const _nearHole = Math.abs(dl.y - _holeY) < 1.6 * _PX;
-          const win = _nearHole ? 0.7 : 0.3;            // hole blocks win big, others hold
+          const _inLane = dl.y >= _loY && dl.y <= _hiY;
+          const win = _inLane ? 0.7 : 0.3;              // in-lane DL sealed, others hold
           const sealSign = (dl.y >= _holeY ? 1 : -1);   // shove the DL away from the hole
           _runBlock.addPair(best, dl, {
             contactX: dl.x - dir * 12,   // OL fires to a body-depth in front of the DL
