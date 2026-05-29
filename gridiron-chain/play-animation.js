@@ -4974,10 +4974,28 @@ function buildAnimForPlay(play, prevPlay) {
         return { ...p, pose: "idle", facing: dir };
       });
       drawPlayers(off, def);
-      // Draw the standalone ball during pre-snap (at the center) and the
-      // C→QB snap window, then suppress while the QB cradles/cocks (his hand
-      // draws it), then resume once the ball is released and in flight.
-      const showStandalone = (t < PRE) || (at < snapMotionAT) || (at >= releaseAT);
+      // Standalone ball visibility. The ball is drawn ONLY while it's a
+      // free object — in the air (pure flight) or loose on the ground
+      // (incomplete bounce). Whenever a player SPRITE already depicts the
+      // ball it's suppressed: the QB cradle/throwing hand, the WR catch,
+      // and the carry (the carry sprite has a tucked ball — the old gate
+      // kept drawing a second ball that stuck to the carrier's body
+      // through the whole YAC). Per design: show it coming out into the
+      // air and arcing, hide it AT both hands and during the carry.
+      let showStandalone;
+      if (t < PRE || at < snapMotionAT) {
+        showStandalone = true;            // pre-snap + C→QB snap toss
+      } else if (play.kind === "incomplete") {
+        showStandalone = at >= releaseAT;  // flight + loose ground bounce
+      } else {
+        // complete / int: pure-flight window only. Small gaps clear the
+        // throwing hand (start) and let the catch sprite take over (end);
+        // hidden before release (cradle) and after the catch (carry).
+        const _flightSpan = Math.max(0.001, throwEndAT - releaseAT);
+        const _airStart = releaseAT + _flightSpan * 0.08;
+        const _airEnd   = throwEndAT - _flightSpan * 0.06;
+        showStandalone = at >= _airStart && at < _airEnd;
+      }
       // PASS TRAIL — once the ball is in flight, draw a fading parabolic
       // dotted trail from release point to current ball position. Persists
       // through catch + YAC so the user can see the throw retroactively.
