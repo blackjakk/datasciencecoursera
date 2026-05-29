@@ -1749,6 +1749,11 @@ function buildAnimForPlay(play, prevPlay) {
         if (acc > _runPathYds) _runPathYds = Math.min(acc, _runPathYds + 25);
       }
     }
+    // Scrambles physically travel a ~5-yd dropback + recovery BEFORE the
+    // forward scramble, none of which is in the net yards. Sizing the clock
+    // off net yards alone crammed that travel into too little time — the
+    // dropback ran at ~12 yps ("fast in the pocket"). Pace off the full path.
+    if (play.isScramble) _runPathYds = Math.max(_runPathYds, Math.abs(yards) + 10);
     const actionDur = scaledDuration(_runPathYds) + RUN_TACKLE_MS;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
@@ -1792,6 +1797,13 @@ function buildAnimForPlay(play, prevPlay) {
       const snapMotionRT = 0.04;
       const centerX = losX - dir * 2;
       let ballX, ballY;
+      // SINGLE BALL ON RUNS — with sprites on, the carrier's carry/run sprite
+      // has a ball tucked under the arm, so drawing the standalone ball at the
+      // carrier (drawBall auto-shifts it into the hand) doubles it. Track when
+      // the ball is genuinely LOOSE / in the air (pre-snap at the center, the
+      // snap toss, a pitch in flight) — only then is the standalone the ball.
+      // During possession the carry sprite is the single ball.
+      let _ballLoose = false;
       // Speed-option dual-sprite tracking — when set, the rendering swap
       // below uses these to draw the QB and RB sprites at their parallel
       // sprint positions. Null otherwise (normal one-carrier rendering).
@@ -1800,39 +1812,47 @@ function buildAnimForPlay(play, prevPlay) {
       if (t < PRE) {
         ballX = centerX;
         ballY = cy;
+        _ballLoose = true;          // pre-snap: ball sits at the center
       } else if (runT < snapMotionRT) {
         // Snap from center back to QB
         const snapT = runT / snapMotionRT;
         const sm = snapT * snapT * (3 - 2 * snapT);
         ballX = centerX + (formation.qb.x - centerX) * sm;
         ballY = cy + (cy - cy) * sm;
+        _ballLoose = true;          // snap toss in the air
       } else if (isScramble) {
         // SCRAMBLE: QB drops back, reads the field briefly, then tucks
-        // and runs. Three phases, but the "hesitate" window used to
-        // oscillate ±4-6px which read as "shaking" — replaced with a
-        // small ONE-TIME side-step (QB looks, plants a foot, takes off).
-        //   Phase A (0 - 0.18): clean dropback to ~5 yds behind LOS
-        //   Phase B (0.18 - 0.30): brief read — single lateral step, no wiggle
-        //   Phase C (0.30 - end): tuck and sprint forward to endX
+        // and runs. The pocket (drop + read) is a FIXED wall-time window,
+        // not a fixed FRACTION of the play — as a fraction, a short scramble
+        // dropped back at ~12 yps ("fast in the pocket"). Fixed time keeps
+        // the drop at a realistic ~5-6 yps no matter how far he runs.
+        //   Phase A (drop ~0.95s): clean dropback to ~5 yds behind LOS
+        //   Phase B (read ~0.33s): single lateral step, no wiggle
+        //   Phase C (rest):        tuck and run to endX, paced (accel→cruise)
         const dropBackX = qb.x - dir * 5 * FIELD.PX_PER_YARD;
-        if (runT < 0.18) {
-          const dropT = runT / 0.18;
+        const readSpotX = dropBackX + dir * 2;
+        const _dropFrac = clamp(950 / actionDur, 0.10, 0.34);
+        const _readFrac = _dropFrac + clamp(330 / actionDur, 0.04, 0.14);
+        if (runT < _dropFrac) {
+          const dropT = runT / _dropFrac;
           const sm = dropT * dropT * (3 - 2 * dropT);
           ballX = qb.x + (dropBackX - qb.x) * sm;
           rb.x = ballX;
           rb.y = cy;
-        } else if (runT < 0.30) {
+        } else if (runT < _readFrac) {
           // Single read step — one easeout sidestep, then settles
-          const hesT = (runT - 0.18) / 0.12;
+          const hesT = (runT - _dropFrac) / (_readFrac - _dropFrac);
           const sm = hesT * (2 - hesT);   // easeOut — peaks at the end
           ballX = dropBackX + dir * 2 * sm;   // small forward read step
           rb.x = ballX;
           rb.y = cy + dir * 3 * Math.sin(sm * Math.PI);  // gentle one-time sway
         } else {
-          // Tuck and run — smooth pacing curve from the read spot to endX
-          const tuckT = (runT - 0.30) / 0.70;
-          const readSpotX = dropBackX + dir * 2;
-          ballX = readSpotX + (endX - readSpotX) * tuckT;
+          // Tuck and run — natural accel→cruise (runPacing) over the
+          // remaining action time, instead of a linear constant-speed tween.
+          const _runMs = Math.max(1, (1 - _readFrac) * actionDur);
+          const _localT = (runT - _readFrac) / (1 - _readFrac);
+          const prog = runPacing(_localT, _runMs);
+          ballX = readSpotX + (endX - readSpotX) * prog;
           rb.x = ballX;
           rb.y = cy;
         }
@@ -1909,6 +1929,7 @@ function buildAnimForPlay(play, prevPlay) {
           const flyT = (runT - PITCH_T) / PITCH_FLY;
           ballX = edgeX + (rbCurX - edgeX) * flyT;
           ballY = edgeY + (rbCurY - edgeY) * flyT - Math.sin(flyT * Math.PI) * 10;
+          _ballLoose = true;        // option pitch in flight
         } else if (isPitchPlay) {
           ballX = rbCurX; ballY = rbCurY;
         } else {
@@ -2017,6 +2038,7 @@ function buildAnimForPlay(play, prevPlay) {
           rb.y = cy + 28 + pitchSide * p * 50;
           // Ball Y interpolates from QB → catching RB along a small arc
           ballY = cy + (rb.y - cy) * p - Math.sin(p * Math.PI) * 8;
+          _ballLoose = true;        // lateral pitch in flight
         } else if (runT < 0.20) {
           // RB has the ball, still moving laterally before turning upfield
           const p = (runT - 0.12) / 0.08;
@@ -2924,7 +2946,13 @@ function buildAnimForPlay(play, prevPlay) {
       // window) for any nearby carrier — so a separate call-site
       // override was redundant and the source of the pre-snap "ball
       // in RB's hands" bug. Single canonical mechanism now.
-      drawBall(ctx, ballX, ballY);
+      // With sprites on, the carry sprite already draws a tucked ball, so
+      // the standalone is suppressed during possession (only drawn when the
+      // ball is loose/in the air) — otherwise two balls ride the carrier.
+      const _runSpritesOn = (typeof SpriteAtlas !== "undefined" && SpriteAtlas.anyLoaded());
+      if (!_runSpritesOn || _ballLoose) {
+        drawBall(ctx, ballX, ballY);
+      }
       // SPEED OPTION banner — shows the play call. Once the read fires
       // (after PITCH_T), a secondary line shows whether the QB made the
       // RIGHT or WRONG read of the edge defender's commit.
@@ -4824,14 +4852,21 @@ function buildAnimForPlay(play, prevPlay) {
             const _gap = Math.hypot(_curX - targetX, _curY - targetY);
             targetPose = _gap < 18 ? "celebrate" : "run";
           } else if (slotIdx != null) {
-            // Downfield blocker — 6-9 yd ahead of carrier, lateral
-            // offset. Clamp target to field bounds so on long TDs
-            // blockers don't aim off the back of the endzone (was
-            // 1810px for TD-side blocker on a play that ended at 1600).
-            const dxYd = 6 + slotIdx * 3;
+            // Downfield blocker — leads the carrier toward where the play
+            // ENDS, not a fixed slot far ahead of the LIVE carrier. The old
+            // "6-9 yd ahead of wr.x" meant that on a SHORT pass (carrier
+            // tackled almost immediately) the blocker kept sprinting to a
+            // slot 6-9 yd PAST a dead play and blew downfield at full speed
+            // ("blockers hyperspeed for a 7-yd pass"). Capping the lead at
+            // ~2 yd past the carrier's endpoint keeps the blocker WITH the
+            // play: a short gain has almost nowhere to run (so no sprint),
+            // a long gain has endX far downfield so the lead is normal.
+            const _leadPx = (3 + slotIdx * 2) * FIELD.PX_PER_YARD;   // 3-5 yd lead
             const dyYd = slotIdx === 0 ? -4 : 4;
-            targetX = clamp(wr.x + dir * dxYd * FIELD.PX_PER_YARD,
-                            FIELD.EZ_PX * 0.3, FIELD.W - FIELD.EZ_PX * 0.3);
+            const _leadX = wr.x + dir * _leadPx;
+            const _capX  = endX + dir * 2 * FIELD.PX_PER_YARD;        // ≤2 yd past the end
+            const _tx = dir > 0 ? Math.min(_leadX, _capX) : Math.max(_leadX, _capX);
+            targetX = clamp(_tx, FIELD.EZ_PX * 0.3, FIELD.W - FIELD.EZ_PX * 0.3);
             targetY = clamp(wr.y + dyYd * FIELD.PX_PER_YARD,
                             FIELD.TOP + 20, FIELD.BOT - 20);
           }
