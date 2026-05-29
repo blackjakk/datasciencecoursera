@@ -5284,9 +5284,19 @@ function buildAnimForPlay(play, prevPlay) {
             dd.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
             dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
             const _engineContactT = (play.motion && play.motion.contactT) || contactT;
-            if (tt > _engineContactT + 0.03) dd.pose = "sack";
-            // Freeze legs once the sacker is parked on the QB.
-            if (!MotionPlayback.isMoving(_sackerTrack, tt)) dd.t = 0;
+            if (tt > _engineContactT + 0.03) {
+              dd.pose = "sack";
+              // Progress the sack/fall sprite 0→1 ONCE across contact→end
+              // and hold flat. The old code only froze dd.t when the
+              // sacker stopped MOVING — but he rides the QB forward from
+              // contact to t=0.95, so during that ride the wall-clock
+              // default dd.t (set at the top of the map) cycled the
+              // 4-frame fall sprite on a loop = "flopping like a seal".
+              dd.t = Math.min(1, Math.max(0,
+                (tt - _engineContactT) / Math.max(0.001, 1 - _engineContactT)));
+            } else if (!MotionPlayback.isMoving(_sackerTrack, tt)) {
+              dd.t = 0;   // engaged-at-LOS hold (pre-contact), frozen frame
+            }
             return dd;
           }
         }
@@ -5438,12 +5448,26 @@ function buildAnimForPlay(play, prevPlay) {
       const _losingOl = _losingOlSlot >= 0 ? (_sackOlList[_losingOlSlot] || null) : null;
       const off = formation.offense.map(p => {
         if (p.role === "QB") {
-          // throw and drop_step are SETTLED poses during the sack scan
-          // window — frame 0 is the cradle/scanning silhouette. Cycling
-          // t through wall-clock made the throw pose loop the full
-          // throwing motion = visible "pump fake" every 333ms.
-          const _qbCarryPose = qbPose === "throw" || qbPose === "drop_step" || qbPose === "idle";
-          const _qbT = _qbCarryPose ? 0 : (t < 0.95 ? ((performance.now() / 333) + 0.4) % 1 : 0);
+          // Pose-t per QB state:
+          //  - tackled (takedown): fall progresses 0→1 ONCE across the
+          //    contact→end window, then holds flat. Was wall-clock
+          //    cycling → the QB's fall sprite looped = "flopping like a
+          //    seal" through the whole takedown.
+          //  - settled scan poses (drop_step / qb_carry / throw / idle):
+          //    frozen frame 0 (the cradle/scanning silhouette) — these
+          //    are HOLD poses, not loops. qb_carry was missing from the
+          //    settled set before, so it also cycled during the scan.
+          const _qbTT = (t - PRE) / (1 - PRE);
+          let _qbT;
+          if (qbPose === "tackled") {
+            _qbT = Math.min(1, Math.max(0,
+              (_qbTT - contactT) / Math.max(0.001, 1 - contactT)));
+          } else if (qbPose === "throw" || qbPose === "drop_step"
+                     || qbPose === "idle" || qbPose === "qb_carry") {
+            _qbT = 0;
+          } else {
+            _qbT = (t < 0.95 ? ((performance.now() / 333) + 0.4) % 1 : 0);
+          }
           return { ...qb, pose: qbPose, t: _qbT, facing: dir };
         }
         if (p.role === "OL" && t > PRE) {
