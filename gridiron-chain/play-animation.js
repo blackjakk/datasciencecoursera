@@ -2828,13 +2828,13 @@ function buildAnimForPlay(play, prevPlay) {
                                 FIELD.TOP + 20, FIELD.BOT - 20);
           if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
           if (p._followVX == null) { p._followVX = 0; p._followVY = 0; }
-          // Frame-time factor (see pass downfield-blocker block) — keeps
-          // the per-frame position accumulation at a true 14 yps cap
-          // regardless of display refresh / playback speed.
-          const _nowF = performance.now();
-          const _dtF = (p._followMs == null) ? 1
-                     : Math.max(0, Math.min(3, (_nowF - p._followMs) / 16.67));
-          p._followMs = _nowF;
+          // Frame-time factor (see pass downfield-blocker block) — driven
+          // off PLAY-TIME (t) delta so it's both refresh-independent AND
+          // respects slow-mo / TD freezes (wall-clock dt surged the
+          // celebrators through frozen frames).
+          const _dtF = (p._followT == null) ? 1
+                     : Math.max(0, Math.min(3, (t - p._followT) * dur / 16.67));
+          p._followT = t;
           // Velocity-based motion with per-celebrator variation so they
           // arrive on different frames instead of stopping in unison.
           const _fdx = targetX - p._followX;
@@ -5003,15 +5003,19 @@ function buildAnimForPlay(play, prevPlay) {
             if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
             if (p._followVX == null) { p._followVX = 0; p._followVY = 0; }
             // Frame-time factor — _followVX is px-per-60fps-frame, but the
-            // position step below runs once per RENDER frame. Without dt
-            // scaling a 120/144Hz display (or playback-speed scaling)
-            // integrated it 2-2.4× too often → blockers at 28-33 yps
-            // ("superhuman speed"), desynced from the dt-based WR sim.
-            // Scale every accumulation by real elapsed/16.67ms.
-            const _nowF = performance.now();
-            const _dtF = (p._followMs == null) ? 1
-                       : Math.max(0, Math.min(3, (_nowF - p._followMs) / 16.67));
-            p._followMs = _nowF;
+            // position step below runs once per RENDER frame. Drive it off
+            // PLAY-TIME delta (t), not wall-clock: (t-prevT)*dur = the ms of
+            // PLAY time elapsed this frame, /16.67 = 60fps-frame equivalent.
+            //   • frame-rate independent (120Hz → half the play-time per
+            //     frame → half the step → same total), as before; AND
+            //   • respects slow-mo / freezes — during the catch FREEZE
+            //     (slowMoMul=0) t doesn't advance, so _dtF=0 and the blockers
+            //     hold with the frozen scene. Wall-clock dt kept advancing
+            //     them ~14yps through the freeze → a ~3yd SURGE at the catch
+            //     ("blockers super speed when the ball arrived").
+            const _dtF = (p._followT == null) ? 1
+                       : Math.max(0, Math.min(3, (t - p._followT) * dur / 16.67));
+            p._followT = t;
             // Speed-capped converge motion. Cap at 15 yps (celebration
             // sprint) or 14 yps (downfield blocker — must equal or
             // exceed WR_TOP_YPS_VISUAL = 13 so they can hold the slot
