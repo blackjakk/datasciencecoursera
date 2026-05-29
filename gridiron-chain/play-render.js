@@ -575,6 +575,8 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     }
     const qCtx = _uprightCtx;
     const qStyle = { ...style, _bcastRestore: true };
+    const _qvx = loco && loco.state ? loco.state.vxEMA : 0;
+    const _qvy = loco && loco.state ? loco.state.vyEMA : 0;
     _spriteQueue.push({
       screenY: proj.y,
       run: () => {
@@ -582,7 +584,21 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         qCtx.translate(proj.x, proj.y);
         qCtx.scale(proj.scale, proj.scale);
         qCtx.translate(-proj.x, -proj.y);
-        _drawPlayerImpl(qCtx, proj.x, proj.y, color, secondary, label, pose, t, facing, qStyle);
+        // Try the sprite path first (covers ragdoll-with-rotation and
+        // any other pose stuck in procedural under broadcast camera
+        // when PIXI is unavailable). Only fall through to the shape-
+        // math renderer if no sprite is available for this pose+dir.
+        let _drew = false;
+        if (typeof drawPlayerSprite === "function") {
+          qCtx.save();
+          qCtx.translate(proj.x, proj.y);
+          _drew = drawPlayerSprite(qCtx, pose, t, _qvx, _qvy, color, facing, label, secondary, qStyle);
+          qCtx.restore();
+        }
+        if (!_drew) {
+          _drawPlayerImpl(qCtx, proj.x, proj.y, color, secondary, label, pose, t, facing, qStyle);
+        }
+        qCtx.restore();
       },
     });
     return;

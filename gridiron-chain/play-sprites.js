@@ -521,7 +521,21 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   // where top = -fh/2 - fh*foot. We need this to convert image-space
   // jersey position to ctx coordinates.
   const top = -fh / 2 - fh * foot;
-  ctx.drawImage(tinted, -fw / 2, top, fw, fh);
+  // Ragdoll rotation + Y offset come from physics integration on
+  // style._ragdoll (populated by play-animation.js initRagdoll +
+  // stepRagdoll). Apply the rotation around the body center so the
+  // sprite tumbles with the physics. _ragdoll.rot is radians;
+  // _ragdoll.dy is the downward drop from impact + gravity.
+  const _rd = (pose === "ragdoll") ? (style && style._ragdoll) : null;
+  if (_rd) {
+    ctx.save();
+    ctx.translate(0, _rd.dy || 0);
+    ctx.rotate(_rd.rot || 0);
+    ctx.drawImage(tinted, -fw / 2, top, fw, fh);
+    ctx.restore();
+  } else {
+    ctx.drawImage(tinted, -fw / 2, top, fw, fh);
+  }
   // ── Jersey-number overlay at the ACTUAL back-of-jersey position ──
   // Sample the source image to find where the body sits in THIS frame,
   // then place the number at the upper-back point of the body bbox.
