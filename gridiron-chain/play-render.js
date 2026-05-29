@@ -606,8 +606,23 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, style);
 }
 
+// Per-pose count of procedural draws that were suppressed. Read from
+// devtools as `_proceduralSuppressed` to diagnose any remaining sprite
+// gaps.
+const _proceduralSuppressed = Object.create(null);
+
 function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
   pose = pose || "idle";
+  // Hard switch — suppress the shape-math fallback entirely. Set
+  // window.GC_ALLOW_PROCEDURAL = true in devtools to re-enable for
+  // debugging. With this on, any sprite gap renders as nothing
+  // instead of as the procedural body, which is a strictly louder
+  // signal that we have a sprite missing.
+  const _allowProc = (typeof window !== "undefined") && window.GC_ALLOW_PROCEDURAL === true;
+  if (!_allowProc) {
+    _proceduralSuppressed[pose] = (_proceduralSuppressed[pose] || 0) + 1;
+    return;
+  }
   t = t || 0;
   facing = facing || 1;
   const runStyle = style.runStyle || "smooth";
