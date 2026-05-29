@@ -9245,15 +9245,13 @@ function startNextPlay() {
     }
     else if (_isSeg) {
       GCAudio.play("whistle");
-      if (typeof GCFx !== "undefined") {
-        const seg = _kind === "halftime"        ? "HALFTIME"
-                  : _kind === "two_min_warning" ? "TWO-MINUTE WARNING"
-                  : _kind === "ot"              ? "OVERTIME"
-                  : _kind === "quarter"
-                      ? `END OF Q${(play.quarter || 1) - 1 || 4}`
-                      : "QUARTER BREAK";
-        GCFx.bigText(seg, 0xf5c542, 2200);
-      }
+      // No GCFx.bigText here — the segment cinematic (_segmentCinema.show,
+      // fired from the play's render fn) already draws the headline +
+      // quarter-score table. The old bigText was a SECOND graphic on top
+      // of it (the "double graphic at quarter end"), and its quarter
+      // math `(play.quarter||1) - 1 || 4` was wrong anyway: at the end
+      // of Q1 it printed "END OF Q4" (1-1=0, 0||4 → 4). The cinematic
+      // parses the quarter from play.desc correctly.
     }
     else if (_isGroan) GCAudio.play("groan");
     else if (_isBigPlay) {
