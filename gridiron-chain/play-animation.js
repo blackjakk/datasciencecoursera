@@ -9435,10 +9435,12 @@ function _frameStartBroadcast() {
 function drawStadiumGoalposts(ctx) {
   if (!ctx || cameraMode !== "broadcast") return;
   const yMid = (FIELD.TOP + FIELD.BOT) / 2;
-  // Back of each end zone (a few px in from the canvas edge so the post
-  // base reads as inside the playing surface).
-  _drawOneGoalpost(ctx, 18, yMid);
-  _drawOneGoalpost(ctx, FIELD.W - 18, yMid);
+  // On the BACK end line of each end zone (the back of the end zone, where
+  // real goalposts stand). The end zone spans 0..EZ_PX from the edge, so the
+  // back line is at the edge — a tiny 3px inset keeps the base on the playing
+  // surface without floating it into the end zone (18px read as ~1.2yd inside).
+  _drawOneGoalpost(ctx, 3, yMid);
+  _drawOneGoalpost(ctx, FIELD.W - 3, yMid);
 }
 function _drawOneGoalpost(ctx, fieldX, fieldYMid) {
   const PXY = 15; // FIELD.PX_PER_YARD
