@@ -14,7 +14,7 @@ Mature, deeply-featured. Recent work has shifted from contract/extension UX (set
 
 - **Repo path**: `/home/user/datasciencecoursera/gridiron-chain/` (or Windows: `C:\Users\bsg50\PyCharmMiscProject\datasciencecoursera\gridiron-chain\`)
 - **Active branch**: `claude/football-sim-blockchain-game-b3sdq`
-- **Latest commit**: `44e26c9` (animation realism + sprite-atlas expansion arc; broadcast/replay arc shipped earlier — see § 3A)
+- **Latest commit**: `bcc4e96` (sprite-atlas expansion + engine wiring + speed audit + procedural suppression + route de-convergence — see § 3 *Session 2 continuation*)
 - **Stack**: vanilla JS, no bundler. Files concatenated via `<script src>` in `play.html` in this order: `play-data.js` → `play-franchise-core.js` → `play-franchise-season.js` → `play-franchise-stats.js` → `play-franchise-offseason.js` → `play-engine.js` → `play-broadcast.js` → `play-render.js` → `play-animation.js`. Top-level `const`/`function` declarations are cross-file accessible.
 - **Lint/test**: `node -c <file>.js` for syntax checks (no other tests). User views via CDN: `https://rawcdn.githack.com/blackjakk/datasciencecoursera/<commit>/gridiron-chain/play.html`
 - **Save layer**: `_idbPut`/`_idbGet` is primary; localStorage is the fast mirror. Auto-trim at 4MB via `_trimFranchiseForStorage`. Diagnostic: `frnSaveDiagnostics()` from devtools.
@@ -143,7 +143,102 @@ blockers; geometry analysis around `aheadOffset` in the punt render). KR was alr
 undefined for the IT'S GOOD! banner window, invisible-ball bug). Post-uprights overshoot bumped
 30 → 55 px so the ball visibly arcs THROUGH the posts during the banner.
 
+### Session 2 continuation (since `5057d5e`)
+
+Built on top of the §3 work. ~25 more commits. Closes the procedural-fallback
+era — every player rendered in this session is sprite-backed.
+
+**Sprite atlas — 10 additional dedicated pose folders** (on top of the 14 above)
+
+| Pose | Source | Notes |
+|---|---|---|
+| `drop_step` | Default | QB 3-step drop, ball at chest; restricted to SE/SW dirs (only diagonals read right) |
+| `ragdoll` | Default | Mid-air tumble; sprite rotated per-frame by physics integrator (see "rotated sprites" below) |
+| `tumble` | football-tucked-under | Ballcarrier end-over-end roll post-contact |
+| `spin_fall` | football-tucked-under | Mid-air corkscrew off a side hit (ball in hand) |
+| `qb_carry` | Default | QB cradle at chest, 2 hands |
+| `qb_scramble` | football-tucked-under | QB sprinting with ball — replaces `carry` for QB-run / scramble |
+| `strip_swat` | Default | DB axe-chop arm — wired at sack-play forcer + fumble-play forcer |
+| `release` | Default | WR explosive first step off line, no ball |
+| `scrape` | Default | LB lateral shuffle pursuit |
+| `tackled_carry` | football-tucked-under | Ballcarrier prone with ball — used at every ballcarrier-tackle emit |
+| `jam` | Default | DB press at line, both arms chopping forward (single-player frame) |
+
+**Engine wiring of new poses**
+
+- QB `carry` → `qb_carry` (flea-flicker post-pitch, sack-play pocket-scan)
+- `qb_scramble` replaces `carry`/`churn` for `isScramble` and `isQBRun` carriers
+- `strip_swat` fires for the primary sacker between `contactT-0.10` and `contactT+0.03`; also fires for the fumble forcer between `CARRY_END` and `STRIP_END`
+- `tackled_carry` wired at every ballcarrier-prone emit (WR post-catch default fall, INT runback tackled, KR/PR after tackle, fumble recoverer's first beat)
+- Big-hit defender `dive` → `hit` so it routes to the `tackle/` diving-wrap sprite instead of `dive_forward/` (a receiver layout)
+
+**Procedural suppression + diagnostic counter** (`play-render.js`)
+
+- `_drawPlayerImpl` early-returns under `!window.GC_ALLOW_PROCEDURAL` (default).
+- `_proceduralSuppressed[pose]` counts every suppression for devtools inspection.
+  Any sprite gap surfaces as an *invisible* player + a counter bump.
+- `drawPlayer` normalizes `pose ?? "idle"` up-front so missing poses don't slip through.
+- Shadow extracted into `_drawPlayerShadow(ctx, x, y, style, pose)` and called *before* the sprite path so sprite players still cast a drop shadow.
+
+**Rotated ragdoll sprite**
+
+`drawPlayerSprite` reads `style._ragdoll` and applies `ctx.rotate(rot)` + `ctx.translate(0, dy)` before `drawImage` when pose is `ragdoll`. The sprite cycle plays the tumble frames while the physics integrator drives the body angle. Broadcast `_spriteQueue.run()` now tries the sprite path before falling to `_drawPlayerImpl` — closes the last source of procedural rendering in broadcast camera.
+
+**Speed audit (first principles)**
+
+Real NFL elite ≈ 10.7 yps. Multiple knobs were 13-18 yps. All adjusted:
+
+| Knob | Was | Now |
+|---|---|---|
+| `scaledDuration` visual yps | 12 | 10 (longer time budget on big plays) |
+| `runPacing` accel phase | 5% time / 3% dist | 15% / 10% (gentle ramp) |
+| `runPacing` cruise minimum | 0.78 | 0.88 (cruise consumes more of the action window) |
+| `WR_TOP_YPS_VISUAL` | 13 | 10.5 |
+| `primarySpeedPx` cap | 18 (40 mph) | 11 |
+| `ST_PLAYER_YPS` (returner) | 14 | 10.5 |
+| `COVER_BASE_YPS` | 12 | 10 |
+| `BLOCKER_BASE_YPS` | 15 | 9 |
+
+Plus engine-side: **carrier "read" waypoint** at `t=0.22` was `yards * 0.14` (RB had to cover 8 yds in 12% time on a 30-yd run → 25-30 yps pre-LOS burst). Now clamped to `[-1, 2]` so the read sits near the LOS regardless of total play distance.
+
+**RB move-window widening** — juke/spin/stiff arm/hurdle windows each grew by 2-4% of action time so the moves take ~0.5s instead of ~0.3s (no more teleport-cuts).
+
+**INT return rewrite** — `easeOutCubic` peaks at 3× avg speed at t=0 (interception teleport). Replaced with `runPacing(tt, postCatchMs)`. Also: `POST_CATCH_MS` for INT now scales with return distance (`max(1800, retDistYds * 100 + 1500)`) so a 30-yd runback doesn't have to fit in 1800 ms.
+
+**Route concept de-convergence** — three concepts had wr1 and wr2 running identical routes (QUICK_GAME, VERTICAL/PA_SHOT, default). Now spread:
+
+- QUICK_GAME: wr1 slant in (`lat +5`), wr2 quick out (`lat -3, depth 4`)
+- VERTICAL/PA_SHOT: wr1 go (22yd straight), wr2 deep dig (18yd then in 5yd)
+- default: wr1 curl out (`lat -2`), wr2 curl in (`lat +2`)
+
+DRAG_MESH (crossing) and INTERMEDIATE (already opposite directions) left alone.
+
+**Non-target WR clamp** — WR route handler now clamps `_x, _y` to `[EZ_PX*0.3, W - EZ_PX*0.3]` × `[TOP+20, BOT-20]`. A deep `go` route's track was extending past the back of the endzone (x ≈ 1300 on a 1280-wide field), and combined with procedural suppression that read as "the receiver vanished."
+
 ### Latest commits on this arc
+
+- `bcc4e96` — wire qb_scramble + strip_swat for fumble forcer
+- `6c6d8bd` — engine: carrier "read" waypoint near LOS, not yards*0.14
+- `69367e8` — engine: route concepts space wr1/wr2 instead of mirroring
+- `d264464` — clamp non-target WR positions to field bounds
+- `43ea5dd` — normalize missing pose to "idle" so WRs don't vanish
+- `4bc589a` — INT returns: scale time + replace easeOutCubic with linear cruise
+- `5327560` — runs: widen juke / spin / stiff-arm windows so moves don't teleport
+- `b263f08` — drop shadow for sprite-rendered players
+- `14fb9cf` — speed audit: realistic caps + gentler RB cruise transition
+- `ac53e2e` — suppress procedural shape-math fallback entirely
+- `677431a` — rotate the ragdoll sprite, never fall to procedural
+- `819a295` — settled ragdoll swaps to tackled_carry / tackled sprite
+- `87c79c0` — primary tackler dive routes to tackle/, not dive_forward/
+- `0cdab78` — tackled_carry + wire all ballcarrier-prone emits
+- `307c96c` — wire qb_carry + strip_swat into engine
+- `2121e2c` — P2/P3 batch — tumble / spin_fall / jam / qb_carry / qb_scramble / strip_swat / release / scrape
+- `651df28` — drop_step restricted to SE/SW only
+- `3346450` — regen drop_step — QB 3-step drop, ball cradled at chest
+- `0159a23` — regen ragdoll north — head-over-heels tumble
+- `4639b83` — dedicated drop_step + ragdoll (break run/ and fall/ aliasing)
+
+### Earlier commits on this arc
 
 - `44e26c9` — empty commit to retry CI after a runner-allocation transient
 - `9170f8e` — ref animation pack (5 poses, 8 dirs, 160 files)
@@ -392,6 +487,15 @@ NFL 2024 uses 11 personnel (TRIPS) on ~62% of plays. All five playbooks (BALANCE
 | FPTS = 0.0 | per-game lookup keyed only by `p.name` | Fixed: nickname fallback + seasonStats |
 | HIGH CEILING on a 31-yr-old vet | `potentialTag` didn't gate on age vs peak | Fixed: vets past peak get realized-state tags |
 | Cap bars seemed unchanged after signing | bars updated but visual snap had no callout | Fixed: split fill + delta callouts |
+| Procedural shape-math body visible on tackles | `_drawPlayerImpl` ragdoll case fired whenever the sprite path returned false | Fixed (`ac53e2e`) — procedural suppressed by default, `_proceduralSuppressed` counter for diagnosis |
+| Ragdoll mid-fall rendered procedurally even with sprite available | Sprite was static and couldn't follow physics rotation; renderer forced procedural for `pose === "ragdoll"` | Fixed (`677431a`) — `drawPlayerSprite` applies `style._ragdoll.rot` via `ctx.rotate` before draw |
+| Non-target WRs disappeared the moment another WR caught the ball | Track sample for a deep go route puts `_x ≈ snap.x + 600px` on a 1280-wide field; sprite drew correctly but off-canvas, and procedural suppression turned the gap into "vanished" | Fixed (`d264464`) — `_clampX/_clampY` matches the downfield-blocker clamp |
+| Players with undefined pose vanished (FBs, non-targets) | `drawPlayerSprite` returned false for `undefined` pose → procedural → suppressed → invisible | Fixed (`43ea5dd`) — `drawPlayer` normalizes `pose ?? "idle"` up-front |
+| INT runback teleports from catch spot | `easeOutCubic` peaks at 3× avg at t=0; `POST_CATCH_MS` fixed at 1800 forced a 30-yd return into 16 yps avg → 48 yps peak | Fixed (`4bc589a`) — `runPacing` curve + `POST_CATCH_MS` scaled to `retDistYds` |
+| RB "first part of run is faster than normal" | Engine carrier track at `t=0.22` had `dxYd = yards * 0.14` — on a 30-yd run that's 8 yds in 12% of action time = 25-30 yps pre-LOS burst | Fixed (`6c6d8bd`) — read waypoint clamped to `[-1, 2]` regardless of total yards |
+| Primary tackler outran the rest of the defense by 2× | `primarySpeedPx` clamp ceiling at 18 yps (40 mph) | Fixed (`14fb9cf`) — dropped to 11 yps |
+| Two WRs running same area | QUICK_GAME / VERTICAL / default emitted identical wr1 and wr2 routes | Fixed (`69367e8`) — concept-specific spacing (slant + out, go + dig, mirrored curls) |
+| Big-hit defender renders as a layout-catch sprite | Engine emitted `dive` for primary tackler → atlas routed to `dive_forward/` (WR layout) | Fixed (`87c79c0`) — defender `dive` → `hit` → routes to `tackle/` (the diving-wrap sprite) |
 
 **Logs/errors**: console outputs `[career repair v3] cleaned X player histories` and `[career repair v4] reconstructed prior history for X player(s)` on first save load.
 
@@ -402,12 +506,16 @@ NFL 2024 uses 11 personnel (TRIPS) on ~62% of plays. All five playbooks (BALANCE
 ### Top of queue (animation arc continuation)
 
 1. **Penalty feature** — engine emits `play.kind === "penalty"` (or flag-on-the-play during another kind), render shows the ref throwing the flag + banner + accept/decline UI + yardage apply. **Ref sprites are ready** (`ref_idle / ref_td_signal / ref_first_down / ref_flag / ref_whistle` all 8 dirs landed `9170f8e`). Largest visible feature gap left.
-2. **Strip/swat sprite** — ~8 generations on Default character. Closes the strip-sack visual gap (DL/CB swiping at ball during forced fumble).
-3. **Fall variant split** — ~24 generations. Break the single `fall` sprite into `tackled_forward` / `tackled_back` / `ragdoll` so the 5 aliased events (tackled, sack, ragdoll, tumble, spin_fall) read more distinctly.
-4. **QB ball-in-hand poses** — `qb_set` (ball cocked at ear), `qb_scramble` (running with ball). 16 generations. Current `pass` sprite covers throw motion but no ball-in-hand pre-throw.
-5. **Pre-snap motion / shifts** — engine emit + render slide. Visually free variety; every play looks less identical.
-6. **Verification sit-and-watch pass** — recommended before next big feature. Lots of changes since last full review.
-7. **Task #47 ball position (RB area)** — lingering pre-snap ball-near-RB report; needs new sprite-aware repro.
+2. **Pre-snap motion / shifts** — engine emit + render slide. Visually free variety; every play looks less identical. Also: the motion man currently uses regular `run` pose — should be a slower trot.
+3. **Verification sit-and-watch pass** — strongly recommended now. ~50 commits across two sessions of animation/sprite/wiring/speed work; the user has been driving fixes via specific symptoms but a full end-to-end watch hasn't happened yet.
+4. **Task #47 ball position (RB area)** — lingering pre-snap ball-near-RB report; needs new sprite-aware repro.
+5. **`hit` pose variant for pass-D pre-tackle contact** (`play-animation.js:4118`) — currently uses `engage` which routes to the OL/DL `block/` clash sprite. A defender wrestling a WR pre-fall would read better as `hit`.
+6. **Sprite quality regen audits** — `tackle/` (the diving-wrap) was generated way back at commit `57304e9`; head-on south/north read as "forward reach" not full dive. Lower priority than functional gaps, but worth a regen if you want pixel-perfect.
+
+**RESOLVED since previous handoff:**
+- Strip/swat sprite — done (`db_strip_swat` + `db_strip_swat_diag`, dedicated `strip_swat/` folder, wired both at sack forcer and fumble forcer).
+- QB ball-in-hand poses — `qb_carry` + `qb_scramble` both generated + wired.
+- Fall variant split — `tackled_carry`, `ragdoll`, `tumble`, `spin_fall` all dedicated folders with engine emits.
 
 ### PIXI / WebGL migration (committed direction — Tier 3 from session art-direction discussion)
 
@@ -546,27 +654,30 @@ You're continuing mid-session work on GridironChain. Read this carefully:
 
 ## 10. Compact context (paste this as the opening message)
 
-> Continuing work on **GridironChain**, a vanilla JS NFL franchise simulation at `/home/user/datasciencecoursera/gridiron-chain/`. Active branch: `claude/football-sim-blockchain-game-b3sdq`. Latest commit: `44e26c9`. Files concatenated via `<script src>` in `play.html` — top-level `const`/`function` declarations are cross-file accessible. No build step. Syntax check with `node -c <file>.js`. Deploys to GitHub Pages on push (`.github/workflows/pages.yml`).
+> Continuing work on **GridironChain**, a vanilla JS NFL franchise simulation at `/home/user/datasciencecoursera/gridiron-chain/`. Active branch: `claude/football-sim-blockchain-game-b3sdq`. Latest commit: `bcc4e96`. Files concatenated via `<script src>` in `play.html` — top-level `const`/`function` declarations are cross-file accessible. No build step. Syntax check with `node -c <file>.js`. Deploys to GitHub Pages on push (`.github/workflows/pages.yml`).
 >
-> **Current arc — animation realism + sprite atlas expansion** (~40 commits this session):
-> - 14 new dedicated pose folders in `sprites/`. Ball-in-hand on `football tucked unde` PixelLab character (`ed3c9fef`). Defensive/OL on `Default` (`6f395002`). Refs on user's capped variant (`488d33da`). New poses: `carry / juke / spin (8-frame) / hurdle / truck / stiff_arm / kick_slide / backpedal / dive_forward / ref_idle / ref_td_signal / ref_first_down / ref_flag / ref_whistle`.
+> **Current arc — animation realism, sprite expansion, speed + route polish** (~65 commits across two sessions):
+> - **24 dedicated pose folders** in `sprites/`. Ball-in-hand on `football tucked unde` PixelLab char (`ed3c9fef`), defensive/OL on `Default` (`6f395002`), refs on user's capped variant (`488d33da`). Full list: `carry / juke / spin (8-frame) / hurdle / truck / stiff_arm / kick_slide / backpedal / dive_forward / drop_step (SE+SW only) / ragdoll / tumble / spin_fall / qb_carry / qb_scramble / strip_swat / release / scrape / tackled_carry / jam / ref_idle / ref_td_signal / ref_first_down / ref_flag / ref_whistle`.
 > - Extract script at `sprites/_extract.py`. Maps PixelLab folder prefixes → pose name. **Be careful with prefix collisions** — e.g. `"running"` matches `"running_back_executing_*"` too; use `"running-"` (trailing dash) for the template folder.
-> - **`no-outcome-preview` principle saved to feedback memory** — never tip a play's result before it visually resolves on field. Reference: `~/.claude/projects/.../memory/feedback_no_outcome_preview.md`. Already gated 5+ leaks (sack pressure ring, strip-sack sub-banner, fumble recovery banner + context card, INT context card, TD callout timing across run/pass/KR/punt/blocked-FG).
-> - **Sack rework**: action 2800-4500ms, contactT 0.62-0.75, rushReleaseT = max(0.45, contactT-0.12), QB drift biased away from estimated rusher, pile convergence, matched-OL "lost the rep" beat at rushReleaseT, strip-sack visual + recovery banner. Crowd reaction fires per-frame at contactT (not at snap from `_isBigPlay`).
-> - **Pass play**: catch flash + INT freeze (per-frame trigger), catch pose single-fire (no pump-loop), PD viz, deep-ball teleport fixed (use engine `throwT` as renderer `throwFrac` when `play.motion` present), short TE/RB swing-flat shape override at `targetDepth <= 3`.
-> - **Screens**: WR screen variant emit (~30% of `isScreenCall`), `wrChoice` honors engine `targetSlot`, `screenSide` follows carrier, OL convoy stacks on catch-side sideline.
-> - **3rd-and-long defense** in `makeFormation` — LBs to `max(base, ytg-2)` capped 18, S to deep halves, CBs off 9. Engine zone-drop tracks shifted by formation depth delta in def.map.
-> - **Stride frequency** velocity-derived (was fixed 3 Hz wall-clock) for run carrier + pre-catch WR.
+> - **Procedural shape-math fallback is SUPPRESSED.** `_drawPlayerImpl` early-returns under `!window.GC_ALLOW_PROCEDURAL`. Any sprite gap surfaces as an invisible player + a `_proceduralSuppressed[pose]` counter bump (devtools-greppable). Don't expect procedural bodies to appear under any circumstance — diagnose missing sprites via the counter.
+> - **Ragdoll sprite rotates with physics.** `drawPlayerSprite` reads `style._ragdoll.rot` and applies `ctx.rotate` before draw. Broadcast queue tries sprite before procedural. Means ragdolls aren't a special case anymore.
+> - **Drop shadow** extracted to `_drawPlayerShadow(ctx, x, y, style, pose)` called from `drawPlayer` before the sprite path. PIXI field path uses batched `GCField.addShadow`; canvas2D uses a radial-gradient ellipse. Bulk/scale from `bodyType`. Ragdoll alpha fades as the body rotates off the ground.
+> - **`no-outcome-preview` principle saved to feedback memory** — never tip a play's result before it visually resolves on field. Reference: `~/.claude/projects/.../memory/feedback_no_outcome_preview.md`. 5+ leaks gated.
+> - **Sack rework**: action 2800-4500ms, contactT 0.62-0.75, rushReleaseT = max(0.45, contactT-0.12), QB drift biased away from estimated rusher, pile convergence, matched-OL "lost the rep" beat at rushReleaseT, strip-sack visual + recovery banner. Crowd reaction at contactT.
+> - **Pass play**: catch flash + INT freeze (per-frame trigger), catch pose single-fire, PD viz, deep-ball teleport fixed (engine `throwT` = renderer `throwFrac` when `play.motion` present), short TE/RB swing-flat shape override at `targetDepth <= 3`.
+> - **Speed audit (first principles, this arc):** every yps cap pinned to NFL realistic. `scaledDuration` 12 → 10 yps, `WR_TOP_YPS_VISUAL` 13 → 10.5, `primarySpeedPx` cap 18 → 11, `ST_PLAYER_YPS` 14 → 10.5, `BLOCKER_BASE_YPS` 15 → 9. `runPacing` accel widened (5%/3% → 15%/10%) so RB doesn't burst to top speed in 1 yd. Engine carrier "read" waypoint at `t=0.22` clamped to `[-1, 2]` regardless of total yards (was `yards * 0.14`).
+> - **INT runback** rewritten — `easeOutCubic` → `runPacing`. `POST_CATCH_MS` for INT scales with return distance.
+> - **Route convergence fixed** — QUICK_GAME / VERTICAL / default no longer emit identical wr1/wr2 routes. Concept-specific spacing: slant+out, go+dig, mirrored curls.
+> - **Engine wiring of new poses**: QB `carry` → `qb_carry` (flea-flicker, sack pre-contact scan); `qb_scramble` replaces `carry`/`churn` for `isScramble`/`isQBRun` carriers; `strip_swat` at sack-forcer contact window + fumble-forcer contact window; `tackled_carry` at every ballcarrier-prone emit (WR post-catch, INT runback, KR/PR, fumble recoverer).
 >
-> **Earlier shipped foundations** (settled, don't redo): all three contract screens have portraits + tier-styled names + raise math + hover-preview cap bars + `_buildExtensionPitch` data block. Demand cooldown via `contract.startSeason` (7 creation sites, backfilled for legacy). Player legacy tier system (LEGEND/ICON/ELITE/PRO) via `playerLink`. Nicknames flag-only (never rewrite `p.name`). HOF voting annual + class-based. Engine physics layer with `p._wear`/`p._stress`/`p._bodyWear` (21 regions), force-scaled hit wear, bimodal ACL spike, concussion engine with CTE arc, hit mechanism + UR/ejection discipline. All major stat categories in NFL elite bands.
+> **Earlier shipped foundations** (settled, don't redo): all three contract screens have portraits + tier-styled names + raise math + hover-preview cap bars + `_buildExtensionPitch` data block. Demand cooldown via `contract.startSeason` (7 creation sites, backfilled). Player legacy tier system (LEGEND/ICON/ELITE/PRO) via `playerLink`. Nicknames flag-only (never rewrite `p.name`). HOF voting annual + class-based. Engine physics layer with `p._wear`/`p._stress`/`p._bodyWear` (21 regions), force-scaled hit wear, bimodal ACL spike, concussion engine with CTE arc, hit mechanism + UR/ejection discipline. All major stat categories in NFL elite bands.
 >
 > **Open priorities** (top of queue):
-> 1. **Penalty feature** — engine emits flag-on-play, render uses the new ref sprites (flag/whistle/first_down/td_signal/idle) for accept/decline UI + yardage apply. Largest visible feature gap.
-> 2. Strip/swat sprite (~8 gens, closes strip-sack polish).
-> 3. Fall variant split (~24 gens, breaks 5-event `fall` aliasing into 3 distinct poses).
-> 4. QB ball-in-hand poses (`qb_set` + `qb_scramble`, ~16 gens).
-> 5. Pre-snap motion / shifts (engine + render).
-> 6. Verification sit-and-watch pass on user side.
-> 7. PIXI / WebGL migration (Tier 3) — multi-session work, see § 8.
+> 1. **Penalty feature** — engine emits flag-on-play, render uses the ref sprites for accept/decline UI + yardage apply. Largest visible feature gap.
+> 2. **Pre-snap motion / shifts** — engine emit + render slide. Motion man should trot, not sprint.
+> 3. **Verification sit-and-watch pass** on user side. ~65 commits, no full end-to-end review yet.
+> 4. **Task #47 pre-snap ball position (RB area)** — lingering.
+> 5. **`hit` pose for pass-D pre-tackle contact** (`play-animation.js:4118`) — uses `engage` (block sprite) currently.
+> 6. PIXI / WebGL migration (Tier 3) — multi-session work, see § 8.
 >
 > **Conventions**: never rewrite `p.name`. Tier system through `playerLink(p)`. Migrations version-flagged on `franchise.*`. Contracts include `startSeason` + `signedOvr`. Verify with `node -c`. For UI, also verify in browser via Playwright (templates in `/tmp/snap_*.mjs` — `python3 -m http.server 8765` in repo root). Commit + push each change. Ask before broad architectural moves or before touching broadcast cam math.
