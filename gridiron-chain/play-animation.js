@@ -2652,10 +2652,8 @@ function buildAnimForPlay(play, prevPlay) {
                                 FIELD.EZ_PX * 0.3, FIELD.W - FIELD.EZ_PX * 0.3);
           const targetY = clamp(rb.y + Math.sin(angle) * radius,
                                 FIELD.TOP + 20, FIELD.BOT - 20);
-          if (p._followX == null) {
-            p._followX = p.x; p._followY = p.y;
-            p._followVX = 0;  p._followVY = 0;
-          }
+          if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
+          if (p._followVX == null) { p._followVX = 0; p._followVY = 0; }
           // Velocity-based motion with per-celebrator variation so they
           // arrive on different frames instead of stopping in unison.
           const _fdx = targetX - p._followX;
@@ -4644,10 +4642,17 @@ function buildAnimForPlay(play, prevPlay) {
                             FIELD.TOP + 20, FIELD.BOT - 20);
           }
           if (targetX != null) {
-            if (p._followX == null) {
-              p._followX = p.x; p._followY = p.y;
-              p._followVX = 0;  p._followVY = 0;
-            }
+            // Init follow position AND velocity. CRITICAL: guard each
+            // independently. The route branch persists _followX/_followY
+            // (for handoff continuity) but NOT the velocities — so a
+            // receiver who ran a route and is now picked as a downfield
+            // blocker hits this branch with _followX already set but
+            // _followVX undefined. The old `if (_followX == null)` guard
+            // then skipped velocity init → `_followVX += ...` = NaN →
+            // the player drew at NaN and VANISHED for the rest of the
+            // play. Init velocities whenever they're missing.
+            if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
+            if (p._followVX == null) { p._followVX = 0; p._followVY = 0; }
             // Speed-capped converge motion. Cap at 15 yps (celebration
             // sprint) or 14 yps (downfield blocker — must equal or
             // exceed WR_TOP_YPS_VISUAL = 13 so they can hold the slot

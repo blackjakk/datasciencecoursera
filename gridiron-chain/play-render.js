@@ -428,6 +428,10 @@ function pickBodyType(pos, archetype) {
 const _LOCOMOTION_POSES = new Set(["run", "carry", "release", "scrape", "jog"]);
 const _FACING_AUTO_POSES = new Set(["run", "carry", "release", "jog"]);   // scrape stays caller-set (LB faces offense), backpedal stays caller-set
 const _locoCache = new Map();
+// Last finite (x,y) drawn per player identity — recovery anchor for the
+// non-finite position guard in drawPlayer (prevents one bad frame from
+// permanently erasing a sprite).
+const _lastGoodPos = new Map();
 function _locoState(x, y, pose, style, label, facing) {
   // Identity must be unique per rendered player. The old fallback
   // composite (`${role}|${label}|${facing}`) collided for any draw
@@ -535,6 +539,21 @@ function _drawPlayerShadow(ctx, x, y, style, pose) {
 }
 
 function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
+  // Non-finite position guard. A bad x/y (NaN/Infinity from an
+  // uninitialized velocity, a divide-by-zero, etc.) makes every draw
+  // call below a silent no-op → the player VANISHES for the rest of
+  // the play. Recover to the last-good position for this player so a
+  // single bad frame can't erase a sprite. Keyed by the same identity
+  // the locomotion cache uses.
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    const _id = (style && style.name) || `${(style && style.role) || "P"}|${label || ""}`;
+    const _lg = _lastGoodPos.get(_id);
+    if (_lg) { x = _lg.x; y = _lg.y; }
+    else return;   // never had a good position — skip rather than crash
+  } else {
+    const _id = (style && style.name) || `${(style && style.role) || "P"}|${label || ""}`;
+    _lastGoodPos.set(_id, { x, y });
+  }
   // Normalize missing pose to "idle" up front. Without this, callers
   // that don't set p.pose (non-target WRs running routes, FB, etc.)
   // would pass undefined → drawPlayerSprite returns false ("unknown-
