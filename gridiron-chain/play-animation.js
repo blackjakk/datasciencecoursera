@@ -3208,6 +3208,12 @@ function buildAnimForPlay(play, prevPlay) {
     // targetX teleported the WR (and lurched the downfield blockers that
     // target wr.x) on the catch frame.
     let _wrLastX = null, _wrLastY = null;
+    // Carrier's YAC endpoint — single source of truth for where the
+    // ball-carrier ends up, shared by the WR sim AND the guaranteed-
+    // tackler convergence so they meet at the SAME spot. Anchored at the
+    // actual catch position in the ball block below (not the setup-time
+    // targetX/targetY, which the receiver no longer catches at).
+    let _yacEndX = null, _yacEndY = null;
     // Downfield-blocker picks. Map from player ref → slot index (0 or 1)
     // for the two non-target offensive players closest to the carrier
     // at the catch. Sticky across the play so the same guys block.
@@ -3653,11 +3659,22 @@ function buildAnimForPlay(play, prevPlay) {
           // backward"). Real receivers always carry 1-2 yd from momentum
           // even on contested catches — the box score doesn't track it,
           // but the visual needs it for continuity.
+          // Anchor the YAC at the ACTUAL catch spot (route-end _wrLast),
+          // not the setup-time target — the receiver catches at _wrLast,
+          // so the min-carry threshold and the lateral YAC end must be
+          // measured from there too (else the carrier slides to a finalY
+          // anchored at a spot he never occupied).
+          const _catchX = (_wrLastX != null) ? _wrLastX : targetX;
+          const _catchY = (_wrLastY != null) ? _wrLastY : targetY;
           const _minCarryPx = 1.5 * FIELD.PX_PER_YARD;
-          const _raw = endX - targetX;
+          const _raw = endX - _catchX;
           const _effEndX = Math.abs(_raw) >= _minCarryPx
                          ? endX
-                         : targetX + dir * _minCarryPx;
+                         : _catchX + dir * _minCarryPx;
+          // YAC end Y anchored at the catch spot. Drifts toward midfield
+          // by the same fraction the old setup-time finalY used.
+          const _simFinalY = _catchY + (cy - _catchY) * Math.min(0.5, yac / 40);
+          _yacEndX = _effEndX; _yacEndY = _simFinalY;
           // SIM-DRIVEN WR motion. Accelerates from rest at the catch
           // position, caps at WR_TOP_YPS_VISUAL, runs toward _effEndX.
           // Replaces the time-based linear tween that forced impossible
@@ -3676,14 +3693,14 @@ function buildAnimForPlay(play, prevPlay) {
             });
           }
           if (_wrSim) {
-            _wrSim.stepTowardAt(_effEndX, finalY, performance.now());
+            _wrSim.stepTowardAt(_effEndX, _simFinalY, performance.now());
             // Clamp to not overshoot the engine's yardage. Without this
             // the sim cruises past _effEndX (no deceleration logic) and
             // the visible tackle spot disagrees with play.endYard.
             // dir-aware comparison handles both +X and -X offenses; the
-            // Math.sign(_effEndX - targetX) form also handles backward-
+            // Math.sign(_effEndX - _catchX) form also handles backward-
             // YAC completes (engine-emitted loss past the catch).
-            const _carrySign = Math.sign(_effEndX - targetX) || dir;
+            const _carrySign = Math.sign(_effEndX - _catchX) || dir;
             if ((_wrSim.x - _effEndX) * _carrySign > 0) {
               _wrSim.x = _effEndX;
               _wrSim.vx = 0;
@@ -3691,8 +3708,8 @@ function buildAnimForPlay(play, prevPlay) {
             // Also clamp Y so the stride frequency (hypot(vx,vy)) drops
             // to zero at the tackle point — otherwise lateral drift
             // keeps the legs cycling after the body has stopped.
-            if (Math.abs(_wrSim.y - finalY) < 4) {
-              _wrSim.y = finalY;
+            if (Math.abs(_wrSim.y - _simFinalY) < 4) {
+              _wrSim.y = _simFinalY;
               _wrSim.vy = 0;
             }
             ballX = _wrSim.x;
@@ -4264,8 +4281,11 @@ function buildAnimForPlay(play, prevPlay) {
             const CONTACT_DIST = 10;
             let _distToCar = Math.hypot(dd.x - ballX, dd.y - ballY);
             if (i === intDefIdx && _distToCar > CONTACT_DIST * 3) {
-              const tackleX = endX - dir * 5;
-              const tackleY = finalY + 4;
+              // Converge on the carrier's ACTUAL YAC endpoint (shared
+              // _yacEnd, anchored at the catch) so the tackler meets the
+              // carrier instead of a targetY-based phantom spot a yard off.
+              const tackleX = (_yacEndX != null ? _yacEndX : endX) - dir * 5;
+              const tackleY = (_yacEndY != null ? _yacEndY : finalY) + 4;
               const arrProgress = clamp((t - throwPhase) / Math.max(0.001, (PRE + (1 - PRE) * tackleEvent.fallStartT) - throwPhase), 0, 1);
               const blend = arrProgress * arrProgress;
               dd.x = dd.x + (tackleX - dd.x) * blend;
@@ -4382,11 +4402,17 @@ function buildAnimForPlay(play, prevPlay) {
         // jumps at the catch moment, lands and watches the ball drop.
         if (_isPDPlay && i === intDefIdx) {
           if (t < throwPhase) {
-            // Close on the ball arrival point.
+            // Close on the ball's DEFLECTION point (where the swat sends
+            // it) — not the bare target. The ball flies to
+            // (targetX+incOffsetX, targetY+incOffsetY) on a PD; aiming the
+            // defender at the bare target left his hand ~1yd from the ball
+            // so he batted air while the ball deflected on its own.
+            const _pdBallX = targetX + incOffsetX;
+            const _pdBallY = targetY + incOffsetY;
             const tt = Math.min(1, aT / throwFrac);
             const _pdEaseT = easeOutCubic(tt);
-            dd.x = d.x + (targetX - d.x) * _pdEaseT;
-            dd.y = d.y + (targetY - d.y) * _pdEaseT;
+            dd.x = d.x + (_pdBallX - d.x) * _pdEaseT;
+            dd.y = d.y + (_pdBallY - d.y) * _pdEaseT;
             if (aT > throwFrac * 0.88) {
               dd.pose = "leap";   // wind up for the swat
               // Progress once into the leap (no explicit t → wall-clock
@@ -4394,16 +4420,17 @@ function buildAnimForPlay(play, prevPlay) {
               dd.t = Math.min(1, (aT - throwFrac * 0.88) / Math.max(0.001, throwFrac * 0.12));
             }
           } else if (t < throwPhase + 0.10) {
-            // SWAT FRAME — at the ball, arms extended upward.
-            dd.x = targetX - dir * 3;
-            dd.y = targetY + 2;
+            // SWAT FRAME — body at the deflection point, raised arms on
+            // the ball as it ricochets away.
+            dd.x = targetX + incOffsetX;
+            dd.y = targetY + incOffsetY + 6;
             dd.pose = "leap";
             dd.t = Math.min(1, (t - throwPhase) / 0.10);
             dd.facing = -dir;
           } else {
             // Lands — back to feet, watches the ball roll away.
-            dd.x = targetX - dir * 3;
-            dd.y = targetY + 6;
+            dd.x = targetX + incOffsetX;
+            dd.y = targetY + incOffsetY + 8;
             dd.pose = aT < 0.92 ? "stiff" : "idle";
             dd.t = 0;
             dd.facing = -dir;
