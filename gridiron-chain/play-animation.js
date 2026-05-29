@@ -518,7 +518,9 @@ const _momentCinema = (() => {
 //     cov beats the ball to the catch point = unrealistic)
 //   - Returner running back the ball does so at NORMAL human speed
 const ST_BALL_YPS    = 24;
-const ST_PLAYER_YPS  = 14;
+// Returner sprint — was 14 yps (47% over NFL elite). 10.5 yps matches
+// the top-end Devin Hester / Cordarrelle Patterson return speed.
+const ST_PLAYER_YPS  = 10.5;
 // Legacy alias — anything outside the ST timing function still uses
 // this as a single "speed" knob; tune player speed via ST_PLAYER_YPS.
 const ST_YPS_VISUAL  = ST_PLAYER_YPS;
@@ -600,8 +602,8 @@ function _simulateKickoffAgents(opts) {
   } = opts;
   const DT_MS = 16;
   const NUM_FRAMES = Math.ceil(duration_ms / DT_MS) + 1;
-  const COVER_BASE_YPS   = 12;     // realistic kickoff cov (was 18 — too fast, beat the ball)
-  const BLOCKER_BASE_YPS = 15;
+  const COVER_BASE_YPS   = 10;     // kickoff coverage — top elite gunner speed
+  const BLOCKER_BASE_YPS = 9;      // was 15 (58% over NFL top) — lead blocker isn't faster than the returner
   const ENGAGED_MULT     = 0.30;   // lead's own speed while engaged
   const ENGAGE_DRIFT_YPS = 6;      // engaged pair drifts upfield together
   const COV_PINNED_MULT  = 0.05;   // engaged cov is nearly stopped (was 0.15 — bled through)
@@ -1463,14 +1465,13 @@ function buildAnimForPlay(play, prevPlay) {
   //   20yd → 2667ms,  40yd → 4333ms,  60yd → 6000ms,  80yd → 7667ms,
   //   100yd → 9333ms (under the cap)
   function scaledDuration(yds) {
-    // ~83ms per yard at 12 yps (visual top speed, slightly compressed
-    // from the real-NFL 10-12 yps so plays don't drag).
-    // Floor was 2200ms — that made a 5-yard run play out at 1.5 yps
-    // (true: ~8 yps) = obvious slow-motion. Drop to 1200ms; +700ms
-    // baseline covers snap acceleration + a brief reaction window.
-    // Cap stays at 11500ms (capped at full-field plays).
-    const distTimeMs = Math.abs(yds || 0) / 12 * 1000;
-    return clamp(distTimeMs + 700, 1200, 11500);
+    // ~100ms per yard at 10 yps (NFL elite top speed). Was 12 yps
+    // (8.3 ms/yd) which left the cruise phase running at ~13.3 yps
+    // (12 yps avg / 0.78 cruise fraction × 0.97 cruise distance) =
+    // visibly faster than any human can sprint on long plays.
+    // 10 yps matches Tyreek Hill / Sauce Gardner — the actual ceiling.
+    const distTimeMs = Math.abs(yds || 0) / 10 * 1000;
+    return clamp(distTimeMs + 700, 1200, 13000);
   }
   // _stPlayTiming / _stPlayDuration live at module scope — see top of file.
   // Pre-snap timing — ~3 seconds of huddle break, line set, audible, "HUT HUT"
@@ -1497,11 +1498,18 @@ function buildAnimForPlay(play, prevPlay) {
     // New curve: brief acceleration ramp (5% of time = ~3% of yards
     // = real handoff burst), then LINEAR cruise to 100%. Constant
     // speed throughout the cruise.
-    const accelEnd = 0.05;
-    const accelDist = 0.03;
+    // Accel phase is 15% time / 10% distance — RB visibly ramps up
+    // over the first ~3 yards instead of teleporting to top speed.
+    // Cruise minimum is 0.88 (was 0.78). Old curve compressed cruise
+    // into 73% of time covering 97% distance = 1.33× the average
+    // speed — that's where "first part of run is super quick" came
+    // from. New ratio: 73% time / 90% distance = 1.23× avg, with
+    // scaledDuration already conservative at 10 yps.
+    const accelEnd = 0.15;
+    const accelDist = 0.10;
     const cruiseEnd = actionMs
-      ? Math.max(0.78, Math.min(0.96, 1 - 600 / actionMs))
-      : 0.78;
+      ? Math.max(0.88, Math.min(0.96, 1 - 500 / actionMs))
+      : 0.88;
     if (runT < accelEnd) {
       const t = runT / accelEnd;
       return t * t * accelDist;   // ease-in for the burst
@@ -2436,10 +2444,11 @@ function buildAnimForPlay(play, prevPlay) {
           // Need this speed (px/sec) to JUST reach the spot. Add 10%
           // margin so they arrive slightly early (looks decisive).
           const needed = distPx / availSec * 1.10;
-          // Clamp to a believable range — 7 yd/s floor (jog), 18 yd/s
-          // ceiling (top-end NFL sprint). Beyond 18 yd/s would look
-          // superhuman and break the realism premise.
-          primarySpeedPx = clamp(needed, SIM_DEFAULTS.MAX_SPEED * 0.8, 18 * 15);
+          // Clamp to a believable range — 7 yd/s floor (jog), 11 yd/s
+          // ceiling (NFL elite top sprint). Was 18 yd/s (40 mph)
+          // which made the primary tackler visibly outrun the rest of
+          // the defense by 2x — looked like cheating.
+          primarySpeedPx = clamp(needed, SIM_DEFAULTS.MAX_SPEED * 0.8, 11 * 15);
         }
         const simFactor = isPrimary ? (primarySpeedPx / SIM_DEFAULTS.MAX_SPEED) : factor;
         // PHYSICS SIM pursuit — defender computes intercept against the
@@ -3126,7 +3135,7 @@ function buildAnimForPlay(play, prevPlay) {
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Visual top speed for a WR sprint. ~13 yps is slightly compressed
     // from real NFL top speed (~12) so plays don't feel slow.
-    const WR_TOP_YPS_VISUAL = 13;
+    const WR_TOP_YPS_VISUAL = 10.5;  // was 13 (29 mph, exceeded NFL records); matches Tyreek Hill
     const _yacScaleMs = (Math.max(yac, 0) / WR_TOP_YPS_VISUAL) * 1000;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
