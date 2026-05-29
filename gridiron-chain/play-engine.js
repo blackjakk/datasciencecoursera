@@ -2549,7 +2549,7 @@ class GameSimulator {
       scorer, passer, kicker,
       poss: this.poss, pts,
       quarter: this.quarter,
-      clockAfter: this.clock,
+      clockAfter: this.time,   // game clock is this.time (this.clock was undefined)
       homeScore: this.score.home,
       awayScore: this.score.away,
     });
@@ -6224,6 +6224,12 @@ class GameSimulator {
       if (!r.incomplete && yards < 0 && proposedYL <= 0) {
         const defKey = this.poss === "home" ? "away" : "home";
         this.score[defKey] += 2;
+        // Momentum swings to the team that scored — same as every other
+        // score (routed through _score / _defScoreXP). The safety updated the
+        // scoreboard directly and was the ONE score type that skipped the
+        // swing, so a safety left momentum untouched (inconsistent, and it
+        // skews the trailing team's subsequent play-calling).
+        this._swingMomentum(defKey, 1, "Safety (+2)");
         this._pushVisual({
           kind: "safety",
           desc: `SAFETY — 2 points for ${this[defKey].name}`,

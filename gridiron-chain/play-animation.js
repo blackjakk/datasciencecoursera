@@ -1451,9 +1451,21 @@ function buildAnimForPlay(play, prevPlay) {
   function stepRagdoll(player, nowMs, groundDy) {
     const r = player._ragdoll;
     if (!r) return;
-    const dt = Math.min(0.05, Math.max(0, (nowMs - r.lastMs) / 1000));
+    let dt = Math.min(0.05, Math.max(0, (nowMs - r.lastMs) / 1000));
     r.lastMs = nowMs;
     if (dt <= 0) return;
+    // Respect an active slow-mo window. The ragdoll runs on wall-clock (so it
+    // keeps falling during the post-play hold once t clamps to 1) — but on a
+    // BIG-HIT slow-mo the scene runs at 0.2-0.5x, and an unscaled ragdoll
+    // tumbled to the turf at full speed THROUGH the dramatic slow-motion.
+    // Scale dt by the live multiplier ONLY while the slow-mo is active; after
+    // it ends (incl. the post-play hold) the factor is 1 and it advances
+    // normally.
+    if (typeof animState !== "undefined" && animState && animState.slowMoUntil
+        && nowMs < animState.slowMoUntil) {
+      dt *= (animState.slowMoMul != null ? animState.slowMoMul : 1);
+      if (dt <= 0) return;
+    }
     r.vy += RAG_GRAVITY * dt;
     r.dx += r.vx * dt;
     r.dy += r.vy * dt;
@@ -6973,8 +6985,11 @@ function buildAnimForPlay(play, prevPlay) {
         }
         const blockerPose = (phase === "return" || phase === "field") ? "engage" : "run";
         // Pre-return: blockers run downfield toward the landing area (+dir).
-        // Return: chaser is on -dir side of blocker → face -dir to look at him.
-        const facing = (phase === "return") ? -dir : dir;
+        // Once engaging (field + return) the chaser is on the -dir side →
+        // face -dir to look at him. Was `=== "return"` only, so during the
+        // FIELD phase the blocker wrestled the coverage while facing the
+        // wrong way (mismatching the engage pose above).
+        const facing = (phase === "return" || phase === "field") ? -dir : dir;
         drawPlayer(ctx, bx, by, oppColor, oppTeam.secondary, "", blockerPose, (t < 0.95 ? ((performance.now() / 333) + i * 0.15) % 1 : 0), facing, { name: "punt-block-" + i });
       }
       // Returner (with ball after fielding)
@@ -6982,7 +6997,12 @@ function buildAnimForPlay(play, prevPlay) {
       const returnerDrawY = phase === "return" ? ballY : returnerY;
       const returnerPose = phase === "return" ? "carry"
                          : (phase === "field" ? "catch" : "idle");
-      const returnerFacing = phase === "return" ? -dir : dir;  // turns around to run back
+      // Returner faces his return direction (-dir) from the moment the ball
+      // is in the air — he tracks it, catches it, and runs it back all facing
+      // the same way. Was `=== "return"` only, so he faced downfield through
+      // the catch then SNAPPED 180° to -dir on the return (a visible flip on
+      // the ball-carrier). snap/wind (pre-kick) still face the line.
+      const returnerFacing = (phase === "snap" || phase === "wind") ? dir : -dir;
       drawPlayer(ctx, returnerX, returnerDrawY, oppColor, oppTeam.secondary, "", returnerPose, (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), returnerFacing, { name: "punt-returner" });
       // SINGLE BALL — once the returner fields it ("catch") and runs it back
       // ("carry"), those sprites draw the ball in hand/tuck; the standalone
