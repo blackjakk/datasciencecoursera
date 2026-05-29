@@ -116,9 +116,145 @@ function simIntercept(defender, carrier) {
 function pxToYards(px, pxPerYard) { return px / pxPerYard; }
 function yardsToPx(yd, pxPerYard) { return yd * pxPerYard; }
 
+// ─── Trench engagement primitives ──────────────────────────────────────
+//
+// Phase-1 first-principles rebuild of OL/DL line play. The trench is no
+// longer scripted (OL drop with a wobble, DL "barely move"). Each pair
+// of contacting bodies becomes one Engagement: blocker + defender locked
+// to a moving anchor, with a leverage scalar that drifts the anchor
+// along the defender's attack axis. The pocket on pass plays emerges
+// from the centroid of held anchors — it isn't a fixed spot.
+//
+// IMPORTANT: Engagement owns ITS OWN copy of each body's x/y. Caller
+// reads engagement.blockerX/Y and .defenderX/Y to drive rendering.
+// This avoids mutating formation-shared player objects.
+class Engagement {
+  // blockerKey/defenderKey are opaque identity tokens — typically the
+  // formation player reference. The Engagement only uses them for
+  // lookup (engagementFor); positions are stored on the Engagement.
+  //
+  // opts:
+  //   axisX, axisY: unit vector — defender's attack direction
+  //                 (+x toward QB on a pass play if dir=+1 offense)
+  //   leverage:    -1..+1 — negative = defender winning (drifts anchor
+  //                along +axis); +ve = blocker winning. 0 = stalemate.
+  //   startBX/Y, startDX/Y: initial positions (typically formation home
+  //                of each)
+  //   offsetPx:    half the lockup depth — blocker sits at anchor-offset
+  //                in -axis, defender at anchor+offset in +axis
+  //   driftPx:     px/frame the anchor moves at full |leverage|
+  //   pull:        EMA strength toward target positions
+  //   wobble:      small lateral jitter so engagement reads alive
+  constructor(blockerKey, defenderKey, opts = {}) {
+    this.blockerKey = blockerKey;
+    this.defenderKey = defenderKey;
+    this.axisX = opts.axisX != null ? opts.axisX : -1;
+    this.axisY = opts.axisY != null ? opts.axisY :  0;
+    this.leverage = opts.leverage || 0;
+    this.shed = false;
+    this.startMs = null;
+    this.offsetPx = opts.offsetPx != null ? opts.offsetPx : 7;
+    this.driftPx  = opts.driftPx  != null ? opts.driftPx  : 0.5;
+    this.pull     = opts.pull     != null ? opts.pull     : 0.28;
+    this.wobble   = opts.wobble   != null ? opts.wobble   : 1.2;
+    this.wobblePhase = Math.random() * Math.PI * 2;
+    // Position state — anchor begins at midpoint.
+    this.blockerX = opts.startBX;
+    this.blockerY = opts.startBY;
+    this.defenderX = opts.startDX;
+    this.defenderY = opts.startDY;
+    this.anchorX = (this.blockerX + this.defenderX) / 2;
+    this.anchorY = (this.blockerY + this.defenderY) / 2;
+  }
+
+  step(nowMs) {
+    if (this.shed) return;
+    if (this.startMs == null) this.startMs = nowMs;
+    const elapsed = nowMs - this.startMs;
+    // Anchor drift along defender's attack axis. -leverage → +axis (def wins).
+    this.anchorX += this.axisX * this.driftPx * -this.leverage;
+    this.anchorY += this.axisY * this.driftPx * -this.leverage;
+    // Wobble — perpendicular jitter so locked bodies don't read frozen.
+    const w = Math.sin((elapsed / 220) + this.wobblePhase) * this.wobble;
+    const perpX = -this.axisY;
+    const perpY =  this.axisX;
+    // Blocker target = anchor − axis*offset (on his side); defender = +axis*offset.
+    const bTx = this.anchorX - this.axisX * this.offsetPx + perpX * w;
+    const bTy = this.anchorY - this.axisY * this.offsetPx + perpY * w;
+    const dTx = this.anchorX + this.axisX * this.offsetPx + perpX * w * -0.6;
+    const dTy = this.anchorY + this.axisY * this.offsetPx + perpY * w * -0.6;
+    // EMA pull each body toward its target.
+    this.blockerX += (bTx - this.blockerX) * this.pull;
+    this.blockerY += (bTy - this.blockerY) * this.pull;
+    this.defenderX += (dTx - this.defenderX) * this.pull;
+    this.defenderY += (dTy - this.defenderY) * this.pull;
+  }
+
+  releaseShed() { this.shed = true; }
+}
+
+// PassProSim — owner of the pass-protection engagement set + pocket calc.
+//
+// One per pass play. Construct after formation is built, add OL↔DL pairs,
+// step each render frame, query for positions and pocket center.
+class PassProSim {
+  constructor(opts = {}) {
+    this.engagements = [];
+    this.dir = opts.dir || 1;          // offense direction (+1 = +X)
+    this.losX = opts.losX || 0;
+  }
+
+  // Add a blocker↔defender engagement. Defender attacks toward -dir
+  // (toward QB by default).
+  addPair(blocker, defender, opts = {}) {
+    const eng = new Engagement(blocker, defender, {
+      axisX: -this.dir,
+      axisY: 0,
+      startBX: blocker.x, startBY: blocker.y,
+      startDX: defender.x, startDY: defender.y,
+      leverage: opts.leverage || 0,
+      offsetPx: opts.offsetPx,
+      driftPx:  opts.driftPx,
+      pull:     opts.pull,
+      wobble:   opts.wobble,
+    });
+    this.engagements.push(eng);
+    return eng;
+  }
+
+  step(nowMs) {
+    for (const e of this.engagements) e.step(nowMs);
+  }
+
+  // Engagement that holds this player as blocker or defender, or null.
+  engagementFor(player) {
+    for (const e of this.engagements) {
+      if (e.blockerKey === player || e.defenderKey === player) return e;
+    }
+    return null;
+  }
+
+  // Pocket centroid — average of held-block ANCHORS, shifted ~1 yd behind
+  // (on the QB side of the LOS). Excludes shed engagements. Returns null
+  // when nothing's holding (rare but possible if every DL sheds).
+  pocketCenter(pxPerYard) {
+    const yd = pxPerYard || 15;
+    let sx = 0, sy = 0, n = 0;
+    for (const e of this.engagements) {
+      if (e.shed) continue;
+      sx += e.blockerX - this.dir * yd;   // ~1yd behind blocker
+      sy += e.blockerY;
+      n++;
+    }
+    return n === 0 ? null : { x: sx / n, y: sy / n };
+  }
+}
+
 // Exported globals (this file is loaded as a plain script, not a module).
 window.SimPlayer = SimPlayer;
 window.simIntercept = simIntercept;
+window.Engagement = Engagement;
+window.PassProSim = PassProSim;
 window.simPxToYards = pxToYards;
 window.simYardsToPx = yardsToPx;
 window.SIM_DEFAULTS = {

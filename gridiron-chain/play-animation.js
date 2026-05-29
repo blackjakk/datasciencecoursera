@@ -3131,6 +3131,14 @@ function buildAnimForPlay(play, prevPlay) {
     // for the two non-target offensive players closest to the carrier
     // at the catch. Sticky across the play so the same guys block.
     let _downfieldBlockerMap = null;
+    // Trench engagement set (Phase-1 first-principles OL/DL line play).
+    // Lazy-init at the first post-snap render frame. Pairs each OL with
+    // a non-rusher DL by Y proximity; the breakingRusher (if any) is NOT
+    // engaged — he keeps his existing arc/swim/spin path toward the QB.
+    // Each frame the engagements step, anchors drift, OL/DL positions
+    // emerge. Pocket centroid drives nothing yet — Phase 1.5 will route
+    // the QB drop through it. Today we only read positions back.
+    let _passPro = null;
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Visual top speed for a WR sprint. ~13 yps is slightly compressed
     // from real NFL top speed (~12) so plays don't feel slow.
@@ -3674,6 +3682,40 @@ function buildAnimForPlay(play, prevPlay) {
         carrierVx: _carrierVx,
         contactDist: 16,   // a hair more lenient than the sim's CONTACT_DIST=10
       };
+      // ── PHASE-1 TRENCH ──
+      // Build the OL↔DL engagement set on the first post-snap frame, step
+      // it each frame BEFORE def/off maps run so both maps read fresh
+      // positions. The pairing pairs every OL with the closest non-rusher
+      // DL by Y (the breakingRusher keeps his own arc/swim/spin path).
+      // With 5 OL vs ~3 non-rusher DL, two OL share a DL — double-team feel.
+      if (t > PRE && _passPro == null && typeof PassProSim !== "undefined") {
+        _passPro = new PassProSim({ dir, losX });
+        const ols = formation.offense.filter(x => x.role === "OL");
+        const dls = formation.defense.filter((x, j) =>
+          x.role === "DL" && j !== breakingRusher);
+        for (const ol of ols) {
+          let best = null, bestDY = Infinity;
+          for (const dl of dls) {
+            const dy = Math.abs(dl.y - ol.y);
+            if (dy < bestDY) { bestDY = dy; best = dl; }
+          }
+          if (best) {
+            const eng = _passPro.addPair(ol, best, {
+              // Leverage seeded from play.pressure (-1.5..1.9). Mapped to
+              // a gentle -0.6..+0.6 band so the pocket drifts without
+              // collapsing in a single frame.
+              leverage: Math.min(0.6, Math.max(-0.6, -(play.pressure || 0) * 0.25)),
+              driftPx: 0.55,
+              wobble: 1.0,
+              pull: 0.30,
+            });
+            // Stash for quick lookup in OL render below; cleared at play end.
+            ol._eng = eng;
+            best._eng = eng;
+          }
+        }
+      }
+      if (_passPro) _passPro.step(performance.now());
       const def = formation.defense.map((d, i) => {
         const dd = { ...d };
         dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
@@ -3776,16 +3818,18 @@ function buildAnimForPlay(play, prevPlay) {
             // DL who beat his man) if present, else hash by position.
             dd.archetype = (play.dlType && _DL_ARCH.indexOf(play.dlType) >= 0)
               ? play.dlType : _archForLineman(d, "DL");
+          } else if (d._eng) {
+            // PHASE 1 — non-rusher DL position emerges from the shared
+            // Engagement (same anchor as his paired OL). Wobble and drift
+            // live inside Engagement.step. No more LOS-relative push math.
+            dd.x = d._eng.defenderX;
+            dd.y = d._eng.defenderY;
+            dd.pose = "engage";
+            dd.t = tt;
+            dd.archetype = _archForLineman(d, "DL");
           } else {
-            // DL bull-rushes forward to engage the kick-sliding OL.
-            // Pre-snap DL is at LOS+37.5 (legal, on defense side); push
-            // drives them ~22-30px backward (toward LOS) over the rush
-            // window so they meet the retreating OL near LOS+8-15. Old
-            // push of 30-40px overshot to LOS-2.5 = stacked sprites.
-            // No aT cutoff — DL holds engaged position through play end
-            // (was teleporting back to formation home after the throw).
-            // Per-DL hash varies the punch. Live-tunable via
-            // window.GC_PASS_RUSH_PUSH_{MIN,RANGE}.
+            // Fallback (engagement set unavailable): the legacy fixed-
+            // push wobble that the trench rebuild replaces.
             const _engageRamp = Math.min(1, tt / 0.30);
             const _engageEased = _engageRamp * _engageRamp * (3 - 2 * _engageRamp);
             const _engageHash = ((i * 19 + (play.startYard || 0) * 11) >>> 0) % 100 / 100;
@@ -3793,9 +3837,6 @@ function buildAnimForPlay(play, prevPlay) {
             const _pushRange = (typeof window !== "undefined" && window.GC_PASS_RUSH_PUSH_RANGE) || 8;
             const _engagePush = (_pushMin + _engageHash * _pushRange) * _engageEased;
             const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
-            // Post-throw drift: DL continues to push slowly so OL/DL
-            // don't visibly FREEZE the moment the ball is released.
-            // ~3px extra push + sin wobble over the post-throw window.
             const _postThrowT_dl = aT > throwFrac ? Math.min(1, (aT - throwFrac) / Math.max(0.001, 1 - throwFrac)) : 0;
             const _postPushExtra = _postThrowT_dl * 3 + Math.sin(aT * Math.PI * 5 + d.y * 0.09) * _postThrowT_dl * 1.5;
             dd.x = d.x - dir * (_engagePush + _postPushExtra) + wobble * 0.6;
@@ -4660,23 +4701,24 @@ function buildAnimForPlay(play, prevPlay) {
                      t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0),
                      facing: dir };
           }
-          const tt = Math.min(1, aT / 0.55);
-          // OL kick-slides BACKWARDS to anchor the pocket (~1yd retreat
-          // over the rush window). Post-throw OL continues to drift
-          // (extra dropback + wobble) so OL and DL don't visibly
-          // FREEZE the moment the ball leaves the QB's hand.
-          const dropBack = 12 * tt;
-          const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.3;
-          // After throw: continue blocking, with extra wobble and a
-          // small further retreat as DL keeps pushing. Was stuck at
-          // dropBack=12 forever from aT=0.55 onward.
-          const _postThrowT = aT > throwFrac ? Math.min(1, (aT - throwFrac) / Math.max(0.001, 1 - throwFrac)) : 0;
-          const _postDrift = _postThrowT > 0
-            ? Math.sin(aT * Math.PI * 5 + p.y * 0.11) * 2.0 + (-dir * _postThrowT * 3)
-            : 0;
+          // PHASE 1 — OL position emerges from its Engagement (initialized
+          // up-front before def.map runs). DL has a matching reader; both
+          // sides come from the same anchor + leverage state.
+          const eng = p._eng;
           const olArch = (play.olType && _OL_ARCH.indexOf(play.olType) >= 0)
             ? play.olType : _archForLineman(p, "OL");
-          return { ...p, x: p.x - dir * dropBack + _postDrift, y: p.y + wobble,
+          if (eng) {
+            return { ...p, x: eng.blockerX, y: eng.blockerY,
+                     pose: "kick_slide",
+                     t: ((t * (dur / 1000)) * 2.2) % 1,
+                     facing: dir, archetype: olArch };
+          }
+          // Fallback (no engagement built — e.g. PassProSim unavailable):
+          // keep the legacy fixed dropback + wobble.
+          const tt = Math.min(1, aT / 0.55);
+          const dropBack = 12 * tt;
+          const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.3;
+          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble,
                    pose: "kick_slide",
                    t: ((t * (dur / 1000)) * 2.2) % 1,
                    facing: dir, archetype: olArch };
