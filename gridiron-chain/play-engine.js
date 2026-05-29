@@ -2433,6 +2433,14 @@ class GameSimulator {
       onTeam: flaggedKey,
       penType: pen.type,
       offender,
+      // poss + startYard let the animation build the field at the PRE-penalty
+      // spot (offense = this.poss; the flag is on `onTeam`, which is the
+      // offense iff onTeam === poss). autoFirst/lossDown drive the ref signal.
+      poss: this.poss,
+      startYard: preYardLine,
+      autoFirst: !!pen.autoFirst,
+      lossDown: !!pen.lossDown,
+      on: pen.on,   // "off" | "def" — walk-off direction
       preDown, preYtg, preYardLine,
       decisionContext,  // null for dead-ball, populated for accepted live-ball
     });

@@ -3232,6 +3232,74 @@ function buildAnimForPlay(play, prevPlay) {
     }};
   }
 
+  if (play.kind === "penalty") {
+    // FLAG ON THE PLAY. A dead-ball beat: the teams are set/standing, the
+    // referee throws his flag and signals the call, and an announcement card
+    // states the foul + enforcement. (The engine already applied the yardage
+    // and down — this surfaces it. Lights up the ref_flag / ref_first_down /
+    // ref_idle sprites, which had never been drawn.) No PRE — it's not a snap.
+    const dur = 3400;
+    PRE = 0;
+    const _autoFirst = !!play.autoFirst;
+    // The ref stands just off the ball; faces back toward the offense.
+    const _refX = losX + dir * 2 * FIELD.PX_PER_YARD;
+    const _refY = cy - 70;
+    // Flag lands near the foul spot (just past the LOS, in the middle).
+    const _flagLandX = losX + dir * 0.5 * FIELD.PX_PER_YARD;
+    const _flagLandY = cy + 22;
+    return { duration: dur, kind: "penalty", render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      // Dead ball — both lines set in stance at the pre-penalty spot.
+      const off = formation.offense.map(p => ({ ...p, pose: "stance", t: 0, facing: dir }));
+      const def = formation.defense.map(d => ({ ...d, pose: "stance", t: 0, facing: -dir }));
+      drawPlayers(off, def);
+      drawBall(ctx, losX - dir * 2, cy);
+      // Referee — throws the flag over the first ~28%, then SIGNALS the call:
+      // ref_first_down on automatic-first (defensive) fouls, else a neutral
+      // ref_idle stance. "#ffffff" primary = multiply-by-white = identity, so
+      // the ref keeps his black-and-white stripes (no team tint).
+      let refPose, refT;
+      if (t < 0.28) { refPose = "ref_flag"; refT = Math.min(1, t / 0.28); }
+      else if (_autoFirst) { refPose = "ref_first_down"; refT = Math.min(1, (t - 0.28) / 0.32); }
+      else { refPose = "ref_idle"; refT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0); }
+      drawPlayer(ctx, _refX, _refY, "#ffffff", "#1a1a1a", "R", refPose, refT, -dir, { role: "REF", name: "ref" });
+      // The flag — yellow marker arcing from the ref's hand to the turf.
+      let _flagX, _flagY;
+      if (t < 0.28) {
+        const ft = t / 0.28;
+        _flagX = _refX + (_flagLandX - _refX) * ft;
+        _flagY = _refY + (_flagLandY - _refY) * ft - Math.sin(ft * Math.PI) * 42;
+      } else { _flagX = _flagLandX; _flagY = _flagLandY; }
+      ctx.save();
+      ctx.fillStyle = "#f3d11a";
+      ctx.beginPath(); ctx.arc(_flagX, _flagY, 4.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.restore();
+      // Announcement card — fades in after the flag is down.
+      if (t > 0.30) {
+        const fade = Math.min(1, (t - 0.30) / 0.12);
+        ctx.save();
+        ctx.globalAlpha = fade;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const _bw = 440, _bh = 64, _bx = FIELD.W / 2 - _bw / 2, _by = 40;
+        ctx.fillStyle = "rgba(12,12,16,0.82)";
+        ctx.fillRect(_bx, _by, _bw, _bh);
+        ctx.fillStyle = "#f3d11a";
+        ctx.fillRect(_bx, _by, 6, _bh);   // yellow flag stripe
+        ctx.font = "900 22px sans-serif";
+        ctx.fillStyle = "#f3d11a";
+        ctx.fillText("🚩 PENALTY", FIELD.W / 2, _by + 20);
+        ctx.font = "600 14px sans-serif";
+        ctx.fillStyle = "#e8e8ee";
+        const _txt = (play.desc || "Penalty").replace(/^🚩\s*/, "");
+        ctx.fillText(_txt, FIELD.W / 2, _by + 44);
+        ctx.restore();
+      }
+    }};
+  }
+
   if (play.kind === "complete" || play.kind === "incomplete" || play.kind === "int") {
     const isScreen = !!play.isScreen;
     // The catch can't happen past the goal line — otherwise the WR catches
