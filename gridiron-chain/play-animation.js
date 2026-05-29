@@ -4259,6 +4259,15 @@ function buildAnimForPlay(play, prevPlay) {
             // position to current dd.x/y so jam starts at the CB's
             // pre-snap spot, not the WR's position.
             if (d._cbFollowX == null) { d._cbFollowX = dd.x; d._cbFollowY = dd.y; }
+            // PLAY-TIME dt factor — this is a per-frame accumulator, so it
+            // MUST be dt-scaled or it runs at 2× on a 120Hz display (28yps,
+            // "superhuman CB") and surges through the catch freeze. Driven
+            // off play-time (t) delta so it's both refresh-independent AND
+            // halts when the play is frozen (same model as the downfield
+            // blockers / WR sim).
+            const _cbDtF = (d._cbFollowT == null) ? 1
+                         : Math.max(0, Math.min(3, (t - d._cbFollowT) * dur / 16.67));
+            d._cbFollowT = t;
             const _cbTopYps = (typeof window !== "undefined" && window.GC_CB_TOP_YPS != null) ? window.GC_CB_TOP_YPS : 14;
             const _cbMaxPF = _cbTopYps * FIELD.PX_PER_YARD * 16 / 1000;
             const _cbDx = _cbTargetX - d._cbFollowX;
@@ -4266,8 +4275,8 @@ function buildAnimForPlay(play, prevPlay) {
             const _cbDist = Math.hypot(_cbDx, _cbDy);
             if (_cbDist > 0.001) {
               const _cbSpeed = Math.min(_cbMaxPF, _cbDist * 0.22);
-              d._cbFollowX += (_cbDx / _cbDist) * _cbSpeed;
-              d._cbFollowY += (_cbDy / _cbDist) * _cbSpeed;
+              d._cbFollowX += (_cbDx / _cbDist) * _cbSpeed * _cbDtF;
+              d._cbFollowY += (_cbDy / _cbDist) * _cbSpeed * _cbDtF;
             }
             dd.x = d._cbFollowX;
             dd.y = d._cbFollowY;
