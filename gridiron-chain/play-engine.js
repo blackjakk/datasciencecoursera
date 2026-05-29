@@ -1776,10 +1776,20 @@ class GameSimulator {
     const counterSide = Math.sign(gapYd) || 1;     // pull side
     const stretchSide = Math.sign(gapYd) || 1;
     const pitchSide   = Math.sign(gapYd) || 1;
+    // DL lateral positions in YARDS — MUST match the RENDERED formation
+    // (cy + {-1.5,-0.5,0.5,1.5} * 34px at 15 px/yd = ±3.4 / ±1.13 yd). The
+    // old ±8 / ±2.5 flung the DL ~2.4x too wide at the snap, so the OL fired
+    // toward empty grass and the lines never met ("not engaging on runs").
+    const dlYs = [-3.4, -1.13, 1.13, 3.4];
+    const nearestDlY = (y) => dlYs.reduce((a, b) => Math.abs(b - y) < Math.abs(a - y) ? b : a, dlYs[0]);
     for (let s = 0; s < 5; s++) {
       const slotY = (s - 2) * OL_GAP_YD;
-      let driveX = 0.4;        // baseline drive forward (0.4 yds)
-      let driveY = 0;
+      // Base block: fire forward to the DL contact line (DL sit at 2.5 yd, so
+      // ~1.7 yd of drive puts the OL a body-width in front of them) AND slide
+      // laterally onto the nearest DL so the block lands on a defender, not a
+      // gap. Was 0.4 yd forward with no lateral pairing — far short of the DL.
+      let driveX = 1.7;
+      let driveY = (nearestDlY(slotY) - slotY) * 0.6;
       if (runType === "counter") {
         // Guard opposite the play side pulls — slot -1 if right play,
         // slot +1 if left play.
@@ -1789,9 +1799,10 @@ class GameSimulator {
           driveY = counterSide * 1.2;
         }
       } else if (runType === "stretch") {
-        // Whole line flows toward the play side before engagement
-        driveX = 0.25;
-        driveY = stretchSide * 0.35;
+        // Whole line flows toward the play side, but still drives up to
+        // engage the DL (not just a shallow lateral slide).
+        driveX = 1.2;
+        driveY = stretchSide * 0.5 + (nearestDlY(slotY) - slotY) * 0.4;
       } else if (runType === "pitch") {
         const isPlaySideOuter = Math.sign(slotY) === Math.sign(pitchSide) && Math.abs(slotY) >= 3;
         if (isPlaySideOuter) {
@@ -1811,14 +1822,14 @@ class GameSimulator {
         ],
       };
     }
-    // DL — held up at the LOS, get pushed back slightly (especially
-    // interior on power runs). Each DL slot: 0=DE-left, 1=DT-left,
-    // 2=DT-right, 3=DE-right. y-offsets ≈ ±8 / ±2.5.
+    // DL — held at the LOS, pushed back slightly (interior more on power
+    // runs). Slots: 0=DE-left, 1=DT-left, 2=DT-right, 3=DE-right. Y-offsets
+    // match the formation (dlYs above) so the DL don't teleport on the snap.
     const dlOffsets = [
-      { y: -8 },    // de1
-      { y: -2.5 },  // dt1
-      { y:  2.5 },  // dt2
-      { y:  8 },    // de2
+      { y: dlYs[0] },   // de1
+      { y: dlYs[1] },   // dt1
+      { y: dlYs[2] },   // dt2
+      { y: dlYs[3] },   // de2
     ];
     for (let s = 0; s < 4; s++) {
       const offY = dlOffsets[s].y;

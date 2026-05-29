@@ -2782,9 +2782,16 @@ function buildAnimForPlay(play, prevPlay) {
         }
         if (p.role === "OL") {
           // PATH B Phase 9 — engine-emitted OL track wins when present.
-          // Each OL has a slot index 0-4 based on y position; engine
-          // emits tracks.ol0..ol4 with run-type-aware drive paths.
-          const olSlotIdx = Math.round((p.y - cy) / 14) + 2;   // 0..4 from top
+          // Slot index 0-4 by Y RANK among the OL (topmost = 0). Was
+          // round((p.y-cy)/14)+2, but the OL are spaced 32px (not 14), so
+          // the tackles hashed to out-of-range slots (-3 / 7 -> no track ->
+          // fallback) and the guards picked the WRONG track (ol0/ol4) and
+          // teleported to that slot's wider Y on the snap. Ranking is
+          // spacing-agnostic and maps each OL to its own ol{s} track, whose
+          // t=0 waypoint matches the formation (no snap teleport).
+          const _olRankYs = formation.offense
+            .filter(o => o.role === "OL").map(o => o.y).sort((a, b) => a - b);
+          const olSlotIdx = Math.max(0, Math.min(4, _olRankYs.indexOf(p.y)));   // 0..4 from top
           const _olTrack = play.motion?.tracks?.[`ol${olSlotIdx}`];
           if (_olTrack && typeof MotionPlayback !== "undefined") {
             const sample = MotionPlayback.sampleTrack(_olTrack, runT);
@@ -2817,8 +2824,10 @@ function buildAnimForPlay(play, prevPlay) {
           // blocking to READ as engagement, the OL has to drive forward
           // ~22px (~1.5yd) to reach the DL row. Eased ramp = OL stays
           // legal pre-snap, then fires off the ball post-snap to clash.
-          // Live-tunable via window.GC_OL_RUN_DRIVE.
-          const _olDriveMax = (typeof window !== "undefined" && window.GC_OL_RUN_DRIVE) || 22;
+          // Live-tunable via window.GC_OL_RUN_DRIVE. Default 30px (~2yd) so
+          // the OL front actually reaches the DL row at LOS+37.5px (was 22px,
+          // which stalled ~1yd short of the DL — they posed but never met).
+          const _olDriveMax = (typeof window !== "undefined" && window.GC_OL_RUN_DRIVE) || 30;
           let driveX = dir * Math.min(tt * _olDriveMax * 1.4, _olDriveMax);
           let driveY = 0;
           if (rt === "counter") {
