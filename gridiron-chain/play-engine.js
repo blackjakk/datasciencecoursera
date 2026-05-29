@@ -5898,14 +5898,21 @@ class GameSimulator {
     // distance, so the post-LOS run gets the full 0.26-0.78 cruise
     // window at a believable speed.
     const _carrierReadDxYd = clamp(yards * 0.05, -1, 2);
+    // On a TD, carry the final waypoint ~5yd PAST the goal line so the
+    // scorer runs THROUGH the plane and celebrates in the end zone —
+    // matching what the local-endX run types (counter/reverse/stretch/
+    // pitch) already do. Without this, inside/default runs (which use
+    // this track) stopped dead on the white stripe while the same-yardage
+    // TD on a stretch ran into the EZ — divergent end position by runType.
+    const _carrierEndDxYd = yards + (isRushTD ? 5 : 0);
     const _carrierTrack = {
       role: isQBRun ? "QB" : "RB",
       waypoints: [
         { t: 0.00, dxYd: -8,                  dyYd: 1.87 },                   // formation
         { t: 0.10, dxYd: -4,                  dyYd: 1.00 },                   // mesh / handoff
         { t: 0.22, dxYd: _carrierReadDxYd,    dyYd: 0.50 },                   // read at LOS
-        { t: 0.78, dxYd: yards,               dyYd: _carrierLateralEndYd },   // tackle spot
-        { t: 1.00, dxYd: yards,               dyYd: _carrierLateralEndYd },   // settled
+        { t: 0.78, dxYd: _carrierEndDxYd,     dyYd: _carrierLateralEndYd },   // goal line / tackle spot
+        { t: 1.00, dxYd: _carrierEndDxYd,     dyYd: _carrierLateralEndYd },   // settled (in EZ on a TD)
       ],
     };
     // ── PRIMARY TACKLER TRACK (Path B Phase 3a) ─────────────────────

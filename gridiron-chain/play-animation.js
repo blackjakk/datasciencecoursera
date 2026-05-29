@@ -4467,8 +4467,14 @@ function buildAnimForPlay(play, prevPlay) {
       }
       // First-down catch: after the tackle pose has held, the WR pops
       // back up and signals first down. Detection matches the chyron card.
+      // Exclude 25+ yd gains: the result card classifies those as
+      // "BIG PLAY!" (the yards>=25 branch precedes its first-down branch),
+      // so the WR shouldn't pull a polite first-down chop on a 30-yard
+      // explosive while the card reads BIG PLAY — he celebrates instead.
+      // Matches formatPlayResult's branch order (one source of truth).
       const isFirstDownPass = !passIsTD && play.kind === "complete"
-                              && (play.down ?? 0) > 0 && (play.yards ?? 0) >= (play.ytg ?? 0);
+                              && (play.down ?? 0) > 0 && (play.yards ?? 0) >= (play.ytg ?? 0)
+                              && (play.yards ?? 0) < 25;
       const wrPose = t < PRE
         ? "idle"
         : (wrIntPose
@@ -5430,10 +5436,16 @@ function buildAnimForPlay(play, prevPlay) {
           // collapses as the rush wins. The losing OL (whose man beats
           // him) still gets the extra shove + "stiff" lost-it override.
           let _olX, _olY;
-          if (p._sackEng) {
+          if (p._sackEng && !p._sackEng.shed) {
             _olX = p._sackEng.blockerX;
             _olY = p._sackEng.blockerY;
           } else {
+            // No live engagement (never paired, OR the paired DL shed to
+            // the pile → engagement.step() early-returns and blockerX/Y
+            // freeze). Without the !shed guard the OL locked in place for
+            // the rest of the play while everyone converged on the QB.
+            // Fall back to the legacy pushed-back drift so the OL keeps
+            // giving ground naturally.
             _olX = p.x - dir * (6 + slotDepth * 3) * tt;
             _olY = p.y + Math.sin(tt * Math.PI * 5 + p.y) * 2.5;
           }
@@ -9161,7 +9173,11 @@ function startNextPlay() {
       setTimeout(() => GCAudio.crowd.stop(), 1800);
     }
     if (typeof GCFx !== "undefined") {
-      GCFx.bigText("FINAL", 0xf5c542, 3200);
+      // No GCFx.bigText("FINAL") here — renderStaticEnd() already draws a
+      // prominent canvas "FINAL" + score + stars-of-the-game. The PIXI
+      // bigText was a SECOND "FINAL" stacked on top (same duplicate-owner
+      // class as the LED ribbon / quarter-end graphic). Keep the lens
+      // flare (atmosphere, not text).
       GCFx.lensFlare(1100, 850, 360);
     }
     return;
@@ -9595,7 +9611,19 @@ function tick(now) {
     if (animState.celebrate) {
       drawCelebrationOverlay(ctx, animState.play, animState.celebrate, holdT);
     }
-    drawResultCard(ctx, animState.play, holdT);
+    // ONE owner per event announcement. TD plays are announced by the
+    // _touchdownCinema DOM overlay (team flood + "TOUCHDOWN" + scorer +
+    // detail); INT/fumble by the _momentCinema card. The result-card
+    // banner duplicated those headlines on the same hold ("TOUCHDOWN!"
+    // over the cinema's "TOUCHDOWN"). Suppress the card for cinema-owned
+    // plays; it still draws for every routine play where it's the sole
+    // announcement. (Hold duration logic above is unchanged — it keys
+    // off hasCard, preserving the TD dwell.)
+    const _cp = animState.play;
+    const _cinemaOwned =
+      (((_cp.kind === "run" || _cp.kind === "complete") && (_cp.endYard ?? 0) >= 100)
+       || _cp.kind === "int" || _cp.kind === "fumble");
+    if (!_cinemaOwned) drawResultCard(ctx, animState.play, holdT);
     if (holdElapsed >= animState.holdDur || animState.skipHold) {
       // Build a jog transition into the NEXT play (if applicable) so players
       // visibly trot up to the new LOS instead of instacutting.

@@ -186,14 +186,22 @@ class Engagement {
     if (this.shed) return;
     if (this.startMs == null) this.startMs = nowMs;
     const elapsed = nowMs - this.startMs;
+    // Frame-time factor — normalize drift accumulation to a 60fps step
+    // so the pocket collapses at the same RATE regardless of display
+    // refresh (a 120Hz monitor stepped twice as often and caved the
+    // pocket twice as fast). Clamped 0..3 so a long stall between
+    // frames can't lurch the drift.
+    const dtF = this._lastStepMs == null ? 1
+              : Math.max(0, Math.min(3, (nowMs - this._lastStepMs) / 16.67));
+    this._lastStepMs = nowMs;
     // Pressure drift accumulates along the defender's attack axis when
     // leverage is negative (rush winning) → blocker pushed toward QB.
     // Capped so a long rep can't collapse the pocket to absurd depth
     // (the QB is ~5yd back; ~3.5yd of give reads as a caved pocket
     // without the line sliding into the backfield).
     const MAX_DRIFT = 52;   // px ≈ 3.5yd
-    this.driftX += this.axisX * this.driftPx * -this.leverage;
-    this.driftY += this.axisY * this.driftPx * -this.leverage;
+    this.driftX += this.axisX * this.driftPx * -this.leverage * dtF;
+    this.driftY += this.axisY * this.driftPx * -this.leverage * dtF;
     const _dmag = Math.hypot(this.driftX, this.driftY);
     if (_dmag > MAX_DRIFT) {
       this.driftX = (this.driftX / _dmag) * MAX_DRIFT;
