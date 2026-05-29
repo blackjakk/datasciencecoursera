@@ -3145,6 +3145,15 @@ function buildAnimForPlay(play, prevPlay) {
     // tween that compressed long YAC into 2.4s of impossible 17-yps
     // sliding). Initialised lazily on the first post-throw render frame.
     let _wrSim = null;
+    // WR's actual rendered position on the latest pre-catch frame —
+    // captured each frame from the route block. _wrSim initialises HERE
+    // (not at the independently-computed targetX/targetY) so the catcher
+    // continues smoothly from where the route visually ended. The engine
+    // route track and the ball's targetX/targetY are computed separately
+    // and can differ by a yard or two laterally; initialising the sim at
+    // targetX teleported the WR (and lurched the downfield blockers that
+    // target wr.x) on the catch frame.
+    let _wrLastX = null, _wrLastY = null;
     // Downfield-blocker picks. Map from player ref → slot index (0 or 1)
     // for the two non-target offensive players closest to the carrier
     // at the catch. Sticky across the play so the same guys block.
@@ -3414,6 +3423,9 @@ function buildAnimForPlay(play, prevPlay) {
       // any future shape that overshoots).
       const _sideMargin = 8;
       wr.y = Math.max(FIELD.TOP + _sideMargin, Math.min(FIELD.BOT - _sideMargin, wr.y));
+      // Capture the WR's actual rendered position so _wrSim can init from
+      // it (continuity across the catch — no route-end→targetX jump).
+      _wrLastX = wr.x; _wrLastY = wr.y;
 
       // Throw style — TOUCH lobs high+slow, ZIP fires low+fast, DEEP arcs even higher
       const throwType = play.throwType || (isScreen ? "CHECKDOWN" : "TOUCH");
@@ -3581,7 +3593,12 @@ function buildAnimForPlay(play, prevPlay) {
           // than match foot strikes. The tween fallback runs only if
           // SimPlayer is unavailable.
           if (!_wrSim && typeof SimPlayer !== "undefined") {
-            _wrSim = new SimPlayer(targetX, targetY, {
+            // Init at the WR's actual route-end position (continuity), not
+            // the independently-computed targetX/targetY which can differ
+            // and cause a catch-frame teleport.
+            _wrSim = new SimPlayer(
+              _wrLastX != null ? _wrLastX : targetX,
+              _wrLastY != null ? _wrLastY : targetY, {
               maxSpeed: WR_TOP_YPS_VISUAL * FIELD.PX_PER_YARD,
               accel:    10 * FIELD.PX_PER_YARD,   // ~1s to top speed
             });
