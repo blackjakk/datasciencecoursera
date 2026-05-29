@@ -4290,13 +4290,20 @@ function buildAnimForPlay(play, prevPlay) {
             const tt = Math.min(1, aT / (throwFrac));
             dd.x = d.x + (targetX - d.x) * easeOutCubic(tt);
             dd.y = d.y + (targetY - d.y) * easeOutCubic(tt);
-            // Closer to throwPhase: reach pose, arms up for the ball
-            if (aT > throwFrac * 0.85) dd.pose = "reach";
+            // Closer to throwPhase: reach pose, arms up for the ball.
+            // Progress t once (arms come up and hold) — without an
+            // explicit t the reach/catch sprite inherits the wall-clock
+            // loop default and cycles (a "flopping" reach).
+            if (aT > throwFrac * 0.85) {
+              dd.pose = "reach";
+              dd.t = Math.min(1, (aT - throwFrac * 0.85) / Math.max(0.001, throwFrac * 0.15));
+            }
           } else if (t < throwPhase + 0.15) {
-            // Catch frame — at the ball, arms still up
+            // Catch frame — at the ball, arms still up (hold extended).
             dd.x = ballX - dir * 2;
             dd.y = ballY;
             dd.pose = "reach";
+            dd.t = 1;
           } else {
             // After the drop — frustrated, on the ground
             dd.pose = "tackled";
@@ -4315,7 +4322,12 @@ function buildAnimForPlay(play, prevPlay) {
             const _pdEaseT = easeOutCubic(tt);
             dd.x = d.x + (targetX - d.x) * _pdEaseT;
             dd.y = d.y + (targetY - d.y) * _pdEaseT;
-            if (aT > throwFrac * 0.88) dd.pose = "leap";   // wind up for the swat
+            if (aT > throwFrac * 0.88) {
+              dd.pose = "leap";   // wind up for the swat
+              // Progress once into the leap (no explicit t → wall-clock
+              // loop → flopping leap windup).
+              dd.t = Math.min(1, (aT - throwFrac * 0.88) / Math.max(0.001, throwFrac * 0.12));
+            }
           } else if (t < throwPhase + 0.10) {
             // SWAT FRAME — at the ball, arms extended upward.
             dd.x = targetX - dir * 3;
