@@ -432,6 +432,9 @@ const _locoCache = new Map();
 // non-finite position guard in drawPlayer (prevents one bad frame from
 // permanently erasing a sprite).
 const _lastGoodPos = new Map();
+// Continuity-guard state per named entity — { errX, errY, lastX, lastY }.
+// Absorbs phase-boundary teleports into a decaying error (see drawPlayer).
+const _smoothPos = new Map();
 function _locoState(x, y, pose, style, label, facing) {
   // Identity must be unique per rendered player. The old fallback
   // composite (`${role}|${label}|${facing}`) collided for any draw
@@ -553,6 +556,45 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   } else {
     const _id = (style && style.name) || `${(style && style.role) || "P"}|${label || ""}`;
     _lastGoodPos.set(_id, { x, y });
+  }
+  // ── CONTINUITY GUARD (anti-teleport) ──────────────────────────────
+  // First-principles backstop for the whole class of phase-boundary
+  // teleports (catch frame, sim re-init, pursuit hand-off, etc.). The
+  // animation is phase-scripted: each phase computes absolute positions
+  // from its own basis, and when the bases disagree at a boundary the
+  // sprite pops. Rather than patch every boundary, absorb the pop here.
+  //
+  // Model: track a decaying ERROR offset (renderedPos − rawPos), not a
+  // lerp toward raw — so there's NO permanent lag during normal motion.
+  //   • raw jump ≤ PASS (12px): real motion → no error added (top sprint
+  //     is ~6px/frame at 60fps, so anything under 12 is legitimate).
+  //   • PASS < jump < SNAP (80px): a phase teleport → freeze the sprite
+  //     at its previous rendered spot (error = prevRendered − raw), then
+  //     decay the error to 0 over ~8 frames so it glides to the true spot.
+  //   • jump ≥ SNAP: a play/formation reset or a huge legit reposition →
+  //     snap (clear error); easing a full-field jump would look worse.
+  // Only applied to NAMED entities (skill players + ST units) — unnamed
+  // linemen don't teleport and could collide on a shared key.
+  const _gid = style && style.name;
+  if (_gid) {
+    const PASS = 12, SNAP = 80, DECAY = 0.78;
+    let s = _smoothPos.get(_gid);
+    if (!s) {
+      s = { errX: 0, errY: 0, lastX: x, lastY: y };
+      _smoothPos.set(_gid, s);
+    } else {
+      const jump = Math.hypot(x - s.lastX, y - s.lastY);
+      if (jump >= SNAP) {
+        s.errX = 0; s.errY = 0;                    // reset / huge → snap
+      } else if (jump > PASS) {
+        // Phase teleport: hold at the previous rendered spot, then glide.
+        s.errX = (s.lastX + s.errX) - x;
+        s.errY = (s.lastY + s.errY) - y;
+      }
+      s.lastX = x; s.lastY = y;
+      s.errX *= DECAY; s.errY *= DECAY;
+      x += s.errX; y += s.errY;
+    }
   }
   // Normalize missing pose to "idle" up front. Without this, callers
   // that don't set p.pose (non-target WRs running routes, FB, etc.)
