@@ -1,113 +1,96 @@
 # Sprite Pipeline Handoff
 
 Context for a local Claude Code session driving the PixelLab MCP to
-generate player sprites for this football game.
+generate / refine player sprites for this football game.
 
 ## Goal
 
-Replace the hand-tuned canvas pose-math in `play-render.js` with sprite
-images authored in PixelLab. The sprite atlas in `play-sprites.js` is
-already wired up — drop PNGs in the expected layout and they render
-automatically. Poses we don't have sprites for fall back to the existing
-pose math.
+Sprite images authored in PixelLab replace the hand-tuned canvas
+pose-math in `play-render.js`. The sprite atlas in `play-sprites.js`
+maps every engine-emitted pose name to a sprite folder. Any pose
+without a sprite falls back to the procedural pose-math (currently
+that fallback is effectively suppressed — see commit ac53e2e).
 
-## Current state
+## Current state — sprite library is COMPLETE (v3)
 
-- One character already authored (see PixelLab dashboard — search for
-  "American football player, top-down view")
-- 8 directional rotations for the **idle** pose already in
-  `gridiron-chain/sprites/idle/` (south.png, east.png, etc.)
-- Sprite atlas (`gridiron-chain/play-sprites.js`) auto-loads any matching
-  files at page load — see file header for layout conventions.
-- Pages-deployed live site:
-  https://blackjakk.github.io/datasciencecoursera/play.html
+One base character ("American football player, top-down view"),
+~1,190 PNGs across 37 player-pose folders + ball art. Standard layout
+is **8 directions × 4 frames** unless noted.
+
+Live site: https://blackjakk.github.io/datasciencecoursera/play.html
+
+### Pose folders on disk (frame count)
+
+Locomotion:   idle(8×1) run carry churn→carry backpedal scrape release drop_step(SE/SW only)
+Catch:        catch(=reach/leap) handoff
+Block:        block(=engage) kick_slide jam
+Tackle:       tackle(=hit) dive_forward(=dive) fall(=tackled/sack) tackled_carry ragdoll tumble spin_fall
+Carrier moves: juke spin(8×8) truck stiff_arm(=stiff)
+QB:           pass(=throw) qb_carry qb_scramble drop_step
+Defense:      strip_swat(=strip/swat)
+Specialty:    kick(6 dirs ×4) hurdle dodge
+Referee:      ref_idle ref_first_down ref_flag ref_td_signal ref_whistle
+Ball art:     objects/ball.png, objects/football/<dir>.png
+
+The atlas (`play-sprites.js` `_SPRITE_POSES`) is the source of truth
+for pose-key → folder mapping + per-pose frame/direction counts. Some
+poses use non-standard direction sets (`kick` = 6, `hurdle` = 7,
+`drop_step` = SE/SW only). Edit that table when adding/retiring a pose.
 
 ## Sprite layout convention
 
 ```
-gridiron-chain/sprites/
-├── idle/
-│   ├── south.png        ← single-frame poses: <dir>.png
-│   ├── east.png
-│   └── ... (8 directions total)
-├── run/
-│   ├── south_0.png      ← multi-frame poses: <dir>_<frame>.png
-│   ├── south_1.png
-│   ├── south_2.png
-│   ├── south_3.png
-│   ├── east_0.png
-│   └── ... (8 dirs × 4 frames)
-└── ...
+gridiron-chain/sprites/<folder>/<direction>.png        (single-frame, e.g. idle)
+gridiron-chain/sprites/<folder>/<direction>_<frame>.png (animation cycle)
 ```
 
 8 directions: `south, south-east, east, north-east, north, north-west,
-west, south-west` (matches PixelLab's rotation export naming).
+west, south-west`. Native size 92–104 px, white/grey base (tinted per
+team color at runtime via multiply blend, cached).
 
-Sprite size: **92×92** px (PixelLab default). White/grey base so canvas
-can tint per team color at render time.
+## DO NOT COMMIT (gitignored in sprites/.gitignore)
 
-## Pose list (priority order)
+Raw PixelLab exports and helpers: `*.zip`, `*.py`, `_*`. These were
+accidentally committed in session 2 (~3 MB) and removed in 7052885.
+Extract sprites into the pose folder, then delete the zip — don't
+commit it.
 
-| Priority | Pose folder | Frames | Prompt for PixelLab |
-|----------|-------------|--------|---------------------|
-| P0 | `run` | 4 | "Running cycle, legs alternating, arms pumping forward, moving forward at speed" |
-| P0 | `carry` | 4 | "Running forward with football tucked under right arm" |
-| P0 | `tackled` | 1 | "Knocked down on the ground, face-up, arms splayed" |
-| P0 | `hit` | 1 | "Diving forward to wrap a tackle, body horizontal, arms extended forward" |
-| P1 | `stance` | 1 | "Crouched athletic stance, hands forward, ready" |
-| P1 | `engage` | 2 | "Crouched, both arms punched forward in a blocking position" |
-| P1 | `kick_slide` | 2 | "Wide-base shuffle, pass protection footwork, arms punched out" |
-| P1 | `celebrate` | 4 | "Both arms raised high, jumping in celebration" |
-| P2 | `reach` | 1 | "Both arms extended fully upward for a high catch" |
-| P2 | `handoff` | 1 | "Arms in front at waist level, palms up to receive ball" |
-| P2 | `leap` | 1 | "Horizontal in mid-air, one arm extended forward in a diving catch" |
-| P2 | `dive` | 1 | "Horizontal in mid-air, both arms extended forward in a diving tackle" |
+## Adding / refining a pose (local PixelLab MCP session)
 
-For each pose: PixelLab "Animate" feature, base it on the existing
-character (so cross-frame consistency stays — same body, same proportions),
-use the prompt above. Export as zip, extract the rotation PNGs into the
-matching `sprites/<pose>/` folder.
+1. List characters via MCP, find "American football player, top-down view".
+2. Generate the animation off that base character (keeps body/proportions
+   consistent). 8 directions × 4 frames unless the pose only reads in
+   fewer directions.
+3. Save PNGs to `gridiron-chain/sprites/<folder>/<dir>_<frame>.png`.
+4. If it's a NEW pose key, add it to `_SPRITE_POSES` in play-sprites.js.
+5. `node --check gridiron-chain/play-sprites.js`
+6. Delete any leftover .zip/.py, then:
+   git add gridiron-chain/sprites/ gridiron-chain/play-sprites.js
+   git commit -m "sprites: <pose> ..." && git push origin claude/football-sim-blockchain-game-b3sdq
+7. Deploy auto-runs (~1 min); check the live site.
 
-## Workflow
+## Credit budget
 
-1. In Claude Code (local), open a session with the PixelLab MCP attached.
-2. Ask Claude to "generate the run pose for character <ID>, save to
-   `gridiron-chain/sprites/run/`".
-3. Claude uses PixelLab MCP to:
-   - List characters (find the football player)
-   - Generate animation with the run prompt
-   - Save 8 rotations × 4 frames to disk in the expected naming
-4. Run `node --check gridiron-chain/play-sprites.js` to verify nothing
-   else broke.
-5. Commit + push:
-   ```bash
-   git add gridiron-chain/sprites/
-   git commit -m "PixelLab: add run pose (4 frames, 8 directions)"
-   git push origin claude/football-sim-blockchain-game-b3sdq
-   ```
-6. Wait for the GitHub Pages deploy (~1 min) and check the live site
-   to see the new pose in action.
-7. Iterate on the next pose.
+PixelLab Tier 1 = 2000 images/month. A full pose (8×4) ≈ 32 generations;
+re-rolls multiply that. The base library is done — remaining spend is
+refinement (re-rolling poses that look off) and the variety phase below.
 
-## Credit budget warning
+## Variety phase (NOT started)
 
-PixelLab Tier 1 = 2000 images/month. A full P0+P1 set for one character
-is roughly:
-- P0: 4 poses × ~10 frames avg × 8 dirs ≈ 320 generations
-- P1: 4 poses × ~3 frames avg × 8 dirs ≈ 96 generations
-- Iteration multiplier (some pose attempts will need re-rolling): ~2x
-- **One character, P0+P1: ~800 generations** of monthly budget
+Create 2-4 more base characters in PixelLab UI:
+  - small/sleek  → WR, CB, S
+  - medium       → QB, RB, TE, LB
+  - large/bulky  → OL, DL
+Repeat the pose set per character. Then the atlas assigns a character
+per player by position + bodyType + a per-player hash (deterministic so
+a given player always looks the same). Plumbing for multi-character
+selection is NOT built yet — single shared character today.
 
-Budget to stay safe:
-- Do ONE pose end-to-end first to validate quality before batching
-- Stop and review after each pose
-- Don't run "generate all poses" in one shot — credits gone in seconds
+## Known follow-ups (deferred gameplay/visual items)
 
-## Variety phase (later)
-
-Phase 2: create 2-4 additional characters in PixelLab UI (small body
-for WR/DB, large body for OL/DL, medium for everyone else). Repeat the
-P0+P1 set for each. Atlas can then assign characters by `position` +
-`bodyType` deterministically.
-
-For now: ONE character, all poses, validate the pipeline.
+From the last full audit, not yet addressed:
+- Ball Y discontinuity at the catch frame (hand-height → feet snap)
+- Pre-catch route strideHz hardcoded 3.0 (looks fast on comeback/hitch)
+- First-down PASS has no get-up beat (abrupt tackled→celebrate); run does
+- KR secondary tackler can pop into "tackled" pose mid-field on long returns
+- Screen-TD POST_CATCH_MS formula mismatch
