@@ -2505,6 +2505,9 @@ class GameSimulator {
       // Pre-snap visuals (kickoff/score/punt) inherit the last selection.
       personnel: data.personnel || this._currentPersonnel || "BASE",
       defPackage: data.defPackage || this._currentDefPackage || "BASE_43",
+      // OL/DL trench leverage seed for the animation (−1.5..1.9). Only
+      // meaningful on dropback pass plays; harmless elsewhere.
+      pressure: data.pressure != null ? data.pressure : (this._currentPressure || 0),
       poss: this.poss,
       quarter: this.quarter,
       time: this.time,
@@ -2962,6 +2965,10 @@ class GameSimulator {
     const runMul  = (RUN_MATCHUP [reps.dlType]?.[reps.olType]) ?? 1.0;
     // Effective pressure for THIS play accounts for the archetype matchup
     const pressure = clamp(basePressure * passMul, -1.5, 1.9);
+    // Expose to the visual layer (the OL/DL trench sim seeds engagement
+    // leverage from this). Reset to 0 each snap below; set here once the
+    // matchup is known. _pushVisual auto-attaches this._currentPressure.
+    this._currentPressure = pressure;
     // Two-minute drill: offense down by ≤16, < 2:00 left in half/game.
     // Reduces play clock (no-huddle) and bumps pass rate.
     const inTwoMin = this._isTwoMinDrill();
@@ -3005,6 +3012,7 @@ class GameSimulator {
     const isGoalToGo = this.yardLine >= 90;
     this._inRedZone = isRedZone;
     this._inGoalToGo = isGoalToGo;
+    this._currentPressure = 0;   // set once the trench matchup is known (below)
     this._currentPersonnel = pickPersonnel(offPb, { isLongYardage, isGoalLine: isNearGL, isRedZone, isGoalToGo, down: this.down, ytg: this.ytg });
     this._currentDefPackage = packageForPersonnel(this._currentPersonnel);
     // Defensive box / coverage response — driven by what offense lines up in

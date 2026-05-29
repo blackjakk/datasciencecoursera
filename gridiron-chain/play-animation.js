@@ -3701,11 +3701,14 @@ function buildAnimForPlay(play, prevPlay) {
           }
           if (best) {
             const eng = _passPro.addPair(ol, best, {
-              // Leverage seeded from play.pressure (-1.5..1.9). Mapped to
-              // a gentle -0.6..+0.6 band so the pocket drifts without
-              // collapsing in a single frame.
-              leverage: Math.min(0.6, Math.max(-0.6, -(play.pressure || 0) * 0.25)),
-              driftPx: 0.55,
+              // Leverage seeded from play.pressure (-1.5..1.9). Negative
+              // leverage = the rush winning → the anchor (and the pocket)
+              // drifts back toward the QB. Mapped to ±0.7 and combined
+              // with a higher driftPx so the pocket compression is
+              // actually READABLE on a pressured dropback (the prior
+              // 0.25×/0.55 produced ~0.5yd of give — invisible).
+              leverage: Math.min(0.7, Math.max(-0.7, -(play.pressure || 0) * 0.42)),
+              driftPx: 0.95,
               wobble: 1.0,
               pull: 0.30,
             });
