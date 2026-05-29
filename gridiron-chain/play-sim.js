@@ -188,8 +188,17 @@ class Engagement {
     const elapsed = nowMs - this.startMs;
     // Pressure drift accumulates along the defender's attack axis when
     // leverage is negative (rush winning) → blocker pushed toward QB.
+    // Capped so a long rep can't collapse the pocket to absurd depth
+    // (the QB is ~5yd back; ~3.5yd of give reads as a caved pocket
+    // without the line sliding into the backfield).
+    const MAX_DRIFT = 52;   // px ≈ 3.5yd
     this.driftX += this.axisX * this.driftPx * -this.leverage;
     this.driftY += this.axisY * this.driftPx * -this.leverage;
+    const _dmag = Math.hypot(this.driftX, this.driftY);
+    if (_dmag > MAX_DRIFT) {
+      this.driftX = (this.driftX / _dmag) * MAX_DRIFT;
+      this.driftY = (this.driftY / _dmag) * MAX_DRIFT;
+    }
     const w = Math.sin((elapsed / 220) + this.wobblePhase) * this.wobble;
     const perpX = -this.axisY;
     const perpY =  this.axisX;

@@ -5088,6 +5088,12 @@ function buildAnimForPlay(play, prevPlay) {
     const fallTilt = -0.6 + r(9) * 1.2;              // tackle fall angle bias (left/right)
     const dropDepth = 4 + r(10) * 3;                 // how deep the QB drops (4-7 yds)
     let _sackRumbled = false;
+    // PHASE 2 — trench engagement for the sack. Pairs each OL with the
+    // closest NON-primary DL (the primary is the shedder who beats his
+    // block and gets home). Strong negative leverage so the pocket cup
+    // collapses toward the QB as the sack develops. Built lazily on the
+    // first post-snap frame; stepped once per frame before the maps run.
+    let _sackPassPro = null;
     return { duration: dur, kind: "sack", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
@@ -5201,6 +5207,35 @@ function buildAnimForPlay(play, prevPlay) {
       // Strip-sack ball target this frame — referenced by primary-sacker
       // dive + pile-follower convergence below.
       const _stripBall = (t > PRE) ? _stripBallAt((t - PRE) / (1 - PRE), qb.x, qb.y) : null;
+      // PHASE 2 — build/step the sack pocket engagement. OL pair with the
+      // closest non-primary DL; the primary breaks free (its rush logic
+      // is unchanged below). Leverage is strongly negative so the cup
+      // visibly collapses as the rush wins.
+      if (t > PRE && _sackPassPro == null && typeof PassProSim !== "undefined") {
+        _sackPassPro = new PassProSim({ dir, losX });
+        const ols = formation.offense.filter(x => x.role === "OL");
+        const dls = formation.defense.filter((x, j) =>
+          x.role === "DL" && j !== primaryIdx && !(secondChaser && j === secondIdx));
+        for (const ol of ols) {
+          let best = null, bestDY = Infinity;
+          for (const dl of dls) {
+            const dyd = Math.abs(dl.y - ol.y);
+            if (dyd < bestDY) { bestDY = dyd; best = dl; }
+          }
+          if (best) {
+            const eng = _sackPassPro.addPair(ol, best, {
+              lanePx: ol.y - cy,
+              leverage: -0.55,   // rush is winning → pocket compresses
+              driftPx: 0.9,
+              wobble: 1.0,
+              pull: 0.30,
+            });
+            ol._sackEng = eng;
+            best._sackEng = eng;
+          }
+        }
+      }
+      if (_sackPassPro) _sackPassPro.step(performance.now());
       const def = formation.defense.map((d, i) => {
         const dd = { ...d, pose: t < PRE ? "stance" : "run", t: (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0), facing: -dir };
         if (t < PRE) {
@@ -5241,13 +5276,19 @@ function buildAnimForPlay(play, prevPlay) {
           // engagement for the entire play even after contact.
           const PILE_START = contactT + 0.05;
           if (tt < rushReleaseT) {
-            // Hold at LOS with a small slow struggle. Was wig 6π (3+
-            // Hz = ~12 cycles in a 4s play = "dancing"). Reduced to
-            // 1.5π (~1.5 cycles total) for a natural engaged sway.
-            const wig = Math.sin(tt * Math.PI * 1.5 + i) * 1.2;
-            const fwdProgress = isPrimary ? Math.min(3, tt * 4) : 0;
-            dd.x = d.x + dir * fwdProgress;
-            dd.y = d.y + wig;
+            // Engaged hold. PHASE 2: non-primary/secondary DL read their
+            // pocket engagement (cup) instead of a hand-tuned sway. The
+            // primary/secondary rushers keep the small forward struggle
+            // since they're about to break free.
+            if (d._sackEng && !isPrimary && !isSecondary) {
+              dd.x = d._sackEng.defenderX;
+              dd.y = d._sackEng.defenderY;
+            } else {
+              const wig = Math.sin(tt * Math.PI * 1.5 + i) * 1.2;
+              const fwdProgress = isPrimary ? Math.min(3, tt * 4) : 0;
+              dd.x = d.x + dir * fwdProgress;
+              dd.y = d.y + wig;
+            }
             dd.pose = "engage";
             // Hold the engage pose on frame 0 (was wall-clock cycling
             // through the 4-frame engage anim at ~3 Hz = visible
@@ -5305,6 +5346,9 @@ function buildAnimForPlay(play, prevPlay) {
             // PILE FOLLOWERS — release from OL and converge on the
             // carrier/ball. Per-slot offset so they don't stack.
             // Strip-sack: target the loose ball, not the QB.
+            // PHASE 2: shed the pocket engagement so it stops pinning
+            // this DL to its blocker while it pursues the pile.
+            if (d._sackEng && !d._sackEng.shed) d._sackEng.releaseShed();
             const _pileT = (tt - PILE_START) * dur / 1000;
             const offX = ((i - primaryIdx) * 6) + (i * 3 - 4);
             const offY = ((i & 1) ? 8 : -8) + (i - 2) * 3;
@@ -5323,12 +5367,18 @@ function buildAnimForPlay(play, prevPlay) {
             if (arrived) dd.t = 0;
             else if (!np.moved) dd.t = 0;
           } else {
-            // Non-rushing DL hold the LOS engaged with OL. Slow sway,
-            // frozen pose-frame to avoid the dancing look from rapid
-            // wall-clock cycling.
-            const wig = Math.sin(tt * Math.PI * 1.2 + i * 0.7) * 1.0;
-            dd.x = d.x + wig * 0.5;
-            dd.y = d.y + wig;
+            // Non-rushing DL hold the LOS engaged with OL between
+            // rushReleaseT and PILE_START. PHASE 2: read the pocket
+            // engagement (cup) so they track their blocker as the
+            // pocket collapses, instead of swaying around a fixed spot.
+            if (d._sackEng && !d._sackEng.shed) {
+              dd.x = d._sackEng.defenderX;
+              dd.y = d._sackEng.defenderY;
+            } else {
+              const wig = Math.sin(tt * Math.PI * 1.2 + i * 0.7) * 1.0;
+              dd.x = d.x + wig * 0.5;
+              dd.y = d.y + wig;
+            }
             dd.pose = "engage";
             dd.t = 0;
           }
@@ -5370,12 +5420,18 @@ function buildAnimForPlay(play, prevPlay) {
         if (p.role === "OL" && t > PRE) {
           const tt = (t - PRE) / (1 - PRE);
           const slotDepth = Math.abs((p.y - cy) / 14);
-          // OL get pushed back into the pocket — looks like they're losing.
-          // The matched OL (whose man wins the rep) gets a bigger drive
-          // back + a "lost it" pose at rushReleaseT so the rusher's win
-          // is visibly the OL's loss. Pre-rushRelease: identical to peers.
-          let _olX = p.x - dir * (6 + slotDepth * 3) * tt;
-          let _olY = p.y + Math.sin(tt * Math.PI * 5 + p.y) * 2.5;
+          // PHASE 2: OL position comes from the pocket-cup engagement —
+          // tackles kick back and widen, center holds, the whole cup
+          // collapses as the rush wins. The losing OL (whose man beats
+          // him) still gets the extra shove + "stiff" lost-it override.
+          let _olX, _olY;
+          if (p._sackEng) {
+            _olX = p._sackEng.blockerX;
+            _olY = p._sackEng.blockerY;
+          } else {
+            _olX = p.x - dir * (6 + slotDepth * 3) * tt;
+            _olY = p.y + Math.sin(tt * Math.PI * 5 + p.y) * 2.5;
+          }
           let _olPose = "engage";
           if (p === _losingOl && tt > _sackRushReleaseT) {
             // Win window — bigger push back, slight lean, transitions
