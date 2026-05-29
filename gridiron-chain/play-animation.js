@@ -1673,7 +1673,27 @@ function buildAnimForPlay(play, prevPlay) {
     const RUN_TACKLE_MS = isTD ? Math.round(1500 + Math.min(Math.abs(yards), 80) * 8)
                          : isFirstDownRun ? 1700
                          : 1000;
-    const actionDur = scaledDuration(yards) + RUN_TACKLE_MS;
+    // Size the run clock off the carrier's ACTUAL path length, not the
+    // net yards gained. A run that bounces outside travels a longer
+    // (diagonal) path; clocking it for straight yards made the carrier
+    // cover the extra lateral distance in the same time = "really fast"
+    // bounce runs. Measure the carrier waypoint arc length (in yards)
+    // and pace off whichever is longer.
+    let _runPathYds = Math.abs(yards);
+    {
+      const _ct = play.motion && play.motion.tracks && play.motion.tracks.carrier;
+      if (_ct && _ct.waypoints && _ct.waypoints.length > 1) {
+        let acc = 0;
+        for (let _w = 1; _w < _ct.waypoints.length; _w++) {
+          const a = _ct.waypoints[_w - 1], b = _ct.waypoints[_w];
+          acc += Math.hypot((b.dxYd - a.dxYd), (b.dyYd - a.dyYd));
+        }
+        // Ignore the pre-snap formation→mesh leg (carrier isn't sprinting
+        // yet) by not counting more than the gain + a sane lateral budget.
+        if (acc > _runPathYds) _runPathYds = Math.min(acc, _runPathYds + 25);
+      }
+    }
+    const actionDur = scaledDuration(_runPathYds) + RUN_TACKLE_MS;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
     // Play-side picks for run concepts — hoisted out of the RB block so
