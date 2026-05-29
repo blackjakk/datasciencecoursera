@@ -535,6 +535,12 @@ function _drawPlayerShadow(ctx, x, y, style, pose) {
 }
 
 function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
+  // Normalize missing pose to "idle" up front. Without this, callers
+  // that don't set p.pose (non-target WRs running routes, FB, etc.)
+  // would pass undefined → drawPlayerSprite returns false ("unknown-
+  // pose") → falls through to the suppressed procedural path →
+  // player vanishes. Idle has a sprite for all 8 dirs.
+  if (pose == null || pose === "") pose = "idle";
   // Derive locomotion-driven pose-t and facing from per-player position
   // deltas. Caller's t and facing are used as fallback / for non-
   // locomotion poses. Cache update happens every frame (regardless of
