@@ -1334,6 +1334,22 @@ function buildAnimForPlay(play, prevPlay) {
     const preT = tNow / PRE;
     return preT >= 0.40 && preT < 0.88;
   };
+  // Smoothed X depth for the motion player. He drops ~20px behind the LOS
+  // while jogging (so he clears the line), then returns to set. This MUST
+  // ease in/out — a binary `moving ? -20 : 0` jumped 20px when motion began
+  // (preT 0.40) and again when he set (preT 0.88, right before the snap),
+  // and the render continuity guard smeared each jump into a fast slide:
+  // a stance-posed player gliding ~10yps reads as "super speed at the snap".
+  const motionXOffset = (tNow) => {
+    if (!hasMotion || tNow >= PRE) return 0;
+    const preT = tNow / PRE;
+    if (preT < 0.40 || preT >= 0.88) return 0;
+    const env = preT < 0.50 ? (preT - 0.40) / 0.10      // ease in
+              : preT > 0.80 ? (0.88 - preT) / 0.08      // ease out (set)
+              : 1;
+    const sm = env * env * (3 - 2 * env);               // smoothstep
+    return -dir * 20 * sm;
+  };
 
   // ── DEFENSIVE PRE-SNAP MOVEMENT ─────────────────────────────────────
   // ~35% of plays, one defender shifts pre-snap (LB walks up to show blitz,
@@ -2760,11 +2776,10 @@ function buildAnimForPlay(play, prevPlay) {
           if (isMotion) {
             const yOff = motionYOffset(t);
             const moving = isInMotionNow(t);
-            // Path goes 20px back from the LOS so the motion player is
-            // CLEARLY behind the OL (at LOS - dir*2) and the QB (LOS -
-            // dir*6). Was only 10px which was still visually clipping
-            // with the line at broadcast-cam depth.
-            const xOff = moving ? -dir * 20 : 0;
+            // Eased ~20px behind the LOS (clears the line) — see motionXOffset.
+            // Was binary (moving ? -20 : 0), which jumped at the motion
+            // start/set boundaries and slid via the continuity guard.
+            const xOff = motionXOffset(t);
             // Face the DIRECTION OF MOTION when actively running. If
             // motionEndY > motionStartY, player is moving toward higher
             // field-Y → faces +1. Otherwise faces -1. Reverts to dir
@@ -4881,10 +4896,10 @@ function buildAnimForPlay(play, prevPlay) {
           if (isMotion) {
             const yOff = motionYOffset(t);
             const moving = isInMotionNow(t);
-            // Path 20px back from LOS so it clears the line. Face the
-            // direction of motion while active; revert to offense dir
-            // once motion stops.
-            const xOff = moving ? -dir * 20 : 0;
+            // Eased ~20px back from the LOS (see motionXOffset) — was binary
+            // (moving ? -20 : 0), which jumped at the motion boundaries and
+            // got smeared into a fast slide ("super speed at the snap").
+            const xOff = motionXOffset(t);
             const motionFacing = moving
               ? ((motionEndY > motionStartY) ? 1 : -1)
               : dir;
