@@ -1757,6 +1757,13 @@ function buildAnimForPlay(play, prevPlay) {
     const actionDur = scaledDuration(_runPathYds) + RUN_TACKLE_MS;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
+    // Scramble pocket boundaries (fixed wall-time). Hoisted here so the
+    // carrier MOTION (ball-X branch) and the carrier POSE (sprite branch)
+    // switch phases at the SAME runT — otherwise the pose lagged the motion
+    // (QB still in the cocked "throw" pose while his body was already
+    // running forward) on short scrambles where _readFrac > the old 0.34.
+    const _scrDropFrac = clamp(950 / actionDur, 0.10, 0.34);
+    const _scrReadFrac = _scrDropFrac + clamp(330 / actionDur, 0.04, 0.14);
     // Play-side picks for run concepts — hoisted out of the RB block so
     // they're also available to the OL/FB renders. counterSide/stretchSide/
     // pitchSide use the same hash formulas as the existing RB code so the
@@ -1831,8 +1838,8 @@ function buildAnimForPlay(play, prevPlay) {
         //   Phase C (rest):        tuck and run to endX, paced (accel→cruise)
         const dropBackX = qb.x - dir * 5 * FIELD.PX_PER_YARD;
         const readSpotX = dropBackX + dir * 2;
-        const _dropFrac = clamp(950 / actionDur, 0.10, 0.34);
-        const _readFrac = _dropFrac + clamp(330 / actionDur, 0.04, 0.14);
+        const _dropFrac = _scrDropFrac;
+        const _readFrac = _scrReadFrac;
         if (runT < _dropFrac) {
           const dropT = runT / _dropFrac;
           const sm = dropT * dropT * (3 - 2 * dropT);
@@ -2096,8 +2103,11 @@ function buildAnimForPlay(play, prevPlay) {
       } else if (isScramble) {
         // QB breaks pocket, ball in 2 hands at chest. Was "carry"
         // (RB ball-tucked-under-arm), wrong silhouette for a QB.
-        if (runT < 0.34)        rbPose = "throw";        // looking downfield, ball cocked
-        else                     rbPose = "qb_scramble"; // 2-handed sprint
+        // Switch to the sprint pose at _scrReadFrac — the SAME instant the
+        // motion leaves the pocket — so the pose can't lag the body (was a
+        // hardcoded 0.34 that no longer matched the fixed-time pocket).
+        if (runT < _scrReadFrac) rbPose = "throw";        // pocket: looking downfield, ball cocked
+        else                     rbPose = "qb_scramble";  // 2-handed sprint
       } else if (isQBRun) {
         // Designed QB keeper. Use qb_scramble sprite (ball at chest)
         // instead of carry (RB tuck).
@@ -4447,7 +4457,13 @@ function buildAnimForPlay(play, prevPlay) {
             dd.x = ballX;
             dd.y = ballY;
             dd.facing = -dir;
-            dd.pose = aT > 0.92 ? "tackled_carry" : "run";  // INT defender has the ball — prone-with-ball
+            // INT defender HAS the ball on the return. Must be a ball-bearing
+            // sprite: the standalone ball is gated OFF after the catch (int
+            // pure-flight window), so a "run" pose (no ball on the sprite)
+            // left the return with NO ball visible at all until the very end.
+            // "carry" tucks the ball through the return; "tackled_carry" at
+            // the tackle keeps it tucked as he goes down.
+            dd.pose = aT > 0.92 ? "tackled_carry" : "carry";
           }
         }
         // DROPPED PICK — play.isDroppedPick + play.dropper. The defender
@@ -5838,7 +5854,16 @@ function buildAnimForPlay(play, prevPlay) {
       } else {
         _sackBallX = qb.x; _sackBallY = qb.y;
       }
-      drawBall(ctx, _sackBallX, _sackBallY, 1, _sackBallOpts);
+      // SINGLE BALL — before contact the QB holds the ball in a ball-bearing
+      // sprite (drop_step / qb_carry both draw a ball at his chest), so the
+      // standalone would double it. Show the standalone only when no sprite
+      // is holding it: pre-snap (at the center), a strip-sack (loose ball),
+      // or once the QB is DOWN ("tackled" → fall sprite, which has no ball).
+      const _sackSpritesOn = (typeof SpriteAtlas !== "undefined" && SpriteAtlas.anyLoaded());
+      const _qbHoldsBall = (qbPose === "qb_carry" || qbPose === "drop_step");
+      if (!_sackSpritesOn || t < PRE || _stripBall || !_qbHoldsBall) {
+        drawBall(ctx, _sackBallX, _sackBallY, 1, _sackBallOpts);
+      }
       // Pressure indicator — pulsing red ring around QB once the rush
       // has visually broken through. Was sackT > 0.20 which tipped the
       // user that "this is a sack" before the rusher even released. Now
@@ -6827,7 +6852,15 @@ function buildAnimForPlay(play, prevPlay) {
                          : (phase === "field" ? "catch" : "idle");
       const returnerFacing = phase === "return" ? -dir : dir;  // turns around to run back
       drawPlayer(ctx, returnerX, returnerDrawY, oppColor, oppTeam.secondary, "", returnerPose, (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), returnerFacing, { name: "punt-returner" });
-      drawBall(ctx, ballX, ballY, 1 + arc / 200);
+      // SINGLE BALL — once the returner fields it ("catch") and runs it back
+      // ("carry"), those sprites draw the ball in hand/tuck; the standalone
+      // would double it. Show the standalone only while the ball is in the
+      // air (snap/wind/air, returner "idle" — no ball on the sprite).
+      const _puntSpritesOn = (typeof SpriteAtlas !== "undefined" && SpriteAtlas.anyLoaded());
+      const _returnerHoldsBall = (returnerPose === "carry" || returnerPose === "catch");
+      if (!_puntSpritesOn || !_returnerHoldsBall) {
+        drawBall(ctx, ballX, ballY, 1 + arc / 200);
+      }
       // Callouts
       if (phase === "field" || (phase === "return" && t < PH_FIELD_END + RET_LEN * 0.25)) {
         ctx.save();
