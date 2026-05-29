@@ -191,8 +191,9 @@ class Engagement {
     // refresh (a 120Hz monitor stepped twice as often and caved the
     // pocket twice as fast). Clamped 0..3 so a long stall between
     // frames can't lurch the drift.
-    const dtF = this._lastStepMs == null ? 1
-              : Math.max(0, Math.min(3, (nowMs - this._lastStepMs) / 16.67));
+    const _gcSlow = (typeof window !== "undefined" && window._GC_SLOWF != null) ? window._GC_SLOWF : 1;
+    const dtF = (this._lastStepMs == null ? 1
+              : Math.max(0, Math.min(3, (nowMs - this._lastStepMs) / 16.67))) * _gcSlow;
     this._lastStepMs = nowMs;
     // Pressure drift accumulates along the defender's attack axis when
     // leverage is negative (rush winning) → blocker pushed toward QB.
