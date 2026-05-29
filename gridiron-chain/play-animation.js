@@ -3167,11 +3167,24 @@ function buildAnimForPlay(play, prevPlay) {
     // window starts at aT > 0.78, so action_dur * 0.78 must be enough
     // for the WR to cover the YAC distance — adding _yacScaleMs + 1500
     // (1000 ms accel ramp + 500 ms settle) hits that for all yardages.
+    // INT return distance is computed in the render closure below from
+    // the same seed; mirror it here so POST_CATCH gets enough time for
+    // long returns. Without this scaling, a 30-yd return had to fit in
+    // 1800 ms = 16 yps average and 48 yps peak with easeOutCubic — pure
+    // teleport. Now: ~100 ms per yard at top speed + 1500 ms tackle
+    // settle so even 30-yd returns play out at realistic ~10 yps.
+    let _intRetDistYds = 0;
+    if (play.kind === "int") {
+      const _intSeed = ((play.startYard * 7 + (play.targetDepth || 0)) >>> 0) % 100;
+      _intRetDistYds = _intSeed < 55 ? (_intSeed % 3)
+                     : _intSeed < 85 ? 3 + (_intSeed % 10)
+                     :                 13 + (_intSeed % 18);
+    }
     const POST_CATCH_MS = isPassTD                  ? Math.max(2400, _yacScaleMs + 1800)
                         : isScreen && play.kind === "complete"  ? screenYacMs
                         : isFirstDownPassPlay       ? Math.max(3000, _yacScaleMs + 1800)
                         : play.kind === "complete"  ? Math.max(2400, _yacScaleMs + 1500)
-                        : play.kind === "int"       ? 1800
+                        : play.kind === "int"       ? Math.max(1800, _intRetDistYds * 100 + 1500)
                         : play.kind === "incomplete" ? 1800   // ball bounce + roll settle window
                         : 1000;
     const actionDur = basePass + POST_CATCH_MS;
@@ -3612,13 +3625,26 @@ function buildAnimForPlay(play, prevPlay) {
                            :             13 + (seed % 18);
           const retEndX = targetX - dir * retDistYds * FIELD.PX_PER_YARD;
           const retEndY = targetY + (targetY < cy ? -10 : 10);
-          ballX = targetX + (retEndX - targetX) * easeOutCubic(tt);
-          ballY = targetY + (retEndY - targetY) * easeOutCubic(tt);
-          // WR converges on the picking defender to make the tackle
-          const wrTackleX = ballX + dir * 6;  // WR arrives just in front of defender
+          // Use the same accel + linear cruise pacing as the run carrier
+          // instead of easeOutCubic. easeOutCubic peaked at 3× avg speed
+          // at the catch instant — a 30-yd return had to start at ~48
+          // yps to satisfy the time budget. With runPacing the defender
+          // ramps up over ~15% time then cruises linearly. POST_CATCH_MS
+          // is now sized to retDistYds so the cruise stays at ~10 yps.
+          const _postCatchMs = (1 - throwPhase) * dur;
+          const _retProg = runPacing(tt, _postCatchMs);
+          ballX = targetX + (retEndX - targetX) * _retProg;
+          ballY = targetY + (retEndY - targetY) * _retProg;
+          // WR converges on the picking defender to make the tackle. The
+          // *1.4 hurry-factor was fine when post-catch was 1800ms, but
+          // with the scaled longer window the WR was visibly outrunning
+          // the int defender. Drop to 1.15 so the convergence speed is
+          // proportional and the WR still arrives ahead of the tackle
+          // window's end.
+          const wrTackleX = ballX + dir * 6;
           const wrTackleY = ballY + (targetY < cy ? 4 : -4);
-          wr.x = targetX + (wrTackleX - targetX) * Math.min(1, tt * 1.4);
-          wr.y = targetY + (wrTackleY - targetY) * Math.min(1, tt * 1.4);
+          wr.x = targetX + (wrTackleX - targetX) * Math.min(1, tt * 1.15);
+          wr.y = targetY + (wrTackleY - targetY) * Math.min(1, tt * 1.15);
         }
       }
 
