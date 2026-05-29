@@ -1787,6 +1787,9 @@ function buildAnimForPlay(play, prevPlay) {
     const _counterSide = ((play.startYard * 11) % 2) === 0 ? 1 : -1;
     const _stretchSide = ((play.startYard * 17) % 2) === 0 ? 1 : -1;
     const _pitchSide   = ((play.startYard * 13) % 2) === 0 ? 1 : -1;
+    // Run-block engagement sim (built lazily on the first post-snap frame,
+    // persists across render frames via this closure — like _passPro).
+    let _runBlock = null;
     // TD-celebration "_followX/_followY" state for run-play teammates
     // lives on the formation.offense player objects themselves (per-play
     // state, reset each play via the formation rebuild). No closure
@@ -2332,6 +2335,45 @@ function buildAnimForPlay(play, prevPlay) {
       // Determine which DL "wins" his rep — for big runs, the OL is winning at every gap
       // (we ALSO need at least one DL to break free if the run is short / for losses)
       const dlBreaksFree = yards < 2 ? 1 : 0;  // on stuffs, one rusher penetrates
+      // ── RUN-BLOCK ENGAGEMENT SIM (standard runs) ──
+      // Pair each ENGAGED DL with its nearest OL; winning blocks SEAL the DL
+      // off the hole, opening the lane the carrier hits. The penetrator
+      // (dlBreaksFree) is left OUT of the sim — it beats its block and
+      // pursues via the existing DL logic below. Special runs (counter /
+      // stretch / pitch pulls, option, reverse, QB keep, scramble) keep their
+      // scripted blocking.
+      const _isStandardRun = !play.isScramble && !play.isQBRun && !play.isSpeedOption
+        && !play.isReverse && play.runType !== "counter"
+        && play.runType !== "stretch" && play.runType !== "pitch";
+      if (t > PRE && _runBlock == null && _isStandardRun && typeof RunBlockSim !== "undefined") {
+        const _PX = FIELD.PX_PER_YARD;
+        const _holeY = cy + ((play.motion && play.motion.gapYd) || 0) * _PX;
+        _runBlock = new RunBlockSim({ dir, losX, holeY: _holeY });
+        const _rbOLs = formation.offense.filter(o => o.role === "OL");
+        const _rbDLs = formation.defense.filter(x => x.role === "DL");
+        const _usedOL = new Set();
+        for (let di = 0; di < _rbDLs.length; di++) {
+          if (di === dlBreaksFree) continue;   // penetrator pursues (not in the sim)
+          const dl = _rbDLs[di];
+          let best = null, bestDist = Infinity;
+          for (const ol of _rbOLs) {
+            if (_usedOL.has(ol)) continue;
+            const dist = Math.abs(ol.y - dl.y);
+            if (dist < bestDist) { bestDist = dist; best = ol; }
+          }
+          if (!best) continue;
+          _usedOL.add(best);
+          const _nearHole = Math.abs(dl.y - _holeY) < 1.6 * _PX;
+          const win = _nearHole ? 0.7 : 0.3;            // hole blocks win big, others hold
+          const sealSign = (dl.y >= _holeY ? 1 : -1);   // shove the DL away from the hole
+          _runBlock.addPair(best, dl, {
+            contactX: dl.x - dir * 12,   // OL fires to a body-depth in front of the DL
+            contactY: dl.y,
+            win, sealSign,
+          });
+        }
+      }
+      if (_runBlock) _runBlock.step(performance.now());
       // PILE SIZE CAP — limit how many defenders flip to the tackled/
       // ragdoll pose. Was "every defender within 28px gets the pose" so
       // when 4-5 defenders happened to be close they ALL piled on,
@@ -2397,6 +2439,19 @@ function buildAnimForPlay(play, prevPlay) {
           }
         }
         if (i < 4) {
+          // RUN-BLOCK SIM — if this DL is in an engaged (non-shed) rep, the
+          // sim owns his position: he's locked up with an OL, getting driven
+          // / sealed. The penetrator isn't in the sim (it falls through to
+          // the pursuit below), and a shed rep releases him likewise.
+          const _rbPair = _runBlock && _runBlock.pairFor(d);
+          if (_rbPair && !_rbPair.shed) {
+            dd.x = _rbPair.dlX; dd.y = _rbPair.dlY;
+            dd.pose = "engage";
+            dd.t = tt;
+            dd.facing = -dir;
+            dd.archetype = _archForLineman(d, "DL");
+            return dd;
+          }
           // PATH B Phase 9 — engine-emitted DL anchor track wins when
           // present. DL holds the LOS with a slight push-back; engine
           // varies by run type + interior position. Non-tackler DL.
@@ -2797,6 +2852,15 @@ function buildAnimForPlay(play, prevPlay) {
                    facing: dir };
         }
         if (p.role === "OL") {
+          // RUN-BLOCK SIM — if this OL is in an engaged rep, the sim owns his
+          // position (he's driving / sealing his DL). Wins the matchup =
+          // drives the DL downfield + out of the hole.
+          const _rbOLPair = _runBlock && _runBlock.pairFor(p);
+          if (_rbOLPair) {
+            return { ...p, x: _rbOLPair.olX, y: _rbOLPair.olY,
+                     pose: "engage", t: tt, facing: dir,
+                     archetype: _archForLineman(p, "OL") };
+          }
           // PATH B Phase 9 — engine-emitted OL track wins when present.
           // Slot index 0-4 by Y RANK among the OL (topmost = 0). Was
           // round((p.y-cy)/14)+2, but the OL are spaced 32px (not 14), so

@@ -295,11 +295,107 @@ class PassProSim {
   }
 }
 
+// ─── Run-blocking engagement primitives ────────────────────────────────
+//
+// First-principles run trench: every engaged OL↔DL pair is a rep with a
+// WIN factor. A winning OL (win>0) drives his DL downfield (+dir) AND
+// laterally OUT of the hole — that lateral SEAL is what opens the lane the
+// carrier runs through. A holding rep (small win) just locks up at the LOS.
+// The one DL that beats his block ("penetrator") is NOT added to the sim —
+// the animation drives his pursuit of the carrier. So the hole the carrier
+// hits is the negative space left by the winning seals, not a scripted lane.
+//
+// Like Engagement, each pair owns its own copy of the OL/DL positions; the
+// caller reads pair.olX/olY and .dlX/.dlY. dt-scaled so the drive rate is
+// refresh-independent.
+class RunBlockEngagement {
+  constructor(ol, dl, opts = {}) {
+    this.olKey = ol;
+    this.dlKey = dl;
+    this.dir = opts.dir || 1;
+    this.win = opts.win || 0;                       // -1..+1, + = OL wins the rep
+    this.contactX = opts.contactX;                  // engagement-line X (downfield of LOS)
+    this.contactY = opts.contactY != null ? opts.contactY : dl.y;  // OL slides to the DL's lane
+    this.sealSign = opts.sealSign || 0;             // lateral push of the DL AWAY from the hole (±1)
+    this.lockDepth = opts.lockDepth != null ? opts.lockDepth : 12;
+    this.pull     = opts.pull     != null ? opts.pull     : 0.16;
+    this.driftPx  = opts.driftPx  != null ? opts.driftPx  : 0.6;
+    this.shed = false;
+    this.olX = ol.x; this.olY = ol.y;
+    this.dlX = dl.x; this.dlY = dl.y;
+    this.dlHomeX = dl.x; this.dlHomeY = dl.y;        // DL's pre-snap anchor
+    this.driveX = 0; this.driveY = 0;
+    this.startMs = null; this._lastMs = null;
+    this.wobblePhase = Math.random() * Math.PI * 2;
+  }
+  step(nowMs) {
+    if (this.startMs == null) this.startMs = nowMs;
+    const dtF = this._lastMs == null ? 1
+              : Math.max(0, Math.min(3, (nowMs - this._lastMs) / 16.67));
+    this._lastMs = nowMs;
+    const elapsed = nowMs - this.startMs;
+    // Drive along the LOS axis: a winning OL drives the DL DOWNFIELD (+dir);
+    // a losing OL is driven back toward the backfield (and may shed).
+    const DRIVE_MAX_X = 22;    // ~1.5yd of give either way
+    const SEAL_MAX_Y  = 28;    // ~1.9yd lateral seal
+    this.driveX += this.dir * this.driftPx * this.win * dtF;
+    this.driveX = Math.max(-DRIVE_MAX_X, Math.min(DRIVE_MAX_X, this.driveX));
+    // Lateral SEAL — only a winning OL shoves the DL off the hole lane.
+    this.driveY += this.sealSign * this.driftPx * Math.max(0, this.win) * 0.85 * dtF;
+    this.driveY = Math.max(-SEAL_MAX_Y, Math.min(SEAL_MAX_Y, this.driveY));
+    // A clearly-losing rep pops free after a beat — the DL sheds the block.
+    if (!this.shed && this.win < -0.15 && elapsed > 220) this.shed = true;
+    const w = Math.sin(elapsed / 200 + this.wobblePhase);
+    // OL rides (EMA) to the contact point + accumulated drive + a little wobble.
+    const olTx = this.contactX + this.driveX + w * 0.6;
+    const olTy = this.contactY + this.driveY + w;
+    this.olX += (olTx - this.olX) * this.pull;
+    this.olY += (olTy - this.olY) * this.pull;
+    if (this.shed) return;   // DL freed — the caller drives his pursuit
+    // DL HOLDS its ground until the OL drives PAST the rest contact point;
+    // then it's pushed downfield by the overage. The OL never pulls the DL
+    // back toward the offense (that would be the DL penetrating, which is
+    // the penetrator's job, not an engaged rep). The fire-out (OL easing up
+    // from formation) therefore leaves the DL planted, not yanked backward.
+    const driveBeyond = Math.max(0, (this.olX - this.contactX) * this.dir);
+    const dlTx = this.dlHomeX + this.dir * driveBeyond;
+    const dlTy = this.olY + w * -0.4;   // sealed laterally to the OL
+    this.dlX += (dlTx - this.dlX) * this.pull;
+    this.dlY += (dlTy - this.dlY) * this.pull;
+  }
+}
+
+// RunBlockSim — owns the run-blocking engagement set for one run play.
+// Construct after the formation is built, addPair() each engaged OL↔DL,
+// step() every render frame, read positions via pairFor().
+class RunBlockSim {
+  constructor(opts = {}) {
+    this.dir = opts.dir || 1;
+    this.losX = opts.losX || 0;
+    this.holeY = opts.holeY != null ? opts.holeY : 0;
+    this.pairs = [];
+  }
+  addPair(ol, dl, opts = {}) {
+    const eng = new RunBlockEngagement(ol, dl, { dir: this.dir, ...opts });
+    this.pairs.push(eng);
+    return eng;
+  }
+  step(nowMs) { for (const e of this.pairs) e.step(nowMs); }
+  pairFor(player) {
+    for (const e of this.pairs) {
+      if (e.olKey === player || e.dlKey === player) return e;
+    }
+    return null;
+  }
+}
+
 // Exported globals (this file is loaded as a plain script, not a module).
 window.SimPlayer = SimPlayer;
 window.simIntercept = simIntercept;
 window.Engagement = Engagement;
 window.PassProSim = PassProSim;
+window.RunBlockEngagement = RunBlockEngagement;
+window.RunBlockSim = RunBlockSim;
 window.simPxToYards = pxToYards;
 window.simYardsToPx = yardsToPx;
 window.SIM_DEFAULTS = {
