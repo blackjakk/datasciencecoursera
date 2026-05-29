@@ -3601,8 +3601,17 @@ function buildAnimForPlay(play, prevPlay) {
         // batted barely makes it past the LOS).
         const ttRaw = (at - releaseAT) / (throwEndAT - releaseAT);
         const tt = flightCurve(ttRaw);
-        const flightTX = targetX + incOffsetX;
-        const flightTY = targetY + incOffsetY;
+        // COMPLETE passes home the ball to the receiver's ACTUAL catch
+        // position (his live route-end, _wrLast) — NOT the abstract
+        // targetX/targetY the throw was aimed at. Since the receiver now
+        // catches at his route-end (continuity fix), aiming the ball at
+        // the static target made the descending arc sail OVER/BESIDE him
+        // and then snap to his chest at the catch ("sailed over his head
+        // but caught it"). Incompletes keep target + miss offset (the
+        // ball is SUPPOSED to land where the receiver isn't).
+        const _homeToRcvr = play.kind === "complete" && _wrLastX != null;
+        const flightTX = _homeToRcvr ? _wrLastX : (targetX + incOffsetX);
+        const flightTY = _homeToRcvr ? _wrLastY : (targetY + incOffsetY);
         ballX = releaseX + (flightTX - releaseX) * tt;
         // Arc lands at HAND/HEAD height, not feet. Original parabola
         // dropped to 0 at catch, so the ball arrived at the receiver's
@@ -3611,7 +3620,16 @@ function buildAnimForPlay(play, prevPlay) {
         // above field-y by tt=1 — matches the receiver's reach-arm
         // tip position. Reduced for batted / underthrown so those land
         // at the right (low) height.
-        const handElev = incDropFast ? 0 : (incOffsetY < 0 ? 18 : 14);
+        // handElev raises the ball to the carrier's HAND/CHEST height at
+        // tt=1 so it arrives where the carry-hand sink will hold it (no
+        // snap at the catch). The sprite body is ~92px tall (chest ≈ 46px
+        // above the foot origin) vs the shorter procedural body (chest
+        // ≈ 14px), so pick the elevation to match whichever is active.
+        const _spriteHands = (typeof SpriteAtlas !== "undefined" && SpriteAtlas.anyLoaded());
+        const _chestElev = _spriteHands ? 46 : 14;
+        const handElev = incDropFast ? 0
+                       : _homeToRcvr  ? _chestElev
+                       : (incOffsetY < 0 ? 18 : 14);
         arc = Math.sin(tt * Math.PI) * arcHeight * incArcMul + tt * handElev;
         ballY = releaseY + (flightTY - releaseY) * tt - arc;
         // Spiral orientation — ball nose points along the velocity vector.
