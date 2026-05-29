@@ -3208,6 +3208,12 @@ function buildAnimForPlay(play, prevPlay) {
     // targetX teleported the WR (and lurched the downfield blockers that
     // target wr.x) on the catch frame.
     let _wrLastX = null, _wrLastY = null;
+    // Route velocity (EMA of per-frame deltas, px/frame) — carried into
+    // the YAC sim at the catch so the receiver keeps his momentum
+    // through the catch instead of decelerating to rest and
+    // re-accelerating (the catch "hitch"). This + the route-end position
+    // init = the WR is one continuous agent across the catch boundary.
+    let _wrVX = 0, _wrVY = 0;
     // Carrier's YAC endpoint — single source of truth for where the
     // ball-carrier ends up, shared by the WR sim AND the guaranteed-
     // tackler convergence so they meet at the SAME spot. Anchored at the
@@ -3483,8 +3489,12 @@ function buildAnimForPlay(play, prevPlay) {
       // any future shape that overshoots).
       const _sideMargin = 8;
       wr.y = Math.max(FIELD.TOP + _sideMargin, Math.min(FIELD.BOT - _sideMargin, wr.y));
-      // Capture the WR's actual rendered position so _wrSim can init from
-      // it (continuity across the catch — no route-end→targetX jump).
+      // Capture the WR's actual rendered position AND velocity so _wrSim
+      // can init from both (continuity + momentum across the catch).
+      if (_wrLastX != null) {
+        _wrVX = _wrVX * 0.6 + (wr.x - _wrLastX) * 0.4;   // px/frame, smoothed
+        _wrVY = _wrVY * 0.6 + (wr.y - _wrLastY) * 0.4;
+      }
       _wrLastX = wr.x; _wrLastY = wr.y;
 
       // Throw style — TOUCH lobs high+slow, ZIP fires low+fast, DEEP arcs even higher
@@ -3685,12 +3695,25 @@ function buildAnimForPlay(play, prevPlay) {
             // Init at the WR's actual route-end position (continuity), not
             // the independently-computed targetX/targetY which can differ
             // and cause a catch-frame teleport.
+            const _maxV = WR_TOP_YPS_VISUAL * FIELD.PX_PER_YARD;
             _wrSim = new SimPlayer(
               _wrLastX != null ? _wrLastX : targetX,
               _wrLastY != null ? _wrLastY : targetY, {
-              maxSpeed: WR_TOP_YPS_VISUAL * FIELD.PX_PER_YARD,
+              maxSpeed: _maxV,
               accel:    10 * FIELD.PX_PER_YARD,   // ~1s to top speed
             });
+            // MOMENTUM CARRY-THROUGH — seed the sim with the receiver's
+            // route velocity (px/frame → px/sec at 60fps), capped at the
+            // sim's top speed, so a deep ball caught in stride keeps
+            // running instead of stopping dead and re-accelerating. A
+            // receiver who was stationary at the catch (hitch/comeback)
+            // seeds ~0 and accelerates from rest, which is correct.
+            const _routeVpx = Math.hypot(_wrVX, _wrVY) * 60;   // px/sec
+            if (_routeVpx > 1) {
+              const _spd = Math.min(_routeVpx, _maxV);
+              _wrSim.vx = (_wrVX / Math.hypot(_wrVX, _wrVY)) * _spd;
+              _wrSim.vy = (_wrVY / Math.hypot(_wrVX, _wrVY)) * _spd;
+            }
           }
           if (_wrSim) {
             _wrSim.stepTowardAt(_effEndX, _simFinalY, performance.now());
