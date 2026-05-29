@@ -5096,15 +5096,22 @@ function buildAnimForPlay(play, prevPlay) {
       // SINGLE BALL ON THE FIELD — the catch/reach/leap sprites have a ball
       // baked into the hands (and the carry sprites a tucked ball). Whenever
       // one of those is on screen it IS the ball, so the standalone flight
-      // ball must be suppressed or two balls show at once. The old gate cut
-      // the standalone at ~throwEndAT (the catch INSTANT), but the catch
-      // sprite engages up to 0.10 EARLIER (the windup) — that lead window
-      // drew both the sprite's hand-ball and the flight ball.
+      // ball must be suppressed or two balls show at once. Hand off to the
+      // catch sprite, but ONLY once the ball is genuinely near the hands.
       const _flightSpan = Math.max(0.001, throwEndAT - releaseAT);
       const _airStart = releaseAT + _flightSpan * 0.08;
       const _airEnd   = throwEndAT - _flightSpan * 0.06;
-      // Is the receiver's ball-bearing catch sprite (reach/leap) on screen?
-      const _spriteHoldsCatchBall = inLeapWindow || isCatching;
+      // The catch/leap POSE windup opens at a fixed offset in FULL-PLAY time
+      // (throwPhase - 0.10 for a leap). On a deep ball the flight is only a
+      // small slice of the play, so that 0.10 lead reaches back to MID-FLIGHT
+      // in action-time — suppressing the standalone there made the ball
+      // VANISH halfway through a ~20-yd leaping sideline throw. Gate the
+      // hand-off on FLIGHT progress instead: only suppress in the final
+      // stretch of flight (ball near the hands), regardless of how early the
+      // windup pose engages. The catch sprite is already up by then, so the
+      // hand-off stays clean and the ball never disappears mid-flight.
+      const _nearCatch = at >= throwEndAT - _flightSpan * 0.13;
+      const _spriteHoldsCatchBall = (inLeapWindow || isCatching) && _nearCatch;
       let showStandalone;
       if (t < PRE || at < snapMotionAT) {
         showStandalone = true;            // pre-snap + C→QB snap toss
