@@ -5182,8 +5182,16 @@ function buildAnimForPlay(play, prevPlay) {
           const idHash = ((p.y * 7 + (p.x * 3)) >>> 0) % 100 / 100;
           const decoyDepth = catchDepth * (0.6 + idHash * 0.6);
           const lateralOff = (idHash - 0.5) * 36;
-          const _x = _clampX(p.x + dir * tt * decoyDepth * FIELD.PX_PER_YARD);
-          const _y = _clampY(p.y + Math.sin(tt * Math.PI * 0.6) * lateralOff);
+          // Pace the clear-out at a REALISTIC speed (~9 yps) and hold once
+          // at depth — NOT "reach full depth by the catch". On a quick throw
+          // (WR screen) throwFrac is tiny, so the old tt = aT/throwFrac
+          // sprinted the backside decoys downfield at superhuman speed
+          // ("the side that's not the screen went super speed downfield").
+          const _decoySec = Math.max(0, aT * actionDur / 1000);
+          const _decoyYd  = Math.min(decoyDepth, 9 * _decoySec);
+          const _decoyProg = decoyDepth > 0.1 ? _decoyYd / decoyDepth : 1;
+          const _x = _clampX(p.x + dir * _decoyYd * FIELD.PX_PER_YARD);
+          const _y = _clampY(p.y + Math.sin(_decoyProg * Math.PI * 0.6) * lateralOff);
           p._followX = _x; p._followY = _y;
           return { ...p, x: _x, y: _y,
                    pose: inRelease ? "release" : "run",
