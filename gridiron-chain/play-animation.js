@@ -2127,7 +2127,15 @@ function buildAnimForPlay(play, prevPlay) {
           }
         }
         stepRagdoll(formation.rb, nowMs, 8);
-        rbPose = "ragdoll";
+        // Once the ragdoll has settled (life ≥ 0.85), swap to the
+        // tackled_carry sprite. The procedural ragdoll renderer can't
+        // be replaced by a static sprite during mid-fall (the body
+        // rotation comes from physics integration), but once settled
+        // the body is flat on the ground — the sprite reads cleanly
+        // and avoids the splayed-limbs procedural look at rest.
+        const _rdLife = formation.rb._ragdoll && formation.rb._ragdoll.life;
+        rbPose = (_rdLife != null && _rdLife >= 0.85) ? "tackled_carry" : "ragdoll";
+        if (rbPose === "tackled_carry") rbT = 1;
       } else if (runT > 0.88 && isTD) {
         // TD CELEBRATION — only AFTER the carrier has visibly crossed
         // the plane. Old threshold 0.72 had the RB switching to a
@@ -2553,7 +2561,15 @@ function buildAnimForPlay(play, prevPlay) {
             }
             stepRagdoll(d, nowMs, 8);   // groundDy ~= 8 below body origin
             dd._ragdoll = d._ragdoll;   // expose state to renderer via style
-            dd.pose = "ragdoll";
+            // Settled pile-on defender → swap to tackled sprite (no
+            // ball). Matches the carrier ragdoll handoff above.
+            const _ddLife = d._ragdoll && d._ragdoll.life;
+            if (_ddLife != null && _ddLife >= 0.85) {
+              dd.pose = "tackled";
+              dd.t = 1;
+            } else {
+              dd.pose = "ragdoll";
+            }
           }
         } else if (isDodged && tt > 0.34 && tt < 0.58) {
           // Juked defender dives at the carrier's PRE-move position and
