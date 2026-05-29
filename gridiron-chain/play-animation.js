@@ -4715,13 +4715,20 @@ function buildAnimForPlay(play, prevPlay) {
                         : p === formation.te  ? "te"
                         : null;
           const trk = (slotKey && play.motion && play.motion.tracks) ? play.motion.tracks[slotKey] : null;
+          // Field-bounds clamp so a deep-go route extending past the
+          // back of the endzone doesn't park a non-target WR off the
+          // visible canvas and read as "the receiver disappeared."
+          // EZ_PX is the endzone width; staying out of the back 30%
+          // matches the downfield-blocker clamp above.
+          const _clampX = (x) => clamp(x, FIELD.EZ_PX * 0.3, FIELD.W - FIELD.EZ_PX * 0.3);
+          const _clampY = (y) => clamp(y, FIELD.TOP + 20, FIELD.BOT - 20);
           if (trk && typeof MotionPlayback !== "undefined") {
             const sample = MotionPlayback.sampleTrack(trk, aT);
             if (sample) {
               const toMidSign = Math.sign(cy - p.y) || 1;
               const moving = MotionPlayback.isMoving(trk, aT);
-              const _x = p.x + dir * sample.dxYd * FIELD.PX_PER_YARD;
-              const _y = p.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
+              const _x = _clampX(p.x + dir * sample.dxYd * FIELD.PX_PER_YARD);
+              const _y = _clampY(p.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD);
               // Persist for the post-catch handoff (see RB pass-block).
               p._followX = _x; p._followY = _y;
               return { ...p, x: _x, y: _y,
@@ -4735,8 +4742,8 @@ function buildAnimForPlay(play, prevPlay) {
           const idHash = ((p.y * 7 + (p.x * 3)) >>> 0) % 100 / 100;
           const decoyDepth = catchDepth * (0.6 + idHash * 0.6);
           const lateralOff = (idHash - 0.5) * 36;
-          const _x = p.x + dir * tt * decoyDepth * FIELD.PX_PER_YARD;
-          const _y = p.y + Math.sin(tt * Math.PI * 0.6) * lateralOff;
+          const _x = _clampX(p.x + dir * tt * decoyDepth * FIELD.PX_PER_YARD);
+          const _y = _clampY(p.y + Math.sin(tt * Math.PI * 0.6) * lateralOff);
           p._followX = _x; p._followY = _y;
           return { ...p, x: _x, y: _y,
                    pose: inRelease ? "release" : "run",
