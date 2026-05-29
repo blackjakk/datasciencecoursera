@@ -1186,7 +1186,54 @@ function buildAnimForPlay(play, prevPlay) {
 
   const fieldState = { los: losX, firstDownAbs, possColor };
 
+  // Poses where players are SUPPOSED to be tight (tackle pile, block
+  // scrum, contact) — exempt from the separation pass so real piles
+  // stay dense. Everyone else gets pushed apart when they overlap.
+  const _PILE_POSES = new Set([
+    "tackled", "tackled_carry", "ragdoll", "hit", "tumble", "spin_fall",
+    "sack", "dive", "dive_forward", "engage", "block", "jam",
+  ]);
+  function _separatePlayers(all) {
+    // Light pairwise push-apart so convergent players don't render
+    // stacked on one point (the post-catch "clump"). Pursuers separate
+    // from the carrier but not from each other; this is the missing
+    // mutual spacing. Pile poses are skipped (contact is meant to be
+    // tight). 2 relaxation iterations, half-overlap push per pair.
+    const MIN_SEP = 15;            // ~1 yd center-to-center
+    const MIN_SEP2 = MIN_SEP * MIN_SEP;
+    for (let iter = 0; iter < 2; iter++) {
+      for (let a = 0; a < all.length; a++) {
+        const pa = all[a];
+        if (_PILE_POSES.has(pa.pose)) continue;
+        for (let b = a + 1; b < all.length; b++) {
+          const pb = all[b];
+          if (_PILE_POSES.has(pb.pose)) continue;
+          let dx = pb.x - pa.x, dy = pb.y - pa.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 >= MIN_SEP2 || d2 < 0.0001) continue;
+          const d = Math.sqrt(d2);
+          const push = (MIN_SEP - d) * 0.5;
+          const ux = dx / d, uy = dy / d;
+          pa.x -= ux * push; pa.y -= uy * push;
+          pb.x += ux * push; pb.y += uy * push;
+        }
+      }
+    }
+  }
   function drawPlayers(off, def) {
+    const all = [...off, ...def];
+    _separatePlayers(all);
+    // Field-bounds clamp — keep every body inside the back lines and
+    // sidelines. Players were rendering in the black void past the back
+    // of the endzone (deep TDs, the celebration cluster, or the
+    // separation push near an edge). Clamp the sprite CENTER to a small
+    // margin inside x∈[0,W] (endzone back lines) and y∈[TOP,BOT]
+    // (sidelines). Runs after separation so a push can't escape bounds.
+    const _BX = 12, _BY = 6;
+    for (const p of all) {
+      p.x = Math.max(_BX, Math.min(FIELD.W - _BX, p.x));
+      p.y = Math.max(FIELD.TOP + _BY, Math.min(FIELD.BOT - _BY, p.y));
+    }
     for (const p of off) drawPlayer(ctx, p.x, p.y, possColor, team.secondary, p.label, p.pose, p.t, p.facing ?? (dir), p);
     for (const p of def) drawPlayer(ctx, p.x, p.y, oppColor, oppTeam.secondary, p.label, p.pose, p.t, p.facing ?? (-dir), p);
   }
