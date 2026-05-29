@@ -10139,6 +10139,13 @@ function tick(now) {
     const frameDt = animState.lastTickAt ? (now - animState.lastTickAt) : 0;
     const mul = animState.slowMoMul || 0.30;
     animState.startTime += frameDt * (1 - mul);
+    // Publish the live dilation for the trench sims (play-sim.js has no
+    // animState access) so PassProSim / RunBlockSim advance at the dilated
+    // play-clock rate — slowMoMul (0 on a catch freeze, ~0.2-0.5 on a big
+    // hit) — instead of creeping on wall-clock through the freeze.
+    if (typeof window !== "undefined") window._GC_SLOWF = animState.slowMoMul != null ? animState.slowMoMul : 0.30;
+  } else if (typeof window !== "undefined") {
+    window._GC_SLOWF = 1;
   }
   const elapsed = now - animState.startTime;
   const t = Math.min(1, elapsed / animState.duration);

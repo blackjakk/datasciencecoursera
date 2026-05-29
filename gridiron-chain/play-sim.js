@@ -331,8 +331,9 @@ class RunBlockEngagement {
   }
   step(nowMs) {
     if (this.startMs == null) this.startMs = nowMs;
-    const dtF = this._lastMs == null ? 1
-              : Math.max(0, Math.min(3, (nowMs - this._lastMs) / 16.67));
+    const _gcSlow = (typeof window !== "undefined" && window._GC_SLOWF != null) ? window._GC_SLOWF : 1;
+    const dtF = (this._lastMs == null ? 1
+              : Math.max(0, Math.min(3, (nowMs - this._lastMs) / 16.67))) * _gcSlow;
     this._lastMs = nowMs;
     const elapsed = nowMs - this.startMs;
     // Drive along the LOS axis: a winning OL drives the DL DOWNFIELD (+dir);
