@@ -1482,7 +1482,14 @@ class GameSimulator {
         };
       }
       switch (conc) {
-        case "QUICK_GAME":   return { breakF: 0.30, depthFAtBreak: 0.40, depth: 6,  latAtBreak: 0.5, latAtCatch: slot === "te" ? -1.5 : 2.5 };
+        case "QUICK_GAME":
+          // Slant + quick-out. wr1 cuts inside (slant), wr2 cuts
+          // outside (quick out). Was both `lat 2.5` which made wr1
+          // and wr2 mirror each other and converge near midfield.
+          if (slot === "wr1") return { breakF: 0.30, depthFAtBreak: 0.40, depth: 6, latAtBreak: 0.5,  latAtCatch:  5.0 };  // slant in
+          if (slot === "wr2") return { breakF: 0.25, depthFAtBreak: 0.30, depth: 4, latAtBreak: 0.0,  latAtCatch: -3.0 };  // quick out
+          if (slot === "te")  return { breakF: 0.30, depthFAtBreak: 0.40, depth: 6, latAtBreak: 0.5,  latAtCatch: -1.5 };
+          return { breakF: 0.30, depthFAtBreak: 0.40, depth: 6, latAtBreak: 0.5, latAtCatch: 2.5 };
         case "DRAG_MESH":
           // DRAG_MESH = crossing routes. Both WRs run TOWARD MIDDLE.
           // dyYd convention: positive = toward midfield. Both wr1 and
@@ -1501,13 +1508,20 @@ class GameSimulator {
           return { breakF: 0.50, depthFAtBreak: 0.50, depth: 8, latAtBreak: 0, latAtCatch: 0 };
         case "VERTICAL":
         case "PA_SHOT":
-          if (slot === "wr1") return { breakF: 0.95, depthFAtBreak: 0.95, depth: 22, latAtBreak: 0.0, latAtCatch: 0.0 };
-          if (slot === "wr2") return { breakF: 0.95, depthFAtBreak: 0.95, depth: 22, latAtBreak: 0.0, latAtCatch: 0.0 };
-          if (slot === "te")  return { breakF: 0.95, depthFAtBreak: 0.95, depth: 18, latAtBreak: 0.0, latAtCatch: 1.5 };
+          // Go + dig high-low. wr1 runs the go (22yd straight); wr2
+          // runs a deep dig (18yd then breaks toward middle) so the
+          // two aren't sharing the same depth + lane. Was both `depth
+          // 22 lat 0` — identical go routes at the same yard line.
+          if (slot === "wr1") return { breakF: 0.95, depthFAtBreak: 0.95, depth: 22, latAtBreak: 0.0, latAtCatch:  0.0 };
+          if (slot === "wr2") return { breakF: 0.80, depthFAtBreak: 1.00, depth: 18, latAtBreak: 0.0, latAtCatch:  5.0 };
+          if (slot === "te")  return { breakF: 0.95, depthFAtBreak: 0.95, depth: 18, latAtBreak: 0.0, latAtCatch:  1.5 };
           return { breakF: 0.95, depthFAtBreak: 0.95, depth: 18, latAtBreak: 0, latAtCatch: 0 };
         case "SCREEN":
           return null;
         default:
+          // Mirrored curls — wr1 outside, wr2 inside.
+          if (slot === "wr1") return { breakF: 0.50, depthFAtBreak: 0.50, depth: 10, latAtBreak: 0.0, latAtCatch: -2.0 };
+          if (slot === "wr2") return { breakF: 0.50, depthFAtBreak: 0.50, depth:  8, latAtBreak: 0.0, latAtCatch:  2.0 };
           return { breakF: 0.50, depthFAtBreak: 0.50, depth: 10, latAtBreak: 0.0, latAtCatch: 0.0 };
       }
     };
