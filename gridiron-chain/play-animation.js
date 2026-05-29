@@ -2527,7 +2527,12 @@ function buildAnimForPlay(play, prevPlay) {
         const _inPile = (i === primaryTacklerIdx) || pileIdxSet.has(i);
         if (!isTrucked && _inPile && yards < 90 && tt > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 28) {
           if (i === primaryTacklerIdx) {
-            dd.pose = primaryTacklerDives ? "dive" : "hit";
+            // Both variants route to the tackle/ sprite (a horizontal
+            // diving wrap). The primaryTacklerDives flag still drives
+            // timing differences upstream; the sprite itself is the
+            // same wrap motion for both. Using "dive" here routed to
+            // dive_forward/, a layout-catch pose meant for receivers.
+            dd.pose = "hit";
             dd.t = Math.min(1, (tt - 0.72) / 0.28);
           } else {
             // Pile-on defender — collapses ON the pile, doesn't ricochet.
