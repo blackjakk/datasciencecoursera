@@ -1338,8 +1338,14 @@ class GameSimulator {
     const add = (name, pos) => { if (name && !players[name]) { const pid = this._playerByName?.get(name)?.pid || null; players[name] = { name, pos, pid, ...this._emptyLine() }; } };
     add(starters.qb, "QB");
     add(starters.rb, "RB");
+    add(starters.rb2, "RB");   // backup/committee RB — was MISSING, so all rb2
+                               // carries (committee + two-back + reverse) were
+                               // silently dropped from player stats (team totals
+                               // still counted). Now credited.
     add(starters.wr1, "WR");
     add(starters.wr2, "WR");
+    add(starters.wr3, "WR");   // slot WR — gets real targets in 3-WR sets
+    add(starters.te2, "TE");   // TE2 — receptions in 12 personnel
     add(starters.te, "TE");
     add(starters.k,  "K");
     add(starters.p,  "P");
@@ -5434,9 +5440,12 @@ class GameSimulator {
     const wxFumMod = wxFum.label === "RAIN" ? 0.006
                    : wxFum.label === "SNOW" ? 0.010
                    : 0;
-    // Bumped 0.024 -> 0.030 to compensate for better OL/RB grip after the
-    // STR/AWR cap raises (gripMod went more negative — dropped fumbles).
-    const fumblePct = clamp((0.030 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.010, 0.10);
+    // Base 0.030 -> 0.013. The RB probe measured 1 fumble per ~43 touches
+    // (~0.030/carry after grip), ~2.5x the NFL rate (~1 per 80-120 touches).
+    // 0.013 base + grip/pressure/weather mods lands an average back near
+    // 1/80-90 carries; elite-grip backs (floor lowered 0.010 -> 0.004) get
+    // genuinely sure-handed, POWER backs in the rain still cough it up.
+    const fumblePct = clamp((0.009 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.004, 0.10);
     if (Math.random() < fumblePct) {
       // Scrum-based recovery — the ball bounces in a pile of converging players.
       // Defense has a slight edge in open field (2-4 dive attempts each kick the
@@ -5657,7 +5666,28 @@ class GameSimulator {
         else          { runVarMean = -1.8; runVarSd = 0.90; }
       }
     }
-    const carrier = isQBRun ? QB : RB;
+    // Committee split — give the change-of-pace back (rb2) a real share of
+    // carries on standard runs. Previously rb2 only ever LEAD-BLOCKED in
+    // two-back sets, so rb1 hogged ~98% of RB carries (lead share ~81% of the
+    // backfield, vs the NFL's ~55-70% bell-cow). On a non-QB, non-two-back run
+    // (two-back = rb2 is already the lead blocker), rb2 takes the carry ~32% of
+    // the time → rb1 settles around a realistic ~62% of RB carries.
+    // Committee split, QUALITY-WEIGHTED. A flat split made every team a 58/42
+    // committee with no true workhorses; in reality an elite RB1 over a scrub
+    // RB2 (Henry/CMC) hogs ~75-85%, while two similar backs share ~55/45. Scale
+    // rb2's carry share by the OVR gap: equal backs → ~0.42 to rb2 (committee),
+    // a 15-pt gap → ~0.09 (clear workhorse). Yields a realistic SPREAD of
+    // backfield types across the league rather than one uniform ratio.
+    let runner = RB;
+    const _rb2name = this.offR.starters.rb2;
+    if (!isQBRun && !useTwoBack && _rb2name) {
+      const _rb1ovr = this._playerByName.get(RB)?.overall || 72;
+      const _rb2ovr = this._playerByName.get(_rb2name)?.overall || 66;
+      const _gap = _rb1ovr - _rb2ovr;
+      const _rb2share = Math.max(0.05, Math.min(0.45, 0.42 - _gap * 0.022));
+      if (Math.random() < _rb2share) runner = _rb2name;
+    }
+    const carrier = isQBRun ? QB : runner;
     // QB runs break for chunks slightly more often — defense had to honor pass first
     const carrierBoost = isQBRun ? 0.8 : 0;
     // RB archetype effects on the rush: POWER drives short yardage, SPEED is boom/bust,

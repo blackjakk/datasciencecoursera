@@ -9007,7 +9007,17 @@ function _rerollPotentialForBreakouts() {
         // inflated the league's 90+ tail. 1-4 keeps a meaningful "breakout
         // season" bump without over-promoting every top performer to elite.
         const bonus = Math.max(1, Math.round((1 + Math.floor(Math.random() * 4)) * phaseScale));
-        jumpedTo = Math.min(99, Math.min(player.potential || 99, curOvr + bonus));
+        // Cap the non-gem breakout at the player's REALIZED ceiling (potential ×
+        // _peakMult), not raw potential. Without this the breakout bypassed the
+        // bust mechanism entirely: a high-potential R1 cracks top-3% production,
+        // breaks out, and sails past its peakMult cap — so R1 bust% stayed 0 and
+        // PB% stuck at 94% (NFL R1 bust ~30%). Now a low-peakMult bust can't
+        // break out into stardom. Gems are exempt (their branch uses the gem
+        // ceiling). Roll peakMult lazily — the offseason dev pass may not have
+        // set it yet for a rookie when this season-end breakout runs.
+        if (player._peakMult == null) player._peakMult = 0.75 + Math.random() * 0.30;
+        const realizedCap = Math.round((player.potential || 99) * player._peakMult);
+        jumpedTo = Math.min(99, Math.min(realizedCap, curOvr + bonus));
       }
       if (jumpedTo > curOvr) {
         // Grow developable stats so the breakout STICKS. p.overall is recomputed

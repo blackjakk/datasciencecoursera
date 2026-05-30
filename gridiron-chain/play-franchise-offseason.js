@@ -10974,7 +10974,14 @@ function runFrnOffseason() {
       // Resolve gem ceiling — remove flag once reached
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
 
-      if (p.hiddenGem && p.age <= 28) {
+      // _GEM_GRIND_NOTE — grind cap 28->31 DECOUPLES gem emergence from the rare
+      // production breakout. From ~OVR 62 a gem grinds ~4-5/yr, so 6 yrs (to age
+      // 28) only reached ~90 and stalled short of a 96+ ceiling — it NEEDED the
+      // breakout launchpad, which almost never fired for a buried developmental
+      // gem (a 100-season audit logged 0 legends from 1,193 gems). 9 grind years
+      // (to 31) let the grind ALONE reach the ceiling; rarity now comes from the
+      // gem ROLL rate + survival (cuts/injury/staying rostered), not a coin flip.
+      if (p.hiddenGem && p.age <= 31) {
         p.potential = Math.max(p.potential, p.hiddenGem.ceiling);
         // Hidden drive multiplier — High Motor (95) develops ~17% faster;
         // Inconsistent (40) ~13% slower.
@@ -11357,7 +11364,7 @@ function runFrnOffseason() {
 
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
 
-      if (p.hiddenGem && p.age <= 28) {
+      if (p.hiddenGem && p.age <= 31) {   // grind cap 28->31: see _GEM_GRIND_NOTE
         p.potential = Math.max(p.potential, p.hiddenGem.ceiling);
         const growth = Math.max(0, Math.min(
           p.hiddenGem.ceiling - p.overall,
