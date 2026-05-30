@@ -179,16 +179,41 @@ const harness = `
   }
   // Fold the just-finished season's per-player totals into the single-season
   // record book, then reset for the next season. Called once per season.
+  // Also maintains a top-5 single-season leaderboard per stat (seasonTop5).
+  const seasonTop5 = {};   // cat → [{val,name,season}, ...] sorted desc, len<=5
   function _foldSeasonRecords() {
     for (const [name, r] of seasonAcc) {
       for (const [k] of CATS) {
         const v = r[k] || 0;
-        if (v > 0 && (!seasonRec[k] || v > seasonRec[k].val)) {
-          seasonRec[k] = { val: v, name, season: franchise.season };
-        }
+        if (v <= 0) continue;
+        if (!seasonRec[k] || v > seasonRec[k].val) seasonRec[k] = { val: v, name, season: franchise.season };
+        const lb5 = (seasonTop5[k] = seasonTop5[k] || []);
+        lb5.push({ val: v, name, season: franchise.season });
+        lb5.sort((a, b) => b.val - a.val);
+        if (lb5.length > 5) lb5.length = 5;
       }
     }
     seasonAcc = new Map();
+  }
+
+  // Award history — tally each season's accolade winners by player (persists
+  // past retirement since we capture the season they win it, while active).
+  const awardCounts = {};   // award label → { name → count }
+  const AWARDS = ["MVP","Super Bowl MVP","OPOY","DPOY","ROY","Super Bowl","All-Pro","Pro Bowl"];
+  function _captureAwards() {
+    const pools = TEAMS.map(t => franchise.rosters[t.id] || []);
+    pools.push(franchise.freeAgents || []);
+    const seen = new Set();
+    for (const pool of pools) for (const p of pool) {
+      if (seen.has(p.name)) continue; seen.add(p.name);
+      const row = (p.careerHistory || []).find(h => h.season === franchise.season);
+      if (!row || !row.accolades) continue;
+      for (const a of row.accolades) {
+        if (!AWARDS.includes(a)) continue;
+        (awardCounts[a] = awardCounts[a] || {});
+        awardCounts[a][p.name] = (awardCounts[a][p.name] || 0) + 1;
+      }
+    }
   }
 
   // Snapshot every player flagged as a hiddenGem at draft/UDFA time so we can
@@ -246,15 +271,24 @@ const harness = `
   const seasonStandings = [];   // [{ year, winPct: {tid: pct}, champId }]
   function snapshotStandings(year) {
     const winPct = {};
+    let bestPF = 0, bestPFteam = null, bestW = 0, bestWteam = null;
     for (const t of TEAMS) {
-      const s = (franchise.standings && franchise.standings[t.id]) || { w: 0, l: 0, t: 0 };
+      const s = (franchise.standings && franchise.standings[t.id]) || { w: 0, l: 0, t: 0, pf: 0 };
       const g = (s.w || 0) + (s.l || 0) + (s.t || 0);
       winPct[t.id] = g ? ((s.w || 0) + 0.5 * (s.t || 0)) / g : 0.5;
+      if ((s.pf || 0) > bestPF) { bestPF = s.pf || 0; bestPFteam = t; }
+      if ((s.w || 0) > bestW)   { bestW = s.w || 0;   bestWteam = t; }
     }
     const champId = (franchise.history && franchise.history.length)
       ? franchise.history[franchise.history.length - 1].champion : null;
+    // Team-season records (top offense, most wins) — track the best ever.
+    if (bestPFteam && bestPF > (teamRecords.topPF.val || 0))
+      teamRecords.topPF = { val: bestPF, team: bestPFteam.name, season: year };
+    if (bestWteam && bestW > (teamRecords.topW.val || 0))
+      teamRecords.topW = { val: bestW, team: bestWteam.name, season: year };
     seasonStandings.push({ year, winPct, champId });
   }
+  const teamRecords = { topPF: {}, topW: {} };
   let rosterSizeSum = 0, rosterSizeN = 0;
   function snapshotLeagueOvr(year) {
     const dIdx = Math.min(decadeOvr.length - 1, Math.floor((year - 1) / 10));
@@ -376,6 +410,7 @@ const harness = `
     // All regular + playoff games for this season are now played — fold the
     // per-player season totals into the single-season record book, then reset.
     _foldSeasonRecords();
+    _captureAwards();           // tally this season's MVP/All-Pro/etc winners
     snapshotStandings(s + 1);   // capture win% + champion before frnNewSeason resets
     // awards → offseason (frnApbProceedToOffseason wraps startFrnOffseason and
     // dismisses the all-pro-bowl crowning; fall back to startFrnOffseason).
@@ -658,6 +693,84 @@ const harness = `
     }
     console.log("");
   }
+
+  // ══ HALL OF RECORDS ════════════════════════════════════════════════════
+  const _fmt = n => (n||0).toLocaleString();
+  const _top = (obj, n) => Object.entries(obj).map(([name,c])=>({name,c})).sort((a,b)=>b.c-a.c).slice(0,n);
+
+  // ── SINGLE-SEASON LEADERBOARDS (top 5 all-time) ──
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" SINGLE-SEASON LEADERBOARDS — top 5 over " + ${SEASONS} + " seasons");
+  console.log("══════════════════════════════════════════════════════════");
+  const _ssCats = [["pass_yds","Passing yds"],["pass_td","Passing TD"],["rush_yds","Rushing yds"],
+    ["rush_td","Rushing TD"],["rec_yds","Receiving yds"],["rec_td","Receiving TD"],
+    ["sk","Sacks"],["int_made","INTs"],["tkl","Tackles"]];
+  for (const [k,label] of _ssCats) {
+    const lb5 = seasonTop5[k]; if (!lb5 || !lb5.length) continue;
+    console.log(" " + label.padEnd(13) + " " + lb5.map(e => _fmt(e.val)+" ("+e.name+" S"+e.season+")").join("  ·  "));
+  }
+  console.log("");
+
+  // ── HALL OF FAME (from franchise.hallOfFame — persistent inductee records) ──
+  const hof = (typeof franchise !== "undefined" && franchise.hallOfFame) ? franchise.hallOfFame : [];
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" HALL OF FAME — " + hof.length + " inductees over " + ${SEASONS} + " seasons");
+  console.log("══════════════════════════════════════════════════════════");
+  if (hof.length) {
+    const byPos = {}; let firstBallot = 0;
+    for (const h of hof) { byPos[h.pos] = (byPos[h.pos]||0)+1; if (h.firstBallot) firstBallot++; }
+    console.log(" Rate: 1 per " + (${SEASONS}/hof.length).toFixed(1) + " yrs  ·  first-ballot " + (firstBallot/hof.length*100).toFixed(0) + "%  (NFL ~7-8/yr, FB ~15%)");
+    console.log(" By position: " + Object.entries(byPos).sort((a,b)=>b[1]-a[1]).map(([p,c])=>p+" "+c).join("  "));
+    // top 8 by peak OVR — the headliners, with résumé
+    const head = hof.slice().sort((a,b)=>(b.peakOvr||0)-(a.peakOvr||0)).slice(0,8);
+    console.log(" ── Headliners (by peak OVR) ──");
+    for (const h of head) {
+      const acc = {}; for (const row of (h.careerHistory||[])) for (const a of (row.accolades||[])) acc[a]=(acc[a]||0)+1;
+      const accStr = ["MVP","Super Bowl","All-Pro","Pro Bowl"].filter(a=>acc[a]).map(a=>acc[a]+"× "+a).join(", ") || "—";
+      console.log("   " + (h.name+" ("+h.pos+")").padEnd(26) + " peak " + (h.peakOvr||"?") + " · " + (h.careerYears||"?") + "yr · " + (h.line||"") );
+      console.log("      " + accStr);
+    }
+  }
+  console.log("");
+
+  // ── AWARD HISTORY (most decorated) ──
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" AWARD HISTORY — most decorated (" + ${SEASONS} + " seasons)");
+  console.log("══════════════════════════════════════════════════════════");
+  for (const a of ["MVP","Super Bowl MVP","OPOY","DPOY","Super Bowl","All-Pro","Pro Bowl"]) {
+    const m = awardCounts[a]; if (!m) continue;
+    const total = Object.values(m).reduce((s,v)=>s+v,0);
+    const top3 = _top(m, 3).map(e=>e.name+" ("+e.c+")").join(", ");
+    console.log(" " + a.padEnd(14) + " " + String(total).padStart(4) + " awarded  ·  most: " + top3);
+  }
+  console.log("");
+
+  // ── TEAM RECORDS ──
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" TEAM RECORDS");
+  console.log("══════════════════════════════════════════════════════════");
+  if (teamRecords.topPF.val) console.log(" Most points, season:  " + teamRecords.topPF.val + " — " + teamRecords.topPF.team + " (S" + teamRecords.topPF.season + ")   [NFL record 606]");
+  if (teamRecords.topW.val)  console.log(" Most wins, season:    " + teamRecords.topW.val + " — " + teamRecords.topW.team + " (S" + teamRecords.topW.season + ")");
+  {
+    const titles = {}; for (const ss of seasonStandings) if (ss.champId!=null) titles[ss.champId]=(titles[ss.champId]||0)+1;
+    const dyn = Object.entries(titles).sort((a,b)=>b[1]-a[1])[0];
+    if (dyn) { const t = TEAMS.find(x=>String(x.id)===dyn[0]); console.log(" Most titles:          " + dyn[1] + " — " + (t?t.name:"?")); }
+  }
+  console.log("");
+
+  // ── CAREER MILESTONES (counts reaching round numbers) ──
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" CAREER MILESTONES — players reaching the mark (" + career.size.toLocaleString() + " tracked)");
+  console.log("══════════════════════════════════════════════════════════");
+  const _ms = [["pass_yds",50000,"50k pass yds"],["pass_td",300,"300 pass TD"],
+    ["rush_yds",10000,"10k rush yds"],["rush_td",100,"100 rush TD"],
+    ["rec_yds",12000,"12k rec yds"],["rec_td",100,"100 rec TD"],
+    ["sk",100,"100 sacks"],["int_made",50,"50 INTs"],["tkl",1000,"1000 tackles"]];
+  for (const [k,mark,label] of _ms) {
+    let n=0; for (const r of career.values()) if ((r[k]||0)>=mark) n++;
+    console.log(" " + label.padEnd(16) + " " + n + " player" + (n===1?"":"s"));
+  }
+  console.log("");
 
   // ── LEGEND CAREERS ─────────────────────────────────────────────────────
   // Full career story for every player who reached OVR >= 96: per-season
