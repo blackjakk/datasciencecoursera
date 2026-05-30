@@ -4482,6 +4482,31 @@ function buildAnimForPlay(play, prevPlay) {
             dd.facing = -dir;
             if (aT < 0.78) dd.pose = "scrape";
             if (!MotionPlayback.isMoving(_passSecondaryTrack, aT)) dd.t = 0;
+            // ── ZONE READ-AND-BREAK ──────────────────────────────────
+            // In a ZONE shell the LB/safety isn't man-shadowing — he drops
+            // to his landmark (the track above), READS the QB, and BREAKS
+            // on the ball once it's thrown. Without this he sat frozen on
+            // the last waypoint while the ball sailed into his zone, so
+            // every coverage looked like soft man. Only the defender whose
+            // zone the throw enters breaks (within ~7yd of the catch point
+            // laterally); others hold their drop. Man shells (C0/C1) skip
+            // this — their CBs already trail-shadow. Not for the named
+            // tackler / active pursuers (the post-catch sim owns them).
+            const _zoneShell = cov === "C2_ZONE" || cov === "C3_ZONE"
+                            || cov === "C4_QUARTERS" || cov === "TAMPA_2";
+            if (_zoneShell && play.kind !== "int" && !_activePursuit
+                && !_isPassTacklerByName && aT >= releaseAT) {
+              const _zoneToBallY = Math.abs(dd.y - targetY);
+              if (_zoneToBallY < 7 * FIELD.PX_PER_YARD) {
+                // Break on the ball — drive toward the catch point. Closer
+                // zones break harder (closes faster); deep zones rally up.
+                const _brkMs = Math.max(0, (aT - releaseAT) * dur);
+                const _np = pursue(d, targetX, targetY, _brkMs, 0.95);
+                dd.x = _np.x; dd.y = _np.y;
+                dd.pose = "run";
+                if (_np.moved) dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.11) % 1 : 0);
+              }
+            }
           }
         }
         // PHASE 12 — post-catch agent sim. Replaces the old tackler-
