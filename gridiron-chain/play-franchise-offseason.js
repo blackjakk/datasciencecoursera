@@ -10735,6 +10735,53 @@ function _runCoachingCarousel() {
 
 // Returns [primaryStatIdx, secondaryStatIdx] for OVR-growth stat allocation.
 // Speed (0) and agility (2) are physical gifts excluded from coaching development.
+// ── Gem development grows STATS, not the OVR number ──────────────────────
+// p.overall is recomputed from stats (calcOverall) in several places — most
+// notably the physical-decline pass in runFrnOffseason. So setting p.overall
+// directly (as the gem grind + breakout jump used to) gets clawed back: the
+// recompute only "sees" whatever stats actually moved. Measured retention was
+// ~28%, which is why high-ceiling gems stalled around OVR 85 and no Brady ever
+// emerged. Fix: grow the DEVELOPABLE stats — skill/mental/technique, NOT the
+// genetic SPD/AGI/STR that the physical-peak model owns — so calcOverall
+// genuinely rises and every recompute preserves it. Realistic side effect:
+// skill/mental positions (QB) can climb to elite, while pure-athleticism
+// positions (RB/CB, gated by genetic speed) are naturally capped — you can't
+// coach speed onto a late-round flyer.
+function _gemDevStats(pos) {
+  switch (pos) {
+    case "QB": return [4, 3, 11];     // THR, AWR, TEC
+    case "RB": return [5, 11];        // CAT, TEC
+    case "WR": return [5, 3, 11];     // CAT, AWR, TEC
+    case "TE": return [5, 6, 11];     // CAT, BLK, TEC
+    case "OL": return [6, 11];        // BLK, TEC
+    case "DL": return [7, 11];        // PRS, TEC
+    case "LB": return [9, 8, 7, 11];  // TCK, COV, PRS, TEC
+    case "CB": return [8, 3, 11];     // COV, AWR, TEC
+    case "S":  return [8, 9, 3, 11];  // COV, TCK, AWR, TEC
+    default:   return [10, 3, 11];    // KPW, AWR, TEC (K/P)
+  }
+}
+// Raise developable stats until calcOverall climbs toward targetOvr (capped by
+// stats hitting 99 — the position's developable ceiling). Returns OVR gained.
+function _applyGemDevelopment(p, targetOvr) {
+  if (!p || !p.stats) return 0;
+  targetOvr = Math.min(99, targetOvr);
+  const idxs = _gemDevStats(p.position);
+  const start = (typeof calcOverall === "function") ? calcOverall(p.position, p.stats) : (p.overall || 60);
+  let guard = 0;
+  while (calcOverall(p.position, p.stats) < targetOvr && guard++ < 300) {
+    let bumped = false;
+    for (const i of idxs) {
+      if ((p.stats[i] ?? 0) < 99 && calcOverall(p.position, p.stats) < targetOvr) {
+        p.stats[i] = Math.min(99, (p.stats[i] ?? 60) + 1);
+        bumped = true;
+      }
+    }
+    if (!bumped) break;   // developable stats maxed — position's physical cap hit
+  }
+  return calcOverall(p.position, p.stats) - start;
+}
+
 function _devStatPool(pos, age) {
   switch (pos) {
     case "QB": return [4, 3];                                 // THR, AWR
@@ -10937,10 +10984,10 @@ function runFrnOffseason() {
           Math.round(p.hiddenGem.growthRate * coachBoost * tradeBoost * driveMul)
         ));
         if (growth > 0) {
-          p.overall = Math.min(p.hiddenGem.ceiling, p.overall + growth);
-          const [k1, k2] = _devStatPool(p.position, p.age);
-          p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
-          p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
+          // Grow developable stats so the gain survives the calcOverall
+          // recompute below (setting p.overall directly was clawed back to ~28%).
+          _applyGemDevelopment(p, p.overall + growth);
+          p.overall = calcOverall(p.position, p.stats);
         }
         if (p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
       } else if (!p.hiddenGem) {
@@ -11304,10 +11351,10 @@ function runFrnOffseason() {
           Math.round(p.hiddenGem.growthRate * psCoachBoost * PS_DEV_MULT)
         ));
         if (growth > 0) {
-          p.overall = Math.min(p.hiddenGem.ceiling, p.overall + growth);
-          const [k1, k2] = _devStatPool(p.position, p.age);
-          p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
-          p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
+          // Stat-based growth (survives the calcOverall recompute) — see
+          // _applyGemDevelopment. Practice-squad rate already dampened via PS_DEV_MULT.
+          _applyGemDevelopment(p, p.overall + growth);
+          p.overall = calcOverall(p.position, p.stats);
         }
         if (p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
       } else if (!p.hiddenGem) {

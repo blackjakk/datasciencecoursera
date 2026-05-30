@@ -8998,15 +8998,17 @@ function _rerollPotentialForBreakouts() {
         jumpedTo = Math.min(99, Math.min(player.potential || 99, curOvr + bonus));
       }
       if (jumpedTo > curOvr) {
-        // Distribute the jump across primary skill stats so the OVR
-        // recompute matches.
-        const delta = jumpedTo - curOvr;
-        if (player.stats && typeof _devStatPool === "function") {
-          const [k1, k2] = _devStatPool(player.position, player.age);
-          player.stats[k1] = Math.min(99, player.stats[k1] + Math.ceil(delta * 0.6));
-          player.stats[k2] = Math.min(99, player.stats[k2] + Math.floor(delta * 0.4));
+        // Grow developable stats so the breakout STICKS. p.overall is recomputed
+        // from stats elsewhere; the old 2-stat 60/40 split restored only ~28% of
+        // the jump (the rest was clawed back), which is why breakouts never
+        // translated into emergences. _applyGemDevelopment raises the stats so
+        // calcOverall genuinely reaches the jump target.
+        if (typeof _applyGemDevelopment === "function" && player.stats) {
+          _applyGemDevelopment(player, jumpedTo);
+          player.overall = calcOverall(player.position, player.stats);
+        } else {
+          player.overall = jumpedTo;
         }
-        player.overall = jumpedTo;
         if (typeof _pushNews === "function") {
           // Privacy: don't leak the new OVR (since users can compare
           // pre/post to compute the ceiling). The breakout itself is
