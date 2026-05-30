@@ -4156,6 +4156,13 @@ function buildAnimForPlay(play, prevPlay) {
         const dd = { ...d };
         dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
         dd.facing = -dir;
+        // Coverage shell — declared ONCE at map scope so every block (pre-snap
+        // depth, CB bail, LB/safety rotation + zone read-break) shares it. The
+        // rotation/read-break blocks below referenced `cov` but it was only
+        // declared inside the pre-snap and CB blocks — so post-snap they threw
+        // ReferenceError every frame, which the render try/catch swallowed,
+        // freezing the play at the formation ("offense never snaps").
+        const cov = play.coverage;
         // Pre-snap: hold stance + apply coverage-aware depth alignment.
         // play.coverage was unused beyond the broadcast UI label. Now
         // drives CB / S depth so each coverage VISUALLY differs:
@@ -4168,7 +4175,6 @@ function buildAnimForPlay(play, prevPlay) {
         if (t < PRE) {
           const sh = defShiftXY(i, t);
           let dx = sh.dx, dy = sh.dy;
-          const cov = play.coverage;
           if (cov && (d.role === "CB" || d.role === "S" || d.role === "NB")) {
             const pxPerYd = FIELD.PX_PER_YARD;
             const baseX = losX;
@@ -4305,7 +4311,6 @@ function buildAnimForPlay(play, prevPlay) {
         // visually indistinguishable.
         if (i >= idxCB1) {
           const tt = Math.min(1, aT / 0.55);
-          const cov = play.coverage;
           const isMan = !cov || cov === "C0_BLITZ" || cov === "C1_MAN";
           if (i === idxCB1 || i === idxCB2) {
             // UNIFIED CB MODEL — position is anchored to the WR's
