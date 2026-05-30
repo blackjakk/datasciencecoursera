@@ -50,6 +50,16 @@ Three tables:
   to spot a position over/under-producing. (OL shows n=0 — not individually
   tracked beyond team pancakes.)
 
+### 1b. `_qb_probe.js` — QB-archetype isolation probe
+`node _qb_probe.js [games]` (default 300). Builds **one fixed home roster + one
+fixed opponent under a fixed seed**, then swaps ONLY the home QB across hand-built
+profiles (pocket cannon / dual-threat / noodle-arm-quick-legs / balanced),
+dropping all other home QBs so the profile QB always starts. Seeded RNG ⇒ cast,
+opponent, and game conditions are identical across profiles and run-to-run, so
+**win% + production are directly comparable** (the QB is the only variable).
+Reports OVR, archetype, win%, pass line, and QB rush line per profile. This is
+the regression tool for the dual-threat run game.
+
 ### 2. `_brady_audit.js` — franchise + player development
 Drives a full franchise headlessly season-by-season (plays every game + the
 playoff bracket, runs the awards/retirement/draft/offseason chain). Answers:
@@ -292,13 +302,23 @@ finishes, check:** (1) Brady-tier cadence now NON-ZERO? (2) 90+ share pulled fro
 PB% down from 93% (does oracle regression create busts)? *Note: `/tmp` logs are
 ephemeral — re-run if the container recycled.*
 
-### Open realism fixes (prioritized), not yet done
-1. **Dual-threat QB under-modeled** (Vick probe): a peak-Vick-type gets only ~3
-   carries / ~14 rush yds per game vs real ~8 / ~65. **Designed QB runs are
-   missing** — only pressure-scrambles exist. Mobile QB is a *downgrade* in-sim
-   (309 yd/65% vs pocket cannon 331/75%), backwards from the NFL. OVR also
-   under-weights mobility (THR 42% vs spd9+agi13). Fix: add archetype-scaled
-   designed QB runs (read-option/QB-power) for `DUAL_THREAT` + speed.
+### Open realism fixes (prioritized)
+1. **Dual-threat QB run game — DONE.** Designed QB runs were tied to the
+   *playbook* (`pb.qbRushPct`, only OPTION set it), so a Lamar/Vick-type on any
+   other scheme got ~2 carries/game (all pressure-scrambles). Fix: the engine now
+   derives the designed-run rate from the **QB himself** (DUAL_THREAT archetype
+   floor + actual SPD/AGI mobility), layered on the playbook; added `qbRushPct`
+   to the DUAL_THREAT playbook; QB-run YPC now scales with speed. Probe result:
+   DUAL_ELITE 2.3→9.8 rush att, 13→48 rush yds (4.9 ypc), and the dual-threat
+   went from a clear downgrade (−6 win%, −80 tot yds vs pocket) to producing MORE
+   total offense at equal OVR. League rush/g stayed in-band (no inflation).
+   Validate with `node _qb_probe.js`.
+   - **STILL OPEN (judgment call):** QB OVR under-weights mobility — a 96-SPD /
+     74-THR "noodle-arm quick-legs" profile rates only 77 (backup tier) because
+     THR is 42% of `calcOverall` (spd 9 / agi 13). It now *produces* like a
+     functional starter (327 tot yds) thanks to the run game, but the rating
+     still says backup. Bumping SPD/AGI weight touches draft/dev/all audits —
+     left for a deliberate decision.
 2. **Offense ~8-10% hot** (the recurring signal): passing yds/att ~7.67 vs ~7.0;
    records 7,599 pass yds / 78 TD / 738 team pts vs NFL 5,477 / 55 / 606;
    QB 300+yd games 33% (NFL ~20%); INT 3.05% / multi-INT 30%. Lever: trim

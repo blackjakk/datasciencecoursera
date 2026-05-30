@@ -197,6 +197,10 @@ const PLAYBOOKS = {
     rushYdsMean: 4.8, rushYdsSd: 5.5,
     compMul: 1.0, sackMul: 1.05,
     qbScramblePct: 0.22,
+    // Scheme floor for designed QB runs (read-option / QB-power). The engine
+    // raises this further from the QB's own mobility, but a dual-threat scheme
+    // calls QB keepers even with a merely-average runner under center.
+    qbRushPct: 0.18,
   },
   // Read-Option / RPO: mobile QB carries — option-style with explosive QB
   OPTION: {

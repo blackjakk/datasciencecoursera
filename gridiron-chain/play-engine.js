@@ -5551,8 +5551,32 @@ class GameSimulator {
     // FB lead-block bonus — bumps rush yardage, reduces stuff risk
     const fbBoost = useTwoBack ? 0.9 : 0;
     const fbStuffReduction = useTwoBack ? 0.4 : 0;   // subtracts from trench loss
-    // Read-option / RPO schemes give some carries to the QB
-    const qbRushPct = pb.qbRushPct || 0;
+    // ── DESIGNED QB RUNS — read-option / QB-power / draw / sneak ──────────
+    // Previously this rate came ONLY from the playbook (`pb.qbRushPct`), which
+    // just OPTION sets — so a Lamar/Vick-type on a BALANCED, AIR_RAID, or even
+    // DUAL_THREAT scheme got ZERO designed carries and finished ~2 rush att/game
+    // (all pressure-scrambles). Real peak dual-threats run 8-12x/game. The fix:
+    // make the designed-run rate follow the QB (archetype + actual mobility),
+    // layered on top of the playbook base, so the run game adapts to the player.
+    let qbRushPct = pb.qbRushPct || 0;
+    {
+      const _qbP = this._playerByName?.get?.(QB);
+      const _qbArch = _qbP?.archetype;
+      const _qbSpd = _qbP?.stats?.[0] ?? 60;
+      const _qbAgi = _qbP?.stats?.[2] ?? 60;
+      // Mobility 0..1: ramps from SPD ~72 (pocket) toward ~92 (elite runner);
+      // AGI nudges it (a quick-twitch QB keeps it more than a straight-line one).
+      const _mob = clamp((_qbSpd - 72) * 0.055 + (_qbAgi - 70) * 0.020, 0, 1);
+      if (_qbArch === "DUAL_THREAT") {
+        // Designed-run identity: a floor (the offense is BUILT around his legs)
+        // plus mobility. Elite wheels → ~0.32 of run calls become QB keepers.
+        qbRushPct = Math.max(qbRushPct, 0.15 + _mob * 0.17);
+      } else {
+        // Even a pocket guy with surprising legs (or a G&P keeper package)
+        // tucks it occasionally — but it never becomes his identity.
+        qbRushPct = Math.max(qbRushPct, _mob * 0.10);
+      }
+    }
     let isQBRun = qbRushPct > 0 && Math.random() < qbRushPct;
     // SPEED OPTION — a subset of QB-run calls where the RB trails the QB
     // as a live pitch threat. The QB sprints to the option side and either
@@ -5688,8 +5712,13 @@ class GameSimulator {
       if (Math.random() < _rb2share) runner = _rb2name;
     }
     const carrier = isQBRun ? QB : runner;
-    // QB runs break for chunks slightly more often — defense had to honor pass first
-    const carrierBoost = isQBRun ? 0.8 : 0;
+    // QB runs break for chunks slightly more often — defense had to honor pass
+    // first, and on read-option a defender is wrong-footed. The edge SCALES with
+    // QB speed: elite runners (Vick/Lamar) net ~6.5-8 ypc on designed carries,
+    // well above an RB's ~4.4, because they hit the second level untouched.
+    const carrierBoost = isQBRun
+      ? 0.8 + Math.max(0, ((this._playerByName?.get?.(QB)?.stats?.[0] ?? 60) - 80)) * 0.07
+      : 0;
     // RB archetype effects on the rush: POWER drives short yardage, SPEED is boom/bust,
     // ELUSIVE breaks for slightly more big plays, RECEIVING is a worse pure runner
     let rbBoost = 0, rbSdMul = 1.0;
