@@ -4087,7 +4087,23 @@ class GameSimulator {
       // previously stacking to a 20% per-attempt INT cap, yielding ~5%
       // league INT rate (real NFL is ~2.5%). Median career INT-made
       // for top-20 DBs was 1.3/g, way over NFL leader 0.82/g.
-      let defIntMod = (this.defR.cb - 65) / 1400;        // halved from /700
+      // INDIVIDUAL COVER — the INT roll fires before the target is known,
+      // but a pick is driven by whoever's actually IN COVERAGE jumping the
+      // route. Use the COV of the on-field cover corners (cb1/cb2 always,
+      // cb3 in nickel+) instead of the team `defR.cb` aggregate, so a unit
+      // with one elite ball-hawk corner forces more picks than its team OVR
+      // implies. Weighted toward the corners (most picks come from CBs).
+      const _wr = (PERSONNEL[this._currentPersonnel]?.wr) ?? 2;
+      const _intCBNames = [this.defR.starters.cb1, this.defR.starters.cb2];
+      if (_wr >= 3) _intCBNames.push(this.defR.starters.cb3);
+      const _intCBPlayers = _intCBNames.map(n => this._playerByName?.get?.(n)).filter(Boolean);
+      let defIntMod;
+      if (_intCBPlayers.length) {
+        const _avgCBCov = _intCBPlayers.reduce((s, p) => s + (p.stats?.[8] || 65), 0) / _intCBPlayers.length;
+        defIntMod = (_avgCBCov - 65) / 1400;
+      } else {
+        defIntMod = (this.defR.cb - 65) / 1400;        // fallback to team rating
+      }
       const safIntNames = [this.defR.starters.fs, this.defR.starters.ss];
       const safIntPlayers = safIntNames.map(n => this._playerByName?.get?.(n)).filter(Boolean);
       if (safIntPlayers.length) {

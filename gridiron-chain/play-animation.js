@@ -4689,9 +4689,23 @@ function buildAnimForPlay(play, prevPlay) {
                 factor = Math.min(2.5, Math.max(factor, neededFactor));
               }
             }
-            // Step sim toward the carrier.
+            // Step sim toward the carrier. PURSUIT ANGLE — converging help
+            // (safeties, backside CB, LBs) aims at the INTERCEPT point (where
+            // the carrier WILL be given his velocity), not his current spot,
+            // so they take a cutoff angle across the field instead of chasing
+            // from behind and trailing. The cover defender (already next to
+            // the WR at the catch) and the in-contact pursuer chase directly
+            // — an intercept lead would overshoot a carrier who's right there.
             const elapsedMs = Math.max(0, (t - throwPhase) * dur);
-            const np = pursue(dd, ballX, ballY, elapsedMs, factor);
+            const _carVx = (_wrSim && play.kind === "complete") ? _wrSim.vx : 0;
+            const _carVy = (_wrSim && play.kind === "complete") ? _wrSim.vy : 0;
+            const _useIntercept = i !== intDefIdx
+                               && Math.hypot(_carVx, _carVy) > 1
+                               && Math.hypot(ballX - dd.x, ballY - dd.y) > 18;
+            const _pursOpts = _useIntercept
+              ? { carrier: { x: ballX, y: ballY, vx: _carVx, vy: _carVy } }
+              : {};
+            const np = pursue(dd, ballX, ballY, elapsedMs, factor, _pursOpts);
             dd.x = np.x; dd.y = np.y;
 
             // Backup positioning for the cover defender — blend toward the
