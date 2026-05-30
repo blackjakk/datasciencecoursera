@@ -87,7 +87,7 @@ class SimPlayer {
 //   If no intercept is possible (carrier outruns defender), returns the
 //   carrier's CURRENT position with t = Infinity, so the defender just
 //   chases directly (best-effort).
-function simIntercept(defender, carrier) {
+function simIntercept(defender, carrier, opts) {
   const cs = _len(carrier.vx || 0, carrier.vy || 0);
   // No intercept needed if carrier is stationary
   if (cs < 0.1) return { x: carrier.x, y: carrier.y, t: 0 };
@@ -103,6 +103,15 @@ function simIntercept(defender, carrier) {
     if (Math.abs(newT - t) < 0.02) { t = newT; break; }
     t = newT;
   }
+  // CAP THE LEAD. The solve assumes CONSTANT carrier velocity, so for a far
+  // defender t can be 2-3s and the aim projects WAY down the current heading.
+  // If the carrier cuts back, that lead is stale and the defender overshoots
+  // to empty grass. A real defender reads ~0.5-0.8s ahead, then re-reads each
+  // frame (this is re-solved every frame). Clamp t so the lead is bounded;
+  // the per-frame re-solve still converges the angle without chasing a phantom
+  // far-downfield point. Default 0.8s; caller can override via opts.maxLeadT.
+  const maxLeadT = (opts && opts.maxLeadT != null) ? opts.maxLeadT : 0.8;
+  if (t > maxLeadT) t = maxLeadT;
   return {
     x: carrier.x + (carrier.vx || 0) * t,
     y: carrier.y + (carrier.vy || 0) * t,
