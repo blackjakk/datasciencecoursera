@@ -1063,10 +1063,15 @@ function pickWRArchetype(stats) {
 }
 function pickTEArchetype(stats) {
   const [_spd, str, _agi, _awr, _thr, cat, blk] = stats;
+  // Specialists are penalized when the OTHER dimension is also strong (a true
+  // receiving TE blocks poorly and vice-versa); HYBRID rewards being good at
+  // BOTH, so a well-rounded elite TE lands HYBRID instead of being forced into
+  // a specialist label and capped at low OVR (the old flat 8 only ever won for
+  // mediocre players).
   const w = {
-    RECEIVING: Math.max(0, cat - 55) * 1.5,
-    BLOCKING:  Math.max(0, blk - 55) * 1.4 + Math.max(0, str - 55) * 0.5,
-    HYBRID:    8,
+    RECEIVING: Math.max(0, cat - 55) * 1.5 - Math.max(0, blk - 62) * 0.5,
+    BLOCKING:  Math.max(0, blk - 55) * 1.4 + Math.max(0, str - 55) * 0.5 - Math.max(0, cat - 62) * 0.5,
+    HYBRID:    Math.max(0, Math.min(cat, blk) - 58) * 1.7,
   };
   for (const k in w) w[k] += Math.random() * 5;
   return Object.keys(w).reduce((a, b) => w[a] >= w[b] ? a : b);
@@ -1083,7 +1088,10 @@ function pickLBArchetype(stats) {
     HEADHUNTER: (str >= 78 && tck >= 75 && spd >= 70 && cov < 70)
                 ? Math.max(0, str - 70) * 1.0 + Math.max(0, tck - 70) * 0.8 + Math.max(0, spd - 65) * 0.5
                 : 0,
-    HYBRID:  6,
+    // True 3-down LB — wins when coverage AND tackling AND some rush are all
+    // solid (the weakest of the three drives it). Scales with talent so a
+    // well-rounded LB lands HYBRID at a real OVR, not just balanced scrubs.
+    HYBRID:  10 + Math.max(0, Math.min(cov, Math.min(tck, prs + 8)) - 58) * 1.8,
   };
   for (const k in w) w[k] += Math.random() * 5;
   return Object.keys(w).reduce((a, b) => w[a] >= w[b] ? a : b);
@@ -1111,7 +1119,9 @@ function pickSArchetype(stats) {
     HEADHUNTER:   (str >= 72 && tck >= 72 && spd >= 75)
                   ? Math.max(0, str - 65) * 1.0 + Math.max(0, tck - 65) * 0.9 + Math.max(0, spd - 70) * 0.5
                   : 0,
-    HYBRID:       8,
+    // Plays single-high OR in the box equally — rewards balanced coverage +
+    // tackling so a well-rounded safety lands HYBRID at a real OVR.
+    HYBRID:       10 + Math.max(0, Math.min(cov, tck) - 58) * 1.7,
   };
   for (const k in w) w[k] += Math.random() * 5;
   return Object.keys(w).reduce((a, b) => w[a] >= w[b] ? a : b);

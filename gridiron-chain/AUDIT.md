@@ -60,6 +60,19 @@ opponent, and game conditions are identical across profiles and run-to-run, so
 Reports OVR, archetype, win%, pass line, and QB rush line per profile. This is
 the regression tool for the dual-threat run game.
 
+### 1c. `_arch_probe.js` — positional archetype isolation probe
+`node _arch_probe.js [POS|ALL] [games]` (default ALL 200). For each position it
+generates one exemplar of every archetype near a common OVR (realistic stat
+profiles via rejection sampling), swaps it/them into a fixed home lineup as the
+starter(s) — with deliberately-weak fixed backups so the exemplar ALWAYS starts,
+even for picker-rare archetypes — and runs seeded games vs a fixed opponent.
+Reports each archetype's signature stats: own line for skill positions
+(QB/RB/WR/TE/K/P), the OPPONENT offense for defensive units (DL/LB/CB/S), team
+aggregate for OL. **This is how you tell a real archetype from a flavor label**:
+if two archetypes produce the same box score, the label is cosmetic. Verdict
+(2026-05): every archetype differentiates except the three HYBRID types
+(TE/LB/S) which were flavor-only and picker-capped to low OVR — since fixed.
+
 ### 2. `_brady_audit.js` — franchise + player development
 Drives a full franchise headlessly season-by-season (plays every game + the
 playoff bracket, runs the awards/retirement/draft/offseason chain). Answers:

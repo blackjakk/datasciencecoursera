@@ -1988,6 +1988,7 @@ class GameSimulator {
     const sArchW  = a => a === "BALL_HAWK"    ? 1.8
                        : a === "CENTER_FIELD" ? 1.2
                        : a === "BOX"          ? 0.5
+                       : a === "HYBRID"       ? 1.1   // balanced ball production
                        : 1.0;
     const candidates = [];
     if (baseWeights.CB) for (const c of (this.defArch.CB || []))
@@ -3082,7 +3083,18 @@ class GameSimulator {
 
     if (this.down === 4) {
       const toEZ = 100 - this.yardLine;
-      const inFGRange  = toEZ <= 40;   // realistic FG attempt (57-yd max)
+      // Max makeable FG distance scales with the kicker's LEG, not a flat 57.
+      // A big-leg / LEG-archetype kicker gets sent out for 60+ yarders; a
+      // weak-leg / PRECISION kicker is pulled in. This is what makes LEG's
+      // signature (long range) actually appear — previously every team's FG
+      // ceiling was 57 regardless of who was kicking.
+      const _kFg = this._playerByName.get(this.offR.starters.k);
+      const _kpwFg = _kFg?.stats?.[10] ?? 70;
+      let _maxFgDist = 54 + Math.max(0, _kpwFg - 70) * 0.30;   // kpw 70→54, 90→60
+      if (_kFg?.archetype === "LEG") _maxFgDist += 3;
+      else if (_kFg?.archetype === "PRECISION") _maxFgDist -= 2;
+      _maxFgDist = clamp(_maxFgDist, 48, 64);
+      const inFGRange  = (toEZ + 17) <= _maxFgDist;   // dist = toEZ + 17
       const isGoalLine = toEZ <= 3;    // 4th & goal at the 3 or in
       const isShortYTG = this.ytg <= 2;
       // QB AGGRESSION tilts the go-for-it rate. A risk-taking QB (high THR
@@ -4843,13 +4855,15 @@ class GameSimulator {
       //  CENTER_FIELD S  → caps deep passing (reduces air yards on deep throws)
       const coverLBs = (defArch.LB || []).filter(l => l?.archetype === "COVER").length;
       const signalLBs = (defArch.LB || []).filter(l => l?.archetype === "SIGNAL").length;
+      // HYBRID (3-down) LBs hold up in coverage too — partial credit vs COVER.
+      const hybridLBs = (defArch.LB || []).filter(l => l?.archetype === "HYBRID").length;
       // Uniform per-COVER-LB term (was 0.040 for TE/RB targets). The heavy
       // TE/RB-target weight DOUBLE-COUNTED with the new individual cbCoverMod:
       // a COVER LB covering a TE got his COV rating applied via cbCoverMod
       // AND an archetype penalty here for the same matchup. coverLbMod is now
       // purely a "COVER LBs on the field tighten the underneath" term; the
       // DIRECT cover man's skill comes solely from cbCoverMod (his actual COV).
-      const coverLbMod = -(coverLBs * 0.012);
+      const coverLbMod = -(coverLBs * 0.012) - (hybridLBs * 0.007);
       const signalLbMod = -(signalLBs * 0.012);
       // Physical CB jam — kills the speed mismatch if our targeted WR is on
       // a press corner. Only applies when the targeted slot matches.
@@ -4975,6 +4989,7 @@ class GameSimulator {
                          : rcvrArch === "RED_ZONE"     ? -1.2
                          : rcvrArch === "ROUTE_RUNNER" ? -0.5
                          : rcvrArch === "BLOCKING"     ? -3.5  // blocking TE: short outlets only
+                         : rcvrArch === "HYBRID"       ? -1.5  // hybrid TE: between receiving + blocking
                          : 0;
         // RBs catch short outlets; without this they inherit the WR air-yards mean.
         const posAirMod = rcvrPlayer?.position === "RB" ? -3.0 : 0;
@@ -5051,6 +5066,7 @@ class GameSimulator {
                          : rcvrArch === "RED_ZONE"    ? 0.55
                          : rcvrArch === "DEEP_THREAT" ? 0.85
                          : rcvrArch === "BLOCKING"    ? 0.70  // not a YAC threat
+                         : rcvrArch === "HYBRID"      ? 0.88  // hybrid TE: modest YAC
                          : 1.0;
         yac = Math.round(yac * yacArchMul);
         // YAC break-tackle — physics model. Receiver's archetype maps to
@@ -5078,12 +5094,20 @@ class GameSimulator {
           if (br.brokenTackles > 0) {
             wrJuke = true;
             const zoneMul = zoneCB ? 0.6 : 1.0;
+            // SLOT is shifty for EXTRA yards but lives in the quick game — it
+            // shouldn't house-call from the slot. Dampen its explosive break
+            // bonus so it wins on consistent YAC, not 50-yd catch-and-runs.
+            const slotMul = rcvrArch === "SLOT" ? 0.60 : 1.0;
             // YAC contexts get 75% of break bonus (receivers don't sprint as
             // far after break as RBs in space).
-            yac += Math.round(br.bonusYards * zoneMul * 0.75);
+            yac += Math.round(br.bonusYards * zoneMul * slotMul * 0.75);
             yacBrokenTackles = br.brokenTackles;
           }
         }
+        // SLOT per-catch ceiling — high floor, low ceiling. Keeps the slot a
+        // YAC volume weapon without letting it top the team in long gains
+        // (that's the deep threat's job).
+        if (rcvrArch === "SLOT") yac = Math.min(yac, 26);
         const targetDepth = Math.max(1, Math.round(airYds));
         // Cap at distance to end zone so a 3-yd goal-line catch doesn't get reported as a 25-yd TD
         const yards = Math.min(clamp(targetDepth + yac, -2, 95), 100 - startYard);
@@ -5432,20 +5456,25 @@ class GameSimulator {
     const optionMul = pb.qbRushFumbleMul || 1.0;
     const rbArch = this.offArch.RB?.archetype;
     const rbPlayer = this._playerByName.get(RB);
-    const grip = rbPlayer ? ((rbPlayer.stats[1] || 70) + (rbPlayer.stats[3] || 70)) / 2 : 70;
-    const gripMod = (75 - grip) / 600;    // grip 95 → -0.033; grip 55 → +0.033
-    const archFumbleMul = rbArch === "POWER" ? 1.35 : rbArch === "ELUSIVE" ? 0.75 : 1.0;
+    // Ball security is mostly technique/awareness (AWR), only lightly strength.
+    const grip = rbPlayer ? ((rbPlayer.stats[3] || 70) * 0.7 + (rbPlayer.stats[1] || 70) * 0.3) : 70;
+    const gripMod = (72 - grip) / 1800;    // dampened so it can't swamp the archetype tilt
+    // Archetype tilt is now ADDITIVE in rate space. A MULTIPLIER (×1.35) on the
+    // grip-suppressed base was being canceled by POWER's high STR → power backs
+    // ended up fumbling the LEAST, backwards from intent. POWER carries through
+    // contact / fights for the extra yard with the ball exposed → fumbles more;
+    // ELUSIVE avoids square hits → fewer.
+    const archFumbleAdd = rbArch === "POWER" ? 0.0050 : rbArch === "ELUSIVE" ? -0.0035 : 0;
     // Weather: rain/snow makes the ball slippery → more fumbles.
     const wxFum = this.weather || { label: "CLEAR" };
     const wxFumMod = wxFum.label === "RAIN" ? 0.006
                    : wxFum.label === "SNOW" ? 0.010
                    : 0;
-    // Base 0.030 -> 0.013. The RB probe measured 1 fumble per ~43 touches
-    // (~0.030/carry after grip), ~2.5x the NFL rate (~1 per 80-120 touches).
-    // 0.013 base + grip/pressure/weather mods lands an average back near
-    // 1/80-90 carries; elite-grip backs (floor lowered 0.010 -> 0.004) get
-    // genuinely sure-handed, POWER backs in the rain still cough it up.
-    const fumblePct = clamp((0.009 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.004, 0.10);
+    // Base 0.030 -> 0.0085. The RB probe measured ~1 fumble per ~43 touches
+    // originally (~2.5x NFL); grip/archetype/pressure/weather mods land an
+    // average back near 1/80-90 carries. Elite-grip backs (floor 0.004) get
+    // genuinely sure-handed; POWER backs in the rain still cough it up.
+    const fumblePct = clamp((0.0085 + gripMod + archFumbleAdd + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul, 0.004, 0.10);
     if (Math.random() < fumblePct) {
       // Scrum-based recovery — the ball bounces in a pile of converging players.
       // Defense has a slight edge in open field (2-4 dive attempts each kick the
@@ -5733,8 +5762,10 @@ class GameSimulator {
     }
     // Box safety adds some stuffing power; thumper LB does too
     const defArchRun = this.defArch;
-    const boxSafetyStuff = ((defArchRun.S || []).filter(s => s?.archetype === "BOX").length * 0.2);
-    const thumperStuff   = ((defArchRun.LB || []).filter(l => l?.archetype === "THUMPER").length * 0.18);
+    const boxSafetyStuff = ((defArchRun.S || []).filter(s => s?.archetype === "BOX").length * 0.2)
+                         + ((defArchRun.S || []).filter(s => s?.archetype === "HYBRID").length * 0.08);
+    const thumperStuff   = ((defArchRun.LB || []).filter(l => l?.archetype === "THUMPER").length * 0.18)
+                         + ((defArchRun.LB || []).filter(l => l?.archetype === "HYBRID").length * 0.08);
     // LB gap recognition: high-AWR linebackers read the run key pre-snap and fill
     // the right gap — smart LBs are in the right place before the RB gets there.
     const lbRunList = defArchRun.LB || [];
