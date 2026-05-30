@@ -693,7 +693,7 @@ const POSITION_PHYSICAL_CAPS = {
   OL:  { 1:{min:75}, 3:{min:68}, 5:{max:55}, 6:{min:75}, 8:{max:45} },
   DL:  { 1:{min:75}, 3:{min:68}, 5:{max:55}, 7:{min:65}, 8:{max:55}, 9:{min:65} },
   LB:  { 1:{min:70}, 2:{min:70}, 3:{min:72}, 8:{min:60}, 9:{min:75} },
-  CB:  { 1:{max:78}, 2:{min:80}, 3:{min:70}, 6:{max:50}, 8:{min:75} },
+  CB:  { 1:{max:78}, 2:{min:68}, 3:{min:65}, 6:{max:50}, 8:{min:60} },
   S:   { 1:{max:88, min:60}, 2:{min:72}, 3:{min:75}, 8:{min:70}, 9:{min:72} },
   K:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:75} },
   P:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:72} },
@@ -726,8 +726,8 @@ function statsFor(pos, tier) {
   // unaffected.
   const r = {
     elite:   { lo:78, hi:99 },
-    good:    { lo:63, hi:80 },
-    average: { lo:48, hi:67 },
+    good:    { lo:65, hi:88 },     // widened upper bound 80 → 88; fills the OVR 80-84 gap that was bimodal vs elite (was producing OVR ~73)
+    average: { lo:50, hi:72 },     // widened slightly to keep continuity with new "good"
     poor:    { lo:35, hi:54 },
     scrub:   { lo:25, hi:42 },
   }[tier];
@@ -1326,6 +1326,7 @@ function genPlayer(pos, tier) {
     stats,
     overall: calcOverall(pos, stats),
     flavor,
+    _genTier: tier,   // read by the tier-aware TEC scaling below
   };
   // Rare durability trait (~3%) — halves per-game injury rate. Brett Favre /
   // Eli Manning / Cal Ripken style. Mostly invisible mechanic; shows as a
@@ -1389,6 +1390,17 @@ function genPlayer(pos, tier) {
     } else {
       player.stats[11] = rand(62, 72); // fallback
     }
+    // Tier-aware TEC scaling. TEC contributes 15% of EVERY position's OVR, but
+    // the archetype TEC table tops out at 80 (TECHNICIAN/ROUTE_RUNNER) and most
+    // sit at 65-72 — which structurally caps every elite-tier player's OVR
+    // around 87-90 even when their primary stats are 95+. NFL superstars (Brady,
+    // Donald, Rice) all have elite technique alongside elite physical/skill
+    // ratings, so an "elite" tier player needs an elite TEC range too. Bumps
+    // are applied only when the tier tag was passed (set on genUniquePlayer's
+    // path); otherwise unchanged.
+    const _genTier = player._genTier;
+    if (_genTier === "elite")        player.stats[11] = rand(85, 99);   // gives 99-tier headroom
+    else if (_genTier === "good")    player.stats[11] = Math.max(player.stats[11], rand(70, 82));
   }
   // AWR ceiling — how high this player's awareness can grow from game reps.
   // Sealed at creation so it's stable across loads. HIGH_IQ players are already
@@ -2137,12 +2149,34 @@ function genUniquePlayer(pos, tier, blockNames) {
 function genRoster(playbook = PLAYBOOKS.BALANCED, overrides = {}, blockNames = null) {
   const r = [];
   const used = new Set(blockNames || []);
+  // NFL-shaped depth chart. The old version produced a compressed league:
+  // ~10 players at 90+ leaguewide, zero at 95+, every team identically
+  // structured (#1 always "good" → max 80 OVR). Now each depth slot has a
+  // probability mix matching how NFL teams actually look:
+  //   #1 starter:  some chance of elite (78-99) — these are the league's
+  //                superstars, ~12% per team-#1 ≈ ~3-4 leaguewide per
+  //                position → matches NFL's "30-40 at 90+" tail.
+  //   #2 starter:  good/average mix — solid contributors w/ one weak spot.
+  //   #3 depth:    average/poor mix — backups + special teamers.
+  //   #4+ depth:   mostly poor — bottom of roster + camp bodies.
+  // Override + playbook tierBias still drive the starter when set (used by
+  // tests / scripted scenarios that need a fixed starter quality).
+  function pickTier(depth) {
+    if (depth === 0) {
+      const r = Math.random();
+      if (r < 0.12) return "elite";       // ~3-4 at 90+ per position leaguewide
+      if (r < 0.65) return "good";        // most starters
+      return "average";                    // weak starters (still better than backups)
+    }
+    if (depth === 1) return Math.random() < 0.5 ? "good" : "average";
+    if (depth === 2) return Math.random() < 0.5 ? "average" : "poor";
+    return Math.random() < 0.25 ? "average" : "poor";
+  }
   for (const [pos, count] of Object.entries(ROSTER_SLOTS)) {
     for (let i = 0; i < count; i++) {
       let tier;
-      if (i === 0) tier = overrides[pos] || playbook.tierBias[pos] || "good";
-      else if (i === 1) tier = "average";
-      else tier = "poor";
+      if (i === 0) tier = overrides[pos] || playbook.tierBias[pos] || pickTier(0);
+      else tier = pickTier(i);
       const player = genUniquePlayer(pos, tier, used);
       used.add(player.name);
       r.push(player);
