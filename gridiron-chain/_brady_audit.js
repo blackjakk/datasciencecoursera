@@ -440,6 +440,43 @@ const harness = `
     if (typeof fn !== "function") return;
     try { fn(); } catch (e) { console.error("[brady] "+label+" threw (season "+s+"): "+e.message); }
   }
+  // ── INJURY CAPTURE ──────────────────────────────────────────────────
+  // Injuries fire per game inside recordFranchiseResult: _rollGameInjuries
+  // (contact / hit-driven) + _rollNonContactInjuries (stress / soft-tissue).
+  // Both push to p.injuryHistory at assignment. We wrap the two rollers to
+  // tally every injury the moment it's assigned, so players later cut or
+  // retired are still counted (scanning end-of-sim rosters would miss them).
+  const _inj = { total:0, contact:0, nonContact:0, careerEnding:0, catastrophic:0,
+                 gamesMissed:0, weeks:[], byPos:{}, byLabel:{} };
+  function _tallyInjuriesFor(teamId) {
+    const roster = (franchise.rosters && franchise.rosters[teamId]) || [];
+    for (const p of roster) {
+      const h = p.injuryHistory;
+      if (!h || !h.length) continue;
+      const last = h[h.length - 1];
+      if (!last || last._aud) continue;
+      if (last.season !== franchise.season || last.week !== franchise.week) continue;
+      last._aud = true;
+      _inj.total++;
+      if (last.cause === "non_contact") _inj.nonContact++; else _inj.contact++;
+      if (last.careerEnding) _inj.careerEnding++;
+      if (last.catastrophic) _inj.catastrophic++;
+      const wks = last.weeks || last.duration || 0;
+      _inj.weeks.push(wks);
+      _inj.gamesMissed += Math.min(wks, 18);   // cap season-ending (99 wk) at one season
+      const pos = p.position || "?";
+      _inj.byPos[pos] = (_inj.byPos[pos] || 0) + 1;
+      _inj.byLabel[last.label] = (_inj.byLabel[last.label] || 0) + 1;
+    }
+  }
+  if (typeof _rollGameInjuries === "function") {
+    const _origRGI = _rollGameInjuries;
+    _rollGameInjuries = function (id) { const r = _origRGI(id); _tallyInjuriesFor(id); return r; };
+  }
+  if (typeof _rollNonContactInjuries === "function") {
+    const _origRNC = _rollNonContactInjuries;
+    _rollNonContactInjuries = function (id) { const r = _origRNC(id); _tallyInjuriesFor(id); return r; };
+  }
   for (let s = 0; s < ${SEASONS}; s++) {
     // Play the season: regular games + full playoff bracket → awards phase.
     step(typeof frnSimToEndOfSeason !== "undefined" && frnSimToEndOfSeason, "simSeason", s);
@@ -935,6 +972,44 @@ const harness = `
       if (totals.length) console.log(" CAREER TOTALS:  " + totals.join("  ·  "));
     }
     console.log("");
+  }
+
+  // ── INJURY REPORT ───────────────────────────────────────────────────
+  {
+    const teamSeasons = ${SEASONS} * 32;
+    const perTS = n => n / teamSeasons;
+    const ws = _inj.weeks.slice().sort((a, b) => a - b);
+    const med = ws.length ? ws[Math.floor(ws.length * 0.5)] : 0;
+    const p90 = ws.length ? ws[Math.floor(ws.length * 0.9)] : 0;
+    const seasonEnding = ws.filter(w => w >= 8).length;   // out 8+ wks ≈ IR / season-ending
+    console.log("");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" INJURY REPORT — " + ${SEASONS} + " seasons (" + teamSeasons + " team-seasons)");
+    console.log("══════════════════════════════════════════════════════════");
+    const row = (label, val, lo, hi, fmt) => {
+      const v = fmt ? fmt(val) : val;
+      const flag = (lo != null) ? ((val < lo || val > hi) ? " !!" : " OK") : "";
+      const band = (lo != null) ? ("   [" + lo + "-" + hi + "]") : "";
+      console.log("  " + String(label).padEnd(32) + String(v).padStart(8) + band + flag);
+    };
+    row("Injuries / team-season",         perTS(_inj.total),        18, 42, v => v.toFixed(1));
+    row("  contact (hit-driven)",         perTS(_inj.contact),      null, null, v => v.toFixed(1));
+    row("  non-contact (soft tissue)",    perTS(_inj.nonContact),   null, null, v => v.toFixed(1));
+    row("Non-contact share %",            100 * _inj.nonContact / Math.max(1, _inj.total), 28, 45, v => v.toFixed(1));
+    row("Season-ending (8+wk)/team-szn",  perTS(seasonEnding),      4, 14, v => v.toFixed(1));
+    row("Career-ending / team-season",    perTS(_inj.careerEnding), null, null, v => v.toFixed(2));
+    row("Games missed / team-season",     perTS(_inj.gamesMissed),  null, null, v => v.toFixed(1));
+    row("Median weeks out",               med,                      null);
+    row("P90 weeks out",                  p90,                      null);
+    console.log("  ── by position (injuries / team-season) ──");
+    for (const pos of ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"]) {
+      if (!_inj.byPos[pos]) continue;
+      console.log("    " + pos.padEnd(5) + perTS(_inj.byPos[pos]).toFixed(2).padStart(6));
+    }
+    console.log("  ── most common injury types (% of all) ──");
+    for (const [lab, n] of Object.entries(_inj.byLabel).sort((a, b) => b[1] - a[1]).slice(0, 8)) {
+      console.log("    " + String(lab).padEnd(16) + (100 * n / Math.max(1, _inj.total)).toFixed(1).padStart(5) + "%");
+    }
   }
 })();
 `;

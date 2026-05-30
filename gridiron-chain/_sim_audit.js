@@ -93,6 +93,14 @@ const audit = `
 
   const t0 = Date.now();
   for (let s = 0; s < SEASONS; s++) {
+    // Per-offensive-playbook + per-weather accumulators (gameplay-system audit).
+    // Each team uses its real playbook (getPlaybook), so tagging team-games by
+    // the offense's playbook shows whether the 5 schemes produce distinct,
+    // NFL-shaped profiles. Weather is read off the sim instance post-game.
+    const PB = {};
+    const WX = {};
+    const _pbInit = id => (PB[id] || (PB[id] = { g:0, plays:0, passYds:0, rushYds:0, pAtt:0, rAtt:0, comp:0, pts:0, sacksAllowed:0 }));
+    const _wxInit = l => (WX[l] || (WX[l] = { g:0, passYds:0, rushYds:0, pAtt:0, comp:0, pts:0, fum:0, fgM:0, fgA:0 }));
     const rosters = {};
     for (const t of TEAMS) rosters[t.id] = buildRoster(t);
     for (let i = 0; i < TEAMS.length; i++) {
@@ -102,6 +110,8 @@ const audit = `
         const r = sim.simulate();
         lb.games++; lb.ptsSum += (r.homeScore + r.awayScore);
         game_margin.push(Math.abs(r.homeScore - r.awayScore));
+        const _wxL = (sim.weather && sim.weather.label) || "CLEAR";
+        const _wx = _wxInit(_wxL);
         for (const side of ["home","away"]) {
           const tm = r.stats[side].team;
           const pts = side==="home" ? r.homeScore : r.awayScore;
@@ -119,6 +129,14 @@ const audit = `
           lb.pass_comp += tm.pass_comp; lb.pass_att += tm.pass_att; lb.rush_att += tm.rush_att;
           lb.penalties += (tm.penalties||0); lb.penaltyYds += (tm.penaltyYds||0);
           lb.intThrown += teamInt;
+          // ── Per-playbook (offense) + per-weather accumulation ──
+          const _offTeam = side==="home" ? h : a;
+          const _pb = _pbInit(_offTeam.playbook || "BALANCED");
+          _pb.g++; _pb.plays += (tm.plays||0); _pb.passYds += tm.passYds; _pb.rushYds += tm.rushYds;
+          _pb.pAtt += tm.pass_att; _pb.rAtt += tm.rush_att; _pb.comp += tm.pass_comp;
+          _pb.pts += pts; _pb.sacksAllowed += (tm.sacks_allowed||0);
+          _wx.g++; _wx.passYds += tm.passYds; _wx.rushYds += tm.rushYds;
+          _wx.pAtt += tm.pass_att; _wx.comp += tm.pass_comp; _wx.pts += pts;
           // Situational (team stats)
           lb.thirdAtt += (tm.thirdAtt||0); lb.thirdConv += (tm.thirdConv||0);
           lb.fourthAtt += (tm.fourthAtt||0); lb.fourthConv += (tm.fourthConv||0);
@@ -129,6 +147,7 @@ const audit = `
             lb.fgMade += (p.fg_made||0); lb.fgAtt += (p.fg_att||0);
             lb.xpMade += (p.xp_made||0); lb.xpAtt += (p.xp_att||0);
             lb.puntAtt += (p.punt_att||0); lb.puntYds += (p.punt_yds||0);
+            _wx.fum += (p.fumbles||0); _wx.fgM += (p.fg_made||0); _wx.fgA += (p.fg_att||0);
             const P = normPos(p.pos);
             if (pp[P]) {
               const stat = sigStat[P];
@@ -406,6 +425,42 @@ const audit = `
   console.log("   K  FG made "+_q(K.map(l=>l.fg_made||0),.5).toFixed(1)+"/g (max "+_mx(K.map(l=>l.fg_made||0))+") | long "+_mx(K.map(l=>l.fg_long||0)));
   console.log("   P  Punts "+_q(P.map(l=>l.punt_att||0),.5).toFixed(1)+"/g | avg "+(()=>{const a=P.filter(l=>l.punt_att);return a.length?(a.reduce((s,l)=>s+l.punt_yds,0)/a.reduce((s,l)=>s+l.punt_att,0)).toFixed(1):"0";})()+" | long "+_mx(P.map(l=>l.punt_long||0)));
   console.log(" OL  (n="+OL.length+")   Pancakes "+_q(OL.map(l=>l.pancakes||0),.5).toFixed(1)+" med/"+_mx(OL.map(l=>l.pancakes||0))+" max");
+  console.log("");
+
+  // ============== PLAYBOOK BREAKDOWN — scheme differentiation ==============
+  // Each team runs its real offensive playbook; this shows whether the 5
+  // schemes produce distinct, NFL-shaped profiles (AIR_RAID pass-heavy,
+  // GROUND_AND_POUND run-heavy, OPTION/DUAL_THREAT run-leaning, etc.).
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" PLAYBOOK BREAKDOWN (offense) — per team-game by scheme");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("   "+"SCHEME".padEnd(16)+"PASS%".padStart(6)+"pYDS".padStart(7)+"rYDS".padStart(7)+"Y/PLAY".padStart(8)+"PTS".padStart(6)+"SKall".padStart(7));
+  console.log("   "+"-".repeat(57));
+  for (const [id, s] of Object.entries(PB).sort((a,b)=>b[1].g-a[1].g)) {
+    if (!s.g) continue;
+    const passShare = 100*s.pAtt/Math.max(1,(s.pAtt+s.rAtt));
+    const ypp = (s.passYds+s.rushYds)/Math.max(1,s.plays);
+    console.log("   "+id.padEnd(16)+passShare.toFixed(1).padStart(6)+(s.passYds/s.g).toFixed(0).padStart(7)
+      +(s.rushYds/s.g).toFixed(0).padStart(7)+ypp.toFixed(2).padStart(8)+(s.pts/s.g).toFixed(1).padStart(6)
+      +(s.sacksAllowed/s.g).toFixed(2).padStart(7));
+  }
+
+  // ============== WEATHER BREAKDOWN — environment effects ==============
+  // Verifies weather actually moves the game: RAIN/SNOW should cut completion%
+  // and lift fumbles; wind/snow should drop FG%.
+  console.log("");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" WEATHER BREAKDOWN — per team-game by condition");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("   "+"WEATHER".padEnd(10)+"share".padStart(7)+"CMP%".padStart(7)+"pYDS".padStart(7)+"rYDS".padStart(7)+"PTS".padStart(6)+"FUM/g".padStart(7)+"FG%".padStart(7));
+  console.log("   "+"-".repeat(58));
+  const _wxTot = Object.values(WX).reduce((n,s)=>n+s.g,0)||1;
+  for (const [lab, s] of Object.entries(WX).sort((a,b)=>b[1].g-a[1].g)) {
+    if (!s.g) continue;
+    console.log("   "+lab.padEnd(10)+(100*s.g/_wxTot).toFixed(1).padStart(7)+(100*s.comp/Math.max(1,s.pAtt)).toFixed(1).padStart(7)
+      +(s.passYds/s.g).toFixed(0).padStart(7)+(s.rushYds/s.g).toFixed(0).padStart(7)+(s.pts/s.g).toFixed(1).padStart(6)
+      +(s.fum/s.g).toFixed(3).padStart(7)+(100*s.fgM/Math.max(1,s.fgA)).toFixed(1).padStart(7));
+  }
   console.log("");
 })();
 `;

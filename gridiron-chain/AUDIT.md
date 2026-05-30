@@ -95,6 +95,14 @@ Tables:
 - **CAREER LENGTH BY POSITION** — attrition gradient (RB/DL short, QB/K/P long).
 - **LEGEND CAREERS** — full per-season story for every OVR-96+ player:
   trajectory, accolades (SB/MVP/All-Pro/PB), career totals.
+- **INJURY REPORT** — injuries/team-season (contact vs non-contact split),
+  non-contact share %, season-ending (8+ wk) rate, career-ending rate, games
+  missed, median/P90 weeks out, by-position rate, and injury-type frequencies.
+  Captured by wrapping `_rollGameInjuries` + `_rollNonContactInjuries` (which
+  fire per game in `recordFranchiseResult`) so every injury is tallied at
+  assignment — players later cut/retired are still counted. This is also the
+  only lens on the **HEADHUNTER** archetype, whose identity is causing injuries
+  (×1.5 on big hits), invisible to the box-score archetype probe.
 
 ---
 
@@ -189,6 +197,18 @@ franchise award/record code calls) + the four `play-franchise-*.js` files.
 | Worst-to-first rate | 3–12% | turnaround stories exist |
 | Unique champions | ≥ ~45% of seasons | parity |
 | Repeat / most titles | small | dynasties exist but aren't permanent |
+
+### Injuries (`_brady_audit.js` INJURY REPORT)
+> Bands are **approximate** — NFL "injuries causing missed time" isn't a clean
+> public stat; these flag systemic over/under-injury, not precise rates.
+
+| Metric | Band | Notes |
+|---|---|---|
+| Injuries / team-season | 18–42 | all injuries costing ≥1 game |
+| Non-contact share % | 28–45% | soft-tissue/stress (code targets ~40%) |
+| Season-ending (8+ wk) / team-season | 4–14 | ≈ IR placements |
+| Position gradient | WR/CB/S high, QB/OL/K/P low | speed positions tear soft tissue |
+| Median weeks out | ~2–3 | most injuries are short soft-tissue |
 
 ### Brady-gem cadence (`_brady_audit.js`)
 Target ~**1 Brady-tier (R6+/UDFA → OVR 96+) emergence per 75 years**.
