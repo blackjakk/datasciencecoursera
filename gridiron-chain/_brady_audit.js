@@ -289,6 +289,52 @@ const harness = `
     seasonStandings.push({ year, winPct, champId });
   }
   const teamRecords = { topPF: {}, topW: {} };
+
+  // ── POSITIONAL DEPTH + LEAGUE LEADERS (point-in-time snapshot) ──────────
+  // Everything else we report is pooled-over-all-seasons or cumulative
+  // career/season leaders. This answers "how many elite QBs exist AT ONE
+  // TIME, what's the top-10 OVR range, who are the best players right now,
+  // and what are they producing." Snapshot each season → average the depth;
+  // keep the final season's top lists with stat lines.
+  const POSN = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const normP = p => p==="DE"||p==="DT"||p==="NT" ? "DL" : p==="FS"||p==="SS" ? "S" : p;
+  const posDepth = {}; for (const P of POSN) posDepth[P] = { n90:[], n85:[], t1:[], t5:[], t10:[] };
+  let leagueTop = [], qbTop = [];   // final-season snapshots (with stat lines)
+  // Short per-season stat line from a player's last careerHistory row.
+  function _seasonLine(p) {
+    const h = (p.careerHistory || []); const r = h[h.length - 1]; if (!r) return "";
+    const pos = p.position;
+    if (pos==="QB") return (r.pass_yds||0)+" yd, "+(r.pass_td||0)+" TD, "+(r.pass_int||0)+" INT";
+    if (pos==="RB") return (r.rush_yds||0)+" yd, "+(r.rush_td||0)+" TD, "+(r.rec||0)+" rec";
+    if (pos==="WR"||pos==="TE") return (r.rec||0)+" rec, "+(r.rec_yds||0)+" yd, "+(r.rec_td||0)+" TD";
+    if (pos==="DL"||pos==="LB") return (r.tkl||0)+" tkl, "+(r.sk||0)+" sk, "+(r.ff||0)+" FF";
+    if (pos==="CB"||pos==="S")  return (r.tkl||0)+" tkl, "+(r.int_made||0)+" INT, "+(r.pd||0)+" PD";
+    if (pos==="K") return (r.fg_made||0)+"/"+(r.fg_att||0)+" FG";
+    if (pos==="P") return (r.punt_att||0)+" punts";
+    return "";
+  }
+  function snapshotDepth(year, isFinal) {
+    const byPos = {}; for (const P of POSN) byPos[P] = [];
+    const all = [];
+    for (const t of TEAMS) {
+      const active = (franchise.rosters[t.id] || []).slice()
+        .sort((a,b)=>(b.overall||0)-(a.overall||0)).slice(0, 53);
+      for (const p of active) { const P = normP(p.position); if (byPos[P]) byPos[P].push(p); all.push(p); }
+    }
+    for (const P of POSN) {
+      const arr = byPos[P].sort((a,b)=>(b.overall||0)-(a.overall||0));
+      const d = posDepth[P];
+      d.n90.push(arr.filter(p=>(p.overall||0)>=90).length);
+      d.n85.push(arr.filter(p=>(p.overall||0)>=85).length);
+      d.t1.push(arr[0]?.overall||0); d.t5.push(arr[4]?.overall||0); d.t10.push(arr[9]?.overall||0);
+    }
+    if (isFinal) {
+      all.sort((a,b)=>(b.overall||0)-(a.overall||0));
+      leagueTop = all.slice(0,15).map(p=>({ name:p.name, pos:p.position, ovr:p.overall||0, age:p.age||0, line:_seasonLine(p) }));
+      qbTop = byPos.QB.slice(0,10).map(p=>({ name:p.name, ovr:p.overall||0, age:p.age||0, line:_seasonLine(p) }));
+    }
+  }
+
   let rosterSizeSum = 0, rosterSizeN = 0;
   function snapshotLeagueOvr(year) {
     const dIdx = Math.min(decadeOvr.length - 1, Math.floor((year - 1) / 10));
@@ -412,6 +458,7 @@ const harness = `
     _foldSeasonRecords();
     _captureAwards();           // tally this season's MVP/All-Pro/etc winners
     snapshotStandings(s + 1);   // capture win% + champion before frnNewSeason resets
+    snapshotDepth(s + 1, s === ${SEASONS} - 1);   // positional depth + (final yr) top lists
     // awards → offseason (frnApbProceedToOffseason wraps startFrnOffseason and
     // dismisses the all-pro-bowl crowning; fall back to startFrnOffseason).
     if (franchise.phase === "awards") {
@@ -667,6 +714,38 @@ const harness = `
     }
     console.log(" "+"-".repeat(64));
     console.log(" "+fhOk+"/"+FH.length+" in range\\n");
+  }
+
+  // ── POSITIONAL DEPTH (how many elite at one time + top-10 OVR range) ────
+  if (posDepth.QB.t1.length) {
+    const avg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" POSITIONAL DEPTH — per-season snapshot, averaged over the sim");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" POS   #90+   #85+   |  #1 OVR  #5 OVR  #10 OVR   (NFL QB: ~6-8 @90+, top10 ~99→86)");
+    console.log(" "+"-".repeat(64));
+    for (const P of POSN) {
+      const d = posDepth[P];
+      console.log(" "+P.padEnd(4)+" "+avg(d.n90).toFixed(1).padStart(5)+" "+avg(d.n85).toFixed(1).padStart(6)+"   |  "+
+                  avg(d.t1).toFixed(0).padStart(5)+"   "+avg(d.t5).toFixed(0).padStart(5)+"   "+avg(d.t10).toFixed(0).padStart(5));
+    }
+    console.log("");
+  }
+
+  // ── LEAGUE LEADERS RIGHT NOW (final-season snapshot, with stats) ────────
+  if (leagueTop.length) {
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" TOP 15 PLAYERS IN THE LEAGUE — final season (any position)");
+    console.log("══════════════════════════════════════════════════════════");
+    leagueTop.forEach((p,i)=>console.log(" "+String(i+1).padStart(2)+". "+(p.ovr+" "+p.pos).padEnd(7)+" "+(p.name+" ("+p.age+")").padEnd(28)+" "+p.line));
+    console.log("");
+  }
+  if (qbTop.length) {
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" TOP 10 QBs — final season (OVR range = #1 vs #10)");
+    console.log("══════════════════════════════════════════════════════════");
+    qbTop.forEach((p,i)=>console.log(" "+String(i+1).padStart(2)+". OVR "+String(p.ovr).padStart(2)+"  "+(p.name+" ("+p.age+")").padEnd(28)+" "+p.line));
+    console.log("");
   }
 
   // ── TIER 4: CAREER LENGTH BY POSITION ───────────────────────────────────
