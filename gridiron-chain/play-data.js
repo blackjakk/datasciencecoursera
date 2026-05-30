@@ -70,7 +70,7 @@ function teamAscii(team) {
 const PERSONNEL = {
   I_FORM: { rb: 2, te: 1, wr: 2, label: "I-Form (21)",  skill: 5 },
   HEAVY:  { rb: 1, te: 2, wr: 2, label: "Heavy (12)",   skill: 5 },
-  BASE:   { rb: 1, te: 1, wr: 2, label: "Base (11)",    skill: 4 },
+  BASE:   { rb: 1, te: 1, wr: 3, label: "Base (11)",    skill: 5 },
   TRIPS:  { rb: 1, te: 1, wr: 3, label: "Trips (11)",   skill: 5 },
   SPREAD: { rb: 1, te: 0, wr: 4, label: "Spread (10)",  skill: 5 },
   EMPTY:  { rb: 0, te: 1, wr: 4, label: "Empty (01)",   skill: 5 },
