@@ -76,6 +76,18 @@ const audit = `
   const tg_pts=[], tg_totalYds=[], tg_passYds=[], tg_rushYds=[], tg_firstDowns=[],
         tg_sacks=[], tg_turnovers=[], tg_penalties=[], tg_penaltyYds=[],
         tg_intThrown=[], tg_passAtt=[], tg_passComp=[], tg_rushAtt=[];
+
+  // ── PER-POSITION PRODUCTION ──
+  // For each team-game we find the PRIMARY producer at each position (the de
+  // facto starter, by the position's signature stat) and push their per-game
+  // stat line into pp[POS]. At report time we show median / P10 / P90 / max
+  // per key stat + milestone-game frequencies. Player lines carry a pos
+  // (subPos), normalized here: DE/DT to DL, FS/SS to S.
+  const pp = { QB:[], RB:[], WR:[], TE:[], OL:[], DL:[], LB:[], CB:[], S:[], K:[], P:[] };
+  const normPos = (p) => p==="DE"||p==="DT"||p==="NT" ? "DL" : p==="FS"||p==="SS" ? "S" : p;
+  // signature stat → picks the "starter" at each position
+  const sigStat = { QB:"pass_att", RB:"rush_att", WR:"rec_yds", TE:"rec_yds", OL:"pancakes",
+                    DL:"sk", LB:"tkl", CB:"pd", S:"tkl", K:"fg_att", P:"punt_att" };
   // Per-GAME (not per-team-game) — margin is one value per matchup.
   const game_margin=[];
 
@@ -107,12 +119,19 @@ const audit = `
           lb.thirdAtt += (tm.thirdAtt||0); lb.thirdConv += (tm.thirdConv||0);
           lb.fourthAtt += (tm.fourthAtt||0); lb.fourthConv += (tm.fourthConv||0);
           lb.rzAtt += (tm.rz_att||0); lb.rzTD += (tm.rz_td||0);
-          // Kicking / ST (player lines)
+          // Kicking / ST (player lines) + per-position starter detection
+          const posLeader = {};   // POS → best line this team-game by sigStat
           for (const p of Object.values(r.stats[side].players)) {
             lb.fgMade += (p.fg_made||0); lb.fgAtt += (p.fg_att||0);
             lb.xpMade += (p.xp_made||0); lb.xpAtt += (p.xp_att||0);
             lb.puntAtt += (p.punt_att||0); lb.puntYds += (p.punt_yds||0);
+            const P = normPos(p.pos);
+            if (pp[P]) {
+              const stat = sigStat[P];
+              if (!posLeader[P] || (p[stat]||0) > (posLeader[P][stat]||0)) posLeader[P] = p;
+            }
           }
+          for (const P in posLeader) pp[P].push(posLeader[P]);
           lb.teamGames++;
           // Per-team-game arrays (for quantiles + event rates)
           tg_pts.push(pts);
@@ -326,6 +345,55 @@ const audit = `
   }
   console.log(" "+"-".repeat(60));
   console.log(" "+dOk+"/"+D2.length+" in range\\n");
+
+  // ============== PER-POSITION PRODUCTION (per-game, the starter) ==============
+  function _q(arr,p){ if(!arr.length) return 0; const s=arr.slice().sort((a,b)=>a-b); return s[Math.min(s.length-1,Math.floor(p*s.length))]; }
+  function _mx(arr){ return arr.length?Math.max(...arr):0; }
+  // dist line: "label  P50 / P10 / P90 / max"  for a derived per-line value
+  function distLine(label, lines, fn, fmt){
+    const vals = lines.map(fn).filter(v=>!isNaN(v));
+    fmt = fmt || (v=>v.toFixed(1));
+    return label.padEnd(11)+" "+fmt(_q(vals,.5)).padStart(6)+" /"+fmt(_q(vals,.10)).padStart(6)+" /"+fmt(_q(vals,.90)).padStart(6)+" /"+fmt(_mx(vals)).padStart(6);
+  }
+  function freq(label, lines, pred){ const n=lines.length||1; return label+" "+(lines.filter(pred).length/n*100).toFixed(0)+"%"; }
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" PER-POSITION PRODUCTION — per game, the position's starter");
+  console.log(" (each row: median / P10 / P90 / max ; n = starter-games)");
+  console.log("══════════════════════════════════════════════════════════");
+  const QB=pp.QB, RB=pp.RB, WR=pp.WR, TE=pp.TE, DL=pp.DL, LB=pp.LB, CB=pp.CB, S=pp.S, K=pp.K, P=pp.P, OL=pp.OL;
+  console.log(" QB  (n="+QB.length+")   NFL starter refs in (parens)");
+  console.log("   "+distLine("Comp%", QB, l=>l.pass_att?l.pass_comp/l.pass_att*100:0, v=>v.toFixed(0)+"%")+"   (~63%)");
+  console.log("   "+distLine("Pass yds", QB, l=>l.pass_yds||0, v=>v.toFixed(0))+"   (~230)");
+  console.log("   "+distLine("Pass TD", QB, l=>l.pass_td||0, v=>v.toFixed(1))+"   (~1.5)");
+  console.log("   "+distLine("INT", QB, l=>l.pass_int||0, v=>v.toFixed(1))+"   (~0.7)");
+  console.log("   "+freq("300+yd game",QB,l=>(l.pass_yds||0)>=300)+"   "+freq("3+TD",QB,l=>(l.pass_td||0)>=3)+"   "+freq("multi-INT",QB,l=>(l.pass_int||0)>=2));
+  console.log(" RB  (n="+RB.length+")");
+  console.log("   "+distLine("Carries", RB, l=>l.rush_att||0, v=>v.toFixed(0))+"   (~16)");
+  console.log("   "+distLine("Rush yds", RB, l=>l.rush_yds||0, v=>v.toFixed(0))+"   (~70)");
+  console.log("   "+distLine("YPC", RB, l=>l.rush_att?l.rush_yds/l.rush_att:0, v=>v.toFixed(1))+"   (~4.3)");
+  console.log("   "+distLine("Rec", RB, l=>l.rec||0, v=>v.toFixed(1))+"   (~3)");
+  console.log("   "+freq("100+yd game",RB,l=>(l.rush_yds||0)>=100)+"   "+freq("2+TD",RB,l=>((l.rush_td||0)+(l.rec_td||0))>=2));
+  console.log(" WR  (n="+WR.length+")");
+  console.log("   "+distLine("Targets", WR, l=>l.rec_tgt||0, v=>v.toFixed(0))+"   (~8)");
+  console.log("   "+distLine("Rec", WR, l=>l.rec||0, v=>v.toFixed(1))+"   (~5)");
+  console.log("   "+distLine("Rec yds", WR, l=>l.rec_yds||0, v=>v.toFixed(0))+"   (~70)");
+  console.log("   "+distLine("Yds/catch", WR, l=>l.rec?l.rec_yds/l.rec:0, v=>v.toFixed(1))+"   (~13)");
+  console.log("   "+freq("100+yd game",WR,l=>(l.rec_yds||0)>=100)+"   "+freq("2+TD",WR,l=>(l.rec_td||0)>=2));
+  console.log(" TE  (n="+TE.length+")");
+  console.log("   "+distLine("Rec", TE, l=>l.rec||0, v=>v.toFixed(1))+"   (~4)");
+  console.log("   "+distLine("Rec yds", TE, l=>l.rec_yds||0, v=>v.toFixed(0))+"   (~45)");
+  console.log("   "+freq("100+yd game",TE,l=>(l.rec_yds||0)>=100));
+  console.log(" DL  (n="+DL.length+")   LB (n="+LB.length+")");
+  console.log("   DL "+distLine("Tkl", DL, l=>l.tkl||0, v=>v.toFixed(1))+"  | Sacks "+_q(DL.map(l=>l.sk||0),.5).toFixed(1)+" med, "+_mx(DL.map(l=>l.sk||0))+" max  "+freq("multi-sk",DL,l=>(l.sk||0)>=2));
+  console.log("   LB "+distLine("Tkl", LB, l=>l.tkl||0, v=>v.toFixed(1))+"  | Sk "+_q(LB.map(l=>l.sk||0),.5).toFixed(1)+" INT "+_q(LB.map(l=>l.int_made||0),.5).toFixed(1));
+  console.log(" CB  (n="+CB.length+")   S (n="+S.length+")");
+  console.log("   CB Tkl "+_q(CB.map(l=>l.tkl||0),.5).toFixed(1)+" med | PD "+_q(CB.map(l=>l.pd||0),.5).toFixed(1)+" med/"+_mx(CB.map(l=>l.pd||0))+" max | "+freq("INT game",CB,l=>(l.int_made||0)>=1));
+  console.log("   S  Tkl "+_q(S.map(l=>l.tkl||0),.5).toFixed(1)+" med | INT "+freq("game",S,l=>(l.int_made||0)>=1)+" | PD "+_q(S.map(l=>l.pd||0),.5).toFixed(1)+" med");
+  console.log(" K  (n="+K.length+")   P (n="+P.length+")");
+  console.log("   K  FG made "+_q(K.map(l=>l.fg_made||0),.5).toFixed(1)+"/g (max "+_mx(K.map(l=>l.fg_made||0))+") | long "+_mx(K.map(l=>l.fg_long||0)));
+  console.log("   P  Punts "+_q(P.map(l=>l.punt_att||0),.5).toFixed(1)+"/g | avg "+(()=>{const a=P.filter(l=>l.punt_att);return a.length?(a.reduce((s,l)=>s+l.punt_yds,0)/a.reduce((s,l)=>s+l.punt_att,0)).toFixed(1):"0";})()+" | long "+_mx(P.map(l=>l.punt_long||0)));
+  console.log(" OL  (n="+OL.length+")   Pancakes "+_q(OL.map(l=>l.pancakes||0),.5).toFixed(1)+" med/"+_mx(OL.map(l=>l.pancakes||0))+" max");
+  console.log("");
 })();
 `;
 
