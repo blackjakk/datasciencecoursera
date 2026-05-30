@@ -8944,6 +8944,28 @@ function _rerollPotentialForBreakouts() {
         const sustained = !!(last?.accolades?.length);
         phase = "tiny"; gateOk = idx < top3 && sustained;
       }
+      // ── HIDDEN-GEM DEVELOPMENTAL BREAKOUT ─────────────────────────────
+      // The production gate above (top 5%) is unreachable for the very
+      // players the gem system exists to create: a late-round gem starts
+      // ~62 OVR, sits behind starters, and can't post top-5% numbers while
+      // it's still developing. Result: the breakout never fires for gems,
+      // so the slow offseason grind alone (capped at age 28) leaves 96+
+      // ceilings stranded ~OVR 85 and NO Brady ever emerges (verified: 0 in
+      // 400 gems). Give a gem that's EARNED SNAPS (it reached seasonStats, or
+      // it would have been skipped at idx===-1 above) and is still early and
+      // below its launchpad a modest per-season chance to break out anyway —
+      // the leap to 82-87% of ceiling that lets the grind finish the climb.
+      // Kept rare + early so most high-ceiling gems still bust (target is
+      // ~1 Brady per 75 yrs, not "every gem hits"). Tune GEM_DEV_BREAKOUT_P.
+      if (!gateOk && player.hiddenGem) {
+        const GEM_DEV_BREAKOUT_P = 0.10;   // per eligible season; calibrate via _brady_audit.js
+        const ceil = player.hiddenGem.ceiling || 0;
+        const belowLaunchpad = (player.overall || 0) < 0.82 * ceil;
+        const earlyCareer = yearsInLeague <= 3 && (player.age || 99) <= 25;
+        if (belowLaunchpad && earlyCareer && Math.random() < GEM_DEV_BREAKOUT_P) {
+          phase = "full"; gateOk = true;
+        }
+      }
       if (!gateOk) continue;
       // Magnitude scales by phase — full jump for Y0-1 prodigies, half
       // for Y2-3 late-rises, tiny for Y4+ sustained breakouts.
