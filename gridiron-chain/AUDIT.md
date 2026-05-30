@@ -44,6 +44,11 @@ Three tables:
 - **EVENT RATES** — rare-event shape checks (shutouts, blowouts, multi-INT…).
 - **DRIVE / SITUATIONAL / KICKING** — drive outcomes, 3rd/4th-down, red zone,
   FG by distance, XP, punts, OT.
+- **PER-POSITION PRODUCTION** — for each O/D/ST position's *starter*, per-game
+  median/P10/P90/max of key stats + milestone-game frequencies (300+yd QB
+  games, 100+yd RB/WR games, multi-sack DL, INT-game CB, etc.). The fastest way
+  to spot a position over/under-producing. (OL shows n=0 — not individually
+  tracked beyond team pancakes.)
 
 ### 2. `_brady_audit.js` — franchise + player development
 Drives a full franchise headlessly season-by-season (plays every game + the
