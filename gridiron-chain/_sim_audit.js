@@ -173,7 +173,10 @@ const audit = `
     // ptsSum is per-game-both-teams, so divide by 2 for per-team.
     playsPerGame: tg ? (lb.pass_att + lb.rush_att) / tg : 0,
     ypp: (lb.pass_att + lb.rush_att) ? lb.totalYds / (lb.pass_att + lb.rush_att) : 0,
-    ppp: (lb.pass_att + lb.rush_att) ? (lb.ptsSum / 2) / (lb.pass_att + lb.rush_att) : 0,
+    // ptsSum is per-game (both teams); pass_att+rush_att is summed per
+    // team-game (also both teams). Same scale → NO /2 (an earlier /2 halved
+    // this to ~0.20 and false-flagged it; true all-snap NFL ppp ~0.36-0.41).
+    ppp: (lb.pass_att + lb.rush_att) ? lb.ptsSum / (lb.pass_att + lb.rush_att) : 0,
     ypComp: lb.pass_comp ? lb.passYds / lb.pass_comp : 0,
   };
   const B = [
