@@ -10818,7 +10818,15 @@ function _developNflPlayer(p, mult) {
   const gap = ceiling - current;
   if (gap <= 0) return;
   const intensity = HiddenOracle.roll.intensity(p, yr);
-  const grew = Math.min(gap * 1.5, gap * rate * intensity) * (mult || 1);
+  // NFL dev is GRADUAL, not college-fast. The college model (gap*1.5 cap, no
+  // scale) reaches ceiling in 2-4 yrs — fine for a 4-yr college career, but over
+  // an NFL career it over-realized everyone (smoke: R1 mean 91.7, 25% at 95+).
+  // NFL_DEV_SCALE slows the average year so the growthRate VARIANCE decides
+  // outcomes: high-growth players (stars/Bradys) still reach their ceiling, low-
+  // growth players plateau below it (busts) before the peak-age cutoff. The
+  // 0.6*gap single-year cap still allows a burst-intensity year-1 jump.
+  const NFL_DEV_SCALE = 0.35;
+  const grew = Math.min(gap * 0.6, gap * rate * intensity * NFL_DEV_SCALE * (mult || 1));
   if (grew < 0.5) return;
   _applyGemDevelopment(p, Math.min(ceiling, current + grew));
   if (p.hiddenGem && p.overall >= (p.hiddenGem.ceiling || 99)) delete p.hiddenGem;
