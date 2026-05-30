@@ -127,6 +127,69 @@ const harness = `
   if (!franchise) { console.error("franchise global not populated"); process.exit(1); }
   console.error("franchise inited at season " + franchise.season + ", week " + franchise.week);
 
+  // ── RECORD BOOK capture ───────────────────────────────────────────────
+  // Wrap frnSimOnce to read each game's per-player stat lines (r.full.stats
+  // .home/.away.players, keyed by name) BEFORE they're stripped for storage.
+  // From those we build: career totals, single-season highs, single-game highs.
+  // Stat fields per engine _emptyLine: pass_yds/pass_td, rush_yds/rush_td,
+  // rec_yds/rec_td, sk (sacks), tkl (tackles), int_made (INTs).
+  const CATS = [
+    ["pass_yds","Passing yds"], ["pass_td","Passing TD"],
+    ["rush_yds","Rushing yds"], ["rush_td","Rushing TD"],
+    ["rec_yds","Receiving yds"], ["rec_td","Receiving TD"],
+    ["sk","Sacks"], ["int_made","INTs"], ["tkl","Tackles"],
+  ];
+  const career = new Map();          // name → { games, <cat sums> }
+  let   seasonAcc = new Map();       // name → season sums (reset each season)
+  const seasonRec = {};              // cat → { val, name, season }
+  const gameRec   = {};              // cat → { val, name, season, opp }
+  function _accInto(map, name, line) {
+    let r = map.get(name);
+    if (!r) { r = { games: 0 }; for (const [k] of CATS) r[k] = 0; map.set(name, r); }
+    r.games++;
+    for (const [k] of CATS) r[k] += (line[k] || 0);
+  }
+  if (typeof frnSimOnce === "function") {
+    const _origSimOnce = frnSimOnce;
+    frnSimOnce = function(homeId, awayId, isPlayoff) {
+      const res = _origSimOnce.apply(this, arguments);
+      try {
+        const st = res && res.full && res.full.stats;
+        if (st) {
+          const sNum = franchise.season;
+          for (const side of ["home", "away"]) {
+            const players = (st[side] && st[side].players) || {};
+            for (const [name, line] of Object.entries(players)) {
+              _accInto(career, name, line);
+              _accInto(seasonAcc, name, line);
+              // single-game highs
+              for (const [k, label] of CATS) {
+                const v = line[k] || 0;
+                if (v > 0 && (!gameRec[k] || v > gameRec[k].val)) {
+                  gameRec[k] = { val: v, name, season: sNum };
+                }
+              }
+            }
+          }
+        }
+      } catch (e) { /* records are best-effort */ }
+      return res;
+    };
+  }
+  // Fold the just-finished season's per-player totals into the single-season
+  // record book, then reset for the next season. Called once per season.
+  function _foldSeasonRecords() {
+    for (const [name, r] of seasonAcc) {
+      for (const [k] of CATS) {
+        const v = r[k] || 0;
+        if (v > 0 && (!seasonRec[k] || v > seasonRec[k].val)) {
+          seasonRec[k] = { val: v, name, season: franchise.season };
+        }
+      }
+    }
+    seasonAcc = new Map();
+  }
+
   // Snapshot every player flagged as a hiddenGem at draft/UDFA time so we can
   // count those that LATER reach legend tier (OVR >= 96). _rollHiddenGem stamps
   // p.hiddenGem = { ceiling, growthRate } on draft; the offseason grind + the
@@ -222,6 +285,9 @@ const harness = `
     // games are played but no breakout ever fires and 0 gems emerge. Must run
     // before frnProceedToRosterChanges, which assumes aging already happened.
     step(typeof _processSeasonEndRetirements !== "undefined" && _processSeasonEndRetirements, "seasonEnd", s);
+    // All regular + playoff games for this season are now played — fold the
+    // per-player season totals into the single-season record book, then reset.
+    _foldSeasonRecords();
     // awards → offseason (frnApbProceedToOffseason wraps startFrnOffseason and
     // dismisses the all-pro-bowl crowning; fall back to startFrnOffseason).
     if (franchise.phase === "awards") {
@@ -264,6 +330,36 @@ const harness = `
   const target = 75;
   const ok = bradyEmergences > 0 && Math.abs((${SEASONS}/bradyEmergences) - target) / target < 0.5;
   console.log("  Cadence: 1 per " + cadence + " years (target: ~1 per " + target + " years)  " + (ok?"OK":"!!"));
+  console.log("");
+
+  // ── RECORD BOOK ───────────────────────────────────────────────────────
+  function topN(cat, n) {
+    return [...career.entries()]
+      .map(([name, r]) => ({ name, val: r[cat] || 0, games: r.games }))
+      .filter(x => x.val > 0)
+      .sort((a, b) => b.val - a.val)
+      .slice(0, n);
+  }
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" RECORD BOOK — " + ${SEASONS} + " seasons (" + career.size.toLocaleString() + " players tracked)");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" CAREER LEADERS (top 3)");
+  console.log(" " + "-".repeat(54));
+  for (const [cat, label] of CATS) {
+    const top = topN(cat, 3);
+    if (!top.length) continue;
+    const line = top.map((x, i) => (i+1) + ". " + x.name + " (" + x.val.toLocaleString() + ")").join("   ");
+    console.log(" " + label.padEnd(13) + " " + line);
+  }
+  console.log("");
+  console.log(" SINGLE-SEASON HIGHS                 SINGLE-GAME HIGHS");
+  console.log(" " + "-".repeat(54));
+  for (const [cat, label] of CATS) {
+    const sr = seasonRec[cat], gr = gameRec[cat];
+    const sStr = sr ? (sr.val.toLocaleString() + " — " + sr.name + " (S" + sr.season + ")") : "—";
+    const gStr = gr ? (gr.val.toLocaleString() + " — " + gr.name + " (S" + gr.season + ")") : "—";
+    console.log(" " + label.padEnd(13) + " " + sStr.padEnd(22).slice(0,22) + "  " + gStr);
+  }
   console.log("");
 })();
 `;
