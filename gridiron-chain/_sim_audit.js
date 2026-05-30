@@ -105,6 +105,10 @@ const audit = `
         for (const side of ["home","away"]) {
           const tm = r.stats[side].team;
           const pts = side==="home" ? r.homeScore : r.awayScore;
+          // name→OVR for this side's roster, so per-position OVR can be reported.
+          const _sideRoster = side==="home" ? rosters[h.id] : rosters[a.id];
+          const _ovrByName = {};
+          for (const _p of _sideRoster) _ovrByName[_p.name] = _p.overall || 0;
           let teamInt = 0;
           for (const p of Object.values(r.stats[side].players)) teamInt += (p.pass_int||0);
           // Sums (for means + rate denominators)
@@ -131,7 +135,7 @@ const audit = `
               if (!posLeader[P] || (p[stat]||0) > (posLeader[P][stat]||0)) posLeader[P] = p;
             }
           }
-          for (const P in posLeader) pp[P].push(posLeader[P]);
+          for (const P in posLeader) { posLeader[P]._ovr = _ovrByName[posLeader[P].name] || 0; pp[P].push(posLeader[P]); }
           lb.teamGames++;
           // Per-team-game arrays (for quantiles + event rates)
           tg_pts.push(pts);
@@ -361,6 +365,15 @@ const audit = `
   console.log(" (each row: median / P10 / P90 / max ; n = starter-games)");
   console.log("══════════════════════════════════════════════════════════");
   const QB=pp.QB, RB=pp.RB, WR=pp.WR, TE=pp.TE, DL=pp.DL, LB=pp.LB, CB=pp.CB, S=pp.S, K=pp.K, P=pp.P, OL=pp.OL;
+  // Starter OVR by position (these are FRESH-GEN rosters — no development; for
+  // the DEVELOPED OVR-by-round + by-position picture see _brady_audit.js).
+  console.log(" STARTER OVR by position (median / P10 / P90 / max):");
+  for (const Pn of ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"]) {
+    const ov = pp[Pn].map(l=>l._ovr||0).filter(v=>v>0);
+    if (!ov.length) continue;
+    console.log("   "+Pn.padEnd(3)+" "+_q(ov,.5).toString().padStart(3)+" / "+_q(ov,.10).toString().padStart(3)+" / "+_q(ov,.90).toString().padStart(3)+" / "+_mx(ov).toString().padStart(3));
+  }
+  console.log("");
   console.log(" QB  (n="+QB.length+")   NFL starter refs in (parens)");
   console.log("   "+distLine("Comp%", QB, l=>l.pass_att?l.pass_comp/l.pass_att*100:0, v=>v.toFixed(0)+"%")+"   (~63%)");
   console.log("   "+distLine("Pass yds", QB, l=>l.pass_yds||0, v=>v.toFixed(0))+"   (~230)");
