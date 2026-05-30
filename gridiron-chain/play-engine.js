@@ -6489,8 +6489,15 @@ class GameSimulator {
         // detects "time ran out mid-drive between quarters" and skips
         // the END-OF-HALF summary so the drive remains one logical unit.
         this.quarter++;
-        if (this.quarter <= 4) {
-          this.plays.push({ kind: "quarter", desc: `─── Start of Q${this.quarter} ───`, quarter: this.quarter, time: 900, homeScore: this.score.home, awayScore: this.score.away });
+        // Quarter-break card for the Q1→Q2 and Q3→Q4 breaks only. The graphic
+        // marks the quarter that JUST ENDED (the animation renders it as
+        // "END OF Q{quarter}"); this.quarter was already incremented, so emit
+        // quarter-1 — otherwise the Q1→Q2 break labeled "END OF Q2" (off by
+        // one). The Q2→Q3 break is HALFTIME (its own card pushed above), so
+        // skip the quarter card there to avoid a doubled graphic.
+        const _endedQ = this.quarter - 1;
+        if (this.quarter <= 4 && _endedQ !== 2) {
+          this.plays.push({ kind: "quarter", desc: `─── End of Q${_endedQ} ───`, quarter: _endedQ, time: 0, homeScore: this.score.home, awayScore: this.score.away });
         }
         this.time = 900;
         continue;
