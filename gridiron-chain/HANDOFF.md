@@ -406,6 +406,20 @@ All major NFL stat categories land in NFL elite bands. The full implementation l
 - `_buildVitalsBlock(p)` in `play-franchise-season.js`. Vitruvian body diagram (240×520 viewBox), position-scaled per `_VITALS_BODY_PROFILES` + player height/weight, 21 wearable regions overlaid as translucent paths colored by `_vitalsColor(v)`.
 - Overall health score (100 − max(wear, stress)), STATUS card, CONCERNS top 4, RECOVERY GUIDANCE, RISK FACTORS, INJURY HISTORY last 6.
 
+### Realism audit harnesses → see **`AUDIT.md`** (runbook)
+Two headless Node harnesses run the real engine over many games/seasons and
+flag any metric that drifts off NFL reality. **`AUDIT.md` is the durable
+runbook** — how to run them, every metric + NFL band, the headless technique,
+and the full calibration changelog (what was tuned and why). Run:
+- `node _sim_audit.js 5` — game realism (volumes, rates, efficiency,
+  distributions, event rates, drive/situational/kicking). ~8 min.
+- `node _brady_audit.js 100` — franchise + player development + the hidden-gem
+  "Brady" cadence, record book, OVR-by-round, bust/hit rates, franchise health,
+  career length, legend career pages. ~40 min (use 40 for a quick read).
+
+Always smoke-run after editing either (`node _x_audit.js 2`) — `node --check`
+does not catch errors inside the bundled harness string.
+
 ### Audited stat outcomes (NFL elite bands)
 | Category | Audit | NFL elite |
 |---|---|---|
