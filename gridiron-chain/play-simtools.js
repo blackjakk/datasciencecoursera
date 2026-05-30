@@ -1,3 +1,80 @@
+// ─── NFL realism benchmarks ───────────────────────────────────────────────
+// The targets we've calibrated the engine against (sources are the engine's
+// own calibration comments — see play-engine.js lines noted). `lo`/`hi` is the
+// pass band; a value inside it is ✓, outside is ⚠. `per` is how the metric is
+// computed from the per-team-per-game aggregate. Used by _benchmarkPanel to
+// auto-flag a long sim instead of eyeballing the averages table.
+const SIM_BENCHMARKS = [
+  // label, target text, lo, hi, fn(teamAvg) → value, fmt
+  { label: "Points / game",      target: "~22",        lo: 17,  hi: 27,  fn: (g) => g.pts,                         fmt: (v) => v.toFixed(1) },
+  { label: "Total yds / game",   target: "~330",       lo: 290, hi: 380, fn: (g) => g.totalYds,                    fmt: (v) => v.toFixed(0) },
+  { label: "Pass yds / game",    target: "~225",       lo: 190, hi: 270, fn: (g) => g.passYds,                     fmt: (v) => v.toFixed(0) },
+  { label: "Rush yds / game",    target: "~115",       lo: 90,  hi: 145, fn: (g) => g.rushYds,                     fmt: (v) => v.toFixed(0) },
+  { label: "Completion %",       target: "~63%",       lo: 58,  hi: 69,  fn: (g) => g.pass_att ? g.pass_comp / g.pass_att * 100 : 0, fmt: (v) => v.toFixed(1) + "%" },
+  { label: "Yards / carry",      target: "~4.4",       lo: 3.9, hi: 4.9,  fn: (g) => g.rush_att ? g.rushYds / g.rush_att : 0,        fmt: (v) => v.toFixed(2) },
+  { label: "INT rate / att",     target: "~2.5%",      lo: 1.8, hi: 3.4,  fn: (g) => g.pass_att ? g.turnoverInt / g.pass_att * 100 : 0, fmt: (v) => v.toFixed(2) + "%" },
+  { label: "Sacks / game",       target: "~2.4",       lo: 1.6, hi: 3.3,  fn: (g) => g.sacks,                       fmt: (v) => v.toFixed(2) },
+  { label: "Turnovers / game",   target: "~1.4",       lo: 0.9, hi: 2.1,  fn: (g) => g.turnovers,                   fmt: (v) => v.toFixed(2) },
+  { label: "First downs / game", target: "~20",        lo: 16,  hi: 24,  fn: (g) => g.firstDowns,                  fmt: (v) => v.toFixed(1) },
+  { label: "Penalties / game",   target: "~6 / team",  lo: 4,   hi: 8,   fn: (g) => g.penalties,                   fmt: (v) => v.toFixed(2) },
+  { label: "Penalty yds / game", target: "~50 / team", lo: 35,  hi: 70,  fn: (g) => g.penaltyYds,                  fmt: (v) => v.toFixed(0) },
+];
+
+// Build the benchmark panel HTML — averages BOTH teams together (the league
+// rate is per-team), compares to the band, and renders a ✓ / ⚠ per metric.
+function _benchmarkPanelHTML(agg) {
+  // Per-team-per-game aggregate (home + away pooled, divided by 2n team-games).
+  const tg = 2 * agg.n;
+  const h = agg.teamSums.home, a = agg.teamSums.away;
+  const g = {
+    pts:        (agg.homeScoreSum + agg.awayScoreSum) / tg,
+    totalYds:   (h.totalYds + a.totalYds) / tg,
+    passYds:    (h.passYds + a.passYds) / tg,
+    rushYds:    (h.rushYds + a.rushYds) / tg,
+    firstDowns: (h.firstDowns + a.firstDowns) / tg,
+    sacks:      (h.sacks + a.sacks) / tg,
+    turnovers:  (h.turnovers + a.turnovers) / tg,
+    penalties:  (h.penalties + a.penalties) / tg,
+    penaltyYds: (h.penaltyYds + a.penaltyYds) / tg,
+    // Rates need pooled numerators/denominators, not pooled per-game.
+    pass_comp:  h.pass_comp + a.pass_comp,
+    pass_att:   h.pass_att + a.pass_att,
+    rush_att:   h.rush_att + a.rush_att,
+    // INT thrown — pooled count of EVERY passer's picks (accumulated in
+    // runManyGames), so INT-rate = picks / attempts is exact, not a top-QB
+    // proxy.
+    turnoverInt: (h.intThrown + a.intThrown),
+  };
+  let nOk = 0;
+  const rows = SIM_BENCHMARKS.map(b => {
+    const v = b.fn(g);
+    const ok = v >= b.lo && v <= b.hi;
+    if (ok) nOk++;
+    const flag = ok ? "✓" : "⚠";
+    const col  = ok ? "#5fd07a" : "#f0b03a";
+    return `<tr>
+      <td class="lbl" style="text-align:left">${b.label}</td>
+      <td style="color:var(--white);text-align:right">${b.fmt(v)}</td>
+      <td style="color:var(--gray);text-align:right">${b.target}</td>
+      <td style="color:${col};text-align:center;font-weight:700">${flag}</td>
+    </tr>`;
+  }).join("");
+  const allOk = nOk === SIM_BENCHMARKS.length;
+  return `
+    <div class="sm-section">
+      <h4>NFL realism check — ${nOk}/${SIM_BENCHMARKS.length} in range ${allOk ? "✓" : "⚠"}</h4>
+      <div style="font-size:.72rem;color:var(--gray);margin-bottom:6px">
+        Per team per game, pooled across both sides. ⚠ = outside the NFL band — worth a look.
+      </div>
+      <table class="sm-stats-table">
+        <tr style="font-size:.7rem;color:var(--gray)">
+          <td style="text-align:left">METRIC</td><td style="text-align:right">SIM</td><td style="text-align:right">NFL</td><td style="text-align:center"></td>
+        </tr>
+        ${rows}
+      </table>
+    </div>`;
+}
+
 // ─── Sim Many — run N games and aggregate ─────────────────────────────────
 function runManyGames(home, away, hRoster, aRoster, n) {
   const agg = {
@@ -8,8 +85,8 @@ function runManyGames(home, away, hRoster, aRoster, n) {
     biggestBlowout: { margin: 0, home: 0, away: 0 },
     closestGame: { margin: 999, home: 0, away: 0 },
     teamSums: {
-      home: { totalYds: 0, passYds: 0, rushYds: 0, sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0, firstDowns: 0, pass_comp: 0, pass_att: 0, rush_att: 0 },
-      away: { totalYds: 0, passYds: 0, rushYds: 0, sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0, firstDowns: 0, pass_comp: 0, pass_att: 0, rush_att: 0 },
+      home: { totalYds: 0, passYds: 0, rushYds: 0, sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0, firstDowns: 0, pass_comp: 0, pass_att: 0, rush_att: 0, penalties: 0, penaltyYds: 0, intThrown: 0 },
+      away: { totalYds: 0, passYds: 0, rushYds: 0, sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0, firstDowns: 0, pass_comp: 0, pass_att: 0, rush_att: 0, penalties: 0, penaltyYds: 0, intThrown: 0 },
     },
     qbSums: { home: { passYds: 0, passTD: 0, int: 0, rushYds: 0, rushTD: 0, sacksTaken: 0 },
               away: { passYds: 0, passTD: 0, int: 0, rushYds: 0, rushTD: 0, sacksTaken: 0 } },
@@ -46,6 +123,13 @@ function runManyGames(home, away, hRoster, aRoster, n) {
       s.turnovers += t.turnovers; s.takeaways += t.takeaways;
       s.firstDowns += t.firstDowns;
       s.pass_comp += t.pass_comp; s.pass_att += t.pass_att; s.rush_att += t.rush_att;
+      s.penalties += (t.penalties || 0); s.penaltyYds += (t.penaltyYds || 0);
+      // League INT thrown — sum EVERY passer's picks (team has no pass_int
+      // field), so the INT-rate benchmark reflects all interceptions, not
+      // just the top QB's.
+      for (const p of Object.values(r.stats[side].players)) {
+        s.intThrown += (p.pass_int || 0);
+      }
       // Top-line player aggregates (top QB / RB / WR by yds)
       const players = Object.values(r.stats[side].players);
       const topQB = players.filter(p => p.pos === "QB").sort((a, b) => b.pass_yds - a.pass_yds)[0];
@@ -231,8 +315,12 @@ function renderSimManyResults(agg, home, away, hRoster, aRoster) {
         ${row("SACKS ALLOWED", avg(agg.teamSums.home.sacks_allowed), avg(agg.teamSums.away.sacks_allowed))}
         ${row("TURNOVERS",     avg(agg.teamSums.home.turnovers),    avg(agg.teamSums.away.turnovers))}
         ${row("TAKEAWAYS",     avg(agg.teamSums.home.takeaways),    avg(agg.teamSums.away.takeaways))}
+        ${row("PENALTIES",     avg(agg.teamSums.home.penalties),    avg(agg.teamSums.away.penalties))}
+        ${row("PENALTY YDS",   avg(agg.teamSums.home.penaltyYds),   avg(agg.teamSums.away.penaltyYds))}
       </table>
     </div>
+
+    ${_benchmarkPanelHTML(agg)}
 
     <div class="sm-section">
       <h4>Top players (averaged per game)</h4>
