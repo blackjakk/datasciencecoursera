@@ -8927,54 +8927,41 @@ function _rerollPotentialForBreakouts() {
       const list = byPos[player.position] || [];
       if (!list.length) continue;
       const idx = list.findIndex(r => r.name === player.name);
-      if (idx === -1) continue;
-      let phase, gateOk;
-      // Production gate tightened top-5% → top-3%. The clawback fix made the
-      // breakout JUMP actually stick (~88% retention vs the old ~28%), so at the
-      // old top-5% rate the league over-produced 90+ players (~10% vs the NFL's
-      // ~2-3%). Tightening the gate restores elite scarcity. Gems are unaffected:
-      // when this gate fails they fall through to the looser hidden-gem path
-      // below (top-10% OR a dev-luck roll), so the Brady cadence is preserved.
-      if (yearsInLeague <= 1) {
+      const hasSnaps = idx !== -1;
+      // Non-gems MUST have recorded stats to break out (production-gated).
+      // Hidden gems do NOT — see the FLASH path below. (idx === -1 must never
+      // reach the idx<top3 gates: -1 < anything is true, a false pass.)
+      if (!hasSnaps && !player.hiddenGem) continue;
+      let phase, gateOk = false;
+      // Production gate (top-3%) — only for players who actually played.
+      if (hasSnaps) {
         const top3 = Math.max(1, Math.floor(list.length * 0.03));
-        phase = "full"; gateOk = idx < top3;
-      } else if (yearsInLeague <= 3) {
-        const top3 = Math.max(1, Math.floor(list.length * 0.03));
-        phase = "half"; gateOk = idx < top3;
-      } else {
-        const top3 = Math.max(1, Math.floor(list.length * 0.03));
-        // Sustained: previous-season careerHistory row also placed top-10%
-        // by accolade presence is hard to derive — proxy by checking
-        // whether last season had any accolade (Pro Bowl / All-Pro / award).
-        const last = (player.careerHistory || []).slice(-1)[0];
-        const sustained = !!(last?.accolades?.length);
-        phase = "tiny"; gateOk = idx < top3 && sustained;
+        if (yearsInLeague <= 1)      { phase = "full"; gateOk = idx < top3; }
+        else if (yearsInLeague <= 3) { phase = "half"; gateOk = idx < top3; }
+        else {
+          // Sustained: proxy via last season carrying any accolade.
+          const last = (player.careerHistory || []).slice(-1)[0];
+          const sustained = !!(last?.accolades?.length);
+          phase = "tiny"; gateOk = idx < top3 && sustained;
+        }
       }
-      // ── HIDDEN-GEM DEVELOPMENTAL BREAKOUT ─────────────────────────────
-      // The production gate above (top 5%) is unreachable for the very
-      // players the gem system exists to create: a late-round gem starts
-      // ~62 OVR, sits behind starters, and can't post top-5% numbers while
-      // it's still developing. Result: the breakout never fires for gems,
-      // so the slow offseason grind alone (capped at age 28) leaves 96+
-      // ceilings stranded ~OVR 85 and NO Brady ever emerges (verified: 0 in
-      // 400 gems). Give a gem that's EARNED SNAPS (it reached seasonStats, or
-      // it would have been skipped at idx===-1 above) and is still early and
-      // below its launchpad a modest per-season chance to break out anyway —
-      // the leap to 82-87% of ceiling that lets the grind finish the climb.
-      // Kept rare + early so most high-ceiling gems still bust (target is
-      // ~1 Brady per 75 yrs, not "every gem hits"). Tune GEM_DEV_BREAKOUT_P.
+      // ── HIDDEN-GEM YEAR-1/2 FLASH (the Brady arc) ─────────────────────
+      // THE key fix: a buried developmental gem (the literal Brady case) gets
+      // ZERO snaps as a rookie, so the production gate above can never fire for
+      // it — and the old `if (idx===-1) continue` skipped it entirely. So the
+      // "Brady year-2 jump" the design intends (full jump to 82-87% of ceiling)
+      // never reached the players it exists for. Now a YOUNG gem below its
+      // launchpad can flash WITHOUT needing snaps (a raw kid whose tools the
+      // staff unlock), with a merit boost if it DID produce when given a look.
+      // The early flash is what lets a late-round gem leap before it'd be cut as
+      // a low-OVR scrub — exactly Brady going from 6th-rounder to franchise QB.
       if (!gateOk && player.hiddenGem) {
-        // GEM_DEV_BREAKOUT_P 0.06 (cut from 0.10 → 0.03 was too aggressive — the
-        // resulting run showed 0 emergences in 40 yrs vs target 1 per 40-75).
-        // Merit path top-10% → top-7% kept. With K/P excluded from gem rolls
-        // entirely, the 1/20 non-K/P rate that 0.10 produced is the right starting
-        // point; 0.06 should land near 1/40.
-        const GEM_DEV_BREAKOUT_P = 0.06;   // per eligible season; calibrate via _brady_audit.js
+        const FLASH_P = 0.10;   // per eligible season; calibrate via _brady_audit.js
         const ceil = player.hiddenGem.ceiling || 0;
         const belowLaunchpad = (player.overall || 0) < 0.82 * ceil;
         const earlyCareer = yearsInLeague <= 3 && (player.age || 99) <= 25;
-        const inTop7 = idx < Math.max(1, Math.floor(list.length * 0.07));
-        if (belowLaunchpad && earlyCareer && (inTop7 || Math.random() < GEM_DEV_BREAKOUT_P)) {
+        const merit = hasSnaps && idx < Math.max(1, Math.floor(list.length * 0.10));
+        if (belowLaunchpad && earlyCareer && (merit || Math.random() < FLASH_P)) {
           phase = "full"; gateOk = true;
         }
       }
