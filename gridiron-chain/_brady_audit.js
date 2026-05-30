@@ -223,7 +223,11 @@ const harness = `
   // (set in _aiAutoPick at slot.round), 0 for UDFA (per _rollHiddenGem's rate
   // table), null/undefined for the initial generation. We bucket UDFA→8 and
   // null/0→9 for clarity. Late-round outliers in the right tail = emerged gems.
-  const byRound = {};   // round → array of OVRs
+  const byRound = {};   // round → array of OVRs at every snapshot
+  // Per-player career peak — for bust/hit rates by round. Keyed by name so we
+  // track the same player across seasons; first sighting stamps the round.
+  // pid would be more stable, but legacy code already names everyone uniquely.
+  const careerPeak = new Map();   // name → { round, peakOvr, firstSeen }
   function _roundBucket(p) {
     const r = p.draftRound;
     if (r === 0 || p.udfa) return 8;        // UDFA
@@ -233,6 +237,10 @@ const harness = `
   let rosterSizeSum = 0, rosterSizeN = 0;
   function snapshotLeagueOvr(year) {
     const dIdx = Math.min(decadeOvr.length - 1, Math.floor((year - 1) / 10));
+    // Also walk the FA pool for career-peak tracking (cut busts that washed out
+    // of the league should still count as their round's draftee, otherwise R7
+    // bust % is undercounted — they retire from FA, never from a roster).
+    const cpSeen = new Set();
     for (const t of TEAMS) {
       const full = franchise.rosters[t.id] || [];
       rosterSizeSum += full.length; rosterSizeN++;
@@ -241,7 +249,24 @@ const harness = `
         const o = p.overall || 0;
         leagueOvr.push(o); decadeOvr[dIdx].push(o);
         const rb = _roundBucket(p); (byRound[rb] = byRound[rb] || []).push(o);
+        // Career peak (active-roster snapshot)
+        if (!cpSeen.has(p.name)) {
+          cpSeen.add(p.name);
+          const cp = careerPeak.get(p.name);
+          if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year });
+          else if (o > cp.peakOvr) cp.peakOvr = o;
+        }
       }
+    }
+    // Sweep FA pool too — cut players still have their highest OVR yet
+    for (const p of (franchise.freeAgents || [])) {
+      if (cpSeen.has(p.name)) continue;
+      cpSeen.add(p.name);
+      const o = p.overall || 0;
+      const rb = _roundBucket(p);
+      const cp = careerPeak.get(p.name);
+      if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year });
+      else if (o > cp.peakOvr) cp.peakOvr = o;
     }
   }
 
@@ -472,6 +497,49 @@ const harness = `
                     " / " + (e90 + "%").padStart(5) +
                     " / " + (e95 + "%").padStart(5) +
                     " / " + m3.toLocaleString().padStart(7));
+      }
+      console.log("");
+    }
+
+    // ── BUST / HIT RATES BY DRAFT ROUND ─────────────────────────────────
+    // Uses each player's CAREER PEAK OVR (max across all snapshots), so we're
+    // measuring "did they ever pan out" — not whether they're elite right now.
+    // Round-tiered BUST thresholds match NFL draft expectation: an R1 expected
+    // to start (<78 = bust); a R7 only expected to crack a roster (<68 = bust).
+    // HIT thresholds are uniform so cross-round comparison is clean:
+    //   STARTER >= 75   (cracked starter quality somewhere in career)
+    //   STRONG  >= 80   (became a solid starter)
+    //   PB      >= 85   (Pro Bowl tier)
+    //   ELITE   >= 90, SUPER >= 95 already in the OVR-by-round table above.
+    // Only counts players seen at least 2 seasons before the final season,
+    // so active-developing rookies don't pollute the bust count.
+    const bustThresh = { 1:78, 2:75, 3:73, 4:71, 5:70, 6:68, 7:68, 8:67, 9:0 };
+    const finalYear = ${SEASONS};
+    const byRoundCareer = {};
+    for (const cp of careerPeak.values()) {
+      if (cp.round === 9) continue;                          // skip initial-gen
+      if (cp.firstSeen > finalYear - 2) continue;            // active rookies — too early to call
+      (byRoundCareer[cp.round] = byRoundCareer[cp.round] || []).push(cp.peakOvr);
+    }
+    if (Object.keys(byRoundCareer).length) {
+      console.log(" BUST / HIT RATES BY DRAFT ROUND (career peak OVR; n = players)");
+      console.log(" Bust = peak below round expectation. Hits = peak >= threshold.");
+      console.log(" " + "-".repeat(64));
+      console.log(" " + "ROUND".padEnd(7) + "BUST%   STARTER%(75+)  STRONG%(80+)  PB%(85+)    n");
+      console.log(" " + "-".repeat(64));
+      for (const r of rOrder) {
+        const arr = byRoundCareer[r]; if (!arr || !arr.length) continue;
+        const m4 = arr.length;
+        const bust = (arr.filter(o => o < bustThresh[r]).length / m4 * 100).toFixed(1);
+        const h75  = (arr.filter(o => o >= 75).length / m4 * 100).toFixed(1);
+        const h80  = (arr.filter(o => o >= 80).length / m4 * 100).toFixed(1);
+        const h85  = (arr.filter(o => o >= 85).length / m4 * 100).toFixed(1);
+        console.log(" " + rLabel[r].padEnd(7) +
+                    (bust + "% (<" + bustThresh[r] + ")").padEnd(12) +
+                    (h75 + "%").padStart(8) +
+                    (h80 + "%").padStart(14) +
+                    (h85 + "%").padStart(13) +
+                    m4.toLocaleString().padStart(8));
       }
       console.log("");
     }
