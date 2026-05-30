@@ -4398,25 +4398,30 @@ function buildAnimForPlay(play, prevPlay) {
               _cbTargetX = d.x;
               _cbTargetY = d.y;
             }
-            // ZONE READ-AND-BREAK (CB) — once the ball is thrown into this
-            // corner's zone (same sideline, within ~8yd of the catch point
-            // laterally), he drives ON the ball instead of holding his deep
-            // landmark. Redirects the follow-target to the catch point; the
-            // cushioned bail above governs him until the throw.
+            // Init follow position FIRST — the read-and-break below reads
+            // d._cbFollowY, so seeding it after that check left it undefined
+            // on the first post-release frame (NaN compare → CB hesitates one
+            // frame before breaking).
+            if (d._cbFollowX == null) { d._cbFollowX = dd.x; d._cbFollowY = dd.y; }
+            // ZONE READ-AND-BREAK (CB) — once the ball is thrown into THIS
+            // corner's zone, he drives ON the ball instead of holding his deep
+            // landmark. Gate on BOTH (a) the throw being toward this corner's
+            // sideline and (b) the catch point being within ~14yd of where he
+            // bailed. The sideline check is essential: without it a throw to
+            // the MIDDLE (targetY≈cy) is within 14yd of BOTH corners' deep
+            // landmarks, so both would break and converge. _cbSide is -1 for
+            // the top corner, +1 for the bottom; a throw on his side has
+            // sign(targetY-cy) === _cbSide (or is dead-center, |Δ|<2yd, which
+            // either may take).
             if (_cbZone && aT >= releaseAT) {
-              // Throw is toward this corner's deep landmark (within ~14yd of
-              // where he bailed) → break on it. The lateral-distance gate is
-              // the real test; it implicitly keeps the off-side CB on his
-              // landmark while the playside CB drives the ball.
-              if (Math.abs(d._cbFollowY - targetY) < 14 * FIELD.PX_PER_YARD) {
+              const _cbSide = (i === idxCB1) ? -1 : (i === idxCB2) ? 1 : (d.y < cy ? -1 : 1);
+              const _ballDY = targetY - cy;
+              const _onMySide = (Math.sign(_ballDY) === _cbSide) || Math.abs(_ballDY) < 2 * FIELD.PX_PER_YARD;
+              if (_onMySide && Math.abs(d._cbFollowY - targetY) < 14 * FIELD.PX_PER_YARD) {
                 _cbTargetX = targetX;
                 _cbTargetY = targetY;
               }
             }
-            // Speed-capped sprint toward target. Initialize follow
-            // position to current dd.x/y so jam starts at the CB's
-            // pre-snap spot, not the WR's position.
-            if (d._cbFollowX == null) { d._cbFollowX = dd.x; d._cbFollowY = dd.y; }
             // PLAY-TIME dt factor — this is a per-frame accumulator, so it
             // MUST be dt-scaled or it runs at 2× on a 120Hz display (28yps,
             // "superhuman CB") and surges through the catch freeze. Driven

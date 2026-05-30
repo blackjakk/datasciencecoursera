@@ -4738,6 +4738,12 @@ class GameSimulator {
       else if (rcvr === this.offR.starters.wr3) { _coverName = _st.cb3; _coverScale = 200; }   // slot vs nickel (softer)
       else if (rcvr === this.offR.starters.te)  { _coverName = _st.lb2; _coverScale = 230; }   // TE vs MLB (LBs cover worse)
       else if (rcvr === this.offR.starters.rb)  { _coverName = _st.lb1; _coverScale = 230; }   // RB vs WLB
+      else if (rcvr === this.offR.starters.wr4 || rcvr === this.offR.starters.wr5) {
+        _coverName = _st.cb4 || _st.cb3; _coverScale = 200;   // extra WR vs dime back
+      }
+      else if (rcvr === this.offR.starters.te2) { _coverName = _st.lb3; _coverScale = 230; }   // 2nd TE vs SLB
+      else if (rcvr === this.offR.starters.rb2) { _coverName = _st.lb3; _coverScale = 230; }   // 2nd back vs SLB
+      else { _coverName = _st.cb3; _coverScale = 220; }   // any other target → nickel-ish default (no silent 0)
       if (_coverName) {
         const covPlayer = this._playerByName?.get?.(_coverName) || null;
         const covCov = covPlayer?.stats?.[8] ?? 65;
