@@ -232,11 +232,28 @@ const harness = `
   // track the same player across seasons; first sighting stamps the round.
   // pid would be more stable, but legacy code already names everyone uniquely.
   const careerPeak = new Map();   // name → { round, peakOvr, firstSeen }
+  const careerLen = new Map();    // name → { pos, seasons } — Tier 4 career length
   function _roundBucket(p) {
     const r = p.draftRound;
     if (r === 0 || p.udfa) return 8;        // UDFA
     if (r >= 1 && r <= 7) return r;
     return 9;                                // initial-gen / unknown
+  }
+  // ── Tier 3: franchise-health — snapshot each season's standings + champ.
+  // standings reset every season (frnNewSeason → initStandings), so we must
+  // snapshot in-loop. franchise.history accumulates champions but we capture
+  // here too so persistence/dynasty math has win% alongside the title.
+  const seasonStandings = [];   // [{ year, winPct: {tid: pct}, champId }]
+  function snapshotStandings(year) {
+    const winPct = {};
+    for (const t of TEAMS) {
+      const s = (franchise.standings && franchise.standings[t.id]) || { w: 0, l: 0, t: 0 };
+      const g = (s.w || 0) + (s.l || 0) + (s.t || 0);
+      winPct[t.id] = g ? ((s.w || 0) + 0.5 * (s.t || 0)) / g : 0.5;
+    }
+    const champId = (franchise.history && franchise.history.length)
+      ? franchise.history[franchise.history.length - 1].champion : null;
+    seasonStandings.push({ year, winPct, champId });
   }
   let rosterSizeSum = 0, rosterSizeN = 0;
   function snapshotLeagueOvr(year) {
@@ -259,6 +276,10 @@ const harness = `
           const cp = careerPeak.get(p.name);
           if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year });
           else if (o > cp.peakOvr) cp.peakOvr = o;
+          // Career length — count distinct seasons on an active roster.
+          const cl = careerLen.get(p.name);
+          if (!cl) careerLen.set(p.name, { pos: p.position, seasons: 1 });
+          else cl.seasons++;
         }
       }
     }
@@ -355,6 +376,7 @@ const harness = `
     // All regular + playoff games for this season are now played — fold the
     // per-player season totals into the single-season record book, then reset.
     _foldSeasonRecords();
+    snapshotStandings(s + 1);   // capture win% + champion before frnNewSeason resets
     // awards → offseason (frnApbProceedToOffseason wraps startFrnOffseason and
     // dismisses the all-pro-bowl crowning; fall back to startFrnOffseason).
     if (franchise.phase === "awards") {
@@ -550,6 +572,91 @@ const harness = `
       }
       console.log("");
     }
+  }
+
+  // ── TIER 3: FRANCHISE HEALTH (competitive balance over the sim) ─────────
+  if (seasonStandings.length) {
+    const teamPcts = [];                  // every team-season win%
+    const titles = {};                    // tid → # championships
+    for (const ss of seasonStandings) {
+      for (const tid of Object.keys(ss.winPct)) teamPcts.push(ss.winPct[tid]);
+      if (ss.champId != null) titles[ss.champId] = (titles[ss.champId] || 0) + 1;
+    }
+    teamPcts.sort((a, b) => a - b);
+    const tn = teamPcts.length;
+    const tq = p => teamPcts[Math.min(tn - 1, Math.floor(p * tn))];
+    // Standings persistence — Pearson r of a team's win% in year N vs N+1.
+    let sx = 0, sy = 0, sxy = 0, sxx = 0, syy = 0, np = 0;
+    for (let i = 1; i < seasonStandings.length; i++) {
+      const prev = seasonStandings[i - 1].winPct, cur = seasonStandings[i].winPct;
+      for (const tid of Object.keys(cur)) {
+        if (prev[tid] == null) continue;
+        const x = prev[tid], y = cur[tid];
+        sx += x; sy += y; sxy += x * y; sxx += x * x; syy += y * y; np++;
+      }
+    }
+    const r = np ? (np * sxy - sx * sy) / (Math.sqrt((np * sxx - sx * sx) * (np * syy - sy * sy)) || 1) : 0;
+    // Worst-to-first: bottom-8 win% one year → top-4 the next.
+    let w2f = 0, w2fOpps = 0;
+    for (let i = 1; i < seasonStandings.length; i++) {
+      const prev = seasonStandings[i - 1].winPct, cur = seasonStandings[i].winPct;
+      const sortedPrev = Object.entries(prev).sort((a, b) => a[1] - b[1]).map(e => e[0]);
+      const sortedCur  = Object.entries(cur).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+      const bottom8 = new Set(sortedPrev.slice(0, 8));
+      const top4 = new Set(sortedCur.slice(0, 4));
+      for (const tid of bottom8) { w2fOpps++; if (top4.has(tid)) w2f++; }
+    }
+    const titleCounts = Object.values(titles).sort((a, b) => b - a);
+    const uniqueChamps = titleCounts.length;
+    const maxTitles = titleCounts[0] || 0;
+    const repeatChamps = titleCounts.filter(c => c >= 2).length;
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" FRANCHISE HEALTH — competitive balance over " + seasonStandings.length + " seasons");
+    console.log("══════════════════════════════════════════════════════════");
+    const FH = [
+      ["Best team win% (P99 season)", tq(0.99)*100, 76, 90, v=>v.toFixed(0)+"%"],
+      ["Worst team win% (P01 season)", tq(0.01)*100, 10, 24, v=>v.toFixed(0)+"%"],
+      ["Win% spread P90-P10", (tq(0.90)-tq(0.10))*100, 30, 55, v=>v.toFixed(0)+"pts"],
+      ["Yr-to-yr persistence (r)", r, 0.30, 0.65, v=>v.toFixed(2)],
+      ["Worst-to-first rate", w2fOpps?w2f/w2fOpps*100:0, 3, 12, v=>v.toFixed(1)+"%"],
+      ["Unique champions / " + seasonStandings.length + "yr", uniqueChamps, Math.round(seasonStandings.length*0.45), seasonStandings.length, v=>v.toFixed(0)],
+      ["Repeat champions (2+ titles)", repeatChamps, 1, Math.max(2,Math.round(seasonStandings.length*0.25)), v=>v.toFixed(0)],
+      ["Most titles by one team", maxTitles, 2, Math.max(3,Math.round(seasonStandings.length*0.15)), v=>v.toFixed(0)],
+    ];
+    console.log(" "+"METRIC".padEnd(30)+" "+"SIM".padStart(7)+"   "+"NFL-ish BAND".padStart(13)+"  FLAG");
+    console.log(" "+"-".repeat(64));
+    let fhOk = 0;
+    for (const [label,val,lo,hi,fmt] of FH) {
+      const ok = val>=lo && val<=hi; if (ok) fhOk++;
+      console.log(" "+label.padEnd(30)+" "+fmt(val).padStart(7)+"   "+(fmt(lo)+"-"+fmt(hi)).padStart(13)+"   "+(ok?"OK":"!!"));
+    }
+    console.log(" "+"-".repeat(64));
+    console.log(" "+fhOk+"/"+FH.length+" in range\\n");
+  }
+
+  // ── TIER 4: CAREER LENGTH BY POSITION ───────────────────────────────────
+  // From careerPeak.firstSeen + each player's seasons in the league. We track
+  // span via the seenGems/career data; reuse careerPeak's round + a seasons
+  // tally we accumulate here from the per-season OVR snapshots.
+  if (careerLen.size) {
+    const byPosLen = {};
+    for (const [name, info] of careerLen) {
+      (byPosLen[info.pos] = byPosLen[info.pos] || []).push(info.seasons);
+    }
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" CAREER LENGTH BY POSITION (seasons on an active roster)");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" "+"POS".padEnd(5)+"mean  median  max   n     (NFL avg ~3.3 yrs, QB/K/P longest)");
+    console.log(" "+"-".repeat(58));
+    const posOrder = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+    for (const pos of posOrder) {
+      const arr = byPosLen[pos]; if (!arr || !arr.length) continue;
+      arr.sort((a,b)=>a-b);
+      const mean = (arr.reduce((s,v)=>s+v,0)/arr.length).toFixed(1);
+      const med = arr[Math.floor(arr.length/2)];
+      console.log(" "+pos.padEnd(5)+mean.padStart(4)+"  "+String(med).padStart(6)+"  "+String(arr[arr.length-1]).padStart(3)+"  "+String(arr.length).padStart(5));
+    }
+    console.log("");
   }
 
   // ── LEGEND CAREERS ─────────────────────────────────────────────────────
