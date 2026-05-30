@@ -62,6 +62,14 @@ const audit = `
   const lb = { totalYds:0, passYds:0, rushYds:0, sacks:0, sacks_allowed:0,
     turnovers:0, takeaways:0, firstDowns:0, pass_comp:0, pass_att:0, rush_att:0,
     penalties:0, penaltyYds:0, intThrown:0, ptsSum:0, teamGames:0, games:0 };
+  // Per-team-game arrays for distribution stats (median/quantiles/extremes).
+  // Means alone can mask shape bugs — a clamp truncating tails would never
+  // show in the average but jumps out in P90/max.
+  const tg_pts=[], tg_totalYds=[], tg_passYds=[], tg_rushYds=[], tg_firstDowns=[],
+        tg_sacks=[], tg_turnovers=[], tg_penalties=[], tg_penaltyYds=[],
+        tg_intThrown=[], tg_passAtt=[], tg_passComp=[], tg_rushAtt=[];
+  // Per-GAME (not per-team-game) — margin is one value per matchup.
+  const game_margin=[];
 
   const t0 = Date.now();
   for (let s = 0; s < SEASONS; s++) {
@@ -73,16 +81,28 @@ const audit = `
         const sim = new GameSimulator(h, a, rosters[h.id], rosters[a.id]);
         const r = sim.simulate();
         lb.games++; lb.ptsSum += (r.homeScore + r.awayScore);
+        game_margin.push(Math.abs(r.homeScore - r.awayScore));
         for (const side of ["home","away"]) {
           const tm = r.stats[side].team;
+          const pts = side==="home" ? r.homeScore : r.awayScore;
+          let teamInt = 0;
+          for (const p of Object.values(r.stats[side].players)) teamInt += (p.pass_int||0);
+          // Sums (for means + rate denominators)
           lb.totalYds += tm.totalYds; lb.passYds += tm.passYds; lb.rushYds += tm.rushYds;
           lb.sacks += tm.sacks; lb.sacks_allowed += tm.sacks_allowed;
           lb.turnovers += tm.turnovers; lb.takeaways += tm.takeaways;
           lb.firstDowns += tm.firstDowns;
           lb.pass_comp += tm.pass_comp; lb.pass_att += tm.pass_att; lb.rush_att += tm.rush_att;
           lb.penalties += (tm.penalties||0); lb.penaltyYds += (tm.penaltyYds||0);
-          for (const p of Object.values(r.stats[side].players)) lb.intThrown += (p.pass_int||0);
+          lb.intThrown += teamInt;
           lb.teamGames++;
+          // Per-team-game arrays (for quantiles + event rates)
+          tg_pts.push(pts);
+          tg_totalYds.push(tm.totalYds); tg_passYds.push(tm.passYds); tg_rushYds.push(tm.rushYds);
+          tg_firstDowns.push(tm.firstDowns); tg_sacks.push(tm.sacks);
+          tg_turnovers.push(tm.turnovers); tg_penalties.push(tm.penalties||0);
+          tg_penaltyYds.push(tm.penaltyYds||0); tg_intThrown.push(teamInt);
+          tg_passAtt.push(tm.pass_att); tg_passComp.push(tm.pass_comp); tg_rushAtt.push(tm.rush_att);
         }
       }
     }
@@ -125,7 +145,86 @@ const audit = `
     console.log(" "+label.padEnd(22)+" "+fmt(val).padStart(9)+"   "+band.padStart(13)+"   "+(ok?"OK":"!!"));
   }
   console.log(" "+"-".repeat(54));
-  console.log(" "+nOk+"/"+B.length+" in range\\n");
+  console.log(" "+nOk+"/"+B.length+" in range");
+
+  // ============== DISTRIBUTION TABLE — P10/P50/P90 + min/max ==============
+  // Quantile picks the lower-of-two index (no interpolation) — fine at this
+  // sample size and avoids float fuzz when comparing to NFL reference points.
+  function q(arr, p) {
+    if (!arr.length) return 0;
+    const sorted = arr.slice().sort((a,b)=>a-b);
+    return sorted[Math.min(sorted.length-1, Math.floor(p * sorted.length))];
+  }
+  function mn(arr) { return arr.length ? Math.min(...arr) : 0; }
+  function mx(arr) { return arr.length ? Math.max(...arr) : 0; }
+  function std(arr, mean) {
+    if (arr.length < 2) return 0;
+    let s = 0; for (const v of arr) s += (v - mean)*(v - mean);
+    return Math.sqrt(s / (arr.length - 1));
+  }
+  // NFL reference: P10 / P50 / P90 per team-game from recent seasons.
+  // Sources: NFL.com 2018-2023 team game logs aggregated; rough but useful.
+  const D = [
+    // [label, arr, mean, fmt, nflP10, nflP50, nflP90]
+    ["Points",       tg_pts,        g.pts,        v=>v.toFixed(0),  10,  22,  37],
+    ["Total yds",    tg_totalYds,   g.totalYds,   v=>v.toFixed(0), 250, 345, 450],
+    ["Pass yds",     tg_passYds,    g.passYds,    v=>v.toFixed(0), 140, 235, 340],
+    ["Rush yds",     tg_rushYds,    g.rushYds,    v=>v.toFixed(0),  55, 115, 190],
+    ["First downs",  tg_firstDowns, g.firstDowns, v=>v.toFixed(0),  12,  20,  28],
+    ["Sacks",        tg_sacks,      g.sacks,      v=>v.toFixed(0),   0,   2,   5],
+    ["Turnovers",    tg_turnovers,  g.turnovers,  v=>v.toFixed(0),   0,   1,   3],
+    ["Penalties",    tg_penalties,  g.penalties,  v=>v.toFixed(0),   2,   6,  10],
+    ["Penalty yds",  tg_penaltyYds, g.penaltyYds, v=>v.toFixed(0),  15,  50,  90],
+  ];
+  console.log("\\n══════════════════════════════════════════════════════════");
+  console.log(" DISTRIBUTION — sim P10 / median / P90 vs NFL reference");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" "+"METRIC".padEnd(13)+"  "+"P10".padStart(4)+"  "+"P50".padStart(4)+"  "+"P90".padStart(4)+"  "+"min/max".padStart(9)+"  "+"std".padStart(4)+"   "+"NFL P10/P50/P90");
+  console.log(" "+"-".repeat(70));
+  for (const [label, arr, mean, fmt, n10, n50, n90] of D) {
+    const sP10 = q(arr,0.10), sP50 = q(arr,0.50), sP90 = q(arr,0.90);
+    const sd = std(arr, mean);
+    const mm = fmt(mn(arr))+"/"+fmt(mx(arr));
+    const nflRef = n10+"/"+n50+"/"+n90;
+    console.log(" "+label.padEnd(13)+"  "+fmt(sP10).padStart(4)+"  "+fmt(sP50).padStart(4)+"  "+fmt(sP90).padStart(4)+"  "+mm.padStart(9)+"  "+sd.toFixed(0).padStart(4)+"   "+nflRef);
+  }
+
+  // ============== EVENT RATES — shape sanity checks ==============
+  const shutoutPct  = tg_pts.filter(v=>v===0).length / tg_pts.length * 100;
+  const big40Pct    = tg_pts.filter(v=>v>=40).length / tg_pts.length * 100;
+  const margin14Pct = game_margin.filter(v=>v>=14).length / game_margin.length * 100;
+  const margin21Pct = game_margin.filter(v=>v>=21).length / game_margin.length * 100;
+  const multiIntPct = tg_intThrown.filter(v=>v>=2).length / tg_intThrown.length * 100;
+  const totalPassAtt = tg_passAtt.reduce((s,v)=>s+v,0);
+  const totalRushAtt = tg_rushAtt.reduce((s,v)=>s+v,0);
+  const passShare = totalPassAtt / (totalPassAtt + totalRushAtt) * 100;
+  // Yards per pass attempt (gross — NFL net-YPA adjusts for sacks but our
+  // tm.passYds already excludes sack yardage by convention, so this is close).
+  const ypa = lb.pass_att ? lb.passYds / lb.pass_att : 0;
+  // Median game margin — pure distributional measure of competitiveness
+  const marginMedian = q(game_margin, 0.50);
+  const E = [
+    ["Shutout rate (team-games at 0 pts)", shutoutPct.toFixed(2)+"%", "1.0-2.5%", shutoutPct>=1.0 && shutoutPct<=2.5],
+    ["40+ pt games (team-games >=40)",     big40Pct.toFixed(2)+"%",   "3.0-7.0%", big40Pct>=3.0 && big40Pct<=7.0],
+    ["Games with margin >=14",             margin14Pct.toFixed(1)+"%","40-55%",   margin14Pct>=40 && margin14Pct<=55],
+    ["Games with margin >=21 (blowouts)",  margin21Pct.toFixed(1)+"%","20-32%",   margin21Pct>=20 && margin21Pct<=32],
+    ["Median game margin (pts)",           marginMedian.toFixed(0),   "9-13",     marginMedian>=9 && marginMedian<=13],
+    ["Multi-INT team-games (>=2 picks)",   multiIntPct.toFixed(2)+"%","8-14%",    multiIntPct>=8 && multiIntPct<=14],
+    ["Pass share of plays",                passShare.toFixed(1)+"%",  "55-62%",   passShare>=55 && passShare<=62],
+    ["Yards / pass attempt",               ypa.toFixed(2),            "6.6-7.4",  ypa>=6.6 && ypa<=7.4],
+  ];
+  let eOk = 0;
+  console.log("\\n══════════════════════════════════════════════════════════");
+  console.log(" EVENT RATES — shape checks (catch bugs that means hide)");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" "+"METRIC".padEnd(38)+"  "+"SIM".padStart(8)+"   "+"NFL BAND".padStart(10)+"  FLAG");
+  console.log(" "+"-".repeat(70));
+  for (const [label, val, band, ok] of E) {
+    if (ok) eOk++;
+    console.log(" "+label.padEnd(38)+"  "+String(val).padStart(8)+"   "+band.padStart(10)+"   "+(ok?"OK":"!!"));
+  }
+  console.log(" "+"-".repeat(70));
+  console.log(" "+eOk+"/"+E.length+" in range\\n");
 })();
 `;
 
