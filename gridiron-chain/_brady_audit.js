@@ -127,16 +127,25 @@ const harness = `
   if (!franchise) { console.error("franchise global not populated"); process.exit(1); }
   console.error("franchise inited at season " + franchise.season + ", week " + franchise.week);
 
-  // Snapshot every player flagged as a hiddenGem at draft/UDFA time so we
-  // can count those that LATER hit their ceiling (legend-tier emergence).
-  // _rollHiddenGem stamps p.hiddenGem = { ceiling, growthRate, ... } on draft;
-  // _maybeApplyHiddenGem in offseason grows them; when overall >= ceiling the
-  // flag is deleted. We tag draft round at gem-stamp time.
+  // Snapshot every player flagged as a hiddenGem at draft/UDFA time so we can
+  // count those that LATER reach legend tier (OVR >= 96). _rollHiddenGem stamps
+  // p.hiddenGem = { ceiling, growthRate } on draft; the offseason grind + the
+  // performance-gated breakout grow them.
+  //
+  // EMERGENCE = peak OVR >= 96, full stop. An earlier version also required the
+  // first-sighting ceiling to be >= 96, which was WRONG: the breakout
+  // (_rerollPotentialForBreakouts) can RAISE a gem's ceiling mid-career
+  // (ceiling = max(ceiling, newPot)), so a gem drafted with ceiling 90 that
+  // breaks out to 99 and reaches OVR 99 IS a legend — but the frozen snapshot
+  // checked the stale 90 and missed it. Reaching 96+ OVR is the emergence; the
+  // ceiling is just the (mutable) mechanism that gets it there. Late picks
+  // can't reach 96 any other way — _rollPotential gives R6 a mean potential of
+  // 63 (std 7), so normal dev to 96 is ~4.7σ; the gem path is the only road.
   let totalGemsRolled = 0;
-  let legendEmergences = 0;          // gem with ceiling >= 96 that reaches OVR >= 96
+  let legendEmergences = 0;          // any tracked gem that reaches OVR >= 96
   let lateRoundLegends = 0;          // round >= 5 OR UDFA
   let bradyEmergences = 0;           // round >= 6 OR UDFA (the actual Brady definition)
-  const seenGems = new Map();        // name → { round, ceiling, emerged }
+  const seenGems = new Map();        // name → { round, peakOvr, emerged }
 
   // Scan rosters AND the free-agent pool. A gem cut by _trimAiRostersToCap
   // (on PERCEIVED potential) lands in franchise.freeAgents — it must still be
@@ -152,13 +161,13 @@ const harness = `
           // round 0 = UDFA in _rollHiddenGem's rate table; tag it as 8 here so
           // the R6+ "Brady-tier" bucket (round >= 6) includes undrafted gems.
           const round = (p.draftRound === 0 || p.udfa) ? 8 : (p.draftRound ?? 99);
-          seenGems.set(p.name, { round, ceiling: p.hiddenGem.ceiling, peakOvr: p.overall, emerged: false });
+          seenGems.set(p.name, { round, peakOvr: p.overall, emerged: false });
           totalGemsRolled++;
         }
         if (seenGems.has(p.name)) {
           const g = seenGems.get(p.name);
           if (p.overall > g.peakOvr) g.peakOvr = p.overall;
-          if (!g.emerged && g.peakOvr >= 96 && g.ceiling >= 96) {
+          if (!g.emerged && g.peakOvr >= 96) {
             g.emerged = true;
             legendEmergences++;
             if (g.round >= 5) lateRoundLegends++;
