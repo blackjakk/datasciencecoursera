@@ -131,13 +131,14 @@ const harness = `
   // Wrap frnSimOnce to read each game's per-player stat lines (r.full.stats
   // .home/.away.players, keyed by name) BEFORE they're stripped for storage.
   // From those we build: career totals, single-season highs, single-game highs.
-  // Stat fields per engine _emptyLine: pass_yds/pass_td, rush_yds/rush_td,
-  // rec_yds/rec_td, sk (sacks), tkl (tackles), int_made (INTs).
+  // Stat fields per engine _emptyLine.
   const CATS = [
-    ["pass_yds","Passing yds"], ["pass_td","Passing TD"],
+    ["pass_yds","Passing yds"], ["pass_td","Passing TD"], ["pass_int","Passing INT"],
     ["rush_yds","Rushing yds"], ["rush_td","Rushing TD"],
-    ["rec_yds","Receiving yds"], ["rec_td","Receiving TD"],
-    ["sk","Sacks"], ["int_made","INTs"], ["tkl","Tackles"],
+    ["rec_yds","Receiving yds"], ["rec_td","Receiving TD"], ["rec","Receptions"],
+    ["sk","Sacks"], ["tkl","Tackles"],
+    ["int_made","INTs"], ["int_td","Pick sixes"],
+    ["pd","Pass deflect"], ["ff","Forced fum"], ["fr","Fum recov"], ["def_td","Def TDs"],
   ];
   const career = new Map();          // name → { games, <cat sums> }
   let   seasonAcc = new Map();       // name → season sums (reset each season)
@@ -209,6 +210,9 @@ const harness = `
   let lateRoundLegends = 0;          // round >= 5 OR UDFA
   let bradyEmergences = 0;           // round >= 6 OR UDFA (the actual Brady definition)
   const seenGems = new Map();        // name → { round, peakOvr, emerged }
+  // Keep the actual player object for any legend so we can dump their full
+  // career (history rows, accolades, championships) at the end of the sim.
+  const legendPlayers = [];          // [{ player, emergedSeason }]
 
   // ── League OVR distribution over the whole sim ─────────────────────────
   // Each season, snapshot every team's ACTIVE roster (top-53 by OVR — the
@@ -295,6 +299,8 @@ const harness = `
             legendEmergences++;
             if (g.round >= 5) lateRoundLegends++;
             if (g.round >= 6) bradyEmergences++;
+            // Stash the live player ref so we can dump the career at sim end.
+            legendPlayers.push({ player: p, emergedSeason: franchise.season });
           }
         }
       }
@@ -336,15 +342,16 @@ const harness = `
   for (let s = 0; s < ${SEASONS}; s++) {
     // Play the season: regular games + full playoff bracket → awards phase.
     step(typeof frnSimToEndOfSeason !== "undefined" && frnSimToEndOfSeason, "simSeason", s);
-    // CRITICAL: process season-end retirements + the GEM BREAKOUT reroll. In
-    // the live game this runs inside showFrnAwards() (the awards-screen render),
-    // which the headless flow never calls. _processSeasonEndRetirements ages +
-    // retires players AND calls _rerollPotentialForBreakouts() — the
-    // performance-gated jump to 82-87% of a gem's ceiling that, combined with
-    // the slow offseason grind, is the ONLY path to 96+. Without this call,
-    // games are played but no breakout ever fires and 0 gems emerge. Must run
-    // before frnProceedToRosterChanges, which assumes aging already happened.
-    step(typeof _processSeasonEndRetirements !== "undefined" && _processSeasonEndRetirements, "seasonEnd", s);
+    // CRITICAL: showFrnAwards is the canonical season-end function — it runs
+    // _processSeasonEndRetirements (aging + retire + the GEM BREAKOUT reroll
+    // that's the ONLY path to 96+) AND _stampSeasonAccolades (MVP / All-Pro /
+    // Pro Bowl / Super Bowl rings → careerHistory[].accolades). Calling
+    // _processSeasonEndRetirements alone gets the OVR pipeline working but
+    // attaches ZERO accolades to legends. The live game routes through
+    // showFrnAwards after the Super Bowl; pb.champion is already set by
+    // frnSimToEndOfSeason, so this call has all the inputs it needs. Render
+    // side writes HTML to the DOM stub (benign no-op).
+    step(typeof showFrnAwards !== "undefined" && showFrnAwards, "showFrnAwards", s);
     // All regular + playoff games for this season are now played — fold the
     // per-player season totals into the single-season record book, then reset.
     _foldSeasonRecords();
@@ -543,6 +550,92 @@ const harness = `
       }
       console.log("");
     }
+  }
+
+  // ── LEGEND CAREERS ─────────────────────────────────────────────────────
+  // Full career story for every player who reached OVR >= 96: per-season
+  // table (age / team / OVR / position-relevant stats / accolades that year)
+  // + career totals + accolade tally. The legend's player object is still
+  // alive on a roster or in the FA pool — we kept the ref at emergence time.
+  function _accoladeTally(p) {
+    const all = [];
+    for (const h of (p.careerHistory || [])) for (const a of (h.accolades || [])) all.push(a);
+    const count = {};
+    for (const a of all) count[a] = (count[a] || 0) + 1;
+    // Order: SB, MVP, AP1, AP2, PB, position-specific, position-of-year, ROY, etc.
+    const order = ["Super Bowl","MVP","Super Bowl MVP","OPOY","DPOY","OL of the Year","ST PoY",
+                   "All-Pro","All-Pro (2nd)","Pro Bowl","ROY","Comeback POY","Breakout POY"];
+    const parts = [];
+    for (const a of order) if (count[a]) parts.push(count[a] + "× " + a);
+    for (const a of Object.keys(count)) if (!order.includes(a)) parts.push(count[a] + "× " + a);
+    return parts.length ? parts.join(", ") : "(none)";
+  }
+  // Per-position stat columns — pick the 3 fields most relevant to the role.
+  function _statCols(pos) {
+    if (pos === "QB") return [["pass_yds","PassY"], ["pass_td","TD"], ["pass_int","INT"]];
+    if (pos === "RB") return [["rush_att","Att"], ["rush_yds","RushY"], ["rush_td","TD"]];
+    if (pos === "WR" || pos === "TE") return [["rec","Rec"], ["rec_yds","RecY"], ["rec_td","TD"]];
+    if (pos === "OL") return [["pancakes","Pncks"], ["sacks_allowed","SkAlw"], [null, ""]];
+    // Defense — engine fields tracked: tkl, sk, int_made, int_td, pd, ff, fr, def_td.
+    // TFL exists in comments but is never assigned to a player line, so we don't
+    // surface it. Pick 4 most representative per position.
+    if (pos === "DL" || pos === "LB") return [["tkl","Tkl"], ["sk","Sk"], ["ff","FF"], ["fr","FR"]];
+    if (pos === "CB" || pos === "S")  return [["tkl","Tkl"], ["int_made","INT"], ["pd","PD"], ["def_td","DefTD"]];
+    if (pos === "K")  return [["fg_made","FGM"], ["fg_att","FGA"], ["fg_long","Long"]];
+    if (pos === "P")  return [[null,""], [null,""], [null,""]];
+    return [[null,""], [null,""], [null,""]];
+  }
+  if (legendPlayers.length) {
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" LEGEND CAREERS — " + legendPlayers.length + " player" + (legendPlayers.length === 1 ? "" : "s") + " reached OVR 96+");
+    console.log("══════════════════════════════════════════════════════════");
+    for (const { player: p, emergedSeason } of legendPlayers) {
+      const hist = (p.careerHistory || []).slice().sort((a, b) => (a.season || 0) - (b.season || 0));
+      const peak = hist.reduce((m, h) => Math.max(m, h.overall || h.ovr || 0), 0);
+      const round = (p.draftRound === 0 || p.udfa) ? "UDFA" :
+                    (p.draftRound != null ? ("R" + p.draftRound) : "?");
+      const draftPick = p.draftPick != null ? " pick " + p.draftPick : "";
+      const draftSeason = p.draftSeason != null ? "S" + p.draftSeason : "?";
+      const careerYrs = hist.length ? (hist[0].season + "-" + hist[hist.length - 1].season + " (" + hist.length + " yrs)") : "—";
+      console.log("");
+      console.log(" " + p.name + "  (" + p.position + ")  ·  Drafted " + round + draftPick + ", " + draftSeason +
+                  "  ·  Peak OVR " + peak + "  ·  Emerged S" + emergedSeason);
+      console.log(" Career: " + careerYrs +
+                  (p.age != null ? "  ·  Final age " + p.age : "") +
+                  (p._retired ? " (retired)" : ""));
+      console.log(" Honors: " + _accoladeTally(p));
+      // Per-season table
+      const cols = _statCols(p.position);
+      const headerCells = ["S#","Age","Team","OVR"].concat(cols.filter(c => c[0]).map(c => c[1])).concat(["Accolades"]);
+      console.log(" " + "-".repeat(72));
+      console.log(" " + headerCells.map((c, i) => i < 4 ? c.padStart(4) : c.padStart(7)).join(" "));
+      console.log(" " + "-".repeat(72));
+      for (const h of hist) {
+        const ovr = h.overall != null ? h.overall : (h.ovr != null ? h.ovr : "");
+        const tm = (h.teamName || "—").slice(0, 12);
+        const row = [String(h.season || "").padStart(4),
+                     String(h.age || "").padStart(4),
+                     tm.padEnd(12),
+                     String(ovr).padStart(4)];
+        for (const [k] of cols) {
+          if (!k) continue;
+          const v = (h[k] != null) ? h[k] : (h.playoff && h.playoff[k] != null ? h.playoff[k] : 0);
+          row.push(String(v).padStart(7));
+        }
+        const accStr = (h.accolades && h.accolades.length) ? h.accolades.join(", ") : "";
+        row.push(accStr);
+        console.log(" " + row.join(" "));
+      }
+      // Career totals — pull from p.careerStats
+      const cs = p.careerStats || {};
+      const totals = [];
+      for (const [k, label] of cols) {
+        if (!k) continue;
+        totals.push(label + " " + (cs[k] || 0).toLocaleString());
+      }
+      if (totals.length) console.log(" CAREER TOTALS:  " + totals.join("  ·  "));
+    }
+    console.log("");
   }
 })();
 `;
