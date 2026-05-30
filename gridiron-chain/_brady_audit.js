@@ -218,13 +218,15 @@ const harness = `
   // Also track mean roster size so we can see if rosters bloat (top-53 only
   // cherry-picks if the underlying rosters are much larger than 53).
   const leagueOvr = [];
+  const decadeOvr = [[], [], [], [], [], [], [], []];  // per-decade OVR pools (index = (year-1)/10)
   let rosterSizeSum = 0, rosterSizeN = 0;
-  function snapshotLeagueOvr() {
+  function snapshotLeagueOvr(year) {
+    const dIdx = Math.min(decadeOvr.length - 1, Math.floor((year - 1) / 10));
     for (const t of TEAMS) {
       const full = franchise.rosters[t.id] || [];
       rosterSizeSum += full.length; rosterSizeN++;
       const active = full.slice().sort((a, b) => (b.overall || 0) - (a.overall || 0)).slice(0, 53);
-      for (const p of active) leagueOvr.push(p.overall || 0);
+      for (const p of active) { const o = p.overall || 0; leagueOvr.push(o); decadeOvr[dIdx].push(o); }
     }
   }
 
@@ -325,12 +327,20 @@ const harness = `
     // collapsing the draft to UDFA-only. frnDraftFinishScramble runs the UDFA
     // claims and calls _draftFinalize internally.
     step(typeof frnDraftFinishScramble !== "undefined" && frnDraftFinishScramble, "finishDraft", s);
+    // Final cuts to 53. The harness chain skips the live free-agency / training-
+    // camp-cuts phases, so without this rosters bloat (~81 over 40 seasons) and
+    // the top-53 snapshot cherry-picks upward, inflating the OVR distribution.
+    // _trimAiRostersToCap cuts on PERCEIVED value → low-perceived gems can still
+    // wash out to FA (realistic), where scanGems still tracks them.
+    if (typeof _trimAiRostersToCap === "function") {
+      try { _trimAiRostersToCap(53, { includeUser: true }); } catch (e) { console.error("[brady] trim threw (season "+s+"): "+e.message); }
+    }
     // Snapshot BEFORE the season rolls over so a gem drafted this cycle is
     // recorded even if it's cut before next season; scanGems runs again after.
     scanGems();
     step(typeof frnNewSeason !== "undefined" && frnNewSeason, "newSeason", s);
     scanGems();
-    snapshotLeagueOvr();   // record this season's active-roster OVR spread
+    snapshotLeagueOvr(s + 1);   // record this season's active-roster OVR spread
     if ((s+1) % 10 === 0) {
       console.error("  ...season "+(s+1)+"/"+${SEASONS}+" — gems rolled "+totalGemsRolled+", legends "+legendEmergences+", Brady-tier "+bradyEmergences+" ("+((Date.now()-t0)/1000).toFixed(0)+"s)");
     }
@@ -405,6 +415,23 @@ const harness = `
     console.log(" elite share: 90+=" + pct(a.filter(o => o >= 90).length) +
                 "  95+=" + pct(a.filter(o => o >= 95).length) +
                 "  99=" + a.filter(o => o >= 99).length + " player-seasons");
+    console.log("");
+    // Per-decade drift — isolates real league OVR creep from roster-bloat
+    // artifacts. Stable mean + elite share across decades = no creep.
+    console.log(" DRIFT BY DECADE (mean / P50 / P90 / 90+% / 95+%)");
+    console.log(" " + "-".repeat(54));
+    for (let d = 0; d < decadeOvr.length; d++) {
+      const arr = decadeOvr[d];
+      if (!arr.length) continue;
+      const s2 = arr.slice().sort((x, y) => x - y), m2 = arr.length;
+      const mn = (s2.reduce((s, v) => s + v, 0) / m2).toFixed(1);
+      const lab = "Yr " + (d * 10 + 1) + "-" + (d * 10 + 10);
+      console.log(" " + lab.padEnd(9) + " " + mn.padStart(5) +
+                  " / " + s2[Math.floor(0.50 * m2)] +
+                  " / " + s2[Math.floor(0.90 * m2)] +
+                  " / " + (arr.filter(o => o >= 90).length / m2 * 100).toFixed(1) + "%" +
+                  " / " + (arr.filter(o => o >= 95).length / m2 * 100).toFixed(1) + "%");
+    }
     console.log("");
   }
 })();
