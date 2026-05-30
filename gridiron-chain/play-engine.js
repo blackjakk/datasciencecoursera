@@ -4093,17 +4093,31 @@ class GameSimulator {
       // cb3 in nickel+) instead of the team `defR.cb` aggregate, so a unit
       // with one elite ball-hawk corner forces more picks than its team OVR
       // implies. Weighted toward the corners (most picks come from CBs).
+      // Weighted cover average: cb1/cb2 face the bulk of pass volume (top WRs
+      // are the high-leverage targets), so weight them 1.0 and cb3 (nickel)
+      // at 0.5 — averaging them equally dragged the league INT rate down
+      // since cb3 is typically rated 5-8 below cb1/cb2.
       const _wr = (PERSONNEL[this._currentPersonnel]?.wr) ?? 2;
-      const _intCBNames = [this.defR.starters.cb1, this.defR.starters.cb2];
-      if (_wr >= 3) _intCBNames.push(this.defR.starters.cb3);
-      // Dedupe by NAME — on a thin 2-CB roster cb3 falls back to cb2's (or
-      // cb1's) name, which would double-weight that corner in the average and
-      // skew the INT rate. Distinct names only.
-      const _intCBPlayers = [...new Set(_intCBNames)]
-        .map(n => this._playerByName?.get?.(n)).filter(Boolean);
+      const _intCBSlots = [
+        { name: this.defR.starters.cb1, w: 1.0 },
+        { name: this.defR.starters.cb2, w: 1.0 },
+      ];
+      if (_wr >= 3) _intCBSlots.push({ name: this.defR.starters.cb3, w: 0.5 });
+      // Dedupe by NAME — on a thin roster cb3 falls back to cb2's/cb1's name;
+      // counting that player twice would skew the average.
+      const _seenCB = new Set();
+      let _covNum = 0, _covDen = 0;
+      for (const { name, w } of _intCBSlots) {
+        if (!name || _seenCB.has(name)) continue;
+        _seenCB.add(name);
+        const p = this._playerByName?.get?.(name);
+        if (!p) continue;
+        _covNum += (p.stats?.[8] || 65) * w;
+        _covDen += w;
+      }
       let defIntMod;
-      if (_intCBPlayers.length) {
-        const _avgCBCov = _intCBPlayers.reduce((s, p) => s + (p.stats?.[8] || 65), 0) / _intCBPlayers.length;
+      if (_covDen > 0) {
+        const _avgCBCov = _covNum / _covDen;
         defIntMod = (_avgCBCov - 65) / 1400;
       } else {
         defIntMod = (this.defR.cb - 65) / 1400;        // fallback to team rating
@@ -4118,7 +4132,16 @@ class GameSimulator {
       const dcBallHawkMul  = _dcTrait  === "Ball Hawk"    ? 1.025 : 1.0;
       const hcGameMgrIntMul= _hcSpec   === "Game Manager" ? 0.88  : 1.0;
       const boxStackIntMod = this._boxStackIntMod || 0;
-      const intPct = clamp((0.010 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.030);
+      // INT base + clamp tuned against the headless audit (_sim_audit.js).
+      // Baseline measured ~1.4% (base 0.010) vs the ~2.5% NFL target. Three
+      // headwinds were eating the nominal base bump: (a) multipliers average
+      // ~0.92 (Game Manager HC 0.88×, etc.), (b) qbIntFromOvr = (75-qbOvr)/800
+      // pushes negative since STARTING QBs systematically score above 75, and
+      // (c) the upper clamp of 0.030 truncated the high-pressure tail (real
+      // NFL turnover-fest games hit 4%+ per attempt). Lifted the clamp to
+      // 0.045 to keep the tail and bumped the base to 0.040 so the average
+      // lands in the 2.0-3.0% NFL band.
+      const intPct = clamp((0.040 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.045);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         // Sample the defender who'd be in position to pick. CAT-based drop
