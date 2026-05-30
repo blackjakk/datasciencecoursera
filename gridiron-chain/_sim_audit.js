@@ -91,16 +91,18 @@ const audit = `
   // Per-GAME (not per-team-game) — margin is one value per matchup.
   const game_margin=[];
 
+  // Per-offensive-playbook + per-weather accumulators (gameplay-system audit).
+  // Declared OUTSIDE the season loop so they accumulate across all seasons and
+  // are in scope at report time. Each team uses its real playbook (getPlaybook),
+  // so tagging team-games by the offense's playbook shows whether the 5 schemes
+  // produce distinct, NFL-shaped profiles. Weather is read off the sim post-game.
+  const PB = {};
+  const WX = {};
+  const _pbInit = id => (PB[id] || (PB[id] = { g:0, plays:0, passYds:0, rushYds:0, pAtt:0, rAtt:0, comp:0, pts:0, sacksAllowed:0 }));
+  const _wxInit = l => (WX[l] || (WX[l] = { g:0, passYds:0, rushYds:0, pAtt:0, comp:0, pts:0, fum:0, fgM:0, fgA:0 }));
+
   const t0 = Date.now();
   for (let s = 0; s < SEASONS; s++) {
-    // Per-offensive-playbook + per-weather accumulators (gameplay-system audit).
-    // Each team uses its real playbook (getPlaybook), so tagging team-games by
-    // the offense's playbook shows whether the 5 schemes produce distinct,
-    // NFL-shaped profiles. Weather is read off the sim instance post-game.
-    const PB = {};
-    const WX = {};
-    const _pbInit = id => (PB[id] || (PB[id] = { g:0, plays:0, passYds:0, rushYds:0, pAtt:0, rAtt:0, comp:0, pts:0, sacksAllowed:0 }));
-    const _wxInit = l => (WX[l] || (WX[l] = { g:0, passYds:0, rushYds:0, pAtt:0, comp:0, pts:0, fum:0, fgM:0, fgA:0 }));
     const rosters = {};
     for (const t of TEAMS) rosters[t.id] = buildRoster(t);
     for (let i = 0; i < TEAMS.length; i++) {
