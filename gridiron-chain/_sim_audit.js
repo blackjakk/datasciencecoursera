@@ -61,7 +61,15 @@ const audit = `
 
   const lb = { totalYds:0, passYds:0, rushYds:0, sacks:0, sacks_allowed:0,
     turnovers:0, takeaways:0, firstDowns:0, pass_comp:0, pass_att:0, rush_att:0,
-    penalties:0, penaltyYds:0, intThrown:0, ptsSum:0, teamGames:0, games:0 };
+    penalties:0, penaltyYds:0, intThrown:0, ptsSum:0, teamGames:0, games:0,
+    // ── Tier 1: drive-level (yds/drive = totalYds/drives; 3-and-out needs
+    // per-drive play grouping the engine doesn't expose, so omitted) ──
+    drives:0, driveTDs:0, driveFGs:0, driveTOs:0, driveOther:0, drivePts:0,
+    thirdAtt:0, thirdConv:0, fourthAtt:0, fourthConv:0, rzAtt:0, rzTD:0,
+    // ── Tier 2: kicking / ST / situational ──
+    fgMade:0, fgAtt:0, xpMade:0, xpAtt:0, puntAtt:0, puntYds:0,
+    fg0_39_m:0, fg0_39_a:0, fg40_49_m:0, fg40_49_a:0, fg50_m:0, fg50_a:0,
+    otGames:0 };
   // Per-team-game arrays for distribution stats (median/quantiles/extremes).
   // Means alone can mask shape bugs — a clamp truncating tails would never
   // show in the average but jumps out in P90/max.
@@ -95,6 +103,16 @@ const audit = `
           lb.pass_comp += tm.pass_comp; lb.pass_att += tm.pass_att; lb.rush_att += tm.rush_att;
           lb.penalties += (tm.penalties||0); lb.penaltyYds += (tm.penaltyYds||0);
           lb.intThrown += teamInt;
+          // Situational (team stats)
+          lb.thirdAtt += (tm.thirdAtt||0); lb.thirdConv += (tm.thirdConv||0);
+          lb.fourthAtt += (tm.fourthAtt||0); lb.fourthConv += (tm.fourthConv||0);
+          lb.rzAtt += (tm.rz_att||0); lb.rzTD += (tm.rz_td||0);
+          // Kicking / ST (player lines)
+          for (const p of Object.values(r.stats[side].players)) {
+            lb.fgMade += (p.fg_made||0); lb.fgAtt += (p.fg_att||0);
+            lb.xpMade += (p.xp_made||0); lb.xpAtt += (p.xp_att||0);
+            lb.puntAtt += (p.punt_att||0); lb.puntYds += (p.punt_yds||0);
+          }
           lb.teamGames++;
           // Per-team-game arrays (for quantiles + event rates)
           tg_pts.push(pts);
@@ -103,6 +121,38 @@ const audit = `
           tg_turnovers.push(tm.turnovers); tg_penalties.push(tm.penalties||0);
           tg_penaltyYds.push(tm.penaltyYds||0); tg_intThrown.push(teamInt);
           tg_passAtt.push(tm.pass_att); tg_passComp.push(tm.pass_comp); tg_rushAtt.push(tm.rush_att);
+        }
+        // ── Drive-level (game-level, both teams) ──
+        // Drives carry running homeScore/awayScore; the delta vs the prior
+        // drive tells us this drive's points + outcome (FG vs TD vs none).
+        // "FG/Punt/TO" is lumped by the engine, so we re-derive: +3 → FG,
+        // +6/7/8 → TD, 0 → punt-or-TO (we don't separate those two here).
+        const drv = r.full?.drives || r.drives || [];
+        let prevH = 0, prevA = 0;
+        for (const d of drv) {
+          lb.drives++;
+          const dH = (d.homeScore||0) - prevH, dA = (d.awayScore||0) - prevA;
+          prevH = d.homeScore||0; prevA = d.awayScore||0;
+          const off = d.team;  // "home"/"away" — points scored BY this drive's offense
+          const ptsThis = off === "home" ? dH : dA;
+          const oppPts  = off === "home" ? dA : dH;  // def/return TD against
+          lb.drivePts += Math.max(0, ptsThis);
+          if (d.result === "TD") lb.driveTDs++;
+          else if (ptsThis === 3) lb.driveFGs++;
+          else if (d.result === "TURNOVER_ON_DOWNS" || oppPts > 0) lb.driveTOs++;
+          else lb.driveOther++;  // punt or non-scoring TO (lumped by engine)
+        }
+        // 3-and-outs + OT from the play log
+        const plays = r.full?.plays || r.plays || [];
+        if (plays.some(p => p.qtr === 5 || p.quarter === 5 || /\bOT\b|overtime/i.test(p.desc||""))) lb.otGames++;
+        // FG by distance from play log
+        for (const p of plays) {
+          if (p.kind === "fg_good" || p.kind === "fg_miss" || p.kind === "fg_blocked") {
+            const dist = p.fgDist || 0, made = p.kind === "fg_good";
+            if (dist < 40)      { lb.fg0_39_a++; if (made) lb.fg0_39_m++; }
+            else if (dist < 50) { lb.fg40_49_a++; if (made) lb.fg40_49_m++; }
+            else                { lb.fg50_a++; if (made) lb.fg50_m++; }
+          }
         }
       }
     }
@@ -237,6 +287,42 @@ const audit = `
   }
   console.log(" "+"-".repeat(70));
   console.log(" "+eOk+"/"+E.length+" in range\\n");
+
+  // ============== TIER 1+2: DRIVE / SITUATIONAL / KICKING ==============
+  // Per-DRIVE denominators. lb.drives counts both teams' drives across all
+  // games; per-team-game drive count = lb.drives / lb.teamGames.
+  const drv = lb.drives || 1;
+  const D2 = [
+    ["Drives / team-game", lb.drives/lb.teamGames, 10.5, 12.5, v=>v.toFixed(1)],
+    ["Points / drive", lb.drivePts/drv, 1.6, 2.3, v=>v.toFixed(2)],
+    ["Yards / drive", lb.totalYds/drv, 28, 36, v=>v.toFixed(1)],
+    ["TD / drive", lb.driveTDs/drv*100, 18, 26, v=>v.toFixed(1)+"%"],
+    ["FG / drive", lb.driveFGs/drv*100, 9, 18, v=>v.toFixed(1)+"%"],
+    ["Punt+TO / drive", (lb.driveOther+lb.driveTOs)/drv*100, 48, 62, v=>v.toFixed(1)+"%"],
+    ["3rd-down conv %", lb.thirdAtt?lb.thirdConv/lb.thirdAtt*100:0, 36, 44, v=>v.toFixed(1)+"%"],
+    ["4th-down conv %", lb.fourthAtt?lb.fourthConv/lb.fourthAtt*100:0, 45, 60, v=>v.toFixed(1)+"%"],
+    ["Red-zone TD %", lb.rzAtt?lb.rzTD/lb.rzAtt*100:0, 52, 66, v=>v.toFixed(1)+"%"],
+    ["FG %", lb.fgAtt?lb.fgMade/lb.fgAtt*100:0, 82, 90, v=>v.toFixed(1)+"%"],
+    ["  FG 0-39", lb.fg0_39_a?lb.fg0_39_m/lb.fg0_39_a*100:0, 93, 100, v=>v.toFixed(1)+"%"],
+    ["  FG 40-49", lb.fg40_49_a?lb.fg40_49_m/lb.fg40_49_a*100:0, 78, 90, v=>v.toFixed(1)+"%"],
+    ["  FG 50+", lb.fg50_a?lb.fg50_m/lb.fg50_a*100:0, 55, 75, v=>v.toFixed(1)+"%"],
+    ["XP %", lb.xpAtt?lb.xpMade/lb.xpAtt*100:0, 92, 97, v=>v.toFixed(1)+"%"],
+    ["Punt avg (yds)", lb.puntAtt?lb.puntYds/lb.puntAtt:0, 43, 48, v=>v.toFixed(1)],
+    ["OT game %", lb.otGames/lb.games*100, 4, 10, v=>v.toFixed(1)+"%"],
+  ];
+  let dOk = 0;
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" DRIVE / SITUATIONAL / KICKING");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" "+"METRIC".padEnd(22)+" "+"SIM".padStart(9)+"   "+"NFL BAND".padStart(13)+"  FLAG");
+  console.log(" "+"-".repeat(60));
+  for (const [label,val,lo,hi,fmt] of D2) {
+    const ok = val>=lo && val<=hi; if (ok) dOk++;
+    const band = fmt(lo).replace("%","")+"-"+fmt(hi);
+    console.log(" "+label.padEnd(22)+" "+fmt(val).padStart(9)+"   "+band.padStart(13)+"   "+(ok?"OK":"!!"));
+  }
+  console.log(" "+"-".repeat(60));
+  console.log(" "+dOk+"/"+D2.length+" in range\\n");
 })();
 `;
 
