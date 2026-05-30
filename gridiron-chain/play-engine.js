@@ -4720,20 +4720,31 @@ class GameSimulator {
       // OC Red Zone Genius: +8% comp in the red zone
       const ocRZGeniusMod = (isRedZone && _ocTrait === "Red Zone Genius") ? 0.08 : 0;
       archCompMod += ocRZGeniusMod;
-      // CB MATCHUP — the specific covering CB's COV stat is a major factor.
-      // Top WR (wr1) is covered by top CB (cb1); WR2 by CB2. TE/RB get LBs.
-      // Plus a small safety-help term so a great deep safety helps overall.
+      // COVER MATCHUP — the SPECIFIC covering defender's COV stat is a major
+      // factor, for EVERY target (not just outside WRs). Assignment mirrors
+      // the man-cover scheme: wr1→cb1, wr2→cb2, slot wr3→nickel (cb3),
+      // TE→MLB (lb2), RB→WLB/SLB (lb1/lb3). Previously only wr1/wr2 had an
+      // individual cover term — a TE on an elite cover-LB vs a scrub LB
+      // completed at the SAME rate (the LB's COV rating was ignored; only the
+      // COUNT of COVER-archetype LBs mattered via coverLbMod). Now the man
+      // across from each receiver moves the needle by his own coverage skill.
       let cbCoverMod = 0;
-      const wrSlotKey = rcvr === this.offR.starters.wr1 ? "cb1"
-                      : rcvr === this.offR.starters.wr2 ? "cb2"
-                      : null;
-      if (wrSlotKey) {
-        const cbName = this.defR.starters[wrSlotKey];
-        const cbPlayer = cbName ? this._playerByName?.get?.(cbName) : null;
-        const cbCov = cbPlayer?.stats?.[8] ?? 65;
-        cbCoverMod = -(cbCov - 65) / 170;            // COV 95 → -0.176; COV 45 → +0.118
-        // Safety help — average COV of the 2 starting safeties tightens things up
-        const safNames = [this.defR.starters.fs, this.defR.starters.ss];
+      const _st = this.defR.starters;
+      // Resolve the slot key (for press/mismatch terms below) AND the cover
+      // defender's name + the swing scale for this target's position group.
+      let wrSlotKey = null, _coverName = null, _coverScale = 170;
+      if (rcvr === this.offR.starters.wr1)      { wrSlotKey = "cb1"; _coverName = _st.cb1; _coverScale = 170; }
+      else if (rcvr === this.offR.starters.wr2) { wrSlotKey = "cb2"; _coverName = _st.cb2; _coverScale = 170; }
+      else if (rcvr === this.offR.starters.wr3) { _coverName = _st.cb3; _coverScale = 200; }   // slot vs nickel (softer)
+      else if (rcvr === this.offR.starters.te)  { _coverName = _st.lb2; _coverScale = 230; }   // TE vs MLB (LBs cover worse)
+      else if (rcvr === this.offR.starters.rb)  { _coverName = _st.lb1; _coverScale = 230; }   // RB vs WLB
+      if (_coverName) {
+        const covPlayer = this._playerByName?.get?.(_coverName) || null;
+        const covCov = covPlayer?.stats?.[8] ?? 65;
+        cbCoverMod = -(covCov - 65) / _coverScale;   // WR: COV95 → -0.176; LB cover (230): ±0.13
+        // Safety help — average COV of the 2 starting safeties tightens
+        // everything up a touch (deep help over the top, run support).
+        const safNames = [_st.fs, _st.ss];
         const safPlayers = safNames.map(n => this._playerByName?.get?.(n)).filter(Boolean);
         if (safPlayers.length) {
           const avgSafCov = safPlayers.reduce((s,p) => s + (p.stats?.[8] || 65), 0) / safPlayers.length;
