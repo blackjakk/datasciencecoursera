@@ -4983,7 +4983,14 @@ class GameSimulator {
         // WR archetype tilts air yards. Deep threats push the ball
         // downfield; possession / slot / RZ trade air for shorter, surer
         // routes.
-        const archAirMod = rcvrArch === "DEEP_THREAT"  ?  3.0
+        // Receiver-archetype air-yards (aDOT) shift. APPLIED to airYds below —
+        // it was previously orphaned (defined, never consumed), so WR depth
+        // never differentiated: SLOT's short-route penalty never landed (it
+        // threw at normal depth + piled on YAC, leading the team in Y/REC) and
+        // the DEEP_THREAT never actually ran deep. DEEP_THREAT pushed to +4.5 so
+        // it clearly leads aDOT/long (deeper throws also complete less → the
+        // lowest catch%, the correct trade).
+        const archAirMod = rcvrArch === "DEEP_THREAT"  ?  4.5
                          : rcvrArch === "POSSESSION"   ? -1.5
                          : rcvrArch === "SLOT"         ? -3.0
                          : rcvrArch === "RED_ZONE"     ? -1.2
@@ -5038,6 +5045,10 @@ class GameSimulator {
         if (stickAim > 0 && !_readSuccess && airYds < this.ytg - 1) {
           airYds = clamp(Math.round(airYds + stickAim * 0.6), -2, 55);
         }
+        // Apply the receiver-archetype aDOT shift (DEEP_THREAT deeper, SLOT/
+        // BLOCKING shorter). Scaled 0.7 so the concept model still drives the
+        // base depth and the archetype tilts it rather than dominating.
+        if (archAirMod) airYds = clamp(Math.round(airYds + archAirMod * 0.7), -2, 55);
         // Stash for stat tracking / play-by-play surfacing
         this._lastPassConcept = _concept;
         this._lastPassCoverage = _coverage;
