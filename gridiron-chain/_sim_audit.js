@@ -118,6 +118,13 @@ const audit = `
     compPct: lb.pass_att ? lb.pass_comp/lb.pass_att*100 : 0,
     ypc: lb.rush_att ? lb.rushYds/lb.rush_att : 0,
     intRate: lb.pass_att ? lb.intThrown/lb.pass_att*100 : 0,
+    // Efficiency / pace — total plays = pass attempts + rush attempts (sacks
+    // count as pass plays via pass_att in NFL accounting and our engine).
+    // ptsSum is per-game-both-teams, so divide by 2 for per-team.
+    playsPerGame: tg ? (lb.pass_att + lb.rush_att) / tg : 0,
+    ypp: (lb.pass_att + lb.rush_att) ? lb.totalYds / (lb.pass_att + lb.rush_att) : 0,
+    ppp: (lb.pass_att + lb.rush_att) ? (lb.ptsSum / 2) / (lb.pass_att + lb.rush_att) : 0,
+    ypComp: lb.pass_comp ? lb.passYds / lb.pass_comp : 0,
   };
   const B = [
     ["Points / game", g.pts, 17, 27, v=>v.toFixed(1)],
@@ -132,6 +139,11 @@ const audit = `
     ["First downs / game", g.firstDowns, 16, 24, v=>v.toFixed(1)],
     ["Penalties / game", g.penalties, 4, 8, v=>v.toFixed(2)],
     ["Penalty yds / game", g.penaltyYds, 35, 70, v=>v.toFixed(0)],
+    // Efficiency block — NFL refs: plays/game ~63, ypp ~5.4, ppp ~0.36, yds/comp ~11
+    ["Plays / game", g.playsPerGame, 58, 68, v=>v.toFixed(1)],
+    ["Yards / play", g.ypp, 5.0, 6.0, v=>v.toFixed(2)],
+    ["Points / play", g.ppp, 0.30, 0.42, v=>v.toFixed(3)],
+    ["Yards / completion", g.ypComp, 10.0, 12.5, v=>v.toFixed(1)],
   ];
   let nOk = 0;
   console.log("\\n══════════════════════════════════════════════════════════");
