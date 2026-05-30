@@ -8962,7 +8962,11 @@ function _rerollPotentialForBreakouts() {
         const ceil = player.hiddenGem.ceiling || 0;
         const belowLaunchpad = (player.overall || 0) < 0.82 * ceil;
         const earlyCareer = yearsInLeague <= 3 && (player.age || 99) <= 25;
-        if (belowLaunchpad && earlyCareer && Math.random() < GEM_DEV_BREAKOUT_P) {
+        // Fire on EITHER merit (cracked top 10% of production at the position —
+        // achievable for a developing gem, unlike the top-5% main gate) OR a
+        // small development-luck roll for gems that are buried but progressing.
+        const inTop10 = idx < Math.max(1, Math.floor(list.length * 0.10));
+        if (belowLaunchpad && earlyCareer && (inTop10 || Math.random() < GEM_DEV_BREAKOUT_P)) {
           phase = "full"; gateOk = true;
         }
       }
