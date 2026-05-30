@@ -204,6 +204,15 @@ const harness = `
   for (let s = 0; s < ${SEASONS}; s++) {
     // Play the season: regular games + full playoff bracket → awards phase.
     step(typeof frnSimToEndOfSeason !== "undefined" && frnSimToEndOfSeason, "simSeason", s);
+    // CRITICAL: process season-end retirements + the GEM BREAKOUT reroll. In
+    // the live game this runs inside showFrnAwards() (the awards-screen render),
+    // which the headless flow never calls. _processSeasonEndRetirements ages +
+    // retires players AND calls _rerollPotentialForBreakouts() — the
+    // performance-gated jump to 82-87% of a gem's ceiling that, combined with
+    // the slow offseason grind, is the ONLY path to 96+. Without this call,
+    // games are played but no breakout ever fires and 0 gems emerge. Must run
+    // before frnProceedToRosterChanges, which assumes aging already happened.
+    step(typeof _processSeasonEndRetirements !== "undefined" && _processSeasonEndRetirements, "seasonEnd", s);
     // awards → offseason (frnApbProceedToOffseason wraps startFrnOffseason and
     // dismisses the all-pro-bowl crowning; fall back to startFrnOffseason).
     if (franchise.phase === "awards") {
