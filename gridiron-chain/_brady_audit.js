@@ -34,6 +34,12 @@ const shim = `
   var localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
   var location = { hash: "" };
   var alert = () => {};
+  // The offseason chain routes through confirm()-guarded UI handlers
+  // (frnConfirm*) and persists via IndexedDB. Auto-confirm everything and
+  // give IndexedDB a benign stub so saves no-op instead of throwing per pick.
+  var confirm = () => true;
+  var prompt = () => "";
+  var indexedDB = { open: () => ({ onsuccess: null, onerror: null, result: null }) };
 `;
 
 const files = [
@@ -43,6 +49,9 @@ const files = [
   "play-sim.js",
   "play-motion.js",
   "play-engine.js",
+  "play-broadcast.js",        // _bspnLiveAbbr + ticker helpers — franchise award/
+                              // news/record-break code calls these; without it
+                              // frnSimToEndOfSeason throws once a record breaks.
   "play-franchise-core.js",
   "play-franchise-season.js",
   "play-franchise-stats.js",
@@ -84,6 +93,18 @@ const harness = `
     process.exit(1);
   }
   console.error("Franchise layer loaded. Starting Brady-test: " + ${SEASONS} + " seasons.");
+  // Mute known-benign console noise so the audit output stays readable:
+  //  · "missing pick row" — R7 pick rows occasionally absent (see _ensurePicksForYear
+  //    early-return vs _injectCompPicks; thins the gem pool slightly, doesn't break the test)
+  //  · "[IDB save]" / "indexedDB" — persistence no-ops in node
+  //  · "Dashboard render error" — DOM-dependent render paths we've stubbed
+  const _origWarn = console.warn, _origErr = console.error;
+  const _mute = (s) => typeof s === "string" && (
+    s.indexOf("missing pick row") >= 0 || s.indexOf("[IDB") >= 0 ||
+    s.indexOf("indexedDB") >= 0 || s.indexOf("Dashboard render") >= 0 ||
+    s.indexOf("[save]") >= 0);
+  console.warn  = function(...a) { if (!_mute(a[0])) _origWarn.apply(console, a); };
+  console.error = function(...a) { if (!_mute(a[0])) _origErr.apply(console, a); };
   // Silence render functions at runtime — after the files load they're the
   // REAL fns; replace with no-ops so the sim loop doesn't burn cycles in
   // dashboard rendering that depends on DOM. We only need the sim logic.
@@ -91,6 +112,12 @@ const harness = `
   if (typeof renderFrnPreseason === "function") renderFrnPreseason = function() {};
   if (typeof renderFrnDashboard === "function") renderFrnDashboard = function() {};
   if (typeof renderFrnSeasonRecap === "function") renderFrnSeasonRecap = function() {};
+  // The offseason→draft chain also renders these; no-op them so the loop
+  // doesn't chase DOM-dependent render bugs (they touch team colors etc).
+  if (typeof renderFrnOffseason === "function") renderFrnOffseason = function() {};
+  if (typeof renderFrnDraft === "function") renderFrnDraft = function() {};
+  if (typeof renderFrnAwards === "function") renderFrnAwards = function() {};
+  if (typeof _startDraftFloorAnim === "function") _startDraftFloorAnim = function() {};
   if (typeof _flushSaveFranchise === "function") _flushSaveFranchise = function() {};
   if (typeof saveFranchise === "function") saveFranchise = function() {};
   // Pick any team as the "user team" so franchise.chosenTeamId is set, then
@@ -111,13 +138,20 @@ const harness = `
   let bradyEmergences = 0;           // round >= 6 OR UDFA (the actual Brady definition)
   const seenGems = new Map();        // name → { round, ceiling, emerged }
 
+  // Scan rosters AND the free-agent pool. A gem cut by _trimAiRostersToCap
+  // (on PERCEIVED potential) lands in franchise.freeAgents — it must still be
+  // tracked there or we'd lose any gem that washed through FA between drafts.
+  // peakOvr carries across wherever the player lives, so emergence is captured
+  // regardless of roster churn.
   function scanGems() {
-    for (const t of TEAMS) {
-      const roster = franchise.rosters[t.id] || [];
-      for (const p of roster) {
+    const pools = TEAMS.map(t => franchise.rosters[t.id] || []);
+    pools.push(franchise.freeAgents || []);
+    for (const pool of pools) {
+      for (const p of pool) {
         if (p.hiddenGem && !seenGems.has(p.name)) {
-          // Tag with current OVR + draft round if available
-          const round = p.draftRound || p.draft_round || (p.udfa ? 8 : 99);
+          // round 0 = UDFA in _rollHiddenGem's rate table; tag it as 8 here so
+          // the R6+ "Brady-tier" bucket (round >= 6) includes undrafted gems.
+          const round = (p.draftRound === 0 || p.udfa) ? 8 : (p.draftRound ?? 99);
           seenGems.set(p.name, { round, ceiling: p.hiddenGem.ceiling, peakOvr: p.overall, emerged: false });
           totalGemsRolled++;
         }
@@ -135,29 +169,64 @@ const harness = `
     }
   }
 
-  // Drive seasons headlessly. The sim path: for each week, sim every game in
-  // franchise.schedule that hasn't been played; then advance week; at season
-  // end runFrnOffseason() handles draft/dev/age/retire — all the Brady levers.
+  // Drive the FULL faithful season cycle headlessly. The original loop tried
+  // to walk the live phase machine but bailed before the DRAFT ever ran, so
+  // _aiAutoPick → _rollHiddenGem never fired and 0 gems were ever rolled.
+  //
+  // CRITICAL: games must actually be PLAYED. A hidden gem's leap to legend
+  // tier comes from _rerollPotentialForBreakouts() (a performance-gated jump
+  // to 82-87% of its ceiling), which ranks players by mvpScore from
+  // franchise.seasonStats — i.e. it needs real game production. A games-free
+  // loop only gets the slow ~4-9/yr offseason grind, so gems age out around
+  // OVR 90 and NOTHING ever reaches 96+. Skipping games silently zeroes the
+  // emergence rate. So we sim every game + playoff round each season.
+  //
+  // Per-season chain (each step is the real primitive the UI routes through):
+  //   frnSimToEndOfSeason        → sims all regular-season + playoff games →
+  //                                builds seasonStats → fires in-season
+  //                                breakouts → lands on the awards phase
+  //   frnApbProceedToOffseason   → awards → offseason
+  //   frnProceedToRosterChanges  → _runCoachingCarousel + runFrnOffseason
+  //                                (ages, retires, GROWS existing gems)
+  //   frnGoToDraft               → builds the draft class + pick order
+  //   frnAutoDraftRemaining      → AI auto-picks every slot → ROLLS new gems
+  //   frnNewSeason               → rolls stats to career, ages the college
+  //                                pipeline, increments franchise.season
+  //
+  // Roster churn (cuts → FA → re-signs) already happens inside the real
+  // offseason chain, so a low-perceived gem can still wash out naturally —
+  // no need for the manual _trimAiRostersToCap call the games-free draft used.
   const t0 = Date.now();
+  function step(fn, label, s) {
+    if (typeof fn !== "function") return;
+    try { fn(); } catch (e) { console.error("[brady] "+label+" threw (season "+s+"): "+e.message); }
+  }
   for (let s = 0; s < ${SEASONS}; s++) {
-    // Sim all 18 regular-season weeks (NFL schedule len from generateFranchiseSchedule)
-    let safety = 0;
-    while (franchise.phase !== "offseason" && safety++ < 500) {
-      const wk = franchise.week;
-      const wkGames = franchise.schedule.filter(g => g.week === wk && !g.played);
-      if (wkGames.length === 0) {
-        try { advanceWeekIfDone && advanceWeekIfDone(); } catch (e) {}
-        try { frnAdvanceWeek && frnAdvanceWeek(); } catch (e) {}
-        // If still stuck, force phase forward
-        if (franchise.week === wk && franchise.phase !== "offseason") break;
-        continue;
-      }
-      for (const g of wkGames) {
-        try { frnSimGame(g.homeId, g.awayId); } catch (e) {}
-      }
+    // Play the season: regular games + full playoff bracket → awards phase.
+    step(typeof frnSimToEndOfSeason !== "undefined" && frnSimToEndOfSeason, "simSeason", s);
+    // awards → offseason (frnApbProceedToOffseason wraps startFrnOffseason and
+    // dismisses the all-pro-bowl crowning; fall back to startFrnOffseason).
+    if (franchise.phase === "awards") {
+      if (typeof frnApbProceedToOffseason === "function") step(frnApbProceedToOffseason, "toOffseason", s);
+      else step(typeof startFrnOffseason !== "undefined" && startFrnOffseason, "startOffseason", s);
     }
-    // Offseason: draft + dev + age + retire — where gems are rolled & resolved.
-    try { runFrnOffseason && runFrnOffseason(); } catch (e) { console.error("offseason err season "+s+":", e.message); }
+    step(typeof frnProceedToRosterChanges !== "undefined" && frnProceedToRosterChanges, "rosterChanges", s);
+    step(typeof frnGoToDraft !== "undefined" && frnGoToDraft, "goToDraft", s);
+    step(typeof frnAutoDraftRemaining !== "undefined" && frnAutoDraftRemaining, "autoDraft", s);
+    // CRITICAL: finalize the draft. frnAutoDraftRemaining only makes the draft
+    // picks — it does NOT run _draftFinalize, which (a) fills roster gaps with
+    // UDFAs, (b) runs UDFA AI claims so undrafted gems land on teams, and most
+    // importantly (c) CONSUMES this year's pick rows and MINTS the next future
+    // year's. Without this, the pick inventory (seeded with only 3 years at
+    // startFranchise) is never replenished — so from the 4th season on,
+    // _buildDraftPickOrder finds no pick rows and EVERY regular slot is skipped,
+    // collapsing the draft to UDFA-only. frnDraftFinishScramble runs the UDFA
+    // claims and calls _draftFinalize internally.
+    step(typeof frnDraftFinishScramble !== "undefined" && frnDraftFinishScramble, "finishDraft", s);
+    // Snapshot BEFORE the season rolls over so a gem drafted this cycle is
+    // recorded even if it's cut before next season; scanGems runs again after.
+    scanGems();
+    step(typeof frnNewSeason !== "undefined" && frnNewSeason, "newSeason", s);
     scanGems();
     if ((s+1) % 10 === 0) {
       console.error("  ...season "+(s+1)+"/"+${SEASONS}+" — gems rolled "+totalGemsRolled+", legends "+legendEmergences+", Brady-tier "+bradyEmergences+" ("+((Date.now()-t0)/1000).toFixed(0)+"s)");
