@@ -245,3 +245,77 @@ was the only way to see it:
    lo, hi, fmt]`.
 3. **Use `\\n` not `\n`** in any new `console.log` inside the harness string.
 4. **Smoke-run** `node _x_audit.js 2` (don't trust `node --check` alone).
+
+---
+
+## SESSION STATE — dev-model unification (IN PROGRESS) + open work
+
+> Recorded so a future session can resume without re-deriving. This is the live
+> state as of commit `bdd9921`.
+
+### The big architectural arc: unify NFL development onto the college model
+**Root finding (took far too long — I anchored on the NFL gem mechanic and never
+mapped the player lifecycle until prompted to audit the college pipeline):**
+the **college pipeline already has a clean hidden-destiny dev model** — `HiddenOracle`
+rolls a hidden `ceiling` (16% land 88+, *decoupled from visible draft tier* — a
+2-star can have ceiling 95) + a `_growthRate`; `_developCollegePlayer` grows
+**stats** toward it with a per-year **regression** roll, then `overall =
+calcOverall(stats)` (stats-as-source-of-truth, no clawback). Bradys are baked in.
+
+**But the NFL handoff threw it away:** `_clearCollegeFlags` *deleted* `_growthRate`,
+NFL dev switched to a separate tangle (grind + `peakMult` + breakout reroll) we
+patched **7×** and still got **0 Bradys** (60-season baseline: 713 gems, 0 legends).
+And `_rollHiddenGem` re-rolled a **duplicate** hidden ceiling on top of the college one.
+
+**Stage 1 — DONE (`49df277`, `71a14b8`):** `_clearCollegeFlags` no longer deletes
+`_growthRate`; new `_developNflPlayer(p, mult)` runs the oracle model for pros
+(ceiling = `max(p.potential, hiddenGem.ceiling)`; growth via `_applyGemDevelopment`;
+**regression roll = bust source**; pre-peak only). Wired into `runFrnOffseason`
+behind `const _ORACLE_DEV = true` — **old grind/normal-dev kept in the `else`** for
+instant fallback/A-B. `NFL_DEV_SCALE = 0.35` + `0.6*gap` single-year cap (college
+rate over-realized everyone: smoke showed R1 mean 91.7, 25% at 95+).
+
+**Stage 2 — PENDING:** once Stage 1 validates, delete the now-redundant
+`_rollHiddenGem`, `_rerollPotentialForBreakouts` (the breakout/flash), `peakMult`,
+`devMult`. Bradys + busts + year-1 jumps all emerge from the one oracle model
+(burst-intensity roll already gives a year-1 jump; regression gives busts).
+
+**Stage 3 — PENDING:** retarget the audit's emergence detection from `hiddenGem`
+to "late-round player reaching 96+ via `p.potential`" (cleaner); apply oracle dev
+to the **practice-squad** branch too (still on old grind); update the offseason
+gains-sheet "hidden-gem hero" UI + scouting tags that read `hiddenGem`.
+
+### IN-FLIGHT validation run (started this session)
+`node _brady_audit.js 40` → `/tmp/s1val.log` (bg task `b6q3mr7jb`). **When it
+finishes, check:** (1) Brady-tier cadence now NON-ZERO? (2) 90+ share pulled from
+9.7% toward NFL ~2-3% (did `NFL_DEV_SCALE` fix the inflation)? (3) R1 bust% > 0 /
+PB% down from 93% (does oracle regression create busts)? *Note: `/tmp` logs are
+ephemeral — re-run if the container recycled.*
+
+### Open realism fixes (prioritized), not yet done
+1. **Dual-threat QB under-modeled** (Vick probe): a peak-Vick-type gets only ~3
+   carries / ~14 rush yds per game vs real ~8 / ~65. **Designed QB runs are
+   missing** — only pressure-scrambles exist. Mobile QB is a *downgrade* in-sim
+   (309 yd/65% vs pocket cannon 331/75%), backwards from the NFL. OVR also
+   under-weights mobility (THR 42% vs spd9+agi13). Fix: add archetype-scaled
+   designed QB runs (read-option/QB-power) for `DUAL_THREAT` + speed.
+2. **Offense ~8-10% hot** (the recurring signal): passing yds/att ~7.67 vs ~7.0;
+   records 7,599 pass yds / 78 TD / 738 team pts vs NFL 5,477 / 55 / 606;
+   QB 300+yd games 33% (NFL ~20%); INT 3.05% / multi-INT 30%. Lever: trim
+   passing yds/att (completion% + deep-ball rate) and re-tune INT to ~2.5%.
+   Theme: run game (incl. QB-run) under-weighted vs pass.
+3. **Elite inflation + R1 busts** — same root (high-potential players over-convert).
+   Stage-1 oracle regression is the intended fix; confirm in the validation run
+   before adding more levers. `_peakMult` failed (R1s drafted near-PB already).
+
+### Audit-band quirks to fix (cosmetic, measurement-only)
+- Franchise-health **unique-champions band** is wrong (set 45-100, impossible —
+  capped at 32 teams). - **OL n=0** in per-position (not individually tracked).
+- Career-length absolute ~1.5× NFL (definitional — active-roster seasons).
+
+### What's solid and shouldn't be re-litigated
+Core box score, drive shape, RB room (committee + fumbles fixed), franchise
+parity, initial roster OVR shape, the whole audit suite (game-stat 3 tables +
+drive/situational/kicking; brady: distribution, decade drift, OVR-by-round,
+bust/hit, record book, HOF, awards, team records, milestones, franchise health,
+career length, legend careers, positional depth, top-10 QB/league leaders).
