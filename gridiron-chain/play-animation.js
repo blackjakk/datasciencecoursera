@@ -4341,11 +4341,33 @@ function buildAnimForPlay(play, prevPlay) {
             } else {
               _trailYd = _manTrail;
             }
-            // Compute target position — CB on the ENDZONE side of WR
-            // (+dir direction). Previous code used -dir which put CB
-            // TOWARD QB = "in front of receiver" instead of over the top.
+            // Compute target position. MAN: trail the WR on the endzone
+            // side (shadow). ZONE: the corner BAILS to a landmark (deep third
+            // in C3, deep half in C2/C4/Tampa) and reads the QB — he does NOT
+            // shadow the receiver's route. Shadowing in a zone shell was the
+            // "every coverage looks like man" tell; the read-and-break layer
+            // (below) drives him on a throw that enters his zone.
             let _cbTargetX = null, _cbTargetY = null;
-            if (cbSlot && trk && typeof MotionPlayback !== "undefined" && wrTarget) {
+            const _cbZone = !isMan && cov;
+            if (_cbZone) {
+              // Which sideline this corner mans (top = -1, bottom = +1).
+              const _cbSide = (i === idxCB1) ? -1 : (i === idxCB2) ? 1 : (d.y < cy ? -1 : 1);
+              // Landmark DEPTH + lateral by shell. C3 = deep thirds (deeper,
+              // ~13yd at the numbers); C2/C4/Tampa = deep half (a touch
+              // shallower, wider toward the sideline). Eased in over the
+              // backpedal, then held — the read-and-break takes over on the
+              // throw. Long-yardage pushes the landmark deeper.
+              const _cbZoneDepth = (cov === "C3_ZONE" ? 13 : 11) + (formation.isLongYd ? 3 : 0);
+              const _cbZoneLat = (cov === "C3_ZONE" ? 18 : 22);   // yd off the middle, toward the sideline
+              const _landX = losX + dir * _cbZoneDepth * FIELD.PX_PER_YARD;
+              const _landY = cy + _cbSide * _cbZoneLat * FIELD.PX_PER_YARD;
+              // Ease from the CB's current spot to the landmark over the
+              // backpedal window so he turns and bails, not teleports.
+              const _bailT = Math.min(1, aT / Math.max(0.001, backpedalT));
+              const _eb = _bailT * _bailT * (3 - 2 * _bailT);
+              _cbTargetX = dd.x + (_landX - dd.x) * _eb;
+              _cbTargetY = dd.y + (_landY - dd.y) * _eb;
+            } else if (cbSlot && trk && typeof MotionPlayback !== "undefined" && wrTarget) {
               const sample = MotionPlayback.sampleTrack(trk, aT);
               if (sample) {
                 const toMidSign = Math.sign(cy - wrTarget.y) || 1;
@@ -4359,6 +4381,21 @@ function buildAnimForPlay(play, prevPlay) {
               // Fallback: hold formation home (pre-route, no track)
               _cbTargetX = d.x;
               _cbTargetY = d.y;
+            }
+            // ZONE READ-AND-BREAK (CB) — once the ball is thrown into this
+            // corner's zone (same sideline, within ~8yd of the catch point
+            // laterally), he drives ON the ball instead of holding his deep
+            // landmark. Redirects the follow-target to the catch point; the
+            // cushioned bail above governs him until the throw.
+            if (_cbZone && aT >= releaseAT) {
+              // Throw is toward this corner's deep landmark (within ~14yd of
+              // where he bailed) → break on it. The lateral-distance gate is
+              // the real test; it implicitly keeps the off-side CB on his
+              // landmark while the playside CB drives the ball.
+              if (Math.abs(d._cbFollowY - targetY) < 14 * FIELD.PX_PER_YARD) {
+                _cbTargetX = targetX;
+                _cbTargetY = targetY;
+              }
             }
             // Speed-capped sprint toward target. Initialize follow
             // position to current dd.x/y so jam starts at the CB's
