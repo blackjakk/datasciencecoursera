@@ -219,6 +219,17 @@ const harness = `
   // cherry-picks if the underlying rosters are much larger than 53).
   const leagueOvr = [];
   const decadeOvr = [[], [], [], [], [], [], [], []];  // per-decade OVR pools (index = (year-1)/10)
+  // OVR by draft round, pooled across all seasons. p.draftRound: 1-7 for drafted
+  // (set in _aiAutoPick at slot.round), 0 for UDFA (per _rollHiddenGem's rate
+  // table), null/undefined for the initial generation. We bucket UDFA→8 and
+  // null/0→9 for clarity. Late-round outliers in the right tail = emerged gems.
+  const byRound = {};   // round → array of OVRs
+  function _roundBucket(p) {
+    const r = p.draftRound;
+    if (r === 0 || p.udfa) return 8;        // UDFA
+    if (r >= 1 && r <= 7) return r;
+    return 9;                                // initial-gen / unknown
+  }
   let rosterSizeSum = 0, rosterSizeN = 0;
   function snapshotLeagueOvr(year) {
     const dIdx = Math.min(decadeOvr.length - 1, Math.floor((year - 1) / 10));
@@ -226,7 +237,11 @@ const harness = `
       const full = franchise.rosters[t.id] || [];
       rosterSizeSum += full.length; rosterSizeN++;
       const active = full.slice().sort((a, b) => (b.overall || 0) - (a.overall || 0)).slice(0, 53);
-      for (const p of active) { const o = p.overall || 0; leagueOvr.push(o); decadeOvr[dIdx].push(o); }
+      for (const p of active) {
+        const o = p.overall || 0;
+        leagueOvr.push(o); decadeOvr[dIdx].push(o);
+        const rb = _roundBucket(p); (byRound[rb] = byRound[rb] || []).push(o);
+      }
     }
   }
 
@@ -433,6 +448,33 @@ const harness = `
                   " / " + (arr.filter(o => o >= 95).length / m2 * 100).toFixed(1) + "%");
     }
     console.log("");
+    // OVR by draft round — does the league reflect pedigree? Mean OVR should
+    // step down from R1 → R7 → UDFA. Late-round max OVR + 90+% are the gem-
+    // emergence signal (a R6 hitting 96+ is a Brady; UDFA outliers = Kurt Warner).
+    const rOrder = [1,2,3,4,5,6,7,8,9];
+    const rLabel = {1:"R1",2:"R2",3:"R3",4:"R4",5:"R5",6:"R6",7:"R7",8:"UDFA",9:"INITIAL"};
+    if (Object.keys(byRound).length) {
+      console.log(" OVR BY DRAFT ROUND (mean / P50 / P90 / max / 90+% / 95+% / n)");
+      console.log(" " + "-".repeat(64));
+      for (const r of rOrder) {
+        const arr = byRound[r]; if (!arr || !arr.length) continue;
+        const s3 = arr.slice().sort((x, y) => x - y), m3 = arr.length;
+        const mn = (s3.reduce((s, v) => s + v, 0) / m3).toFixed(1);
+        const p50 = s3[Math.floor(0.50 * m3)];
+        const p90 = s3[Math.floor(0.90 * m3)];
+        const mx = s3[m3 - 1];
+        const e90 = (arr.filter(o => o >= 90).length / m3 * 100).toFixed(1);
+        const e95 = (arr.filter(o => o >= 95).length / m3 * 100).toFixed(1);
+        console.log(" " + rLabel[r].padEnd(8) + " " + mn.padStart(5) +
+                    " / " + String(p50).padStart(2) +
+                    " / " + String(p90).padStart(2) +
+                    " / " + String(mx).padStart(2) +
+                    " / " + (e90 + "%").padStart(5) +
+                    " / " + (e95 + "%").padStart(5) +
+                    " / " + m3.toLocaleString().padStart(7));
+      }
+      console.log("");
+    }
   }
 })();
 `;
