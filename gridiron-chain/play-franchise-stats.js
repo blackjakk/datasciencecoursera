@@ -8929,12 +8929,18 @@ function _rerollPotentialForBreakouts() {
       const idx = list.findIndex(r => r.name === player.name);
       if (idx === -1) continue;
       let phase, gateOk;
+      // Production gate tightened top-5% → top-3%. The clawback fix made the
+      // breakout JUMP actually stick (~88% retention vs the old ~28%), so at the
+      // old top-5% rate the league over-produced 90+ players (~10% vs the NFL's
+      // ~2-3%). Tightening the gate restores elite scarcity. Gems are unaffected:
+      // when this gate fails they fall through to the looser hidden-gem path
+      // below (top-10% OR a dev-luck roll), so the Brady cadence is preserved.
       if (yearsInLeague <= 1) {
-        const top5 = Math.max(1, Math.floor(list.length * 0.05));
-        phase = "full"; gateOk = idx < top5;
+        const top3 = Math.max(1, Math.floor(list.length * 0.03));
+        phase = "full"; gateOk = idx < top3;
       } else if (yearsInLeague <= 3) {
-        const top5 = Math.max(1, Math.floor(list.length * 0.05));
-        phase = "half"; gateOk = idx < top5;
+        const top3 = Math.max(1, Math.floor(list.length * 0.03));
+        phase = "half"; gateOk = idx < top3;
       } else {
         const top3 = Math.max(1, Math.floor(list.length * 0.03));
         // Sustained: previous-season careerHistory row also placed top-10%
@@ -8994,7 +9000,11 @@ function _rerollPotentialForBreakouts() {
         const target = Math.round(ceiling * (lo + Math.random() * (hi - lo)));
         if (target > curOvr) jumpedTo = Math.min(99, target);
       } else {
-        const bonus = Math.max(1, Math.round((5 + Math.floor(Math.random() * 5)) * phaseScale));
+        // Non-gem breakout bump cut 5-10 → 1-4. With the clawback fix the jump
+        // now sticks fully (was ~28%), so the old 5-10 was ~3× too strong and
+        // inflated the league's 90+ tail. 1-4 keeps a meaningful "breakout
+        // season" bump without over-promoting every top performer to elite.
+        const bonus = Math.max(1, Math.round((1 + Math.floor(Math.random() * 4)) * phaseScale));
         jumpedTo = Math.min(99, Math.min(player.potential || 99, curOvr + bonus));
       }
       if (jumpedTo > curOvr) {
