@@ -10782,6 +10782,48 @@ function _applyGemDevelopment(p, targetOvr) {
   return calcOverall(p.position, p.stats) - start;
 }
 
+// ── UNIFIED NFL DEVELOPMENT (Stage 1 of the dev-model unification) ────────
+// The college pipeline already develops prospects with one clean model
+// (HiddenOracle: grow STATS toward a hidden ceiling, with a per-year
+// REGRESSION roll, then overall = calcOverall(stats)). At the NFL handoff the
+// game DROPPED that model (deleted _growthRate, switched to a tangle of
+// grind/peakMult/breakout that we patched 7× and STILL got ~0 Bradys). This
+// extends the SAME oracle model through the NFL career:
+//   • ceiling = max(college oracle p.potential, any NFL gem ceiling) — Stage 1
+//     keeps the gem ceiling as a contributor so nothing is lost mid-transition.
+//   • growth toward ceiling via _applyGemDevelopment (stats-based → no clawback).
+//   • the oracle REGRESSION roll is the bust source: a player whose dev
+//     regresses fails to reach his ceiling — real R1 busts, emergent, no peakMult.
+//   • only pre-peak players develop; plateau/decline/retirement stay as-is.
+// A Brady now emerges naturally: a late-round prospect whose college oracle
+// ceiling is 90+ and who realizes it — no separate gem/flash machinery needed.
+function _developNflPlayer(p, mult) {
+  if (!p || !p.stats || !p.stats.length) return;
+  // Drafted prospects carry oracle destiny; UDFAs/synthetics roll it now.
+  if (p.potential == null || p._growthRate == null) _rollHiddenDestiny(p);
+  // Only pre-peak players grow (post-peak plateau + decline handled below).
+  if ((p.age || 25) >= (p.peakAge ?? 27) + 1) return;
+  const ceiling = Math.max(p.potential || 0, p.hiddenGem?.ceiling || 0) || 70;
+  const current = p.overall || 60;
+  const rate = p._growthRate || 0.65;
+  const yr = "nfl|" + (franchise.season || 0);
+  // Regression first (bust source) — rate-scaled prob, ceiling-scaled magnitude.
+  const reg = HiddenOracle.roll.regression(p, yr, ceiling, rate);
+  if (reg != null) {
+    const drop = Math.round(-reg);
+    for (const i of _gemDevStats(p.position)) p.stats[i] = Math.max(35, (p.stats[i] || 60) - drop);
+    p.overall = calcOverall(p.position, p.stats);
+    return;
+  }
+  const gap = ceiling - current;
+  if (gap <= 0) return;
+  const intensity = HiddenOracle.roll.intensity(p, yr);
+  const grew = Math.min(gap * 1.5, gap * rate * intensity) * (mult || 1);
+  if (grew < 0.5) return;
+  _applyGemDevelopment(p, Math.min(ceiling, current + grew));
+  if (p.hiddenGem && p.overall >= (p.hiddenGem.ceiling || 99)) delete p.hiddenGem;
+}
+
 function _devStatPool(pos, age) {
   switch (pos) {
     case "QB": return [4, 3];                                 // THR, AWR
@@ -10974,6 +11016,12 @@ function runFrnOffseason() {
       // Resolve gem ceiling — remove flag once reached
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
 
+      // STAGE 1 — unified oracle NFL development (flag-gated; old grind/normal-dev
+      // kept in the else for instant fallback + A/B comparison during validation).
+      const _ORACLE_DEV = true;
+      if (_ORACLE_DEV) {
+        _developNflPlayer(p, coachBoost * tradeBoost);
+      } else
       // _GEM_GRIND_NOTE — grind cap 28->31 DECOUPLES gem emergence from the rare
       // production breakout. From ~OVR 62 a gem grinds ~4-5/yr, so 6 yrs (to age
       // 28) only reached ~90 and stalled short of a 96+ ceiling — it NEEDED the
@@ -19320,9 +19368,12 @@ function _rollHiddenDestiny(p) {
 // historical "what the scouts said" — used by some draft retrospectives.
 function _clearCollegeFlags(p) {
   if (!p) return;
-  // College-only secret fields. Currently just _growthRate (ceiling and
-  // scout bias persist into the NFL career for other systems).
-  delete p._growthRate;
+  // STAGE 1 dev-model unification: _growthRate now PERSISTS into the NFL so
+  // _developNflPlayer can keep developing the player toward their oracle
+  // ceiling (same model college uses). Previously deleted here, which forced
+  // the NFL onto a separate, broken dev tangle. (ceiling = p.potential and
+  // _aiScoutBias already persist.)
+  // delete p._growthRate;   // ← intentionally NO LONGER deleted
   // Legacy breakout/SR-fork system (pre-refactor; kept for save compat —
   // no live code reads these, so deletes are belt-and-suspenders).
   delete p._breakoutYear;
