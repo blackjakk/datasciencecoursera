@@ -4096,7 +4096,11 @@ class GameSimulator {
       const _wr = (PERSONNEL[this._currentPersonnel]?.wr) ?? 2;
       const _intCBNames = [this.defR.starters.cb1, this.defR.starters.cb2];
       if (_wr >= 3) _intCBNames.push(this.defR.starters.cb3);
-      const _intCBPlayers = _intCBNames.map(n => this._playerByName?.get?.(n)).filter(Boolean);
+      // Dedupe by NAME — on a thin 2-CB roster cb3 falls back to cb2's (or
+      // cb1's) name, which would double-weight that corner in the average and
+      // skew the INT rate. Distinct names only.
+      const _intCBPlayers = [...new Set(_intCBNames)]
+        .map(n => this._playerByName?.get?.(n)).filter(Boolean);
       let defIntMod;
       if (_intCBPlayers.length) {
         const _avgCBCov = _intCBPlayers.reduce((s, p) => s + (p.stats?.[8] || 65), 0) / _intCBPlayers.length;
@@ -4808,10 +4812,15 @@ class GameSimulator {
       //  PHYSICAL CB     → jams the WR — reduces speed mismatch bonus
       //  SLOT_CB         → better vs SLOT WR (handled at slot matchup)
       //  CENTER_FIELD S  → caps deep passing (reduces air yards on deep throws)
-      const isTeRbTarget = rcvr === this.offR.starters.te || rcvr === this.offR.starters.rb;
       const coverLBs = (defArch.LB || []).filter(l => l?.archetype === "COVER").length;
       const signalLBs = (defArch.LB || []).filter(l => l?.archetype === "SIGNAL").length;
-      const coverLbMod = -(coverLBs * (isTeRbTarget ? 0.040 : 0.012));
+      // Uniform per-COVER-LB term (was 0.040 for TE/RB targets). The heavy
+      // TE/RB-target weight DOUBLE-COUNTED with the new individual cbCoverMod:
+      // a COVER LB covering a TE got his COV rating applied via cbCoverMod
+      // AND an archetype penalty here for the same matchup. coverLbMod is now
+      // purely a "COVER LBs on the field tighten the underneath" term; the
+      // DIRECT cover man's skill comes solely from cbCoverMod (his actual COV).
+      const coverLbMod = -(coverLBs * 0.012);
       const signalLbMod = -(signalLBs * 0.012);
       // Physical CB jam — kills the speed mismatch if our targeted WR is on
       // a press corner. Only applies when the targeted slot matches.
