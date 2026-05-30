@@ -1468,6 +1468,14 @@ function genPlayer(pos, tier) {
 // ~5-6% of rounds 5-7 produce pro-bowl caliber players over time.
 // The gem is fully invisible — no scout grade tell, no combine signal.
 function _rollHiddenGem(player) {
+  // K/P excluded entirely. The Brady audit revealed 50% of "legend" emergences
+  // (4 in 40 yrs → 2 punters!) were kickers/punters: AWR weighs 42% of K/P OVR
+  // in calcOverall AND grows in-season AND K/P don't physically decline, so any
+  // K/P gem deterministically rides to OVR 99 and stays there for a decade.
+  // Real NFL kickers cap around ~90 OVR; a late-round-kicker Brady story isn't
+  // the design intent. Non-gem K/P still develop normally up to their
+  // potential ceiling (typically 65-75), which is realistic.
+  if (player.position === "K" || player.position === "P") return;
   // Inverted rate curve: UDFAs / late-rounders are the most likely hidden
   // gems (pure flyers, no scouting consensus to "hide" against). Early
   // rounds are heavily scouted so there's less room for surprise.

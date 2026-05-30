@@ -10998,7 +10998,15 @@ function runFrnOffseason() {
         const gap = p.potential - p.overall;
         if (gap > 0 && p.age < (p.peakAge ?? 27) + 1) {
           const baseRate = p.age <= 22 ? 0.45 : p.age <= 24 ? 0.30 : p.age <= 26 ? 0.15 : 0.06;
-          const growth = Math.max(0, Math.round(gap * baseRate * coachBoost * tradeBoost));
+          // Permanent per-player dev variance — the Bo Jackson vs Ryan Leaf axis.
+          // Rolled once at first sighting and frozen. Range [0.30, 1.20], mean
+          // ~0.75, so most players develop ~25% slower than the old uniform
+          // rate and a real minority barely develop at all → R1 busts exist.
+          // The Brady audit showed R1 PB% at 91.5% (NFL ~25-30%) with the
+          // old rate-only path; this variance creates the bust + Pro Bowl
+          // distribution NFL R1s actually have.
+          if (p._devMult == null) p._devMult = 0.30 + Math.random() * 0.90;
+          const growth = Math.max(0, Math.round(gap * baseRate * coachBoost * tradeBoost * p._devMult));
           if (growth > 0) {
             p.overall = Math.min(99, p.overall + growth);
             const [k1, k2] = _devStatPool(p.position, p.age);
@@ -11361,7 +11369,9 @@ function runFrnOffseason() {
         const gap = p.potential - p.overall;
         if (gap > 0 && p.age <= 27) {
           const baseRate = p.age <= 22 ? 0.45 : p.age <= 24 ? 0.30 : p.age <= 26 ? 0.15 : 0.06;
-          const growth = Math.max(0, Math.round(gap * baseRate * psCoachBoost * PS_DEV_MULT));
+          // Same permanent per-player dev variance as the active-roster path.
+          if (p._devMult == null) p._devMult = 0.30 + Math.random() * 0.90;
+          const growth = Math.max(0, Math.round(gap * baseRate * psCoachBoost * PS_DEV_MULT * p._devMult));
           if (growth > 0) {
             p.overall = Math.min(99, p.overall + growth);
             const [k1, k2] = _devStatPool(p.position, p.age);
