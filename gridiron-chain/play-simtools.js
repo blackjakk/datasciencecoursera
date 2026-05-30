@@ -11,7 +11,7 @@ const SIM_BENCHMARKS = [
   { label: "Pass yds / game",    target: "~225",       lo: 190, hi: 270, fn: (g) => g.passYds,                     fmt: (v) => v.toFixed(0) },
   { label: "Rush yds / game",    target: "~115",       lo: 90,  hi: 145, fn: (g) => g.rushYds,                     fmt: (v) => v.toFixed(0) },
   { label: "Completion %",       target: "~63%",       lo: 58,  hi: 69,  fn: (g) => g.pass_att ? g.pass_comp / g.pass_att * 100 : 0, fmt: (v) => v.toFixed(1) + "%" },
-  { label: "Yards / carry",      target: "~4.4",       lo: 3.9, hi: 4.9,  fn: (g) => g.rush_att ? g.rushYds / g.rush_att : 0,        fmt: (v) => v.toFixed(2) },
+  { label: "Yards / carry",      target: "~4.4",       lo: 3.9, hi: 4.9,  fn: (g) => g.rush_att ? g.rushYdsRaw / g.rush_att : 0,     fmt: (v) => v.toFixed(2) },
   { label: "INT rate / att",     target: "~2.5%",      lo: 1.8, hi: 3.4,  fn: (g) => g.pass_att ? g.turnoverInt / g.pass_att * 100 : 0, fmt: (v) => v.toFixed(2) + "%" },
   { label: "Sacks / game",       target: "~2.4",       lo: 1.6, hi: 3.3,  fn: (g) => g.sacks,                       fmt: (v) => v.toFixed(2) },
   { label: "Turnovers / game",   target: "~1.4",       lo: 0.9, hi: 2.1,  fn: (g) => g.turnovers,                   fmt: (v) => v.toFixed(2) },
@@ -36,7 +36,12 @@ function _benchmarkPanelHTML(agg) {
     turnovers:  (h.turnovers + a.turnovers) / tg,
     penalties:  (h.penalties + a.penalties) / tg,
     penaltyYds: (h.penaltyYds + a.penaltyYds) / tg,
-    // Rates need pooled numerators/denominators, not pooled per-game.
+    // Rates need pooled RAW numerators/denominators (NOT per-game values).
+    // YPC = total rush yds / total carries; comp% = total comp / total att;
+    // INT rate = total picks / total att. Using the per-game rushYds above
+    // for the YPC numerator made it ~0 (off by the games factor) — so keep a
+    // raw pooled rush-yards total here just for the ratio.
+    rushYdsRaw: h.rushYds + a.rushYds,
     pass_comp:  h.pass_comp + a.pass_comp,
     pass_att:   h.pass_att + a.pass_att,
     rush_att:   h.rush_att + a.rush_att,
@@ -256,13 +261,17 @@ function renderSimManyResults(agg, home, away, hRoster, aRoster) {
   const avg = (sum) => (sum / agg.n).toFixed(1);
   const isHomeWinner = agg.homeWins > agg.awayWins;
   const row = (lbl, hv, av, fmt = (v) => v) => {
-    const h = +hv, a = +av;
-    const hCls = h > a ? "better" : "";
-    const aCls = a > h ? "better" : "";
+    // hv/av may be numbers OR pre-formatted strings ("69.1%"). Parse a numeric
+    // for the better/worse highlight, but DISPLAY the original value — coercing
+    // "69.1%" with +hv gave NaN, which is why COMP%/YPC rendered "NaN".
+    const hn = parseFloat(hv), an = parseFloat(av);
+    const hCls = hn > an ? "better" : "";
+    const aCls = an > hn ? "better" : "";
+    const disp = (v) => (typeof v === "number" ? fmt(v) : v);
     return `<tr>
-      <td class="home ${hCls}">${fmt(h)}</td>
+      <td class="home ${hCls}">${disp(hv)}</td>
       <td class="lbl">${lbl}</td>
-      <td class="away ${aCls}">${fmt(a)}</td>
+      <td class="away ${aCls}">${disp(av)}</td>
     </tr>`;
   };
   const compPct = (s) => s.pass_att ? (s.pass_comp / s.pass_att * 100).toFixed(1) + "%" : "—";
@@ -665,6 +674,16 @@ function runPowerRankings(gamesPerPair = 1) {
   for (const t of TEAMS) {
     rosters[t.id] = regenerateFullRoster(t, {});
   }
+  // League-wide benchmark accumulator — pools EVERY team-game across the full
+  // round-robin so the NFL realism check reflects the whole league, not one
+  // matchup. _benchmarkPanelHTML expects the runManyGames agg shape, so build
+  // a compatible mini-agg with both sides folded into `home` (the panel pools
+  // home+away anyway) and `n` = total TEAM-GAMES / 2 (it multiplies by 2*n).
+  const _lb = { totalYds: 0, passYds: 0, rushYds: 0, sacks: 0, sacks_allowed: 0,
+                turnovers: 0, takeaways: 0, firstDowns: 0, pass_comp: 0, pass_att: 0,
+                rush_att: 0, penalties: 0, penaltyYds: 0, intThrown: 0 };
+  const _zero = { ..._lb };
+  let _lbTeamGames = 0, _lbPtsSum = 0;
   // Track W/L/T + total points scored/allowed
   const standings = {};
   for (const t of TEAMS) {
@@ -684,6 +703,19 @@ function runPowerRankings(gamesPerPair = 1) {
         if (hs > as)      { sh.w++; sa.l++; }
         else if (as > hs) { sa.w++; sh.l++; }
         else              { sh.t++; sa.t++; }
+        // Pool both teams' box scores into the league benchmark accumulator.
+        for (const side of ["home", "away"]) {
+          const t = r.stats[side].team;
+          _lb.totalYds += t.totalYds; _lb.passYds += t.passYds; _lb.rushYds += t.rushYds;
+          _lb.sacks += t.sacks; _lb.sacks_allowed += t.sacks_allowed;
+          _lb.turnovers += t.turnovers; _lb.takeaways += t.takeaways;
+          _lb.firstDowns += t.firstDowns;
+          _lb.pass_comp += t.pass_comp; _lb.pass_att += t.pass_att; _lb.rush_att += t.rush_att;
+          _lb.penalties += (t.penalties || 0); _lb.penaltyYds += (t.penaltyYds || 0);
+          for (const p of Object.values(r.stats[side].players)) _lb.intThrown += (p.pass_int || 0);
+          _lbTeamGames++;
+        }
+        _lbPtsSum += hs + as;
       }
     }
   }
@@ -693,6 +725,17 @@ function runPowerRankings(gamesPerPair = 1) {
     winPct: (s.w + s.t * 0.5) / Math.max(1, s.games),
     pd: (s.pf - s.pa) / Math.max(1, s.games),
   })).sort((a, b) => b.winPct - a.winPct || b.pd - a.pd);
+  // League benchmark agg in the runManyGames shape so _benchmarkPanelHTML can
+  // consume it. All team-games folded into `home`; `away` zeroed; n =
+  // teamGames/2 so the panel's tg = 2*n = total team-games. Points split into
+  // the two score sums (panel pools them).
+  const _benchAgg = {
+    n: Math.max(1, _lbTeamGames / 2),
+    homeScoreSum: _lbPtsSum / 2, awayScoreSum: _lbPtsSum / 2,
+    teamSums: { home: _lb, away: _zero },
+    qbSums: { home: { int: 0 }, away: { int: 0 } },
+  };
+  ranked._benchAgg = _benchAgg;
   return ranked;
 }
 
@@ -756,6 +799,14 @@ function renderPowerRankings(ranked, gamesPerPair) {
         `).join("")}
       </div>
     </div>
+
+    ${ranked._benchAgg ? `
+    <div class="sm-section">
+      <div style="font-size:.72rem;color:var(--gray);margin-bottom:4px">
+        LEAGUE-WIDE — pooled across all ${totalGames} games of the round-robin (not one matchup).
+      </div>
+    </div>
+    ${_benchmarkPanelHTML(ranked._benchAgg)}` : ""}
 
     <div class="sm-section">
       <div style="font-size:.7rem;color:var(--gray);line-height:1.5">
