@@ -244,6 +244,31 @@ was the only way to see it:
   and fixed an inflated CB AGI/COV floor. Result: ~30 players at 90+, a few at
   95+, position medians cluster 70-76. (`bf31438`)
 
+**Archetype differentiation** (found via `_arch_probe.js` — all 11 positions
+swept; every archetype confirmed to move the box score except where noted)
+- **Dual-threat QB run game** — designed QB runs were playbook-gated (only
+  OPTION); now archetype + mobility driven. DUAL_THREAT 2.3→9.8 rush att/g.
+  (`dc8b5e4`)
+- **RB fumble tilt was inverted** — POWER's high STR drove the grip term so low
+  the ×1.35 fumble multiplier was canceled (power backs fumbled *least*). Grip
+  is now AWR-dominant + dampened; archetype tilt is additive. POWER now > ELUSIVE
+  as intended; league turnovers stay in band. (`ec2a2e8`)
+- **K long-range was invisible** — FG attempt ceiling was a flat 57 yd for every
+  kicker. Max attempt distance now scales with leg + LEG/PRECISION archetype:
+  LEG FGlong 57→61 (and lowest FG%), PRECISION 53 (highest FG%). League FG%
+  83.6% (in band). (`ec2a2e8`)
+- **WR SLOT played like a deep threat** — ELUSIVE break + 1.15 YAC mult gave it
+  house-call YAC (led team in Y/REC + long). Dampened its explosive break bonus
+  + capped per-catch YAC (26). Pulled back (Y/REC 13.8→13.1, LONG 61→55) but
+  **still edges the field downfield because DEEP_THREAT under-produces** (its
+  +3.0 air bonus is canceled by its 0.85 YAC penalty) — see open items.
+  (`ec2a2e8`)
+- **HYBRID (TE/LB/S) was flavor-only + picker-capped to low OVR** — pickers now
+  reward genuine all-around balance (HYBRID appears at real OVR ~82-84), and
+  HYBRID gained real balanced hooks (TE air/YAC between receiving+blocking; LB
+  partial coverage + run-stuff; S run-stuff + ball production). All three went
+  from low-OVR traps to legitimate do-it-all players. (`ec2a2e8`)
+
 ---
 
 ## Known limitations
@@ -340,6 +365,13 @@ ephemeral — re-run if the container recycled.*
 3. **Elite inflation + R1 busts** — same root (high-potential players over-convert).
    Stage-1 oracle regression is the intended fix; confirm in the validation run
    before adding more levers. `_peakMult` failed (R1s drafted near-PB already).
+4. **WR depth gradient** — after the SLOT YAC nerf, SLOT still slightly leads
+   downfield (Y/REC, LONG) because DEEP_THREAT under-produces vertically: its
+   +3.0 air-yards bonus is offset by its 0.85 YAC penalty, so it lands mid-pack
+   in Y/REC (~12.5) instead of clearly highest. To get a proper depth gradient
+   (DEEP_THREAT highest aDOT/long + lowest catch%, SLOT highest volume/short),
+   boost DEEP_THREAT's air-yards and/or long-ball rate rather than only nerfing
+   SLOT. Lever: `archAirMod` / deep-completion rate in the pass model.
 
 ### Audit-band quirks to fix (cosmetic, measurement-only)
 - Franchise-health **unique-champions band** is wrong (set 45-100, impossible —
