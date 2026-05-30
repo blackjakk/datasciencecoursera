@@ -210,6 +210,24 @@ const harness = `
   let bradyEmergences = 0;           // round >= 6 OR UDFA (the actual Brady definition)
   const seenGems = new Map();        // name → { round, peakOvr, emerged }
 
+  // ── League OVR distribution over the whole sim ─────────────────────────
+  // Each season, snapshot every team's ACTIVE roster (top-53 by OVR — the
+  // players who'd actually be on the 53-man) and pool all the OVRs across all
+  // seasons. This is the developed steady-state distribution as it played out,
+  // from the games-based flow (bounded rosters), not a games-free artifact.
+  // Also track mean roster size so we can see if rosters bloat (top-53 only
+  // cherry-picks if the underlying rosters are much larger than 53).
+  const leagueOvr = [];
+  let rosterSizeSum = 0, rosterSizeN = 0;
+  function snapshotLeagueOvr() {
+    for (const t of TEAMS) {
+      const full = franchise.rosters[t.id] || [];
+      rosterSizeSum += full.length; rosterSizeN++;
+      const active = full.slice().sort((a, b) => (b.overall || 0) - (a.overall || 0)).slice(0, 53);
+      for (const p of active) leagueOvr.push(p.overall || 0);
+    }
+  }
+
   // Scan rosters AND the free-agent pool. A gem cut by _trimAiRostersToCap
   // (on PERCEIVED potential) lands in franchise.freeAgents — it must still be
   // tracked there or we'd lose any gem that washed through FA between drafts.
@@ -312,6 +330,7 @@ const harness = `
     scanGems();
     step(typeof frnNewSeason !== "undefined" && frnNewSeason, "newSeason", s);
     scanGems();
+    snapshotLeagueOvr();   // record this season's active-roster OVR spread
     if ((s+1) % 10 === 0) {
       console.error("  ...season "+(s+1)+"/"+${SEASONS}+" — gems rolled "+totalGemsRolled+", legends "+legendEmergences+", Brady-tier "+bradyEmergences+" ("+((Date.now()-t0)/1000).toFixed(0)+"s)");
     }
@@ -361,6 +380,33 @@ const harness = `
     console.log(" " + label.padEnd(13) + " " + sStr.padEnd(22).slice(0,22) + "  " + gStr);
   }
   console.log("");
+
+  // ── LEAGUE OVR DISTRIBUTION (active rosters, pooled over all seasons) ──
+  if (leagueOvr.length) {
+    const a = leagueOvr.slice().sort((x, y) => x - y);
+    const n = a.length;
+    const mean = a.reduce((s, v) => s + v, 0) / n;
+    const qd = (p) => a[Math.min(n - 1, Math.floor(p * n))];
+    const buckets = {};
+    for (let b = 40; b < 100; b += 5) buckets[b] = 0;
+    for (const o of a) { const b = Math.min(95, Math.floor(o / 5) * 5); buckets[b] = (buckets[b] || 0) + 1; }
+    let maxC = 0; for (const k in buckets) maxC = Math.max(maxC, buckets[k]);
+    const pct = (c) => (c / n * 100).toFixed(1) + "%";
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" LEAGUE OVR DISTRIBUTION — active rosters, all " + ${SEASONS} + " seasons");
+    console.log(" (" + n.toLocaleString() + " player-seasons · mean roster size " + (rosterSizeSum / Math.max(1, rosterSizeN)).toFixed(0) + ")");
+    console.log("══════════════════════════════════════════════════════════");
+    for (let b = 40; b < 100; b += 5) {
+      const c = buckets[b] || 0;
+      console.log(" " + b + "-" + (b + 4) + " " + pct(c).padStart(6) + " " + "█".repeat(Math.round(c / maxC * 40)));
+    }
+    console.log(" mean=" + mean.toFixed(1) + "  P10=" + qd(.10) + " P25=" + qd(.25) + " P50=" + qd(.50) +
+                " P75=" + qd(.75) + " P90=" + qd(.90) + " P99=" + qd(.99) + "  max=" + a[n - 1]);
+    console.log(" elite share: 90+=" + pct(a.filter(o => o >= 90).length) +
+                "  95+=" + pct(a.filter(o => o >= 95).length) +
+                "  99=" + a.filter(o => o >= 99).length + " player-seasons");
+    console.log("");
+  }
 })();
 `;
 
