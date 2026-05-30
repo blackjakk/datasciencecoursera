@@ -10995,20 +10995,25 @@ function runFrnOffseason() {
         // between peakAge and declineAge, players hold steady (no growth,
         // no decline). Growth resumes only for players who haven't
         // reached their peak.
-        const gap = p.potential - p.overall;
+        // Bust mechanism — per-player ceiling multiplier. _devMult slowed
+        // WHEN players reached potential but didn't stop them from getting
+        // there, so R1 PB% stayed at 91.5% (NFL ~25-30%). _peakMult caps the
+        // OVR a player can actually realize: rolled [0.75, 1.05], mean ~0.90.
+        // Bottom decile peaks at 75-80% of potential — real R1 busts.
+        // Rolled once at first sighting and frozen. Gems untouched (their
+        // ceiling is the dev cap there).
+        if (p._peakMult == null) p._peakMult = 0.75 + Math.random() * 0.30;
+        const effPotential = Math.min(99, Math.round(p.potential * p._peakMult));
+        const gap = effPotential - p.overall;
         if (gap > 0 && p.age < (p.peakAge ?? 27) + 1) {
           const baseRate = p.age <= 22 ? 0.45 : p.age <= 24 ? 0.30 : p.age <= 26 ? 0.15 : 0.06;
-          // Permanent per-player dev variance — the Bo Jackson vs Ryan Leaf axis.
-          // Rolled once at first sighting and frozen. Range [0.30, 1.20], mean
-          // ~0.75, so most players develop ~25% slower than the old uniform
-          // rate and a real minority barely develop at all → R1 busts exist.
-          // The Brady audit showed R1 PB% at 91.5% (NFL ~25-30%) with the
-          // old rate-only path; this variance creates the bust + Pro Bowl
-          // distribution NFL R1s actually have.
+          // _devMult — per-player dev timing variance (Bo Jackson vs slow burn).
+          // Complementary to _peakMult: peakMult sets HOW HIGH, devMult sets
+          // HOW FAST. Range [0.30, 1.20], mean ~0.75.
           if (p._devMult == null) p._devMult = 0.30 + Math.random() * 0.90;
           const growth = Math.max(0, Math.round(gap * baseRate * coachBoost * tradeBoost * p._devMult));
           if (growth > 0) {
-            p.overall = Math.min(99, p.overall + growth);
+            p.overall = Math.min(effPotential, p.overall + growth);   // cap at peakMult-adjusted ceiling
             const [k1, k2] = _devStatPool(p.position, p.age);
             p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
             p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
@@ -11366,14 +11371,16 @@ function runFrnOffseason() {
         }
         if (p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
       } else if (!p.hiddenGem) {
-        const gap = p.potential - p.overall;
+        // Same _peakMult ceiling + _devMult timing as active-roster path.
+        if (p._peakMult == null) p._peakMult = 0.75 + Math.random() * 0.30;
+        const effPotential = Math.min(99, Math.round(p.potential * p._peakMult));
+        const gap = effPotential - p.overall;
         if (gap > 0 && p.age <= 27) {
           const baseRate = p.age <= 22 ? 0.45 : p.age <= 24 ? 0.30 : p.age <= 26 ? 0.15 : 0.06;
-          // Same permanent per-player dev variance as the active-roster path.
           if (p._devMult == null) p._devMult = 0.30 + Math.random() * 0.90;
           const growth = Math.max(0, Math.round(gap * baseRate * psCoachBoost * PS_DEV_MULT * p._devMult));
           if (growth > 0) {
-            p.overall = Math.min(99, p.overall + growth);
+            p.overall = Math.min(effPotential, p.overall + growth);
             const [k1, k2] = _devStatPool(p.position, p.age);
             p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
             p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));

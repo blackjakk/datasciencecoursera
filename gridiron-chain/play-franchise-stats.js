@@ -8964,14 +8964,12 @@ function _rerollPotentialForBreakouts() {
       // Kept rare + early so most high-ceiling gems still bust (target is
       // ~1 Brady per 75 yrs, not "every gem hits"). Tune GEM_DEV_BREAKOUT_P.
       if (!gateOk && player.hiddenGem) {
-        // GEM_DEV_BREAKOUT_P cut 0.10 → 0.03 and the merit path tightened from
-        // top-10% → top-7%. The Brady audit (after the K/P-gem exclusion) showed
-        // the non-K/P emergence rate landing at ~1/20 with the old generosity;
-        // target is ~1/40-1/75. The two-pronged trigger (production + dev-luck)
-        // is kept — that's the design — but both prongs are narrowed to match
-        // NFL late-round-Brady rarity. Still gem-only, so it won't restore the
-        // R1 elite inflation we just fixed with _devMult.
-        const GEM_DEV_BREAKOUT_P = 0.03;   // per eligible season; calibrate via _brady_audit.js
+        // GEM_DEV_BREAKOUT_P 0.06 (cut from 0.10 → 0.03 was too aggressive — the
+        // resulting run showed 0 emergences in 40 yrs vs target 1 per 40-75).
+        // Merit path top-10% → top-7% kept. With K/P excluded from gem rolls
+        // entirely, the 1/20 non-K/P rate that 0.10 produced is the right starting
+        // point; 0.06 should land near 1/40.
+        const GEM_DEV_BREAKOUT_P = 0.06;   // per eligible season; calibrate via _brady_audit.js
         const ceil = player.hiddenGem.ceiling || 0;
         const belowLaunchpad = (player.overall || 0) < 0.82 * ceil;
         const earlyCareer = yearsInLeague <= 3 && (player.age || 99) <= 25;
