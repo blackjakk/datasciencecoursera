@@ -4198,8 +4198,24 @@ function buildAnimForPlay(play, prevPlay) {
                 if (wrTarget) dy = (wrTarget.y - d.y);
               }
             } else if (d.role === "S") {
-              const depth = safDepth(i);
-              if (depth != null) dx = (baseX + dir * depth * pxPerYd) - d.x;
+              // TWO-HIGH DISGUISE — pre-snap, the safeties show a generic
+              // balanced two-high shell (both ~11yd deep, split to the
+              // hashes) instead of their TRUE post-snap landmark. Real
+              // defenses disguise the coverage; pre-aligning each safety at
+              // its post-snap depth (one at 14yd middle, one at 8yd) gave
+              // the shell away before the snap and erased the rotation. The
+              // post-snap track (engine) then rotates them from this shared
+              // look to the real spots, so single-high (C3/C1, one safety
+              // spins to the deep middle) reads distinctly from two-high
+              // (C2/C4, they hold). Blitz still walks the SS down (the
+              // pressure look is intentional, not a disguise).
+              if (cov === "C0_BLITZ") {
+                const depth = safDepth(i);
+                if (depth != null) dx = (baseX + dir * depth * pxPerYd) - d.x;
+              } else {
+                dx = (baseX + dir * 11 * pxPerYd) - d.x;
+                dy = ((i === idxS1) ? -1 : 1) * 9 * pxPerYd - (d.y - cy);
+              }
             }
           }
           dd.x = d.x + dx;
@@ -4423,18 +4439,19 @@ function buildAnimForPlay(play, prevPlay) {
             dd.x = d._cbFollowX;
             dd.y = d._cbFollowY;
           }
-          // SAFETIES also backpedal briefly (smaller window)
+          // SAFETIES — POSE ONLY here (position is owned by the rotation
+          // blend in the _applySecondary track block below). During the
+          // rotation window they backpedal/turn; after, the leg cycle is
+          // gated by the track's isMoving so a settled deep safety doesn't
+          // jog in place. The old `dd.x = d.x + dir*bpProg*5` nudge fought
+          // the two-high-disguise rotation and is removed.
           if (i === idxS1 || i === idxS2) {
             const backpedalT = throwFrac * 0.20;
             if (aT < backpedalT) {
               dd.pose = "backpedal";
               dd.t = ((t * (dur / 1000)) * 1.8) % 1;
               dd.facing = -dir;
-              const bpProg = aT / Math.max(0.001, backpedalT);
-              dd.x = d.x + dir * bpProg * 5;
             } else {
-              // Holding deep — freeze legs so the safety reads as
-              // standing in coverage, not jogging in place.
               dd.t = 0;
             }
           }
@@ -4504,8 +4521,25 @@ function buildAnimForPlay(play, prevPlay) {
                 _xYdShift = (formation.sDepthYd || 14) - 14;
               }
             }
-            dd.x = losX + dir * (sample.dxYd + _xYdShift) * FIELD.PX_PER_YARD;
-            dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
+            let _trkX = losX + dir * (sample.dxYd + _xYdShift) * FIELD.PX_PER_YARD;
+            let _trkY = cy + sample.dyYd * FIELD.PX_PER_YARD;
+            // SAFETY ROTATION OUT OF THE TWO-HIGH DISGUISE — pre-snap both
+            // safeties showed a balanced two-high look (~11yd, ±9yd). The
+            // engine track's spot is the TRUE shell, so ease from the
+            // disguise to the track over the rotation window: in C3/C1 one
+            // safety visibly spins to the deep middle while the other rolls
+            // down (single-high), in C2/C4 they stay split (two-high). This
+            // is what makes the shells read differently post-snap.
+            if ((i === idxS1 || i === idxS2) && cov && cov !== "C0_BLITZ") {
+              const _disgX = losX + dir * 11 * FIELD.PX_PER_YARD;
+              const _disgY = cy + ((i === idxS1) ? -1 : 1) * 9 * FIELD.PX_PER_YARD;
+              const _rotT = Math.min(1, aT / Math.max(0.001, throwFrac * 0.45));
+              const _er = _rotT * _rotT * (3 - 2 * _rotT);   // smoothstep
+              _trkX = _disgX + (_trkX - _disgX) * _er;
+              _trkY = _disgY + (_trkY - _disgY) * _er;
+            }
+            dd.x = _trkX;
+            dd.y = _trkY;
             // Sync sim to track ONLY if the defender is NOT actively
             // pursuing. Once pursue() takes over (post-throw, tackler
             // or in pursuit set after sync), sim is the position of
@@ -4517,7 +4551,11 @@ function buildAnimForPlay(play, prevPlay) {
               d._sim.x = dd.x; d._sim.y = dd.y;
             }
             dd.facing = -dir;
-            if (aT < 0.78) dd.pose = "scrape";
+            // LBs scrape laterally; safeties backpedal/turn during the
+            // rotation (their pose is set in the pose-only block above, so
+            // don't clobber it with the LB scrape).
+            const _isSafetyRot = (i === idxS1 || i === idxS2);
+            if (aT < 0.78 && !_isSafetyRot) dd.pose = "scrape";
             if (!MotionPlayback.isMoving(_passSecondaryTrack, aT)) dd.t = 0;
             // ── ZONE READ-AND-BREAK ──────────────────────────────────
             // In a ZONE shell the LB/safety isn't man-shadowing — he drops
