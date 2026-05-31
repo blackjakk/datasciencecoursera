@@ -358,7 +358,7 @@ const harness = `
           else if (o > cp.peakOvr) cp.peakOvr = o;
           // Career length — count distinct seasons on an active roster.
           const cl = careerLen.get(p.name);
-          if (!cl) careerLen.set(p.name, { pos: p.position, seasons: 1 });
+          if (!cl) careerLen.set(p.name, { pos: p.position, seasons: 1, pers: p.personality || "normal" });
           else cl.seasons++;
         }
       }
@@ -447,7 +447,10 @@ const harness = `
   // tally every injury the moment it's assigned, so players later cut or
   // retired are still counted (scanning end-of-sim rosters would miss them).
   const _inj = { total:0, contact:0, nonContact:0, careerEnding:0, catastrophic:0,
-                 gamesMissed:0, weeks:[], byPos:{}, byLabel:{} };
+                 gamesMissed:0, weeks:[], byPos:{}, byLabel:{}, byCulture:{}, byTrainer:{} };
+  const _cultTS = {}, _trnTS = {};   // team-seasons by HC culture / trainer trait (rate denominators)
+  function _hcCulture(teamId) { const c = franchise.coaches && franchise.coaches[teamId]; return (c && c.hc && c.hc.cultureTrait) || "(none)"; }
+  function _trainerTrait(teamId) { const f = franchise.frontOffice && franchise.frontOffice[teamId]; return (f && f.trainer && f.trainer.trait) || "(none)"; }
   function _tallyInjuriesFor(teamId) {
     const roster = (franchise.rosters && franchise.rosters[teamId]) || [];
     for (const p of roster) {
@@ -467,6 +470,9 @@ const harness = `
       const pos = p.position || "?";
       _inj.byPos[pos] = (_inj.byPos[pos] || 0) + 1;
       _inj.byLabel[last.label] = (_inj.byLabel[last.label] || 0) + 1;
+      const cult = _hcCulture(teamId), trn = _trainerTrait(teamId);
+      _inj.byCulture[cult] = (_inj.byCulture[cult] || 0) + 1;
+      _inj.byTrainer[trn] = (_inj.byTrainer[trn] || 0) + 1;
     }
   }
   if (typeof _rollGameInjuries === "function") {
@@ -476,6 +482,28 @@ const harness = `
   if (typeof _rollNonContactInjuries === "function") {
     const _origRNC = _rollNonContactInjuries;
     _rollNonContactInjuries = function (id) { const r = _origRNC(id); _tallyInjuriesFor(id); return r; };
+  }
+
+  // ── FRANCHISE SYSTEMS capture (stress / personality / salary cap) ──
+  const _stress = { QB:[], RB:[], WR:[], TE:[], OL:[], DL:[], LB:[], CB:[], S:[], K:[], P:[] };
+  const _pers = {};                          // personality → count (final-season rosters)
+  const _persLen = {};                       // personality → { n, seasonsSum } from careerLen
+  const _cap = { teams:0, util:[], capTotal:0 };
+  function snapshotSystems(year, isFinal) {
+    // Per-season team-seasons by HC culture + trainer (injury-rate denominators).
+    for (const t of TEAMS) { _cultTS[_hcCulture(t.id)] = (_cultTS[_hcCulture(t.id)]||0)+1; _trnTS[_trainerTrait(t.id)] = (_trnTS[_trainerTrait(t.id)]||0)+1; }
+    if (!isFinal) return;
+    for (const t of TEAMS) {
+      const roster = franchise.rosters[t.id] || [];
+      let payroll = 0;
+      for (const p of roster) {
+        if (_stress[p.position]) _stress[p.position].push(p._stress || 0);
+        const pk = p.personality || "normal"; _pers[pk] = (_pers[pk]||0)+1;
+        payroll += (p.salary || p.aav || (p.contract && (p.contract.aav || p.contract.salary)) || 0);
+      }
+      const cap = franchise.salaryCap || 0;
+      if (cap > 0) { _cap.teams++; _cap.util.push(100*payroll/cap); _cap.capTotal = cap; }
+    }
   }
   for (let s = 0; s < ${SEASONS}; s++) {
     // Play the season: regular games + full playoff bracket → awards phase.
@@ -496,6 +524,7 @@ const harness = `
     _captureAwards();           // tally this season's MVP/All-Pro/etc winners
     snapshotStandings(s + 1);   // capture win% + champion before frnNewSeason resets
     snapshotDepth(s + 1, s === ${SEASONS} - 1);   // positional depth + (final yr) top lists
+    snapshotSystems(s + 1, s === ${SEASONS} - 1);  // coach-season tally + (final) stress/personality/cap
     // awards → offseason (frnApbProceedToOffseason wraps startFrnOffseason and
     // dismisses the all-pro-bowl crowning; fall back to startFrnOffseason).
     if (franchise.phase === "awards") {
@@ -1009,6 +1038,71 @@ const harness = `
     console.log("  ── most common injury types (% of all) ──");
     for (const [lab, n] of Object.entries(_inj.byLabel).sort((a, b) => b[1] - a[1]).slice(0, 8)) {
       console.log("    " + String(lab).padEnd(16) + (100 * n / Math.max(1, _inj.total)).toFixed(1).padStart(5) + "%");
+    }
+    // Injury rate by HC culture trait (Disciplinarian should be lowest) + trainer
+    console.log("  ── injuries / team-season by HC culture trait ──");
+    for (const [c, n] of Object.entries(_inj.byCulture).sort((a,b)=>b[1]-a[1])) {
+      const ts = _cultTS[c] || 0; if (ts < 3) continue;
+      console.log("    " + String(c).padEnd(18) + (n/ts).toFixed(1).padStart(6) + "  (" + ts + " team-szn)");
+    }
+    console.log("  ── injuries / team-season by trainer trait ──");
+    for (const [tr, n] of Object.entries(_inj.byTrainer).sort((a,b)=>b[1]-a[1])) {
+      const ts = _trnTS[tr] || 0; if (ts < 3) continue;
+      console.log("    " + String(tr).padEnd(18) + (n/ts).toFixed(1).padStart(6) + "  (" + ts + " team-szn)");
+    }
+  }
+
+  // ── STRESS REPORT (final season rosters) ──
+  {
+    console.log("");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" STRESS REPORT — final-season _stress (0-100) by position");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log("   (stress drives NON-contact injuries; high-usage skill/box positions highest)");
+    const _qq = (arr,p)=>{ if(!arr.length) return 0; const s=arr.slice().sort((a,b)=>a-b); return s[Math.min(s.length-1,Math.floor(p*s.length))]; };
+    console.log("   " + "POS".padEnd(6) + "med".padStart(6) + "P90".padStart(6) + "max".padStart(6));
+    for (const Pn of ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"]) {
+      const a = _stress[Pn]; if (!a || !a.length) continue;
+      console.log("   " + Pn.padEnd(6) + _qq(a,.5).toFixed(0).padStart(6) + _qq(a,.9).toFixed(0).padStart(6) + Math.max(...a).toFixed(0).padStart(6));
+    }
+  }
+
+  // ── PERSONALITY REPORT (distribution + career length) ──
+  {
+    // Aggregate career length by personality from the careerLen map.
+    for (const cl of careerLen.values()) {
+      const k = cl.pers || "normal";
+      (_persLen[k] || (_persLen[k] = { n:0, sum:0 }));
+      _persLen[k].n++; _persLen[k].sum += cl.seasons;
+    }
+    console.log("");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" PERSONALITY REPORT — distribution + avg career length");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log("   (quiet_pro should live longest; gen rates captain 8/cancer 2/quiet_pro 12/showman 8/coachs_son 4%)");
+    const _ptot = Object.values(_pers).reduce((n,v)=>n+v,0) || 1;
+    console.log("   " + "PERSONALITY".padEnd(13) + "share%".padStart(8) + "avgCareer".padStart(11));
+    for (const k of ["normal","captain","cancer","quiet_pro","showman","coachs_son"]) {
+      const share = 100*(_pers[k]||0)/_ptot;
+      const cl = _persLen[k]; const avg = cl && cl.n ? cl.sum/cl.n : 0;
+      console.log("   " + k.padEnd(13) + share.toFixed(1).padStart(8) + avg.toFixed(2).padStart(11));
+    }
+  }
+
+  // ── SALARY CAP REPORT ──
+  {
+    console.log("");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" SALARY CAP — final-season payroll utilization");
+    console.log("══════════════════════════════════════════════════════════");
+    if (_cap.teams && _cap.util.length) {
+      const u = _cap.util, mean = u.reduce((a,b)=>a+b,0)/u.length;
+      const su = u.slice().sort((a,b)=>a-b);
+      console.log("   Cap: " + _cap.capTotal.toLocaleString() + "   teams measured: " + _cap.teams);
+      console.log("   Payroll/cap utilization — mean " + mean.toFixed(1) + "%  P10 " + su[Math.floor(0.1*su.length)].toFixed(1) + "%  P90 " + su[Math.floor(0.9*su.length)].toFixed(1) + "%");
+      console.log("   (NFL teams run ~88-100% of cap; over 100% = needs restructure/cuts)");
+    } else {
+      console.log("   (no salary/cap data on roster players — cap system not populated in this build)");
     }
   }
 })();

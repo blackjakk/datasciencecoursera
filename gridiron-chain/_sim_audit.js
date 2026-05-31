@@ -135,7 +135,7 @@ const audit = `
   // onside, clock, momentum, play-type mix, ejections).
   const ST = { krAtt:0, krYds:0, krTd:0, prAtt:0, prYds:0, prTd:0, muff:0 };
   const TR = { reverse:0, option:0, flea:0, fakePunt:0, fakeFg:0 };
-  const SIT2 = { twoAtt:0, twoMade:0, onside:0, onsideRec:0, kneel:0, spike:0, mom:0 };
+  const SIT2 = { twoAtt:0, onside:0, onsideRec:0, kneel:0, spike:0, mom:0, pa:0 };
   const PTYPE = {};                       // pass concept → count
   let SCRpass = 0, PASSN = 0;             // screen rate denominator
 
@@ -261,17 +261,16 @@ const audit = `
           if (p.isReverse)     TR.reverse++;
           if (p.isSpeedOption) TR.option++;
           if (p.isFakePunt)    TR.fakePunt++;
-          const _d = p.desc || "";
-          if (/flea/i.test(_d)) TR.flea++;
-          if (/fake (field goal|fg)\b/i.test(_d)) TR.fakeFg++;
-          if (/2-?point|2-?pt\b/i.test(_d)) { SIT2.twoAtt++; if (!/no good|fail|stuff|incomplete|stopped/i.test(_d)) SIT2.twoMade++; }
-          if (/onside/i.test(_d)) { SIT2.onside++; if (/recover/i.test(_d)) SIT2.onsideRec++; }
+          if (p.isFleaFlicker) TR.flea++;
+          if (p.isOnside)      { SIT2.onside++; if (p.onsideRecovered) SIT2.onsideRec++; }
+          if (/fake (field goal|fg)\b/i.test(p.desc||"")) TR.fakeFg++;
+          if (/2-?point conversion|2-?pt conversion|goes for (2|two)/i.test(p.desc||"")) SIT2.twoAtt++;
           const isPass = k === "complete" || k === "incomplete" || k === "sack";
           const isRun  = k === "run" || k === "scramble";
           if (!isPass && !isRun) continue;
           const yds = p.yards || 0;
           const qn = p.quarter || p.qtr; if (qn) { const qf = _qfI(qn); qf.plays++; qf.yds += yds; }
-          if (p.concept) { PTYPE[p.concept] = (PTYPE[p.concept]||0) + 1; PASSN++; if (p.isScreen || p.concept === "SCREEN") SCRpass++; }
+          if (p.concept) { PTYPE[p.concept] = (PTYPE[p.concept]||0) + 1; PASSN++; if (p.isScreen || p.concept === "SCREEN") SCRpass++; if (p.isPlayAction) SIT2.pa++; }
           const dp = _dpI(p.defPackage || "BASE_43");
           dp.plays++; dp.yds += yds;
           if (isPass) { if (k === "sack") dp.sk++; else { dp.patt++; if (k === "complete") dp.comp++; } }
@@ -632,7 +631,7 @@ const audit = `
   console.log(" TRICK PLAYS & SITUATIONAL (per game unless noted)");
   console.log("══════════════════════════════════════════════════════════");
   console.log("   Reverses "+(TR.reverse/_gp).toFixed(3)+"  SpeedOption "+(TR.option/_gp).toFixed(2)+"  FleaFlicker "+(TR.flea/_gp).toFixed(3)+"  FakePunt "+(TR.fakePunt/_gp).toFixed(3)+"  FakeFG "+(TR.fakeFg/_gp).toFixed(3));
-  console.log("   2-pt att "+(SIT2.twoAtt/_gp).toFixed(3)+"/g  conv% "+(100*SIT2.twoMade/Math.max(1,SIT2.twoAtt)).toFixed(0)+"   Onside "+(SIT2.onside/_gp).toFixed(3)+"/g  recov% "+(100*SIT2.onsideRec/Math.max(1,SIT2.onside)).toFixed(0));
+  console.log("   2-pt att "+(SIT2.twoAtt/_gp).toFixed(3)+"/g   Onside "+(SIT2.onside/_gp).toFixed(3)+"/g  recov% "+(100*SIT2.onsideRec/Math.max(1,SIT2.onside)).toFixed(0)+"   PlayAction "+(100*SIT2.pa/Math.max(1,PASSN)).toFixed(1)+"% of pass");
   console.log("   Kneels "+(SIT2.kneel/_gp).toFixed(2)+"/g  Spikes "+(SIT2.spike/_gp).toFixed(2)+"/g  Momentum swings "+(SIT2.mom/_gp).toFixed(2)+"/g");
   const _ej = (typeof globalThis.franchise!=="undefined" && globalThis.franchise._ejectionLog)
     ? Object.values(globalThis.franchise._ejectionLog).reduce((n,a)=>n+(a?a.length:0),0) : 0;
