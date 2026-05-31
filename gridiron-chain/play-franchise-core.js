@@ -3740,11 +3740,123 @@ function frnSwitchSlot(id) {
   else renderFrnStartScreen();
 }
 
-function frnDeleteSlot(id) {
+// ─── Slot row "⋯" popover menu (rename / delete) ──────────────────────────
+// Destructive actions (delete) live one click deeper than friendly ones,
+// physically separated from Load. Avoids the "✗ right next to ✎" misclick trap.
+function _frnCloseSlotMenu() {
+  document.querySelectorAll(".frn-slot-menu.open").forEach(m => m.classList.remove("open"));
+}
+function _frnToggleSlotMenu(id, ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  const m = document.getElementById("frnSlotMenu" + id);
+  if (!m) return;
+  const wasOpen = m.classList.contains("open");
+  _frnCloseSlotMenu();
+  if (!wasOpen) m.classList.add("open");
+}
+// Click anywhere else to dismiss any open slot menu.
+document.addEventListener("click", (e) => {
+  if (e.target.closest(".frn-slot-menu-wrap")) return;
+  _frnCloseSlotMenu();
+});
+
+// ─── Styled confirm modal ──────────────────────────────────────────────────
+// Promise<boolean> returning replacement for `confirm()`. Use for any action
+// where the user could lose work — especially destructive ops (delete, release,
+// trade-confirm). Body accepts an HTML string for rich context (slot summary,
+// cap impact, etc.). The `danger:true` variant tints the confirm button red.
+// `requireTypeName` adds a "type the name to confirm" gate — set to the exact
+// string the user must type. Used for high-value destructive ops.
+function _frnConfirmModal(opts) {
+  return new Promise((resolve) => {
+    const o = opts || {};
+    const id = "frnConfirmModal_" + Date.now();
+    const wrap = document.createElement("div");
+    wrap.className = "frn-modal-backdrop";
+    wrap.id = id;
+    const safeTitle = o.title || "Confirm";
+    const safeBody  = o.body  || "";
+    const okLabel   = o.confirmLabel || "Confirm";
+    const noLabel   = o.cancelLabel  || "Cancel";
+    const danger    = !!o.danger;
+    const typeName  = o.requireTypeName || "";
+    const typeGate  = typeName
+      ? `<div class="frn-modal-type-gate">
+           <label style="font-size:.72rem;color:var(--gray);display:block;margin-bottom:.3rem">
+             Type <b style="color:var(--gold)">${typeName.replace(/</g,"&lt;")}</b> to confirm:
+           </label>
+           <input type="text" class="frn-modal-type-input" autocomplete="off" />
+         </div>`
+      : "";
+    wrap.innerHTML = `
+      <div class="frn-modal ${danger ? "danger" : ""}" role="dialog" aria-modal="true">
+        <div class="frn-modal-title">${safeTitle}</div>
+        <div class="frn-modal-body">${safeBody}</div>
+        ${typeGate}
+        <div class="frn-modal-footer">
+          <button class="btn btn-outline frn-modal-cancel">${noLabel}</button>
+          <button class="btn ${danger ? "btn-danger" : "btn-gold"} frn-modal-confirm" ${typeName ? "disabled" : ""}>${okLabel}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const cancelBtn = wrap.querySelector(".frn-modal-cancel");
+    const okBtn     = wrap.querySelector(".frn-modal-confirm");
+    const typeInp   = wrap.querySelector(".frn-modal-type-input");
+    const close = (result) => { wrap.remove(); document.removeEventListener("keydown", onKey); resolve(result); };
+    const onKey = (e) => {
+      if (e.key === "Escape") close(false);
+      // Enter to confirm only when the typing gate isn't blocking
+      if (e.key === "Enter" && !okBtn.disabled) close(true);
+    };
+    cancelBtn.addEventListener("click", () => close(false));
+    okBtn.addEventListener("click", () => { if (!okBtn.disabled) close(true); });
+    wrap.addEventListener("click", (e) => { if (e.target === wrap) close(false); });   // click-backdrop to dismiss
+    if (typeInp) {
+      typeInp.addEventListener("input", () => {
+        okBtn.disabled = typeInp.value.trim() !== typeName;
+      });
+      setTimeout(() => typeInp.focus(), 30);
+    } else {
+      setTimeout(() => cancelBtn.focus(), 30);   // default focus on Cancel (safer)
+    }
+    document.addEventListener("keydown", onKey);
+  });
+}
+
+async function frnDeleteSlot(id) {
   const meta = _readSlotsMeta();
   const slot = meta.slots.find(s => s.id === id);
   if (!slot) return;
-  if (!confirm(`Delete "${slot.name}"? This save will be permanently erased.`)) return;
+  // Build a rich summary so the user knows exactly what they're nuking, not
+  // just a name. High-value franchises (>=5 seasons) get an additional
+  // type-the-name gate — at that point the franchise has real investment and
+  // a misclick should not be enough.
+  const sm = slot.summary || {};
+  const seasons  = sm.season || 1;
+  const phase    = sm.phase || "—";
+  const team     = sm.teamName || "—";
+  const record   = sm.record || "—";
+  const saved    = slot.lastSaved ? new Date(slot.lastSaved).toLocaleString() : "—";
+  const highValue = seasons >= 5;
+  const safeName = String(slot.name).replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const body = `
+    <div class="frn-delete-summary">
+      <div class="frn-delete-row"><span>Franchise</span><b>${safeName}</b></div>
+      <div class="frn-delete-row"><span>Team</span><b>${team}</b></div>
+      <div class="frn-delete-row"><span>Progress</span><b>Season ${seasons} · ${phase} · ${record}</b></div>
+      <div class="frn-delete-row"><span>Last saved</span><b>${saved}</b></div>
+    </div>
+    <div class="frn-delete-warn">This <b>cannot be undone</b>. The save data and all career history will be permanently erased.</div>
+  `;
+  const ok = await _frnConfirmModal({
+    title: `Delete "${slot.name}"?`,
+    body,
+    confirmLabel: "Delete franchise",
+    cancelLabel: "Keep it",
+    danger: true,
+    requireTypeName: highValue ? slot.name : null,
+  });
+  if (!ok) return;
   meta.slots = meta.slots.filter(s => s.id !== id);
   if (meta.activeSlotId === id) {
     meta.activeSlotId = null;
@@ -4130,8 +4242,13 @@ function renderFrnStartScreen() {
       </div>
       <div class="frn-slot-actions">
         <button class="btn btn-gold" onclick="frnSwitchSlot(${s.id})">▶ Load</button>
-        <button class="btn btn-outline" onclick="frnRenameSlot(${s.id})">✎</button>
-        <button class="btn btn-outline" onclick="frnDeleteSlot(${s.id})" style="color:var(--red)">✗</button>
+        <div class="frn-slot-menu-wrap">
+          <button class="btn btn-outline frn-slot-menu-btn" onclick="_frnToggleSlotMenu(${s.id}, event)" aria-label="More actions">⋯</button>
+          <div class="frn-slot-menu" id="frnSlotMenu${s.id}">
+            <button class="frn-slot-menu-item" onclick="_frnCloseSlotMenu();frnRenameSlot(${s.id})">✎ Rename</button>
+            <button class="frn-slot-menu-item danger" onclick="_frnCloseSlotMenu();frnDeleteSlot(${s.id})">🗑 Delete franchise…</button>
+          </div>
+        </div>
       </div>
     </div>`;
   }).join("") : `<div style="color:var(--gray);font-size:.78rem;padding:.75rem;text-align:center;font-style:italic">

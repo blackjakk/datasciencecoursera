@@ -31,11 +31,12 @@ const VIEWPORTS = {
 
 // Seed localStorage for "returning user" with one franchise slot.
 // franchise data lives in IndexedDB (idb wrapper); the slot meta + active slot
-// id are in localStorage. Faking a slot meta is enough to drive the UI into
-// the has-saves state — IDB lookup just returns nothing on load click, which
-// is fine for a screenshot of the slot-list state.
+// id are in localStorage (FRANCHISE_SLOTS_KEY = "gc_franchise_slots_v1").
+// Faking a slot meta is enough to drive the UI into the has-saves state — IDB
+// lookup just returns nothing on load click, which is fine for a screenshot of
+// the slot-list state.
 const RETURNING_LOCAL_STORAGE = {
-  _frnSlotsMeta_v1: JSON.stringify({
+  gc_franchise_slots_v1: JSON.stringify({
     activeSlotId: null,
     slots: [
       {
@@ -79,6 +80,61 @@ const SHOTS = {
     setup: async (page) => { /* nothing */ },
     url: URL + "?dev=1",
   },
+  // Drive the delete flow — click ⋯ on the high-value (S7) slot, then click Delete,
+  // capture the type-name-gated confirm modal.
+  "delete-modal-high": {
+    desc: "Delete confirm modal (high-value franchise, type-to-confirm gate)",
+    viewport: "desktop",
+    setup: async (page) => {
+      await page.addInitScript((store) => {
+        for (const k in store) localStorage.setItem(k, store[k]);
+      }, RETURNING_LOCAL_STORAGE);
+    },
+    url: URL,
+    after: async (page) => {
+      // Open the first slot's ⋯ menu, then click the Delete item
+      await page.click(".frn-slot .frn-slot-menu-btn", { timeout: 5000 });
+      await page.waitForTimeout(150);
+      await page.click(".frn-slot-menu.open .frn-slot-menu-item.danger", { timeout: 3000 });
+      await page.waitForSelector(".frn-modal-backdrop", { timeout: 3000 });
+      await page.waitForTimeout(200);
+    },
+  },
+  // Same flow but on the low-value (S2) franchise — no type-name gate.
+  "delete-modal-low": {
+    desc: "Delete confirm modal (low-value franchise, no gate)",
+    viewport: "desktop",
+    setup: async (page) => {
+      await page.addInitScript((store) => {
+        for (const k in store) localStorage.setItem(k, store[k]);
+      }, RETURNING_LOCAL_STORAGE);
+    },
+    url: URL,
+    after: async (page) => {
+      // 2nd slot = S2 rebuild
+      const menus = await page.$$(".frn-slot .frn-slot-menu-btn");
+      if (menus[1]) await menus[1].click();
+      await page.waitForTimeout(150);
+      await page.click(".frn-slot-menu.open .frn-slot-menu-item.danger", { timeout: 3000 });
+      await page.waitForSelector(".frn-modal-backdrop", { timeout: 3000 });
+      await page.waitForTimeout(200);
+    },
+  },
+  // Just the ⋯ menu open, no modal — verifies the popover visually.
+  "slot-menu": {
+    desc: "Slot row ⋯ popover menu (Rename / Delete options)",
+    viewport: "desktop",
+    setup: async (page) => {
+      await page.addInitScript((store) => {
+        for (const k in store) localStorage.setItem(k, store[k]);
+      }, RETURNING_LOCAL_STORAGE);
+    },
+    url: URL,
+    after: async (page) => {
+      await page.click(".frn-slot .frn-slot-menu-btn", { timeout: 5000 });
+      await page.waitForTimeout(200);
+    },
+  },
 };
 
 (async () => {
@@ -100,6 +156,12 @@ const SHOTS = {
     }
     // Tiny settling — the franchise render does async IDB reads on load.
     await page.waitForTimeout(800);
+    // Interactive driver: optional `after(page)` that clicks/types to bring up
+    // a specific UI state before the screenshot fires (modals, menus, etc).
+    if (typeof cfg.after === "function") {
+      try { await cfg.after(page); }
+      catch (e) { console.error(`  [${name}] after(): ` + e.message.slice(0, 240)); }
+    }
     const out = path.join(OUT_DIR, `${name}.png`);
     await page.screenshot({ path: out, fullPage: true });
     const size = fs.statSync(out).size;
