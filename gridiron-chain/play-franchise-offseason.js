@@ -19296,16 +19296,28 @@ const HiddenOracle = {
       const buyInRoll = _seededRand(biasKey + "|buyin");
       const buyInMag = _seededRand(biasKey + "|buyinMag");
       let scoutBuyIn = 0;
+      // Retune step 7 (valve 2 / scoutBuyIn decoupling): the original layout
+      // gated POSITIVE buy-in only to high-ceiling prospects (ceiling >= 88
+      // → 55% +3 to +9), which STRUCTURALLY protected R1 picks from being
+      // busts (high perceived → drafted R1 → really HAS the ceiling → realizes).
+      // Now low/mid-ceiling prospects ALSO have a small chance of being
+      // overhyped — the "scout consensus was wrong" mechanism. These hyped
+      // low-ceiling prospects land in R1 (perceived OVR is high) but cap out
+      // below R1 expectations → real R1 busts emerge organically. Per
+      // TALENT_MODEL.md valve 2 — fix is decoupling, not new invention.
       if (ceiling >= 88) {
         if (buyInRoll < 0.55) scoutBuyIn = 3 + Math.floor(buyInMag * 6);
       } else if (ceiling >= 80) {
         if (buyInRoll < 0.35) scoutBuyIn = 2 + Math.floor(buyInMag * 4);
       } else if (ceiling >= 65) {
-        if (buyInRoll < 0.10) scoutBuyIn = Math.floor(buyInMag * 4) - 2;
+        if      (buyInRoll < 0.10) scoutBuyIn = Math.floor(buyInMag * 4) - 2;
+        else if (buyInRoll < 0.20) scoutBuyIn = 3 + Math.floor(buyInMag * 5);     // 10% overhyped → R1-R3 bust risk
       } else if (ceiling >= 55) {
-        if (buyInRoll < 0.30) scoutBuyIn = -(2 + Math.floor(buyInMag * 4));
+        if      (buyInRoll < 0.30) scoutBuyIn = -(2 + Math.floor(buyInMag * 4));
+        else if (buyInRoll < 0.38) scoutBuyIn = 4 + Math.floor(buyInMag * 6);     // 8% scout darling → R1-R2 bust risk
       } else {
-        if (buyInRoll < 0.50) scoutBuyIn = -(3 + Math.floor(buyInMag * 6));
+        if      (buyInRoll < 0.50) scoutBuyIn = -(3 + Math.floor(buyInMag * 6));
+        else if (buyInRoll < 0.54) scoutBuyIn = 5 + Math.floor(buyInMag * 6);     // 4% extreme overhype → biggest bust risk
       }
       return +(baseBias + wildcardBias + ultraBias + scoutBuyIn).toFixed(1);
     },

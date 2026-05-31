@@ -255,6 +255,13 @@ const harness = `
   // cherry-picks if the underlying rosters are much larger than 53).
   const leagueOvr = [];
   const decadeOvr = [[], [], [], [], [], [], [], []];  // per-decade OVR pools (index = (year-1)/10)
+  // Per-position OVR pool — every active-roster player-season tagged by pos so
+  // we can dump a full distribution per position (count / mean / med / P10/P90
+  // / %90+ / %85+ / %75+) alongside the leaguewide one. Catches position-specific
+  // inflation that the league aggregate would hide (e.g. CBs running hot, RBs
+  // declining hard).
+  const POS_OVR = {};   // pos → flat array of OVRs across all season snapshots
+  const POS_AGE = {};   // pos → flat array of ages (for cross-cuts later)
   // OVR by draft round, pooled across all seasons. p.draftRound: 1-7 for drafted
   // (set in _aiAutoPick at slot.round), 0 for UDFA (per _rollHiddenGem's rate
   // table), null/undefined for the initial generation. We bucket UDFA→8 and
@@ -356,6 +363,11 @@ const harness = `
       for (const p of active) {
         const o = p.overall || 0;
         leagueOvr.push(o); decadeOvr[dIdx].push(o);
+        const _pp = p.position;
+        if (_pp) {
+          (POS_OVR[_pp] = POS_OVR[_pp] || []).push(o);
+          (POS_AGE[_pp] = POS_AGE[_pp] || []).push(p.age || 0);
+        }
         const rb = _roundBucket(p); (byRound[rb] = byRound[rb] || []).push(o);
         // Career peak (active-roster snapshot)
         if (!cpSeen.has(p.name)) {
@@ -822,6 +834,36 @@ const harness = `
       const d = posDepth[P];
       console.log(" "+P.padEnd(4)+" "+avg(d.n90).toFixed(1).padStart(5)+" "+avg(d.n85).toFixed(1).padStart(6)+"   |  "+
                   avg(d.t1).toFixed(0).padStart(5)+"   "+avg(d.t5).toFixed(0).padStart(5)+"   "+avg(d.t10).toFixed(0).padStart(5));
+    }
+    console.log("");
+  }
+
+  // ── POSITIONAL OVR DISTRIBUTION (full player-season pool, all positions) ──
+  // Per-position census across every active-roster snapshot in the sim. Catches
+  // position-specific inflation that the league aggregate hides (e.g. CB tier
+  // running hot independent of QB). count = player-seasons; OVR stats are the
+  // distribution of that pool.
+  if (Object.keys(POS_OVR).length) {
+    const _q = (a, p) => { if (!a.length) return 0; const s = a.slice().sort((x,y)=>x-y); return s[Math.min(s.length-1, Math.floor(s.length*p))]; };
+    const _avg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+    const _shr = (a, t) => a.length ? 100 * a.filter(v=>v>=t).length / a.length : 0;
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" POSITIONAL OVR DISTRIBUTION — full player-season pool per position");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" POS     n   mean  P10  med  P90   max   age   90+%   85+%   75+%");
+    console.log(" "+"-".repeat(70));
+    const allPos = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+    for (const P of allPos) {
+      const a = POS_OVR[P]; if (!a || !a.length) continue;
+      const ages = POS_AGE[P] || [];
+      console.log(" "+P.padEnd(4)+" "+String(a.length).padStart(6)+"  "
+        +_avg(a).toFixed(1).padStart(4)+" "
+        +String(_q(a,.10)).padStart(4)+" "+String(_q(a,.50)).padStart(4)+" "+String(_q(a,.90)).padStart(4)+"   "
+        +String(_q(a,.999)).padStart(3)+"   "
+        +_avg(ages).toFixed(1).padStart(4)+"  "
+        +_shr(a,90).toFixed(1).padStart(5)+"%  "
+        +_shr(a,85).toFixed(1).padStart(5)+"%  "
+        +_shr(a,75).toFixed(1).padStart(5)+"%");
     }
     console.log("");
   }
