@@ -297,6 +297,8 @@ function buildRatings(roster) {
       te:  (byPos.TE?.[0])?.name || "TE",
       // 2nd TE for HEAVY (12) personnel.
       te2: (byPos.TE?.[1])?.name || (byPos.TE?.[0])?.name || "TE2",
+      // 3rd TE for JUMBO (13) personnel.
+      te3: (byPos.TE?.[2])?.name || (byPos.TE?.[1])?.name || (byPos.TE?.[0])?.name || "TE3",
       k:   (byPos.K?.[0])?.name  || "K",
       p:   (byPos.P?.[0])?.name  || (byPos.K?.[0])?.name || "P",  // Punter (fallback to K if missing)
       de1: byPos.DL?.[0]?.name || "LDE",
@@ -1346,6 +1348,7 @@ class GameSimulator {
     add(starters.wr2, "WR");
     add(starters.wr3, "WR");   // slot WR — gets real targets in 3-WR sets
     add(starters.te2, "TE");   // TE2 — receptions in 12 personnel
+    add(starters.te3, "TE");   // TE3 — receptions in 13 (JUMBO) personnel
     add(starters.te, "TE");
     add(starters.k,  "K");
     add(starters.p,  "P");
@@ -3048,13 +3051,17 @@ class GameSimulator {
     const personnel = this._currentPersonnel || "BASE";
     // Personnel base mods: HEAVY/I_FORM stack the box (more LBs in tight),
     // SPREAD/EMPTY thin out (DIME/QUARTER, more DBs in coverage).
-    const PERS_RUN = { I_FORM: -1.8, HEAVY: -1.2, BASE: 0, TRIPS: 0, SPREAD: 1.0, EMPTY: 1.5 };
-    const PERS_AIR = { I_FORM:  2.0, HEAVY:  1.4, BASE: 0, TRIPS: 0, SPREAD: -0.6, EMPTY: -1.0 };
+    // JUMBO (13 personnel: 1 RB / 3 TE / 1 WR) — modern heavy set (Rams/Ravens/
+    // 49ers): forces the defense into base, runs behind extra blockers, then
+    // hits explosive play-action off the run threat. Best PA air bump + max
+    // protection (3 TEs help block → fewest sacks), low INT (short/PA throws).
+    const PERS_RUN = { I_FORM: -1.8, HEAVY: -1.2, JUMBO: -1.0, BASE: 0, TRIPS: 0, SPREAD: 1.0, EMPTY: 1.5 };
+    const PERS_AIR = { I_FORM:  2.0, HEAVY:  1.4, JUMBO:  2.4, BASE: 0, TRIPS: 0, SPREAD: -0.6, EMPTY: -1.0 };
     // SPREAD/EMPTY = defense in DIME/QUARTER playing press + lighter front,
     // tighter coverage on quick reads but more vulnerable inside.
-    const PERS_COMP = { I_FORM: 0.020, HEAVY: 0.015, BASE: 0, TRIPS: 0, SPREAD: -0.025, EMPTY: -0.040 };
-    const PERS_SACK_MUL = { I_FORM: 0.85, HEAVY: 0.90, BASE: 1.0, TRIPS: 1.0, SPREAD: 1.12, EMPTY: 1.20 };
-    const PERS_INT_MOD  = { I_FORM: -0.001, HEAVY: 0, BASE: 0, TRIPS: 0, SPREAD: 0.005, EMPTY: 0.008 };
+    const PERS_COMP = { I_FORM: 0.020, HEAVY: 0.015, JUMBO: 0.018, BASE: 0, TRIPS: 0, SPREAD: -0.025, EMPTY: -0.040 };
+    const PERS_SACK_MUL = { I_FORM: 0.85, HEAVY: 0.90, JUMBO: 0.85, BASE: 1.0, TRIPS: 1.0, SPREAD: 1.12, EMPTY: 1.20 };
+    const PERS_INT_MOD  = { I_FORM: -0.001, HEAVY: 0, JUMBO: -0.001, BASE: 0, TRIPS: 0, SPREAD: 0.005, EMPTY: 0.008 };
     // Down & distance — situational tilts on top of personnel.
     const isThirdLong  = this.down === 3 && this.ytg >= 7;
     const isThirdShort = this.down === 3 && this.ytg <= 2;

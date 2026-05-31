@@ -70,6 +70,7 @@ function teamAscii(team) {
 const PERSONNEL = {
   I_FORM: { rb: 2, te: 1, wr: 2, label: "I-Form (21)",  skill: 5 },
   HEAVY:  { rb: 1, te: 2, wr: 2, label: "Heavy (12)",   skill: 5 },
+  JUMBO:  { rb: 1, te: 3, wr: 1, label: "Jumbo (13)",   skill: 5 },
   BASE:   { rb: 1, te: 1, wr: 3, label: "Base (11)",    skill: 5 },
   TRIPS:  { rb: 1, te: 1, wr: 3, label: "Trips (11)",   skill: 5 },
   SPREAD: { rb: 1, te: 0, wr: 4, label: "Spread (10)",  skill: 5 },
@@ -94,7 +95,8 @@ function packageForPersonnel(p) {
 function pickPersonnel(playbook, situation) {
   const sit = situation || {};
   if (sit.isGoalLine) {
-    return Math.random() < 0.55 ? "HEAVY" : (Math.random() < 0.6 ? "I_FORM" : "BASE");
+    const r = Math.random();
+    return r < 0.40 ? "HEAVY" : r < 0.65 ? "JUMBO" : r < 0.85 ? "I_FORM" : "BASE";
   }
   if (sit.isLongYardage) {
     const r = Math.random();
@@ -109,7 +111,7 @@ function pickPersonnel(playbook, situation) {
     const heavyTilt = sit.isGoalToGo ? 0.30 : 0.18;
     const reweighted = {};
     for (const [k, p] of Object.entries(mix)) {
-      if (k === "HEAVY" || k === "I_FORM") reweighted[k] = p * (1 + heavyTilt * 3);
+      if (k === "HEAVY" || k === "I_FORM" || k === "JUMBO") reweighted[k] = p * (1 + heavyTilt * 3);
       else if (k === "SPREAD" || k === "EMPTY") reweighted[k] = p * (1 - heavyTilt);
       else reweighted[k] = p;
     }
@@ -121,7 +123,7 @@ function pickPersonnel(playbook, situation) {
     }
     return "BASE";
   }
-  const mix = playbook.personnelMix || { TRIPS: 0.45, BASE: 0.20, SPREAD: 0.15, HEAVY: 0.12, I_FORM: 0.05, EMPTY: 0.03 };
+  const mix = playbook.personnelMix || { TRIPS: 0.40, BASE: 0.20, SPREAD: 0.15, HEAVY: 0.12, JUMBO: 0.05, I_FORM: 0.05, EMPTY: 0.03 };
   let roll = Math.random();
   for (const [key, prob] of Object.entries(mix)) {
     if (roll < prob) return key;
@@ -143,7 +145,7 @@ const PLAYBOOKS = {
     targetMix: { wr1: 0.36, wr2: 0.27, te: 0.22, rb: 0.15 },
     // 2024 NFL personnel usage: 11/TRIPS dominates (~62%), 12/HEAVY ~18%,
     // BASE basically dead. Bumped TRIPS / cut BASE.
-    personnelMix: { TRIPS: 0.60, HEAVY: 0.16, SPREAD: 0.10, BASE: 0.07, I_FORM: 0.04, EMPTY: 0.03 },
+    personnelMix: { TRIPS: 0.55, HEAVY: 0.14, JUMBO: 0.08, SPREAD: 0.09, BASE: 0.07, I_FORM: 0.04, EMPTY: 0.03 },
     tierBias: {},
     airYdsMean: 7.5, airYdsSd: 6,
     rushYdsMean: 4.3, rushYdsSd: 5.5,
@@ -176,7 +178,7 @@ const PLAYBOOKS = {
     targetMix: { wr1: 0.32, wr2: 0.20, te: 0.30, rb: 0.18 },
     // G&P is the only scheme that still uses BASE/I_FORM meaningfully
     // (run-first identity). Still bumps TRIPS over BASE for spread looks.
-    personnelMix: { HEAVY: 0.30, I_FORM: 0.25, TRIPS: 0.25, BASE: 0.15, SPREAD: 0.05 },
+    personnelMix: { HEAVY: 0.26, JUMBO: 0.12, I_FORM: 0.22, TRIPS: 0.22, BASE: 0.13, SPREAD: 0.05 },
     tierBias: { RB: "elite", OL: "elite" },
     // Run-first; when they DO pass it's deeper play-action — but those deep
     // shots are LOWER comp%. Sack rate is normal (no auto-discount).
@@ -191,7 +193,7 @@ const PLAYBOOKS = {
     // Dual-threat QB: WR1 still featured but RB share bumped (Lamar/CMC
     // duos see ~20% RB target share).
     targetMix: { wr1: 0.33, wr2: 0.24, te: 0.21, rb: 0.22 },
-    personnelMix: { TRIPS: 0.55, SPREAD: 0.18, HEAVY: 0.14, BASE: 0.06, I_FORM: 0.05, EMPTY: 0.02 },
+    personnelMix: { TRIPS: 0.53, SPREAD: 0.18, HEAVY: 0.12, JUMBO: 0.05, BASE: 0.05, I_FORM: 0.05, EMPTY: 0.02 },
     tierBias: { QB: "elite", WR: "good", RB: "good" },
     airYdsMean: 7.5, airYdsSd: 6.5,
     rushYdsMean: 4.8, rushYdsSd: 5.5,
@@ -207,7 +209,7 @@ const PLAYBOOKS = {
     id: "OPTION", name: "Read Option", badge: "OPT",
     passProb: { long: 0.60, mid: 0.40, short: 0.25 },
     targetMix: { wr1: 0.32, wr2: 0.22, te: 0.26, rb: 0.20 },
-    personnelMix: { TRIPS: 0.32, HEAVY: 0.25, I_FORM: 0.20, BASE: 0.15, SPREAD: 0.08 },
+    personnelMix: { TRIPS: 0.30, HEAVY: 0.22, JUMBO: 0.08, I_FORM: 0.18, BASE: 0.14, SPREAD: 0.08 },
     tierBias: { QB: "elite", RB: "good" },
     airYdsMean: 7.5, airYdsSd: 6.5,
     rushYdsMean: 4.5, rushYdsSd: 6,        // good but not elite (G&P still better at pure run)
@@ -300,6 +302,14 @@ function pickReceiver(playbook, starters, personnel, coverageMix, touchMul) {
     mix.wr1 += mix.rb * 0.40;
     mix.wr2 += mix.rb * 0.30;
     mix.rb = 0;
+  }
+  // 1-WR sets (JUMBO 13): only one WR on the field — fold the WR2 share onto
+  // the tight ends (3 of them) and the lone WR, not a phantom 2nd receiver.
+  if (p.wr <= 1) {
+    mix.te  += mix.wr2 * 0.60;
+    mix.wr1 += mix.wr2 * 0.25;
+    mix.rb  += mix.wr2 * 0.15;
+    mix.wr2 = 0;
   }
   if (p.wr >= 3) {
     const slice = Math.min(0.18, (mix.wr1 + mix.wr2) * 0.22);
