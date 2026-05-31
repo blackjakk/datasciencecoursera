@@ -26,8 +26,14 @@ work (talent/audit fixes) is included.
 - ✅ **Ball-security + discipline channels** (§6) — QB strip-sack + carrier
   fumbles + pre-snap discipline penalties, all via the proven `_clutchMod`.
   Rare-event magnitudes are subtle (not separately aggregate-measured — see §5).
-- ⬜ **Phase 3 — scouting confidence** (the "watch the film" half).
-- ⬜ **Phase 4 — reputation tracking**: career big-moment splits.
+- ✅ **Phase 4 — film/reputation tracking**: `_accrueClutchFilm` accrues each
+  player's late-and-close exposures+outcomes onto `p.clutchRecord`, league-wide.
+- ✅ **Phase 3 — scoutable confidence read**: `clutchTag` surfaces a read whose
+  confidence sharpens with film (Unproven → Proven), converging on the truth.
+  Rendered on the scouting card. 8/8 franchise checks pass (`_clutch_film_test.js`).
+
+**The clutch factor is feature-complete** — real, league-wide, all-positions,
+and scoutable-by-film, both halves of the original spec delivered.
 
 **The functional core ("real + league-wide") is DONE and verified.** What
 remains is the discovery/UX layer ("scoutable").
@@ -271,15 +277,35 @@ penalties ~1–2%/play before the clutch gate), so their aggregate magnitude is
 subtle and not separately DiD-measured. Extend `_clutch_audit.js` to track
 fumble/penalty rates by tier if a hard aggregate number is wanted.
 
-## 7. What's left (Phase 3–4 — the "scoutable" half)
+## 7. The "scoutable" half (Phase 3–4) — IMPLEMENTED
 
-- **Scout-read confidence from film.** True `_clutch` stays hidden; the public
-  read's *confidence* grows with big-moment sample. A rookie reads "Unproven"
-  (biasable — the Brady trap, on purpose); a veteran's read converges on truth.
-  Reuses the existing perceived-value pattern (`_perceivedPotential`,
-  `_aiScoutBias`, scout tags).
-- **Reputation tracking.** Per-player career big-moment splits (clutch-moment
-  FG%, completion%, INT%) — the "film" that sharpens the read and gives the
-  discovery payoff.
+The other half of the spec: clutch is real *and* you can read it by watching the
+film. Tracking and read are split across two pieces.
 
-These are UX/narrative; the outcome mechanics (Phases 1–2) are complete.
+### Phase 4 — film / reputation (`_accrueClutchFilm`, `play-franchise-offseason.js`)
+- Called from `frnSimOnce` (the universal game path) right after
+  `captureGameHighlights`, so **every** game — user, CPU, playoff — builds film.
+- Scans the play log for late-and-close plays (same gate) and accrues per-player
+  counters onto `p.clutchRecord`: `fgAtt/fgMade` (K), `passAtt/comp/int` (QB),
+  `tgt/rec` (receivers), `car` (carriers), `picks` (DBs). Reuses the exact
+  play-log mining the audit proved (`receiver||intended`, `fgDist`, `defender`).
+- Persists on the player object; sizes are sane (only clutch-moment plays — a
+  full-season audit saw ≤44 exposures for the busiest QB).
+
+### Phase 3 — scoutable confidence read (`HiddenOracle.read.clutchTag`)
+- The TRUE `_clutch` stays hidden. The read = `_clutch` + **deterministic
+  name-hash noise whose WIDTH shrinks as `p.clutchRecord` exposure grows**:
+  Unproven (<8, ±28) → Limited tape (<25, ±18) → Established (<60, ±9) →
+  Proven (≥60, ±3). A rookie reads fuzzy/biasable (the **Brady trap**, on
+  purpose); a veteran's read converges on the truth. Noise is deterministic so
+  the read sharpens monotonically rather than flickering.
+- Surfaced on the scouting card (`play-franchise-season.js`) beside the
+  drive/durability tags, with a confidence tooltip ("N clutch snaps on tape")
+  and a "(?)" marker while Unproven.
+
+### Verification (`_clutch_film_test.js`, 8/8 pass)
+Boots a real franchise, sims a full season (~272 games → 1,398 clutch snaps
+accrued across 272 players), then asserts: film accrues league-wide; QBs/all
+positions accumulate; records stay clutch-only sized; `clutchTag` goes
+Unproven→Proven, converges to the true tier at high sample, and rises
+monotonically with sample; a real well-filmed player reads past "Unproven".

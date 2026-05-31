@@ -4784,9 +4784,11 @@ function _buildPlayerDetailPanel(p) {
           if (typeof HiddenOracle !== "object") return "";
           const dt = HiddenOracle.read.driveTag?.(p);
           const dr = HiddenOracle.read.durabilityTag?.(p);
+          const ct = HiddenOracle.read.clutchTag?.(p);
           const parts = [];
           if (dt) parts.push(`<span style="color:${dt.color}">${dt.label}</span>`);
           if (dr) parts.push(`<span style="color:${dr.color}">${dr.label}</span>`);
+          if (ct) parts.push(`<span style="color:${ct.color}" title="Big-moment read — ${ct.confidence}${ct.sample ? ` · ${ct.sample} clutch snaps on tape` : ""}">${ct.label}${ct.confidence === "Unproven" ? " (?)" : ""}</span>`);
           return parts.length
             ? `<div style="margin-top:.18rem;font-size:.6rem;font-weight:600">${parts.join(" · ")}</div>`
             : "";

@@ -1785,6 +1785,7 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   _updateSingleGameRecords(homeId, awayId, r.stats, franchise.week, isPlayoff);
   captureGameHighlights(homeId, awayId, r.plays, isPlayoff,
     isPlayoff ? `Playoff R${(franchise.playoffBracket?.roundIdx ?? 0) + 1}` : `W${franchise.week}`);
+  _accrueClutchFilm(homeId, awayId, r.plays);
   return { homeScore: r.homeScore, awayScore: r.awayScore, full: r };
 }
 
@@ -1844,6 +1845,39 @@ function _areRivals(aId, bId) {
   const a = getTeam(aId), b = getTeam(bId);
   if (!a || !b) return false;
   return a.conference === b.conference && a.division === b.division;
+}
+
+// Clutch "film" — accrue each player's big-moment (late-and-close) exposures
+// and outcomes onto p.clutchRecord. This is the scoutable record that drives
+// the clutchTag's CONFIDENCE (see HiddenOracle.read.clutchTag): a rookie has no
+// tape (fuzzy, biasable read — the Brady trap), a veteran's tape sharpens the
+// read toward the truth. Runs for EVERY game (frnSimOnce is universal), so the
+// whole league builds film — scouting/trading a CPU player works too.
+function _accrueClutchFilm(homeId, awayId, plays) {
+  if (!plays || !plays.length) return;
+  const byName = {};
+  for (const tid of [homeId, awayId])
+    for (const p of (franchise.rosters?.[tid] || [])) if (p && p.name) byName[p.name] = p;
+  const bump = (name, field) => {
+    const pl = name && byName[name]; if (!pl) return;
+    const r = (pl.clutchRecord = pl.clutchRecord || {});
+    r[field] = (r[field] || 0) + 1;
+  };
+  for (const pl of plays) {
+    if (!(pl.quarter >= 4 && pl.time < 300 && Math.abs((pl.homeScore || 0) - (pl.awayScore || 0)) <= 8)) continue;
+    const k = pl.kind;
+    if ((k === "fg_good" || k === "fg_miss") && typeof pl.fgDist === "number") {
+      bump(pl.kicker, "fgAtt"); if (k === "fg_good") bump(pl.kicker, "fgMade");
+    } else if ((k === "complete" || k === "incomplete" || k === "int") && pl.passer) {
+      bump(pl.passer, "passAtt");
+      if (k === "complete") bump(pl.passer, "comp");
+      if (k === "int") { bump(pl.passer, "int"); bump(pl.defender, "picks"); }
+      const tgt = pl.receiver || pl.intended;
+      if (tgt) { bump(tgt, "tgt"); if (k === "complete") bump(tgt, "rec"); }
+    } else if (k === "run" && pl.rusher) {
+      bump(pl.rusher, "car");
+    }
+  }
 }
 
 function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats, plays, ctx) {
@@ -19246,12 +19280,26 @@ const HiddenOracle = {
     // this read sharpens as big-moment film accumulates (layered in later);
     // until then it is the fuzzy first impression.
     clutchTag: (p) => {
-      const c = p._clutch ?? 50;
-      if (c >= 80) return { label: "Ice in His Veins", color: "var(--green)" };
-      if (c >= 62) return { label: "Steps Up",         color: "var(--green)" };
-      if (c >= 42) return { label: "Steady",           color: "var(--gray)" };
-      if (c >= 25) return { label: "Streaky",          color: "var(--red)" };
-      return                { label: "Folds Late",      color: "var(--red)" };
+      // Scoutable-by-film read. The TRUE _clutch stays hidden; what's surfaced
+      // is a READ whose CONFIDENCE grows with big-moment tape (p.clutchRecord,
+      // accrued by _accrueClutchFilm). No tape -> wide, biasable noise
+      // ("Unproven", the Brady trap); lots of tape -> the read converges on the
+      // truth. Noise is DETERMINISTIC per player (name hash) so it doesn't
+      // flicker between renders — only sharpens as the sample grows.
+      const trueC = p._clutch ?? 50;
+      const r = p.clutchRecord || {};
+      const exp = (r.fgAtt || 0) + (r.passAtt || 0) + (r.tgt || 0) + (r.car || 0) + (r.picks || 0);
+      const confidence = exp >= 60 ? "Proven" : exp >= 25 ? "Established" : exp >= 8 ? "Limited tape" : "Unproven";
+      const noiseW     = exp >= 60 ? 3        : exp >= 25 ? 9            : exp >= 8 ? 18            : 28;
+      let h = 0; const nm = p.name || ""; for (let i = 0; i < nm.length; i++) h = (h * 53 + nm.charCodeAt(i)) | 0;
+      const noise = (Math.abs(h) % (noiseW * 2 + 1)) - noiseW;
+      const c = Math.max(1, Math.min(99, trueC + noise));
+      const tier = c >= 80 ? { label: "Ice in His Veins", color: "var(--green)" }
+                 : c >= 62 ? { label: "Steps Up",         color: "var(--green)" }
+                 : c >= 42 ? { label: "Steady",           color: "var(--gray)" }
+                 : c >= 25 ? { label: "Streaky",          color: "var(--red)" }
+                 :           { label: "Folds Late",        color: "var(--red)" };
+      return { ...tier, confidence, sample: exp };
     },
   },
 
