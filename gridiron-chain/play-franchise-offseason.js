@@ -11370,11 +11370,26 @@ function runFrnOffseason() {
         // is -2 instead of -1) — steepened so post-peak OVR drops ~3-4/yr,
         // matching the NFL cliff. Earlier: ~1-2/yr → 90+ players lingered in
         // the top tier for 5+ years, inflating the 90+ stock at steady state.
-        // The audit (TALENT_MODEL.md valve 4) identified this as the primary
-        // drain on the 90+ tier; jointly tuned with the ceiling distribution.
+        // Retune step 5 (valve 4 + usage): wear-driven scalar. Decline was
+        // purely age-based; high-snap-count / heavily-hit players (workhorse
+        // RBs, every-down LBs) should decline FASTER, while low-usage backups
+        // / Brady-style hit-avoiders decline slower. This drains the 90+ tier
+        // specifically for the high-usage stars who DRIVE the inflation, and
+        // makes RB cliffs / QB longevity emerge naturally from usage data the
+        // engine already tracks. Centering: ~40-50 wear is typical league
+        // average → wearMul ~1.10; floor 0.90 (age alone still drives some
+        // decline even for low-wear players); ceiling capped at 0.95 prob
+        // per stat-year so high-wear is "almost certain" not "guaranteed."
+        const _wearLvl = p._wear || 0;
+        const wearMul = _wearLvl >= 80 ? 1.70
+                      : _wearLvl >= 60 ? 1.35
+                      : _wearLvl >= 40 ? 1.10
+                      : _wearLvl >= 20 ? 1.00
+                      :                  0.90;
         const _dc = (onset) => {
           const yrs = age - onset;
-          return yrs <= 0 ? 0 : yrs === 1 ? 0.35 : yrs === 2 ? 0.55 : 0.70;
+          const base = yrs <= 0 ? 0 : yrs === 1 ? 0.35 : yrs === 2 ? 0.55 : 0.70;
+          return Math.min(0.95, base * wearMul);
         };
         const _bigDrop = () => Math.random() < 0.25;   // 25% of declines are -2 instead of -1
         // SPD (0) — genetic; only very slow players see tiny pre-peak gains
@@ -11394,7 +11409,7 @@ function runFrnOffseason() {
         const catYrs = age - catOnset;
         if (catYrs > 0) {
           const catProb = catYrs === 1 ? 0.15 : catYrs === 2 ? 0.22 : 0.30;
-          if (Math.random() < catProb) p.stats[5] = Math.max(35, (p.stats[5] || 60) - 1);
+          if (Math.random() < Math.min(0.95, catProb * wearMul)) p.stats[5] = Math.max(35, (p.stats[5] || 60) - 1);
         }
         // COV (8) — coverage ability for CB/S. Steepened from 12/18/22%.
         if (p.position === "CB" || p.position === "S") {
@@ -11402,7 +11417,7 @@ function runFrnOffseason() {
           const covYrs = age - covOnset;
           if (covYrs > 0) {
             const covProb = covYrs === 1 ? 0.22 : covYrs === 2 ? 0.32 : 0.42;
-            if (Math.random() < covProb) p.stats[8] = Math.max(40, (p.stats[8] || 60) - (_bigDrop() ? 2 : 1));
+            if (Math.random() < Math.min(0.95, covProb * wearMul)) p.stats[8] = Math.max(40, (p.stats[8] || 60) - (_bigDrop() ? 2 : 1));
           }
         }
         // Recalculate overall to reflect physical changes

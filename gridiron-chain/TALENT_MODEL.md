@@ -235,3 +235,53 @@ Both changes are **shape, not level** — they shouldn't materially shift the 90
 equilibrium (rookie burst pushes some R1s to 90+ year-1 = small +; RB cliff
 shortens dwell time at peak = small −; roughly washes). Do AFTER the current
 level retune so the signals don't muddle.
+
+### RB mileage system — "tread on the tires" (queued, RB-only)
+Distinct from wear (which is per-season beating that mostly resets, ×0.10 each
+offseason). Mileage is **career-cumulative, mostly sticky, occasionally
+rejuvenated** — what real NFL fans mean by "tread."
+
+| layer | timescale | recovers | drives |
+|---|---|---|---|
+| wear (exists) | season | ~90% each offseason | Q4 fatigue + injury + (queued) decline scalar |
+| **mileage (new)** | career | ~3-7%/offseason, rare 12% rejuv | RB peakAge/declineAge shift + cliff steepness |
+
+**What it tracks:** `p._mileage` (RB only initially). Weighted per touch:
+- rush_att: +0.5 base
+- inside-run / short-yardage: +0.3 (extra contact)
+- broken-tackle event: +0.1
+- reception (RB only): +0.3 (catches over the middle absorbed)
+
+**Career tiers** (target the "tread point" at ~2,500-3,000 touches):
+
+| mileage | effect |
+|---|---|
+| < 1,500 | no effect (most RBs never hit this) |
+| 1,500-2,000 | `declineAge -1` (subtle erosion) |
+| 2,000-2,500 | `declineAge -2`, `peakAge -1` (cliff edge) |
+| 2,500-3,000 | `declineAge -3`, `peakAge -2`, `_dc` scalar × 1.3 |
+| 3,000+ | `_dc` scalar × 1.5 (every step is painful) |
+
+**Rejuvenation logic** (the "mostly not" part):
+
+| season usage | offseason mileage decay |
+|---|---|
+| light (<150 touches) | ×0.93 (small recovery) |
+| IR or ≥8 missed games | ×0.88 (Lynch sit-out) |
+| default (150-300) | ×0.97 (tread is sticky) |
+| heavy (>300) | ×1.00 (no recovery) |
+
+Floor: mileage never drops below 50% of accumulated peak — cartilage / joints
+don't regrow.
+
+**Hidden:** user-facing surface is the *manifest* effects (earlier decline,
+worse year), not the raw number. Restores scouting tension on aging RBs.
+
+**RB only first:** cleanest test case; position with the most empirical "cliff"
+data. Extensible to WR (deep balls absorbed), CB/S (collisions on screens) if
+the mechanism proves out.
+
+**Sequencing:** **after** wear-driven decline lands. Wear handles the general
+usage→aging mechanism for all positions; mileage adds the RB-specific career-arc
+refinement. If wear gets 90+ share in band, mileage is polish + RB narrative
+flavor; if wear doesn't close the gap, mileage is the closer.
