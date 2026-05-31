@@ -4197,7 +4197,10 @@ class GameSimulator {
         if (wouldCatch) {
           const catchPlayer = this._playerByName.get(wouldCatch);
           const dbCat = catchPlayer?.stats?.[5] ?? 50;
-          const dropChance = clamp(0.55 - (dbCat - 50) * 0.012, 0.05, 0.50);
+          // Clutch (defense): a composed DB squeezes the game-sealing pick;
+          // a folder lets it slip. Hands/concentration only — mirrors WR
+          // catching, never physical. Subtract so composure lowers the drop.
+          const dropChance = clamp(0.55 - (dbCat - 50) * 0.012 - this._clutchMod(wouldCatch, 0.10), 0.05, 0.50);
           if (Math.random() < dropChance) {
             // Dropped pick — undo INT credit, give PD instead, treat as incomplete
             if (def.players[wouldCatch]) {

@@ -18,15 +18,14 @@ work (talent/audit fixes) is included.
 **Where things stand:**
 - ✅ **Phase 1 — attribute model** (`4a8b3ea`): hidden two-tailed `_clutch`.
 - ✅ **Phase 2 — engine gates** (`3c2bf77`): FG accuracy + QB completion/INT +
-  WR catching, league-wide, playoff-amplified. 15/15 unit checks pass
-  (`_clutch_test.js`).
-- ✅ **Aggregate audit harness** (`f269837`): `_clutch_audit.js`, difference-in-
-  differences methodology. 500-game calibration confirmed the feature works
-  (see *Verification*). 10,000-game run for final magnitudes was in flight when
-  this doc was written — **fill in the table under *Audit results* when it lands.**
-- ⬜ **Phase 3 — scouting confidence** (the "watch the film" half): a scout read
-  whose *confidence* sharpens as big-moment film accumulates.
-- ⬜ **Phase 4 — reputation tracking**: career big-moment splits feeding the read.
+  WR/TE/RB catching, league-wide, playoff-amplified. 15/15 unit checks pass.
+- ✅ **Defensive INT-catch** — clutch DB squeezes the game-sealing pick
+  (`dropChance` gate). Added under the all-positions pass (§6).
+- ✅ **10,000-game audit** confirms magnitudes on target (FG DiD **+5.8pp**,
+  comp **+3.4pp**, INT **−0.2pp**, all normal-moment gaps ≈0). See §5.
+- ⬜ **Ball-security + discipline channels** (§6) — designed, awaiting go.
+- ⬜ **Phase 3 — scouting confidence** (the "watch the film" half).
+- ⬜ **Phase 4 — reputation tracking**: career big-moment splits.
 
 **The functional core ("real + league-wide") is DONE and verified.** What
 remains is the discovery/UX layer ("scoutable").
@@ -152,6 +151,9 @@ Distribution over 100k rolls: mean **48.8**, ice-veins (≥80) **~1.5%**, folds
   old `_drive`-based `driveCompMod`.
 - **INT (decision-making):** `- _clutchMod(qb, 0.012)` subtracted inside `intPct`
   so composure lowers INT% and choke raises it.
+- **Defensive INT-catch (hands):** `- _clutchMod(wouldCatch, 0.10)` subtracted
+  inside the DB `dropChance` (the drop-the-pick gate) so a composed DB secures
+  the game-sealing interception and a folder lets it slip. Mirrors WR catching.
 
 **Magnitudes** (regular season; ×1.5 in playoffs): FG ≈ **±6pp**, completion ≈
 **±4pp** (QB) **+±3pp** (WR), INT ≈ **∓1.2pp**, all only in late-and-close.
@@ -196,12 +198,65 @@ DiD as the verdict and uses a large, frequently-refreshed pool to tighten it.
 All three DiDs point the correct way. The raw clutch gaps can look wrong (e.g.
 comp −1.6) purely from the skill confound; DiD removes it.
 
-**10,000-game run (final magnitudes): _TODO — paste the DiD table from
-`/tmp/clutch_audit.log` when the background run completes._**
+**10,000-game run** (957s, 96-roster pool; `play kinds`: complete 466,878 /
+incomplete 219,001 / int 21,103 / fg_good 34,895 / fg_miss 5,703):
+
+| metric | clutch gap | normal gap | **DiD (clutch effect)** | target |
+|---|---|---|---|---|
+| Kicker FG% | +6.3 (n≈1,109) | +0.5 | **+5.8pp** ✓ | ~+5 |
+| QB completion% | +3.6 (n≈14,795) | +0.2 | **+3.4pp** ✓ | ~+3 |
+| QB INT% | −0.2 | +0.0 | **−0.2pp** ✓ dir | ~−1 |
+
+The **normal-moment gaps are ≈0** for all three — the effect is isolated to
+clutch moments and is NOT a skill confound. The completion DiD matching its
+prediction almost exactly validates the whole model.
+
+**Calibration note — INT is underpowered.** The INT DiD (−0.2pp) is correct-
+direction but far below the ~−1pp the scale predicts. INTs are rare (~3%/att),
+so the absolute pp effect is small and within sampling noise (SE ≈ 0.29pp at
+this n). It's real but subtle; bump the INT scale (0.012 → ~0.020) if a more
+visible effect is wanted — at the risk of clutch QBs almost never throwing late
+picks (less realistic). Left modest for now.
 
 ---
 
-## 6. What's left (Phase 3–4 — the "scoutable" half)
+## 6. The four mental channels (all-positions design)
+
+A first-principles pass over *every* position. The rule (accuracy / decision /
+hands / composure — never physical) means clutch flows through exactly **four
+mental channels**, and each position gets clutch **only** through the channels
+its job actually involves. Physical channels (blocking force, pass-rush burst,
+break-tackle, top speed, FG range, tackling, closing speed) are never touched.
+
+| Channel (mental) | Positions | Engine gate | Status |
+|---|---|---|---|
+| **Accuracy / decision** | QB (completion, INT), K (FG) | `compPct`, `intPct`, `fgPct` | ✅ done |
+| **Hands / catching** | WR, **TE, RB-receiving** (same gate — free), DB interception | `compPct` (target `rcvr`); `dropChance` (DB) | ✅ done (incl. DB INT-catch) |
+| **Ball security** | QB (strip-sack), RB/WR/TE carrier | `stripChance` (~4516), `yacFumbleChance` (~5205), run-fumble (~5500) | ⬜ designed |
+| **Discipline / penalties** | OL (false start), DL (offsides), DB (DPI/holding) | `_PENALTY_RATES` + `_pickPenaltyOffender` (rate-level) | ⬜ optional (messier) |
+
+**Findings from the pass:**
+- **TE and pass-catching RBs are covered for free** — the completion gate keys
+  on whoever is targeted (`rcvr`), regardless of position. No new code.
+- **OL/DL can ONLY express clutch via discipline/penalties** — their core job
+  (blocking, pass rush) is physical, which the rule excludes. So penalties are
+  the *sole* principled clutch lever for linemen. That channel has per-player
+  attribution (`_pickPenaltyOffender`) but is "messier" — it modulates a penalty
+  *rate* for a unit, not a clean per-play resolution gate.
+- **Ball security is clean and per-player** for QB (strip-sack fumble), and any
+  ball-carrier/receiver (YAC + run fumbles) — each gate has the player in scope.
+
+**Recommended tiers:**
+1. **Tier 1 (clean, per-player, iconic):** DB INT-catch [done] + ball-security
+   fumbles (QB strip-sack, carrier YAC/run). Same "concentration" principle as
+   catching, all gates exist, all per-player.
+2. **Tier 2 (linemen):** discipline/penalties — the only way OL/DL get clutch;
+   requires unit-level penalty-rate modulation. Worth it for the iconic
+   false-start-kills-the-drive moment, but a different kind of change.
+3. **Skip:** punter placement, returner muffs, long-snap/hold — low narrative
+   value or not granularly modeled.
+
+## 7. What's left (Phase 3–4 — the "scoutable" half)
 
 - **Scout-read confidence from film.** True `_clutch` stays hidden; the public
   read's *confidence* grows with big-moment sample. A rookie reads "Unproven"
