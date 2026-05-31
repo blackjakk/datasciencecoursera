@@ -1681,16 +1681,17 @@ const HOF_THRESHOLDS = {
 // representative star at each position lands in the same ~70 score
 // band when they belong in Canton.
 function _hofPositionMul(pos) {
-  // HoF mult retune r-1 (post level-retune equilibrium, validate100 baseline).
-  // Prior 500-season audit was on a higher-inflation sim — once the level
-  // retune trimmed dev/wear/coaches, the LB tackle-firehose pushed LB to
-  // 26% of HoF (target ~10%) while CB/S collapsed to 0.7% / 0% (target
-  // 8% / 6%). K/P also over-share because peak OVR is easy to reach
-  // at those positions and accolades stack. New mults aim at NFL shares
-  // QB 13 / RB 12 / WR 10 / TE 3 / OL 17 / DL 14 / LB 10 / CB 8 / S 6 / K 2 / P 1.
-  return { QB:0.90, RB:1.30, WR:1.20, TE:1.10,
-           OL:1.45, LT:1.45, LG:1.45, C:1.45, RG:1.45, RT:1.45,
-           DL:1.00, LB:0.65, CB:1.60, S:1.70, K:0.65, P:0.50 }[pos] || 1.0;
+  // HoF mult retune r-3 (40-season audit baseline). r-2 nailed DL (14.5%),
+  // QB (12.9%), WR (10.8%), RB (11.3%), CB (8.6%), S (6.5%), K (1.6%) — all
+  // on target. Two gaps left: OL overshot to 22% (target 17 — pancake
+  // counting bonus sits near the induction threshold so the 1.55 bump
+  // moved it a lot) and LB dipped to 7.5% (target 10 — OL ballooning to
+  // 41 ate slots in the 6/yr class cap, squeezing LB). r-3: pull OL back
+  // toward 1.50, nudge LB up, trim TE. Hold everything else.
+  // NFL shares QB13/RB12/WR10/TE3/OL17/DL14/LB10/CB8/S6/K2/P1.
+  return { QB:1.35, RB:1.28, WR:1.45, TE:0.94,
+           OL:1.50, LT:1.50, LG:1.50, C:1.50, RG:1.50, RT:1.50,
+           DL:0.55, LB:0.76, CB:1.55, S:1.45, K:0.78, P:0.72 }[pos] || 1.0;
 }
 
 // Composite HOF score: peak ability + accolades + counting stats +
