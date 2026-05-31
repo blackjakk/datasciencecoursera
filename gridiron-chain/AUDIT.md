@@ -62,6 +62,17 @@ Three tables:
   go-attempts / conversion% / points by trait. Confirms `hcAggMul` fires:
   Riverboat Gambler 1.56 go/g > Neutral 1.27 > Game Manager 1.22 > Conservative
   0.96 (62% more aggressive than Conservative).
+- **DEFENSIVE SCHEME / PERSONNEL / COVERAGE** — per-play tags from the play log.
+  DEF SCHEME: plays%, yds/play faced, comp% allowed, sack% (DIME tightest comp +
+  most sacks, BASE_43 best run-stop). PERSONNEL: plays%, yds/play, pass% (SPREAD/
+  EMPTY most efficient + pass-leaning, HEAVY/I_FORM run-heavy). COVERAGE: per
+  completion Y/CMP (which shell gets beaten deepest — coverage is logged only on
+  completions, so comp%-allowed isn't derivable).
+- **FATIGUE BREAKDOWN** — reads `sim._fatigue` post-game; end-of-game fatigue
+  (med/P90/max) by starter position + per-quarter yds/play. Workhorse trench
+  players (OL/DL) end ~59 median / ~68 P90, RB workhorse P90 ~60, QB/low-snap
+  stay fresh; Q4 efficiency dips ~3% (realistic). (Caught the no-recovery bug —
+  see calibration.)
 
 ### 1b. `_qb_probe.js` — QB-archetype isolation probe
 `node _qb_probe.js [games]` (default 300). Builds **one fixed home roster + one
@@ -313,6 +324,14 @@ swept; every archetype confirmed to move the box score except where noted)
 - **Coaching: HC trait now exercised + audited.** `_sim_audit` had no franchise,
   so coaching never fired; injected a balanced `franchise.coaches` stub. Verified
   Riverboat 1.56 4th-down go/g > Game Manager 1.22 > Conservative 0.96.
+- **Fatigue had ZERO in-game recovery.** `_fatigue` was only ever incremented, so
+  starters redlined to ~95-100 by Q4 (OL/DL med 96, RB 84) vs the ~60-70 design
+  target — and the stamina stat stopped differentiating once everyone saturated.
+  Added sideline rest on the breaks (×0.55 halftime, ×0.88 quarter breaks); OL/DL
+  now end ~59 med / ~68 P90, RB workhorse P90 ~60. Both teams equal → box score
+  unchanged, Q4 dip preserved (~3%).
+- **Coverage comp% was a bogus 100%** — coverage is logged only on completions,
+  so incompletes weren't tagged. Relabeled the table to per-completion Y/CMP.
 
 ---
 
@@ -419,18 +438,27 @@ ephemeral — re-run if the container recycled.*
    SLOT. Lever: `archAirMod` / deep-completion rate in the pass model.
 
 ### Gameplay-system audit coverage (what's measured vs not)
-**Covered:** offensive playbooks (PLAYBOOK BREAKDOWN), weather (WEATHER
-BREAKDOWN), **coaching (COACHING BREAKDOWN — HC 4th-down aggression)**, injuries
-(INJURY REPORT), every positional archetype (`_arch_probe`), QB styles
-(`_qb_probe`), box score / drives / situational / kicking / per-position.
+**Covered:** offensive playbooks, **defensive schemes, personnel packages,
+coverages** (per-play breakdowns), weather, **coaching (HC 4th-down)**, **fatigue**
+(FATIGUE BREAKDOWN), injuries (INJURY REPORT), every positional archetype
+(`_arch_probe`), QB styles (`_qb_probe`), box score / drives / situational /
+kicking / per-position.
 **NOT yet covered (engine has them, audit doesn't isolate them):**
-- **Coaching — partial:** HC 4th-down aggression IS now audited. Still not
-  isolated: OC/DC run tilts (`ocRunArchBonus`/`dcRunStopperMalus`), HC
-  `cultureTrait` injury effect, `coachBoost` (dev).
-- **Defensive playbooks** (BLITZ_46/DIME/PREVENT/NICKEL…) — chosen dynamically
-  per play; exercised but not broken down by scheme.
-- **Personnel packages** (TRIPS/SPREAD/EMPTY/HEAVY/I_FORM) + **coverages**
-  (C0_BLITZ/C1_MAN/C2_ZONE…) — same: exercised, not reported by-type.
+- **Coaching — partial:** HC 4th-down aggression audited. Still not isolated:
+  OC/DC run tilts (`ocRunArchBonus`/`dcRunStopperMalus`), HC `cultureTrait`
+  injury effect, `coachBoost` (dev).
+- **Momentum** (`_swingMomentum` → `momCompMod`) — swings affect completion%.
+- **Special-teams returns** — KR/PR yards, return TDs, muffs (we audit FG/XP/punt
+  distance but not the return game).
+- **Trick plays** (reverse / flea-flicker / fake punt / fake FG), **2-pt
+  conversions**, **onside kicks** — rare-event rates.
+- **Play-type mix** (play-action / RPO / screen / deep-shot distribution).
+- **Ejections** (HEADHUNTER `_ejectionLog`), **clock management** (2-min drill,
+  kneels, spikes, hurry-up).
+- **Stress** (`_stress`, separate from wear — drives non-contact injuries).
+- **Off-field / franchise:** trades, free agency, contracts / salary cap,
+  **personality archetypes** (captain/cancer/quiet_pro/showman/coachs_son →
+  dev+chemistry+longevity), scouting/draft-eval accuracy, GM / trainer traits.
 
 ### Audit-band quirks to fix (cosmetic, measurement-only)
 - Franchise-health **unique-champions band** is wrong (set 45-100, impossible —
