@@ -1,0 +1,195 @@
+# Talent Rating Architecture — the two-layer model
+
+*Successor framing to `TALENT_MODEL.md`. The valve/stock-and-flow model there
+is still correct for **career dynamics**; this doc fixes what OVR **means** and
+re-points what we tune for. Status: **DESIGN — agreed in principle, not built.***
+
+---
+
+## TL;DR
+
+OVR is being asked to be two incompatible things at once:
+
+1. a **within-position rating** ("how good is this kicker *among kickers*"), and
+2. a **cross-position value scale** ("how much does this player help you win").
+
+A 90 K and a 90 QB are equal as (1) and wildly unequal as (2). Every recurring
+talent symptom — "K reaches 90+ at 8.5%", "league 90+ share too high", "HoF
+position bias", "kicker is somehow a franchise cornerstone" — is the same root
+error: **using a within-position number for cross-position questions.**
+
+The fix is to make the two layers explicit:
+
+- **Layer 1 — OVR = within-position percentile.** Calibrate the weighted-sum
+  output *per position* to one common shape, so `90` means "top ~2.5% of your
+  position" *everywhere*.
+- **Layer 2 — `POSITION_VALUE` weight.** One canonical positional-value table,
+  applied at every point where players are compared *across* positions (HoF,
+  "best player", contract/trade value, team strength).
+
+---
+
+## Three findings that ground this (all verified this session)
+
+1. **The sim runs on stats, not OVR.** Individual matchups resolve from the
+   stat vector — `tackler.stats[9]` for tackling, coverage/rush/block all
+   `stats[...]` (34 `stats[]` refs vs 12 `.overall` in `play-engine.js`). OVR
+   only feeds *aggregates and selection* (team-strength rollups `g`/`gw`,
+   target weighting, RB committee, the OL/DL trench rating). **So reshaping OVR
+   does not touch play resolution** — it's a display/roster/aggregate metric.
+
+2. **Per-position 90+ reachability is a formula artifact, not realism.** OVR is a
+   weighted average; reaching 90 needs the heavily-weighted stats to *jointly*
+   hit ~90. The count of stats that must fire, weighted by reachability, sets the
+   tail:
+
+   | pos | OVR-driving stats (wt) | must fire | observed 90+ |
+   |---|---|---|---|
+   | K/P | kpw 43 + awr 42 | **2** (both uncapped; kpw floored ≥75) | **8.5% / 4.2%** |
+   | TE  | cat 34 + blk 25 | ~2 | 6.3% |
+   | LB  | tck 26 + cov 22 + prs 21 | 3 | 3.3% |
+   | WR  | cat 30 + spd 26 | 2, but **spd compressed** by SPD_MAP | 2.0% |
+   | QB  | **thr 42** + awr 21 | 3, thr must be ~96+ | 0.7% |
+   | OL/DL | blk 38 + str 30 + agi 17 | **4** | 0.4% / 0.3% |
+
+   Spread runs 0.3% → 8.5% (28×), driven by `calcOverall` weights ×
+   `POSITION_PHYSICAL_CAPS` × the `statsFor` polarization pass (which over-spikes
+   2-stat positions → the K **bimodality**: P10=42 floor *and* 8.5% at 90+).
+   None of this is "realism" — it's geometry. Fighting it stat-by-stat is
+   whack-a-mole.
+
+3. **Cross-position OVR consumers are display/HoF/contract — and several already
+   want a value layer.** Trace of `.overall` reads:
+   - sim matchups → `stats[]` (untouched by calibration)
+   - within-position sorts (depth chart, same-pos FA/contract compare) → **safe**
+   - team aggregates (`gw`, trench) → shift **symmetrically** (both sides
+     recalibrated), balance holds; and `g("QB")*0.30 + gw("OL")*0.20…` is
+     *already* a crude value layer
+   - HoF/awards → already patched by `_hofPositionMul` (the camel's nose)
+   - "team's best player" / opponent star / injury headline / contract-year
+     thresholds (`overall ≥ 88 → 5yr`) → these **break under a within-position
+     OVR unless routed through `POSITION_VALUE`**
+
+---
+
+## The architecture
+
+### Layer 1 — OVR as within-position percentile
+`calcOverall(pos, stats)` returns the raw weighted sum today. Wrap it:
+
+```
+ovr = CALIBRATE[pos]( rawWeightedSum(pos, stats) )
+```
+
+`CALIBRATE[pos]` is a per-position monotone map that pins each position's OVR
+distribution to ONE common target shape. Start with an **affine** fit
+(`a_pos · raw + b_pos`, matching mean+spread); upgrade K/P (and maybe TE) to a
+**piecewise-quantile** map because their raw shape is bimodal and affine can't
+fix that. Params are CONSTANTS fit offline from an audit (like the physical
+caps), re-fit only when generation/dev changes — never per play.
+
+**Common target shape (every position identical — that's the point):**
+
+| metric | target |
+|---|---|
+| mean | ~74 |
+| P10 / P50 / P90 | ~64 / ~74 / ~84 |
+| 90+ | ~2.5% |
+| 95+ | ~0.5% |
+| floor (rostered) | ~55 (depth below) |
+
+Result: `90` is the same rarity at every position, `league 90+ share ≈ 2.5%`
+*by construction*, and the per-position reachability problem **dissolves** — no
+weight/cap/dev surgery needed to equalize tails.
+
+### Layer 2 — `POSITION_VALUE`
+One canonical table (generalize `_hofPositionMul`), consumed everywhere players
+are ranked across positions:
+
+```
+POSITION_VALUE = { QB: 1.0, … , LB: ~0.5, OL: ~0.6, … , K: ~0.15, P: ~0.12 }
+effectiveValue(player) = ovrPercentileScore(player) × POSITION_VALUE[pos]
+```
+
+Consumers: HoF induction, MVP/All-Pro, "franchise's best player" displays,
+contract/trade value, AI roster-need, and (folding in the ad-hoc weights) the
+`g`/`gw` team-strength formula. **`_hofPositionMul` becomes a view of this table,
+not a separate magic number.**
+
+### The atomic-shipping constraint
+Layer 1 alone makes "who's your best player / how much do we pay him" ill-posed
+(a calibrated-elite kicker would outrank an 88 QB). **Layer 1 and Layer 2 must
+ship together** — calibration without the value lens produces "our All-Pro
+kicker is the franchise cornerstone" headlines. They are one atomic change.
+
+---
+
+## Re-pointed north star
+
+"90+ ≈ 2-3%, mean 74-76" is **calibration**, not realism — under Layer 1 it's a
+dial you *set*, not a target you *chase*. The honest epilogue on the prior
+retune: **r-1 (steepen decline) flattening the drift was the real, irreplaceable
+win** (a league that inflates decade-over-decade is genuinely broken — only
+flow-balancing fixes that). **r-2…r-8 grinding 90+ from 6.8%→5.7% was partly
+chasing a labeling artifact** a per-position normalization just assigns; the
+"floor that wouldn't budge" was the formula geometry refusing a cross-position
+target it was never built to hit.
+
+What's *actually* realism (and what flow-tuning should target):
+
+1. **Drift flat** (no inflation) — ✅ won at r-1.
+2. **Career arcs** — rookie → peak → decline shapes — dev/decline/wear valves.
+3. **Draft uncertainty** — bust/gem rates, the scouting-error tail — valve 2.
+4. **Value scarcity** — elite *value* is rare, elite *kickers* are cheap —
+   Layer 2, not OVR.
+5. **Competitive balance** — parity vs dynasties — barely measured yet.
+
+`90+ league share` is no longer on the list. It dissolved into "pick the
+percentile."
+
+---
+
+## Staged build plan (each audit-verified; nothing ships until the pair is ready)
+
+- **S1 — Measure.** Audit dumps the RAW per-position OVR distribution
+  (`_brady_audit` already has the histogram; add raw-vs-calibrated columns).
+  Establishes the `CALIBRATE[pos]` fit targets.
+- **S2 — Fit Layer 1.** Derive `CALIBRATE[pos]` (affine first; quantile for K/P).
+  Wrap `calcOverall`. Behind a flag. Verify each position's calibrated
+  distribution matches the common shape; confirm `stats[]`-driven sim outcomes
+  are byte-unchanged (sim never reads OVR for matchups).
+- **S3 — Build Layer 2.** Canonical `POSITION_VALUE`; reroute HoF (replace
+  `_hofPositionMul`), "best player"/awards displays, contract/trade value, and
+  the `g`/`gw` weights through it.
+- **S4 — Flip together.** Enable Layer 1 + Layer 2 atomically. Audit: HoF shares
+  (should need little/no extra correction now), team-strength balance unchanged,
+  no "kicker is best player" regressions.
+- **S5 — Re-point tuning.** Retire 90+-share chasing; keep flow valves aimed at
+  drift/career/bust realism. Add a competitive-balance audit (parity/dynasty).
+
+---
+
+## Risks / open questions
+
+- **Calibration fit drift.** If generation/dev changes, `CALIBRATE[pos]` must be
+  re-fit — a periodic audit job, not per-play. Acceptable (physical caps already
+  work this way).
+- **Quantile vs affine for K/P.** Bimodal K likely needs a quantile LUT; confirm
+  affine suffices for the rest.
+- **Team-strength re-fit.** Folding the value weights into `g`/`gw` while
+  calibrating OVR must keep current competitive balance — verify with the
+  margin/parity audit before/after.
+- **`POSITION_VALUE` numbers.** Start from `_hofPositionMul`'s implied ordering;
+  validate against roster-construction sanity (does the AI still value a QB over
+  a kicker correctly?).
+
+---
+
+## Relationship to `TALENT_MODEL.md`
+
+- **Kept:** the stock-and-flow framework, the six valves, the retune log (real
+  history), and the career-realism targets (drift/arc/bust).
+- **Superseded:** "tune the flows until 90+ share = 2-3%" and "Valve 6 =
+  per-position reachability surgery." Those are replaced by Layer 1 calibration
+  (sets the share) + Layer 2 value (handles cross-position) — a cleaner home for
+  the same intent.

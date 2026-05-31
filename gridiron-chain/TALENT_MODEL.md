@@ -12,7 +12,26 @@
 - **UX work: complete.** All 6 steps shipped (banner removed, dev demoted, delete safety, Your Story flow, in-loop nav rail, confirm modal conversion). See `GAMEPLAY_LOOP.md` for the full breakdown.
 - **Rebrand:** GridironChain → **Hashmark Heroes — American Football Manager**. User-facing only; codebase identifiers preserved.
 
-**Resuming on:** continuing the talent retune via the **queued findings** section below. **Next item: HoF position-multiplier re-tune** — CB has 1 inductee in 100 seasons (target ~9%), S has 0 (target ~6%), LB has 135 (24%, target ~8%). Stale `_hofPositionMul` at `play-franchise-season.js:1604` from a 500-season audit on an earlier sim state. Recommended order: HoF mults → Valve 6 (QB legend reachability via `_gemDevStats`) → wear+mileage+concussion sticky-load triad → sharkfin shape polish → dead code cleanup.
+**⚠ DIRECTION CHANGE (read `TALENT_RATING_ARCHITECTURE.md` first):** A
+first-principles pass concluded the per-position-reachability problem (Valve 6)
+and the "90+ league share" target are symptoms of OVR conflating a
+*within-position rating* with a *cross-position value scale*. The agreed
+direction is the **two-layer model** in `TALENT_RATING_ARCHITECTURE.md`:
+calibrate OVR to a within-position percentile (Layer 1) + a canonical
+`POSITION_VALUE` weight for all cross-position comparisons (Layer 2, generalizing
+`_hofPositionMul`). The sim runs on `stats[]` not OVR, so Layer 1 is gameplay-safe.
+Under it, "90+ share" is a *dial you set*, not a target to chase — so the
+remaining flow-tuning re-points at drift/career/bust realism, not share counts.
+
+**Done this session:** HoF position-multiplier re-tune settled at r-3
+(`a5875b0`) — NFL-realistic shares (the old CB 0.7% / S 0% / LB 24% / K 8%
+catastrophe is fixed). This becomes Layer 2's seed ordering.
+
+**Resuming on:** the staged build plan in `TALENT_RATING_ARCHITECTURE.md`
+(S1 measure → S2 fit Layer 1 → S3 build Layer 2 → S4 flip atomically → S5
+re-point tuning). Layer 1 + Layer 2 must ship together. The old queue (Valve 6
+reachability surgery, wear/mileage/concussion, sharkfin) is superseded or
+re-homed per that doc's "Relationship" section.
 
 **Tools in use:**
 - `node gridiron-chain/_brady_audit.js 40` — fast retune iteration (~17 min)
