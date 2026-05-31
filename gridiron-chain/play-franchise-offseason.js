@@ -1690,7 +1690,7 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   const sim = new GameSimulator(
     getTeam(homeId), getTeam(awayId),
     franchise.rosters[homeId], franchise.rosters[awayId],
-    { isRivalry,
+    { isRivalry, isPlayoff,
       homeSnaps: _buildSnapMap(homeId),
       awaySnaps: _buildSnapMap(awayId) }
   );
@@ -3348,7 +3348,7 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
 
   const isRivalry = _areRivals(homeId, awayId);
   const sim = new GameSimulator(home, away, homeRoster, awayRoster,
-    { isRivalry,
+    { isRivalry, isPlayoff,
       homeSnaps: _buildSnapMap(homeId),
       awaySnaps: _buildSnapMap(awayId) });
   // Apply the same coaching + scheme boosts as frnSimOnce so live games

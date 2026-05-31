@@ -328,6 +328,7 @@ class GameSimulator {
     // can override post-construction if a caller wants to force it.
     this.opts = opts || {};
     this.isRivalry = !!this.opts.isRivalry;
+    this.isPlayoff = !!this.opts.isPlayoff;   // amplifies the clutch swing in big games
     this.homeFieldAdv = this.opts.homeFieldAdv !== false; // default on
     // Per-snap rotation targets, keyed by engine starter role
     // (qb/rb/wr1/wr2/te). Each value is the starter's intended
@@ -2611,6 +2612,20 @@ class GameSimulator {
   // Tilt multiplier centered on 50. Aggressive = >1.0, conservative = <1.0
   // Used to scale base probabilities (e.g. base * tilt). Aggression 80 → 1.30
   _aggTilt(agg) { return 1 + (agg - 50) / 100; }   // 20 → 0.70, 80 → 1.30
+
+  // Composure under pressure → a SIGNED modifier (>0 helps the player, <0
+  // hurts). Only bites in late-and-close moments (Q4/OT, <5:00, one-score)
+  // and is amplified in the playoffs. Reads the hidden _clutch attribute
+  // (50 = neutral). Accuracy / decision-making / catching ONLY — never
+  // physical attributes (speed / strength / range).
+  _clutchMod(name, scale) {
+    const lateClose = this.quarter >= 4 && this.time < 300
+                   && Math.abs(this.score.home - this.score.away) <= 8;
+    if (!lateClose || !name) return 0;
+    const p = this._playerByName?.get?.(name);
+    const sig = ((p?._clutch ?? 50) - 50) / 50;          // [-1,+1]; <0 = choker
+    return sig * scale * (this.isPlayoff ? 1.5 : 1.0);
+  }
   // Handles the kickoff after any score (TD or FG). Decides whether the
   // kicking team should attempt an onside kick (trailing late) and sets
   // possession / yardLine accordingly. Pushes a kickoff visual either way.
@@ -3293,11 +3308,14 @@ class GameSimulator {
         const kPlayer = this._playerByName.get(K);
         const kArch = kPlayer?.archetype;
         const kpw   = kPlayer?.stats?.[10] ?? 70;
-        const isClutchMoment = (this.quarter >= 4 && this.time < 300 && Math.abs(this.score.home - this.score.away) <= 8);
         let archAccMod = 0, archRangeMod = 0;
         if (kArch === "LEG")       { archAccMod = -0.025; archRangeMod = (dist - 35) * 0.0035; }
         else if (kArch === "PRECISION") { archAccMod = +0.035; archRangeMod = -Math.max(0, dist - 45) * 0.006; }
-        else if (kArch === "CLUTCH")    { archAccMod = isClutchMoment ? +0.05 : -0.005; }
+        // Clutch/composure tilts FG ACCURACY only (never range/power) in
+        // late-and-close moments — continuous off the hidden _clutch attribute,
+        // so an ice-veins kicker hits more and a folder misses more. The CLUTCH
+        // archetype is generated with high _clutch, preserving its old edge.
+        const clutchAccMod = this._clutchMod(K, 0.06);
         // KPW above 75 adds a small extra range bonus regardless of archetype
         const kpwBonus = Math.max(0, kpw - 75) * 0.001;
         // Ice the kicker — small accuracy hit when defense burned a TO before the snap.
@@ -3311,7 +3329,7 @@ class GameSimulator {
         const kAwr = kPlayer?.stats?.[3] ?? 70;
         const kSkill = (kpw * 0.7 + kAwr * 0.3) - 60;
         const fgPct = clamp(0.99 - (dist - 20) * 0.010 + kSkill / 200
-                          + archAccMod + archRangeMod + kpwBonus + iceMod - wxPenalty, 0.15, 0.99);
+                          + archAccMod + archRangeMod + kpwBonus + iceMod + clutchAccMod - wxPenalty, 0.15, 0.99);
         const kStats = off.players[K]; if (kStats) { kStats.fg_att++; }
         // NOTE: do NOT bump fourthAtt — NFL "4th-down conversion %"
         // measures GO-FOR-IT attempts only. FGs and punts use their
@@ -4166,7 +4184,10 @@ class GameSimulator {
       // NFL turnover-fest games hit 4%+ per attempt). Lifted the clamp to
       // 0.045 to keep the tail and bumped the base to 0.040 so the average
       // lands in the 2.0-3.0% NFL band.
-      const intPct = clamp((0.040 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.045);
+      // Clutch decision-making: ice-veins QBs protect the ball late (fewer
+      // forced throws/picks), folders press and turn it over. Subtract the
+      // signed clutch mod so composure (>0) lowers INT% and choke (<0) raises it.
+      const intPct = clamp((0.040 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod - this._clutchMod(this.offR.starters.qb, 0.012)) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.045);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         // Sample the defender who'd be in position to pick. CAT-based drop
@@ -4931,12 +4952,13 @@ class GameSimulator {
       // momentum point, max ±5pp); hot defense plays tighter coverage.
       const momCompMod = ((this._momentum?.[this.poss] || 0)
                        -  (this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)) * 0.0025;
-      // QB drive — late-game clutch bonus. Q4 close-game throws by high-drive
-      // QBs are noticeably more accurate (Brady-style "raises his level").
-      // Low-drive QBs sag.
-      const isQBClutch = this.quarter >= 4 && this.time < 300 && Math.abs(this.score.home - this.score.away) <= 8;
-      const qbDrive = qbPlayer?._drive ?? 60;
-      const driveCompMod = isQBClutch ? (qbDrive - 60) / 600 : 0; // ±~6pp at drive 99 vs 20
+      // Clutch/composure — late-and-close throws by ice-veins QBs are more
+      // accurate (Brady "raises his level"); folders sag. Plus the target
+      // receiver's composure (hands in the moment). Accuracy + catching only,
+      // never physical. Migrated off _drive — which is now dev/effort only;
+      // composure lives in the dedicated _clutch attribute (see _clutchMod).
+      const clutchCompMod = this._clutchMod(this.offR.starters.qb, 0.04)
+                          + this._clutchMod(rcvr, 0.03);
       const boxStackCompMod = this._boxStackCompMod || 0;
       // CONCEPT × COVERAGE matchup — hoisted before compPct so the
       // expected openness can modulate completion rate. Previously this
@@ -4952,7 +4974,7 @@ class GameSimulator {
       // a 0.40-read matchup subtracts ~5pp. Open routes complete; covered
       // routes don't.
       const opennessCompMod = (_hoistedReadP - 0.55) * 0.35;
-      const compPct = clamp((0.65 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + driveCompMod + boxStackCompMod + opennessCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.95);
+      const compPct = clamp((0.65 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + clutchCompMod + boxStackCompMod + opennessCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.95);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.

@@ -1511,6 +1511,12 @@ function genPlayer(pos, tier) {
     const cRoll = (Math.random() + Math.random() + Math.random()) / 3 - 0.5;   // ~bell around 0, [-0.5,+0.5]
     const dev = cRoll >= 0 ? cRoll * 84 : cRoll * 102;                          // negative (choke) side stretched further
     player._clutch = Math.max(1, Math.min(99, Math.round(50 + dev + (Math.random() - 0.5) * 6)));
+    // The visible kicker CLUTCH archetype IS "clutch by reputation" — generate
+    // it on the high end so the trait keeps meaning what it always has (the
+    // engine's old binary archetype FG bonus is now driven by this attribute).
+    if (player.archetype === "CLUTCH") {
+      player._clutch = Math.max(player._clutch, 72 + Math.floor(Math.random() * 20));   // 72-91
+    }
   }
   // Mock the player's career (year-by-year stats + accolades) at gen time
   generateCareer(player);
