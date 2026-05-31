@@ -466,6 +466,7 @@ function toBSPNLiveGameState(gr, head) {
       // Level-4 — offensive concept called + defensive coverage faced.
       concept: p.concept || null,
       coverage: p.coverage || null,
+      personnel: p.personnel || null,   // offensive personnel grouping (surfaced as a chip)
     });
   }
   pbpRows.reverse();
@@ -958,8 +959,18 @@ const _COVERAGE_LABEL = {
   C0_BLITZ: "C0", C1_MAN: "C1", C2_ZONE: "C2",
   C3_ZONE: "C3", C4_QUARTERS: "C4", TAMPA_2: "TAMPA",
 };
+// Personnel grouping → compact NFL tag. Vanilla 11 (BASE/TRIPS) is omitted to
+// avoid chipping every play; the "tell" packages (heavy/light/13) get a chip.
+const _PERSONNEL_TAG = { I_FORM:"21", HEAVY:"12", JUMBO:"13", SPREAD:"10", EMPTY:"01" };
 function _pbpChips(r) {
   const chips = [];
+  if (r.personnel && _PERSONNEL_TAG[r.personnel]) {
+    const tag = _PERSONNEL_TAG[r.personnel];
+    // JUMBO (13) is the heavy money set — highlight it gold; others ghost-blue.
+    const jumbo = r.personnel === "JUMBO";
+    const col = jumbo ? "#d4af37" : "#8fb3c9";
+    chips.push(`<span class="bspn-pbp-chip ghost" style="color:${col};border-color:${col}">${tag} pers</span>`);
+  }
   if (r.concept && r.coverage) {
     const cn = _CONCEPT_LABEL[r.concept] || r.concept;
     const cv = _COVERAGE_LABEL[r.coverage] || r.coverage;
