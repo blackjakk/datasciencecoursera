@@ -16,6 +16,13 @@
 ```bash
 cd gridiron-chain
 
+# ⭐ STANDARD: the FULL bundle ("all materials") — run THIS after any sim/talent
+# change. Runs both harnesses in parallel; produces game-realism stats AND the
+# franchise/career/record-book materials (incl. BEST SEASON BY POSITION).
+./_audit_all.sh 40         # logs → /tmp/audit_sim_40.log + /tmp/audit_brady_40.log
+./_audit_all.sh 100        # settles the noisy tails (K/P, Brady cadence, legends)
+
+# Or the harnesses individually:
 # Game realism (fast). Arg = seasons; each season = 992 games (32 teams round-robin).
 node _sim_audit.js 2       # ~1 min, quick sanity (1,984 team-games)
 node _sim_audit.js 5       # ~8 min, clean sample (4,960 team-games)
@@ -24,6 +31,12 @@ node _sim_audit.js 5       # ~8 min, clean sample (4,960 team-games)
 node _brady_audit.js 40    # ~17 min — standard
 node _brady_audit.js 100   # ~40 min — settles the noisy Brady cadence
 ```
+
+> **Standard practice:** every simulation/talent change gets the **full bundle**
+> (`_audit_all.sh`), not a single harness — both the per-game realism *and* the
+> franchise/career materials. The 100-season run is the truth for any
+> tail-sensitive question (per-position 90+ rates, K/P, legends) — 40-season
+> per-position tails are small-sample noise.
 
 No flags, no build step, no browser. Output is plain-text tables with NFL
 bands and `OK` / `!!` flags. Stderr carries progress + benign noise (filter
@@ -156,6 +169,11 @@ playoff bracket, runs the awards/retirement/draft/offseason chain). Answers:
 Tables:
 - **BRADY-TEST AUDIT** — hidden gems rolled + legend-tier (OVR ≥ 96) emergences,
   late-round (R5+) and Brady-tier (R6+/UDFA) cadence vs the ~1-per-75-yr target.
+- **BEST SEASON BY POSITION** — the best individual (real-named) single season
+  at each of the 11 positions, ranked by a position-appropriate metric (QB
+  pass yds+TD, RB rush yds, WR/TE rec yds, OL pancakes, DL sacks, LB tackles,
+  CB/S INTs, K FG made, P punt yds). Filters the engine's placeholder
+  stat-key aggregates ("QB"/"WR1"/"MLB" — nameless lines bucketed by slot).
 - **RECORD BOOK** — career / single-season / single-game leaders (offense +
   full defense).
 - **LEAGUE OVR DISTRIBUTION** — active-roster OVR spread pooled over all seasons.
