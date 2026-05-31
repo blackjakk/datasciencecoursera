@@ -204,13 +204,32 @@ jumps are bigger than the gap math alone produces. Currently `intensity` weights
 the burst tail (`0.5/0.3/0.2`). Concrete impl: `HiddenOracle.roll.intensity(p,
 year)` — special-case `yearsInLeague <= 1` to use rookie-burst weights.
 
-**2. Decline uniform across positions.** Current `_dc(onset)` = `35/55/70%` per
-stat/yr is the same for everyone — only `peakAge` differs. Real NFL: **RB =
-cliff**, WR/CB/S = gradual, QB/OL/TE = extended plateau. Concrete impl: make
-`_dc` position-aware in `_developNflPlayer` / physical-decline pass:
-- RB (& other speed-cliff positions): `60/80/90%` (Henry-at-30 cliff)
-- WR / CB / S / LB: `35/55/70%` (current — gradual)
-- QB / OL / TE / K / P: `20/35/50%` (Brady plateau)
+**2. Decline isn't tied to usage (wear).** The wear system already tracks
+accumulated punishment (`p._wear`, 0-100) from snaps + hits, but it's only
+plumbed into in-game Q4 effective-OVR (≤−7%) and injury rate (up to 1.6×) — NOT
+persistent decline. Current `_dc(onset)` = `35/55/70%` is purely age-based.
+**Preferred fix: wear-driven decline scalar.** A workhorse RB with 320 carries
+should cliff at 27; a committee back stays starter-grade at 30; Brady avoids
+hits → plays at 43. Implement as a `wearMul` on `_dc`:
+
+```js
+const wear = p._wear || 0;
+const wearMul = wear >= 70 ? 1.5
+              : wear >= 50 ? 1.20
+              : wear >= 30 ? 1.0
+              : 0.80;
+const _dc = (onset) => {
+  const yrs = age - onset;
+  const base = yrs <= 0 ? 0 : yrs === 1 ? 0.35 : yrs === 2 ? 0.55 : 0.70;
+  return base * wearMul;
+};
+```
+
+This **subsumes** the position-differentiated decline idea: RB cliff = emergent
+(high carries → high wear → fast decline), QB plateau = emergent (low hits
+absorbed → low wear → slow decline), without hard-coded position rules. Smart
+usage = career extension. *Fallback only if wear data is too noisy*: position-
+aware `_dc` tables — RB `60/80/90`, WR/CB/S `35/55/70`, QB/OL/TE `20/35/50`.
 
 Both changes are **shape, not level** — they shouldn't materially shift the 90+
 equilibrium (rookie burst pushes some R1s to 90+ year-1 = small +; RB cliff
