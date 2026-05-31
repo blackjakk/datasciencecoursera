@@ -859,6 +859,11 @@
   /* ── Franchise home (inline dashboard) ────────────────────────────── */
   #franchiseHome { padding: 0; }
   body.mode-testing #franchiseHome { display: none; }
+  /* Hide the gameArea empty-state placeholder in franchise mode — the front
+     page has its own welcome card + START NEW button, so the "Simulate a game
+     to begin" affordance is redundant and confusing. It only matters in
+     testing mode where the user actually clicks Simulate Game. */
+  body.mode-franchise #gameArea.empty { display: none; }
 
   /* Welcome screen (no franchise yet) */
   .frn-welcome {
