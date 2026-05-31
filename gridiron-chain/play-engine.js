@@ -6619,6 +6619,16 @@ class GameSimulator {
         // detects "time ran out mid-drive between quarters" and skips
         // the END-OF-HALF summary so the drive remains one logical unit.
         this.quarter++;
+        // ── FATIGUE RECOVERY on the break ──
+        // In-game fatigue was purely monotonic (no recovery anywhere), so every
+        // high-snap starter redlined to ~95-100 by Q4 (audit caught this). Players
+        // rest between quarters; the halftime break (Q2→Q3) restores the most. This
+        // restores realistic end-game levels (workhorse ~60-70) and keeps the
+        // stamina stat meaningful late instead of everyone saturating.
+        {
+          const _recMul = (this.quarter === 3) ? 0.55 : 0.88;   // halftime vs quarter break
+          for (const nm in this._fatigue) this._fatigue[nm] *= _recMul;
+        }
         // Quarter-break card for the Q1→Q2 and Q3→Q4 breaks only. The graphic
         // marks the quarter that JUST ENDED (the animation renders it as
         // "END OF Q{quarter}"); this.quarter was already incremented, so emit
