@@ -19300,24 +19300,24 @@ const HiddenOracle = {
       // gated POSITIVE buy-in only to high-ceiling prospects (ceiling >= 88
       // → 55% +3 to +9), which STRUCTURALLY protected R1 picks from being
       // busts (high perceived → drafted R1 → really HAS the ceiling → realizes).
-      // Now low/mid-ceiling prospects ALSO have a small chance of being
-      // overhyped — the "scout consensus was wrong" mechanism. These hyped
-      // low-ceiling prospects land in R1 (perceived OVR is high) but cap out
-      // below R1 expectations → real R1 busts emerge organically. Per
-      // TALENT_MODEL.md valve 2 — fix is decoupling, not new invention.
+      // r-7: added small overhype tails (+3 to +11) — landed in R3 (bust 4×)
+      // but didn't reach R1. r-8: amplify magnitudes so overhype actually
+      // pushes mid-ceiling prospects into R1 perception. A ceiling-75 R2-3
+      // talent with +10 hype → perceived 85 → drafted R1 → peaks at 75 → BUST.
+      // Per TALENT_MODEL.md valve 2 — fix is decoupling, not new invention.
       if (ceiling >= 88) {
         if (buyInRoll < 0.55) scoutBuyIn = 3 + Math.floor(buyInMag * 6);
       } else if (ceiling >= 80) {
         if (buyInRoll < 0.35) scoutBuyIn = 2 + Math.floor(buyInMag * 4);
       } else if (ceiling >= 65) {
         if      (buyInRoll < 0.10) scoutBuyIn = Math.floor(buyInMag * 4) - 2;
-        else if (buyInRoll < 0.20) scoutBuyIn = 3 + Math.floor(buyInMag * 5);     // 10% overhyped → R1-R3 bust risk
+        else if (buyInRoll < 0.22) scoutBuyIn = 6 + Math.floor(buyInMag * 9);    // 12% overhyped → +6 to +14 (R1-R2 bust risk)
       } else if (ceiling >= 55) {
         if      (buyInRoll < 0.30) scoutBuyIn = -(2 + Math.floor(buyInMag * 4));
-        else if (buyInRoll < 0.38) scoutBuyIn = 4 + Math.floor(buyInMag * 6);     // 8% scout darling → R1-R2 bust risk
+        else if (buyInRoll < 0.40) scoutBuyIn = 9 + Math.floor(buyInMag * 9);    // 10% scout darling → +9 to +17 (R1 bust risk)
       } else {
         if      (buyInRoll < 0.50) scoutBuyIn = -(3 + Math.floor(buyInMag * 6));
-        else if (buyInRoll < 0.54) scoutBuyIn = 5 + Math.floor(buyInMag * 6);     // 4% extreme overhype → biggest bust risk
+        else if (buyInRoll < 0.56) scoutBuyIn = 12 + Math.floor(buyInMag * 8);   // 6% extreme overhype → +12 to +19 (huge bust)
       }
       return +(baseBias + wildcardBias + ultraBias + scoutBuyIn).toFixed(1);
     },
