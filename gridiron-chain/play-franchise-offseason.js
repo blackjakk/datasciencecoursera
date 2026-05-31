@@ -2411,7 +2411,11 @@ function _inSeasonAwrGrowth() {
   const starterDepth = { QB:1, RB:2, WR:3, TE:2, OL:5, DL:4, LB:3, CB:3, S:2, K:1, P:1 };
   // AWR OVR weight by position — only these positions get an OVR nudge when AWR grows.
   // Accumulate fractionally; apply a +1 OVR only when the running total hits 1.0.
-  const awrOvrWeight = { QB:0.21, WR:0.08, CB:0.08, S:0.08, K:0.42, P:0.42 };
+  // K/P are deliberately EXCLUDED: this nudge writes p.overall directly, bypassing
+  // calcOverall's K/P input clamp (kpw≤90, awr≤84), so it was the leak letting
+  // punters ratchet past the cap to OVR 90. Their awr stat still grows above;
+  // calcOverall picks it up (clamped) on the next recompute.
+  const awrOvrWeight = { QB:0.21, WR:0.08, CB:0.08, S:0.08 };
 
   for (const t of TEAMS) {
     const roster = franchise.rosters[t.id] || [];
