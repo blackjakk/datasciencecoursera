@@ -30,7 +30,7 @@ const shim = `
   var window = (typeof globalThis !== "undefined" ? globalThis : this);
   window.addEventListener = () => {};
   if (typeof performance === "undefined") var performance = { now: () => Date.now() };
-  var requestAnimationFrame = () => 0;
+  var requestAnimationFrame = (cb) => setTimeout(() => { if (typeof cb === "function") cb(Date.now()); }, 0);
   var localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
   var location = { hash: "" };
   var alert = () => {};
@@ -87,12 +87,18 @@ const extraConsts = `
 `;
 
 const harness = `
-;(function brady() {
+;(async function brady() {
   if (typeof startFranchise !== "function") {
     console.error("startFranchise missing — franchise files didn't load");
     process.exit(1);
   }
   console.error("Franchise layer loaded. Starting Brady-test: " + ${SEASONS} + " seasons.");
+  // Headless: the offseason/draft chain awaits _frnConfirm — a custom MODAL
+  // promise that never resolves without a real UI (the browser confirm() stub
+  // doesn't cover it). Auto-confirm so the awaited draft-finalize (mint next
+  // year's picks + fill rosters) actually completes instead of suspending the
+  // run forever. THIS is what made the draft class stop cycling.
+  if (typeof _frnConfirm !== "undefined") _frnConfirm = async () => true;
   // Mute known-benign console noise so the audit output stays readable:
   //  · "missing pick row" — R7 pick rows occasionally absent (see _ensurePicksForYear
   //    early-return vs _injectCompPicks; thins the gem pool slightly, doesn't break the test)
@@ -534,6 +540,14 @@ const harness = `
     if (typeof fn !== "function") return;
     try { fn(); } catch (e) { console.error("[brady] "+label+" threw (season "+s+"): "+e.message); }
   }
+  // Async-aware step — the draft finalize/auto-pick chain is async (UI confirms
+  // + frame yields). Calling it synchronously fire-and-forgets the part that
+  // mints next year's picks + fills rosters → the draft-class cycling stalls
+  // and rosters collapse. await it so the offseason actually completes.
+  async function stepA(fn, label, s) {
+    if (typeof fn !== "function") return;
+    try { await fn(); } catch (e) { console.error("[brady] "+label+" threw async (season "+s+"): "+e.message); }
+  }
   // ── INJURY CAPTURE ──────────────────────────────────────────────────
   // Injuries fire per game inside recordFranchiseResult: _rollGameInjuries
   // (contact / hit-driven) + _rollNonContactInjuries (stress / soft-tissue).
@@ -629,7 +643,7 @@ const harness = `
     }
     step(typeof frnProceedToRosterChanges !== "undefined" && frnProceedToRosterChanges, "rosterChanges", s);
     step(typeof frnGoToDraft !== "undefined" && frnGoToDraft, "goToDraft", s);
-    step(typeof frnAutoDraftRemaining !== "undefined" && frnAutoDraftRemaining, "autoDraft", s);
+    await stepA(typeof frnAutoDraftRemaining !== "undefined" && frnAutoDraftRemaining, "autoDraft", s);
     // CRITICAL: finalize the draft. frnAutoDraftRemaining only makes the draft
     // picks — it does NOT run _draftFinalize, which (a) fills roster gaps with
     // UDFAs, (b) runs UDFA AI claims so undrafted gems land on teams, and most
@@ -639,7 +653,7 @@ const harness = `
     // _buildDraftPickOrder finds no pick rows and EVERY regular slot is skipped,
     // collapsing the draft to UDFA-only. frnDraftFinishScramble runs the UDFA
     // claims and calls _draftFinalize internally.
-    step(typeof frnDraftFinishScramble !== "undefined" && frnDraftFinishScramble, "finishDraft", s);
+    await stepA(typeof frnDraftFinishScramble !== "undefined" && frnDraftFinishScramble, "finishDraft", s);
     // Final cuts to 53. The harness chain skips the live free-agency / training-
     // camp-cuts phases, so without this rosters bloat (~81 over 40 seasons) and
     // the top-53 snapshot cherry-picks upward, inflating the OVR distribution.
@@ -1395,6 +1409,7 @@ const harness = `
       console.log("   (no salary/cap data on roster players — cap system not populated in this build)");
     }
   }
+  if (typeof process !== "undefined" && process.exit) process.exit(0);
 })();
 `;
 
