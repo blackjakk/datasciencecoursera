@@ -10836,6 +10836,14 @@ function _rollTradeReaction(p, opts) {
   for (const k of ["CHIP", "NEUTRAL", "SULK"]) base[k] = Math.max(0, base[k]);
   const total = base.CHIP + base.NEUTRAL + base.SULK;
   if (total <= 0) return;
+  // Re-trade reset — the most recent trade owns the narrative. Wipe any prior
+  // reaction state (effect window + reveal flag) before rolling, so a NEUTRAL
+  // re-trade correctly CANCELS a prior chip instead of silently leaving it stale.
+  delete p._tradeReaction;
+  delete p._tradeReactionYrs;
+  delete p._tradeReactionRevealed;
+  delete p._tradeReactionSeason;
+  delete p._tradeReactionFromCut;
   let r = Math.random() * total;
   const reaction = (r -= base.CHIP) < 0 ? "CHIP" : (r -= base.NEUTRAL) < 0 ? "NEUTRAL" : "SULK";
   // NEUTRAL gets no state — keeps player object clean.
@@ -19179,14 +19187,22 @@ const HiddenOracle = {
     // Roll the hidden ceiling for a prospect. PORT: VRF call; output
     // committed on-chain at gen time.
     ceiling: (p) => {
+      // Valve 1 retune: pulled the 88+ ceiling share from 16% -> ~4% (target
+      // ~40 league-elite players at steady state, matching NFL ~2-3% at 90+).
+      // Old distribution minted ~34 future 88+ players per draft class — the
+      // primary inflation source. New distribution shifts mass to the 70-79
+      // and 62-69 bands so most prospects realistically top out as starters
+      // and roleplayers. The 80-87 band is still meaningful for first-round
+      // talent. Re-read equilibrium via _brady_audit's DRIFT BY DECADE before
+      // moving any other valve (per TALENT_MODEL.md).
       const ceilKey = `ceil|${p.name}`;
       const ceilRoll = _seededRand(ceilKey);
       let ceiling;
-      if      (ceilRoll < 0.16) ceiling = 88 + Math.floor(_seededRand(ceilKey, 1) * 12);
-      else if (ceilRoll < 0.40) ceiling = 80 + Math.floor(_seededRand(ceilKey, 1) * 8);
-      else if (ceilRoll < 0.55) ceiling = 70 + Math.floor(_seededRand(ceilKey, 1) * 10);
-      else if (ceilRoll < 0.72) ceiling = 62 + Math.floor(_seededRand(ceilKey, 1) * 8);
-      else if (ceilRoll < 0.85) ceiling = 53 + Math.floor(_seededRand(ceilKey, 1) * 9);
+      if      (ceilRoll < 0.04) ceiling = 88 + Math.floor(_seededRand(ceilKey, 1) * 12);
+      else if (ceilRoll < 0.17) ceiling = 80 + Math.floor(_seededRand(ceilKey, 1) * 8);
+      else if (ceilRoll < 0.39) ceiling = 70 + Math.floor(_seededRand(ceilKey, 1) * 10);
+      else if (ceilRoll < 0.64) ceiling = 62 + Math.floor(_seededRand(ceilKey, 1) * 8);
+      else if (ceilRoll < 0.84) ceiling = 53 + Math.floor(_seededRand(ceilKey, 1) * 9);
       else                       ceiling = 38 + Math.floor(_seededRand(ceilKey, 1) * 16);
       const startOvr = p.overall || 60;
       if (ceiling < startOvr + 2) {
