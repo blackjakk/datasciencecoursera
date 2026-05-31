@@ -421,6 +421,16 @@ and the full calibration changelog (what was tuned and why). Run:
 Always smoke-run after editing either (`node _x_audit.js 2`) — `node --check`
 does not catch errors inside the bundled harness string.
 
+### Clutch factor → see **`CLUTCH_FACTOR.md`** (design + discoveries)
+Hidden, real, scoutable composure-under-pressure trait (`_clutch`) that tilts
+FG accuracy / QB completion+INT / WR catching in late-and-close moments
+(league-wide, playoff-amplified). `CLUTCH_FACTOR.md` is the durable record —
+first-principles rationale, the engine discoveries made while building it
+(incl. that clutch already partly existed via the kicker archetype + `_drive`,
+and that *all* games route through `frnSimOnce`→`GameSimulator`), the exact
+code map, and the verification harnesses (`_clutch_test.js`, `_clutch_audit.js`
+— the latter uses difference-in-differences to cancel the skill confound).
+
 ### Audited stat outcomes (NFL elite bands)
 | Category | Audit | NFL elite |
 |---|---|---|
