@@ -3722,7 +3722,36 @@ function buildAnimForPlay(play, prevPlay) {
         const sample = MotionPlayback.sampleTrack(_wrMotionTrack, aT);
         if (sample) {
           const toMidSign = Math.sign(cy - wrPathY0) || 1;
-          wr.x = wrPathX0 + dir * sample.dxYd * FIELD.PX_PER_YARD;
+          // REFERENCE-FRAME FIX. Route dxYd is "yards downfield from the
+          // LOS" (route-depth convention — every shape quotes depth from
+          // the line). But a BACKFIELD slot starts well behind the LOS:
+          // formation.rb.x = losX − 8yd, fb ≈ −7yd. Projecting dxYd
+          // straight off the slot X landed the catch ~8yd short (behind
+          // the LOS), so the ball homed too short ("looked like a 3-yd
+          // throw") and the post-catch sim had to absorb the missing 8yd
+          // as extra YAC — a fast diagonal slide that read as a lateral
+          // TELEPORT (reported on RB checkdowns/swings). WR/TE slots sit
+          // on the LOS so the gap is ~0 and they were always fine; the
+          // ctrl-fallback path already used the LOS-relative targetX, so
+          // only this engine-track branch carried the bug.
+          //
+          // Remap for backfield slots: ramp the backfield gap in over the
+          // pre-catch (depth) phase so dxYd=0 → backfield (no snap jump)
+          // and dxYd=catchDepth → LOS+catchDepth (catch agrees with the
+          // ball aim). Past the catch, YAC runs 1:1 in LOS-relative space
+          // so dxYd=catchDepth+yac → endX exactly.
+          const _bfGapYd = (losX - wrPathX0) * dir / FIELD.PX_PER_YARD;
+          if (_bfGapYd > 1) {
+            if (sample.dxYd <= catchDepth) {
+              const _frac = catchDepth > 0.01 ? sample.dxYd / catchDepth : 0;
+              const _catchX = losX + dir * catchDepth * FIELD.PX_PER_YARD;
+              wr.x = wrPathX0 + (_catchX - wrPathX0) * _frac;
+            } else {
+              wr.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
+            }
+          } else {
+            wr.x = wrPathX0 + dir * sample.dxYd * FIELD.PX_PER_YARD;
+          }
           wr.y = wrPathY0 + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
         }
       } else if (ctrl) {
