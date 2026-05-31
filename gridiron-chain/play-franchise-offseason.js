@@ -19199,7 +19199,7 @@ const HiddenOracle = {
   //   - potential:   PERSISTS, used by NFL aging/dev (Y2 surge writes here)
   //   - _aiScoutBias: PERSISTS, used by draft retrospectives + concerns
   // Anything added here needs a roll path (HiddenOracle.roll.*) too.
-  secretFields: ["potential", "_growthRate", "_aiScoutBias", "_drive", "_durability"],
+  secretFields: ["potential", "_growthRate", "_aiScoutBias", "_drive", "_durability", "_clutch"],
 
   read: {
     // Raw ceiling. PORT: server-only; client never sees the number.
@@ -19213,8 +19213,9 @@ const HiddenOracle = {
     // bucket matches the on-chain commitment; client receives the
     // letter only.
     ceilingTier: (p) => _ceilingTier(p.potential || p.overall, p.draftRound),
-    // Raw drive (0-99). PORT: server-only. Engine reads this to apply
-    // clutch / dev / break-tackle 2nd-effort bonuses.
+    // Raw drive (0-99). PORT: server-only. Engine reads this for development
+    // speed (hidden-gem grind rate) + break-tackle 2nd-effort bonuses.
+    // (Clutch/composure is now its OWN attribute — see _clutch / clutch below.)
     drive: (p) => p._drive || 60,
     // Raw durability (0-99). PORT: server-only. Engine reads this to
     // adjust per-play injury chance.
@@ -19234,6 +19235,23 @@ const HiddenOracle = {
       if (d >= 65) return { label: "Durable",       color: "var(--gray)" };
       if (d >= 50) return { label: "Average",       color: "var(--gray)" };
       return                { label: "Injury Prone", color: "var(--red)" };
+    },
+    // Raw clutch / composure (1-99; 50 = neutral, no situational effect).
+    // PORT: server-only. Engine reads this in late-and-close moments to tilt
+    // FG / pass-completion / INT resolution. Two-tailed: >50 performs above
+    // baseline under pressure, <50 below it (the choke tail is heavier by
+    // design). Exposed to the engine as a signed signal: (clutch-50)/50.
+    clutch: (p) => p._clutch ?? 50,
+    // Public scout read for clutch — never reveals the number. Confidence in
+    // this read sharpens as big-moment film accumulates (layered in later);
+    // until then it is the fuzzy first impression.
+    clutchTag: (p) => {
+      const c = p._clutch ?? 50;
+      if (c >= 80) return { label: "Ice in His Veins", color: "var(--green)" };
+      if (c >= 62) return { label: "Steps Up",         color: "var(--green)" };
+      if (c >= 42) return { label: "Steady",           color: "var(--gray)" };
+      if (c >= 25) return { label: "Streaky",          color: "var(--red)" };
+      return                { label: "Folds Late",      color: "var(--red)" };
     },
   },
 

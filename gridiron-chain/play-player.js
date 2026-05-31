@@ -1500,6 +1500,18 @@ function genPlayer(pos, tier) {
     const durRoll = Math.random();
     player._durability = Math.max(25, Math.min(99, Math.round(65 + (durRoll * 2 - 1) * 30)));
   }
+  if (player._clutch == null) {
+    // Hidden composure under pressure — a TWO-TAILED trait (1-99, 50 = neutral,
+    // i.e. no situational modifier). Deliberately skewed so the CHOKE tail is
+    // heavier/deeper than the clutch tail: pressure-degradation is the
+    // better-supported real effect than pressure-elevation. The rare ice-veins
+    // (~80+) and folders (~<25) are the tails; most players sit near neutral.
+    // Bell-ish via a 3-roll average, then an asymmetric stretch (choke side
+    // widened) and a little jitter.
+    const cRoll = (Math.random() + Math.random() + Math.random()) / 3 - 0.5;   // ~bell around 0, [-0.5,+0.5]
+    const dev = cRoll >= 0 ? cRoll * 84 : cRoll * 102;                          // negative (choke) side stretched further
+    player._clutch = Math.max(1, Math.min(99, Math.round(50 + dev + (Math.random() - 0.5) * 6)));
+  }
   // Mock the player's career (year-by-year stats + accolades) at gen time
   generateCareer(player);
   return player;
