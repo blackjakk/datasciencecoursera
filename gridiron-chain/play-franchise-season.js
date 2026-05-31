@@ -1,4 +1,80 @@
 // ── Route to correct phase UI ────────────────────────────────────────────────
+// ─── In-loop nav rail — phase-driven Home/title rendering ──────────────────
+// Sits between frnAppShell and frnHomeContent. Hidden on the start screen and
+// during regular-season (the app-shell tab bar handles nav there). On every
+// other phase shows a Home button + title + optional step indicator + an
+// optional "progress saved" tooltip for locked-transactional screens.
+//
+// The Home button calls _frnGoHome() which saves the current franchise to its
+// slot, clears the active in-memory state, and returns to the start screen.
+// The user's franchise reappears in the slot list and can be reloaded — so
+// "Home" is read-only return, never an undo.
+const _FRN_PHASE_NAV = {
+  preseason:            { title: "Preseason",        kind: "milestone" },
+  free_agency:          { title: "Free Agency",      kind: "locked",   step: "Bidding window" },
+  free_agency_results:  { title: "FA Results",       kind: "milestone" },
+  fa_cuts:              { title: "Salary-Cap Cuts",  kind: "locked",   step: "Get cap-legal to advance" },
+  playoffs_pending:     { title: "Playoffs",         kind: "locked" },
+  playoffs:             { title: "Playoffs",         kind: "locked",   step: "Bracket saved between visits" },
+  awards:               { title: "Season Awards",    kind: "milestone" },
+  offseason:            { title: "Offseason",        kind: "locked",   step: "Re-signings + roster moves" },
+  draft:                { title: "Draft",            kind: "locked",   step: "Picks saved between visits" },
+  // Regular gets nothing — the app shell tab bar IS the nav. Start gets
+  // nothing — the welcome card is the nav.
+};
+function _frnUpdateNavBar() {
+  const navEl = $("frnNavBar");
+  if (!navEl) return;
+  if (!franchise) { navEl.style.display = "none"; return; }
+  const phase = franchise.phase;
+  // Milestone overlays (season recap, post-draft grade) render off booleans
+  // even though phase says regular/draft. Detect them so the bar reflects the
+  // overlay, not the underlying phase.
+  const seasonOver = (franchise.week || 1) > (typeof FRANCHISE_WEEKS !== "undefined" ? FRANCHISE_WEEKS : 14);
+  const onRecap = phase === "regular" && seasonOver && !franchise.playoffBracket;
+  const onDraftGrade = phase === "draft" && franchise.draft == null;
+  let cfg = _FRN_PHASE_NAV[phase];
+  if (onRecap)      cfg = { title: "Season " + (franchise.season || 1) + " Recap", kind: "milestone" };
+  if (onDraftGrade) cfg = { title: "Draft Grade",       kind: "milestone" };
+  if (!cfg || phase === "regular") { navEl.style.display = "none"; return; }
+  const seasonTag = franchise.season ? `Season ${franchise.season}` : "";
+  const stepTxt   = cfg.step ? `<span class="frn-nav-step">${cfg.step}</span>` : "";
+  const homeLabel = cfg.kind === "locked" ? "← Home (saved)" : "← Home";
+  const homeHint  = cfg.kind === "locked"
+    ? "Progress is saved — you can resume from the slot list anytime"
+    : "Return to the franchise selector";
+  navEl.style.display = "block";
+  navEl.innerHTML = `
+    <div class="frn-nav-bar ${cfg.kind === "locked" ? "locked" : "milestone"}">
+      <button class="frn-nav-home" onclick="_frnGoHome()" title="${homeHint}">${homeLabel}</button>
+      <div class="frn-nav-title">
+        <span class="frn-nav-title-main">${cfg.title}</span>
+        ${seasonTag ? `<span class="frn-nav-season">${seasonTag}</span>` : ""}
+        ${stepTxt}
+      </div>
+      <div class="frn-nav-spacer"></div>
+    </div>`;
+}
+function _frnGoHome() {
+  // Save current franchise to its slot (no-op for in-progress writes that
+  // haven't yet allocated a slot), clear the active in-memory franchise,
+  // hide the in-loop chrome, and return to the start screen. The franchise
+  // appears in the slot list and can be reloaded via [▶ Load].
+  if (franchise) {
+    try { saveFranchise(); } catch (_e) {}
+  }
+  franchise = null;
+  if (typeof _readSlotsMeta === "function" && typeof _writeSlotsMeta === "function") {
+    const meta = _readSlotsMeta();
+    meta.activeSlotId = null;
+    _writeSlotsMeta(meta);
+  }
+  const shellEl = $("frnAppShell"); if (shellEl) shellEl.style.display = "none";
+  const footEl  = $("frnAppFooter"); if (footEl)  footEl.style.display = "none";
+  const navEl   = $("frnNavBar");   if (navEl)   navEl.style.display   = "none";
+  renderFrnStartScreen();
+}
+
 function showFranchiseDashboard() {
   // Dismiss any lingering hover tooltips when changing screens
   try { frnHoverTipHide && frnHoverTipHide(); } catch {}
@@ -170,6 +246,9 @@ function showFranchiseDashboard() {
   }
 
   $("franchiseHome").style.display = "block";
+  // Update the in-loop nav rail before dispatch. The router below decides
+  // which render fn runs; the nav bar reflects the resulting phase + state.
+  try { _frnUpdateNavBar(); } catch (_e) {}
   const { phase } = franchise;
   // Regular-season → playoffs transition screen. Detected by: phase
   // still "regular", every week of the season played, no bracket built

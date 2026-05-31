@@ -51,6 +51,60 @@ const RETURNING_LOCAL_STORAGE = {
   }),
 };
 
+// Generates a nav-bar shot per phase. Drives Quick Start to spin up a real
+// franchise, then mutates franchise.phase + minimal supporting state and
+// re-routes through showFranchiseDashboard() so the nav rail re-renders.
+function _navBarShots() {
+  const phases = [
+    { key: "navbar-fa",        phase: "free_agency",         desc: "Nav rail · Free Agency (locked)" },
+    { key: "navbar-fa-cuts",   phase: "fa_cuts",             desc: "Nav rail · FA Cuts (locked)" },
+    { key: "navbar-playoffs",  phase: "playoffs",            desc: "Nav rail · Playoffs (locked)" },
+    { key: "navbar-awards",    phase: "awards",              desc: "Nav rail · Awards (milestone)" },
+    { key: "navbar-offseason", phase: "offseason",           desc: "Nav rail · Offseason (locked)" },
+    { key: "navbar-draft",     phase: "draft",               desc: "Nav rail · Draft (locked)" },
+  ];
+  const out = {};
+  for (const p of phases) {
+    out[p.key] = {
+      desc: p.desc,
+      viewport: "desktop",
+      setup: async () => {},
+      url: URL,
+      after: async (page) => {
+        // Click Quick Start to spin up a real franchise (drops into regular).
+        await page.click("button.frn-start-new", { timeout: 5000 });
+        await page.waitForTimeout(500);
+        // Mutate the live franchise into the target phase + re-render.
+        // NOTE: franchise is a top-level `let` — accessed by name, NOT window.
+        await page.evaluate((phase) => {
+          // eslint-disable-next-line no-undef
+          if (typeof franchise === "undefined" || !franchise) return;
+          // eslint-disable-next-line no-undef
+          franchise.phase = phase;
+          // Minimal supporting state so render functions don't throw outright.
+          if (phase === "free_agency" || phase === "free_agency_results") {
+            // eslint-disable-next-line no-undef
+            franchise.freeAgents = franchise.freeAgents || [];
+            // eslint-disable-next-line no-undef
+            franchise._faOffers = franchise._faOffers || {};
+          }
+          if (phase === "playoffs") {
+            // eslint-disable-next-line no-undef
+            franchise.playoffBracket = franchise.playoffBracket || { rounds: [], champion: null };
+          }
+          if (phase === "draft") {
+            // eslint-disable-next-line no-undef
+            franchise.draft = franchise.draft || { pickOrder: [], picks: [], currentIdx: 0, preshowDone: true };
+          }
+          if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
+        }, p.phase);
+        await page.waitForTimeout(400);
+      },
+    };
+  }
+  return out;
+}
+
 const SHOTS = {
   cold: {
     desc: "Cold start — no saves, new visitor lands here",
@@ -143,6 +197,13 @@ const SHOTS = {
       await page.waitForTimeout(200);
     },
   },
+  // Drive Quick Start, then jump into each phase and snapshot the nav bar.
+  // The nav bar only reads franchise.{phase, season, week, playoffBracket},
+  // so we can mutate those + force-render without needing full phase state.
+  // Body underneath may show an error placeholder — we're just verifying the
+  // RAIL renders consistently across phases. The Read tool reads each PNG so
+  // we visually confirm Home + title + step + variant (locked vs milestone).
+  ..._navBarShots(),
   // Just the ⋯ menu open, no modal — verifies the popover visually.
   "slot-menu": {
     desc: "Slot row ⋯ popover menu (Rename / Delete options)",

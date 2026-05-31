@@ -27,6 +27,13 @@
        _frnRenderAppShell() in play-franchise-stats.js. -->
   <div id="franchiseHome">
     <div id="frnAppShell" style="display:none"></div>
+    <!-- In-loop nav rail. Single point of injection populated by
+         _frnUpdateNavBar() from the dashboard router. Hidden on the start
+         screen and during regular-season (the tab bar in frnAppShell is the
+         nav there). Shown on every other full-screen phase with a Home button
+         + title + step, so the user always has an escape hatch and clear
+         orientation. -->
+    <div id="frnNavBar" style="display:none"></div>
     <div id="frnHomeContent"></div>
     <div id="frnAppFooter" style="display:none"></div>
   </div>

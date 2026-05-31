@@ -4218,6 +4218,11 @@ function frnSaveSummary() {
 // Start screen — landing UI listing all saved franchises (multi-slot)
 function renderFrnStartScreen() {
   _migrateLegacySave();
+  // Hide the in-loop nav rail + app shell — the start screen has its own
+  // identity (welcome card) and a slot list as nav.
+  const _navEl = document.getElementById("frnNavBar");  if (_navEl) _navEl.style.display = "none";
+  const _shEl  = document.getElementById("frnAppShell"); if (_shEl)  _shEl.style.display  = "none";
+  const _ftEl  = document.getElementById("frnAppFooter"); if (_ftEl) _ftEl.style.display  = "none";
   const meta = _readSlotsMeta();
   const slots = (meta.slots || []).slice().sort((a,b) => (b.lastSaved||0) - (a.lastSaved||0));
 
