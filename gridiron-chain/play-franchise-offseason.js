@@ -11228,42 +11228,43 @@ function runFrnOffseason() {
       if (p.position !== "K" && p.position !== "P" && p._physicalPeak && p.stats) {
         const age = p.age || 25;
         const pp  = p._physicalPeak;
+        // Per-year decline rate (chance of -1) and magnitude (chance the drop
+        // is -2 instead of -1) — steepened so post-peak OVR drops ~3-4/yr,
+        // matching the NFL cliff. Earlier: ~1-2/yr → 90+ players lingered in
+        // the top tier for 5+ years, inflating the 90+ stock at steady state.
+        // The audit (TALENT_MODEL.md valve 4) identified this as the primary
+        // drain on the 90+ tier; jointly tuned with the ceiling distribution.
         const _dc = (onset) => {
           const yrs = age - onset;
-          return yrs <= 0 ? 0 : yrs === 1 ? 0.20 : yrs === 2 ? 0.30 : 0.40;
+          return yrs <= 0 ? 0 : yrs === 1 ? 0.35 : yrs === 2 ? 0.55 : 0.70;
         };
+        const _bigDrop = () => Math.random() < 0.25;   // 25% of declines are -2 instead of -1
         // SPD (0) — genetic; only very slow players see tiny pre-peak gains
         const spdD = _dc(pp.spd.onset);
-        if      (spdD > 0 && Math.random() < spdD)                              p.stats[0] = Math.max(38, p.stats[0] - 1);
+        if      (spdD > 0 && Math.random() < spdD)                              p.stats[0] = Math.max(38, p.stats[0] - (_bigDrop() ? 2 : 1));
         else if (age < pp.spd.peak && p.stats[0] < 58 && Math.random() < 0.08) p.stats[0] = Math.min(57, p.stats[0] + 1);
         // STR (1) — weight room gains; grows until peak, fades after onset
         const strD = _dc(pp.str.onset);
-        if      (strD > 0 && Math.random() < strD)          p.stats[1] = Math.max(38, p.stats[1] - 1);
+        if      (strD > 0 && Math.random() < strD)          p.stats[1] = Math.max(38, p.stats[1] - (_bigDrop() ? 2 : 1));
         else if (age < pp.str.peak && Math.random() < 0.05) p.stats[1] = Math.min(99, p.stats[1] + 1);
         // AGI (2) — genetic; only very low-agility players see tiny pre-peak gains
         const agiD = _dc(pp.agi.onset);
-        if      (agiD > 0 && Math.random() < agiD)                              p.stats[2] = Math.max(36, p.stats[2] - 1);
+        if      (agiD > 0 && Math.random() < agiD)                              p.stats[2] = Math.max(36, p.stats[2] - (_bigDrop() ? 2 : 1));
         else if (age < pp.agi.peak && p.stats[2] < 58 && Math.random() < 0.07) p.stats[2] = Math.min(57, p.stats[2] + 1);
-        // CAT (5) — hands fade for older players. Drops climb for receivers,
-        // interception ability slips for DBs. Universal onset at age 30.
-        // Light decay (8-15% per yr past onset) since most positions barely
-        // use CAT in their OVR — only WR/TE/CB/S/LB are materially affected.
+        // CAT (5) — hands fade for older players. Steepened from 8/12/15%.
         const catOnset = 30;
         const catYrs = age - catOnset;
         if (catYrs > 0) {
-          const catProb = catYrs === 1 ? 0.08 : catYrs === 2 ? 0.12 : 0.15;
+          const catProb = catYrs === 1 ? 0.15 : catYrs === 2 ? 0.22 : 0.30;
           if (Math.random() < catProb) p.stats[5] = Math.max(35, (p.stats[5] || 60) - 1);
         }
-        // COV (8) — coverage ability for CB/S. NFL hallmark: "lost a step"
-        // shows up in 28-32yo corners (Talib, Lattimore mid-30s arc).
-        // Steeper than CAT because losing recovery speed kills coverage
-        // faster than losing hands kills catches.
+        // COV (8) — coverage ability for CB/S. Steepened from 12/18/22%.
         if (p.position === "CB" || p.position === "S") {
           const covOnset = 28;
           const covYrs = age - covOnset;
           if (covYrs > 0) {
-            const covProb = covYrs === 1 ? 0.12 : covYrs === 2 ? 0.18 : 0.22;
-            if (Math.random() < covProb) p.stats[8] = Math.max(40, (p.stats[8] || 60) - 1);
+            const covProb = covYrs === 1 ? 0.22 : covYrs === 2 ? 0.32 : 0.42;
+            if (Math.random() < covProb) p.stats[8] = Math.max(40, (p.stats[8] || 60) - (_bigDrop() ? 2 : 1));
           }
         }
         // Recalculate overall to reflect physical changes
