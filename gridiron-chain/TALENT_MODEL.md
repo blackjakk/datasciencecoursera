@@ -5,16 +5,25 @@
 
 ## ⏯ RESUME HERE (post-compact pointer)
 
-> **⚠ CALIBRATION INVALIDATION (recorded after the draft-cycling fix).** Every
-> long-run audit below this line was run on a harness that **silently collapsed
-> rosters to ~6 players/team** (the async offseason/draft chain wasn't awaited,
-> so the draft class stopped cycling — see `AUDIT.md` "Harness invariant" and
-> commit `0c3955d`). So the "90+ share 6.0%", bust shapes, and per-position
-> tails here were measured on a ~190-player survivor-biased league, **not** a
-> full ~1,696-player one. They need RE-VALIDATION on the fixed harness before
-> being trusted. First clean signal: elite 90+ share 1.3%(collapsed) → 4.4%
-> (full, 3 seasons), so the real distribution differs materially. Branch is now
-> `claude/charming-brown-b18u2`.
+> **⚠ DRAFT-CYCLING BUG → RE-VALIDATED (mostly confirms the model).** A
+> regression made the headless harness **silently collapse rosters to ~6
+> players/team** (the async offseason/draft chain wasn't awaited → the draft
+> class stopped cycling; see `AUDIT.md` "Harness invariant", fix `0c3955d`,
+> guard `c5bb9d3`). Audits run in that state were on a ~190-player
+> survivor-biased league. **Re-validated on the fixed harness (clean 40-season,
+> 67,838 player-seasons, synthetic survivors ~0):** the documented targets
+> roughly HOLD —
+> - **90+ share 5.7% ≈ the 6.0% target** (the scary collapsed reading of 1.3%
+>   was the BUG, not the model).
+> - **DRIFT BY DECADE is now flat/stable** (mean ~78, 90+ 5.5–5.9% across all 4
+>   decades) instead of the false decay the collapsed runs showed.
+> - **R1 picks are healthy:** 18% of rosters, **29% of starters** (~7/team) —
+>   the "few round-1 picks" worry was purely the collapsed-roster artifact.
+>
+> So **no major retune needed.** Minor calibration notes for later: league mean
+> OVR ~78 runs a touch high, and cap utilization 84% is a touch conservative vs
+> NFL ~95%. 100-season run pending only for tail metrics (legends ~1/75 yr).
+> Branch: `claude/charming-brown-b18u2`.
 
 **Branch:** `claude/football-sim-blockchain-game-b3sdq` (push with `-u origin`, retry exponential backoff per session rules).
 
