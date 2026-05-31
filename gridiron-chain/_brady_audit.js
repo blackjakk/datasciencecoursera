@@ -401,7 +401,7 @@ const harness = `
     // rostered player came through the draft (synthetic season-1 players have
     // retired), so this is a clean read of "what a roster is built from" by
     // draft round, split into full-roster vs depth-chart starters.
-    const _isFinal = (year >= SEASONS);
+    const _isFinal = (year >= ${SEASONS});
     const _RC_DEPTH = { QB:1, RB:2, WR:3, TE:1, OL:5, DL:4, LB:3, CB:2, S:2, K:1, P:1 };
     const _rcLabel = (p) => { const r = p.draftRound; return (r == null || r === 0) ? "UDFA" : (r >= 7 ? "R7" : "R" + r); };
     for (const t of TEAMS) {
