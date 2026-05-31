@@ -38,7 +38,7 @@ const test = `
   // ---- A. _clutchMod: moment gate / sign / magnitude / playoff amp ----
   console.log("A. _clutchMod (the wired engine method):");
   const fn = GameSimulator.prototype._clutchMod;
-  const ctx = (q, t, diff, playoff, clutch) => ({
+  const ctx = (q, t, diff, playoff, clutch) => Object.assign(Object.create(GameSimulator.prototype), {
     quarter: q, time: t, score: { home: diff, away: 0 }, isPlayoff: playoff,
     _playerByName: new Map([["P", { _clutch: clutch }]]),
   });
@@ -50,7 +50,7 @@ const test = `
   ok("time > 300 = 0 (not late enough)",     fn.call(ctx(4,400,3,false,99), "P", 0.06) === 0);
   ok("OT (Q5) counts as late",               fn.call(ctx(5,120,3,false,99), "P", 0.06) > 0);
   ok("playoff amplifies exactly 1.5x",       approx(fn.call(ctx(4,120,3,true,99),"P",0.06), fn.call(ctx(4,120,3,false,99),"P",0.06)*1.5));
-  ok("unknown player = 0 (defaults neutral)",fn.call({quarter:4,time:120,score:{home:3,away:0},isPlayoff:false,_playerByName:new Map()}, "P", 0.06) === 0);
+  ok("unknown player = 0 (defaults neutral)",fn.call(Object.assign(Object.create(GameSimulator.prototype),{quarter:4,time:120,score:{home:3,away:0},isPlayoff:false,_playerByName:new Map()}), "P", 0.06) === 0);
   ok("ice kicker accuracy swing ~ +5.9pp",   approx(fn.call(ctx(4,120,3,false,99),"P",0.06), 0.0588, 1e-3), "+"+(fn.call(ctx(4,120,3,false,99),"P",0.06)*100).toFixed(1)+"pp");
 
   // ---- B. attribute generation on real rosters ----

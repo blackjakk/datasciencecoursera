@@ -23,7 +23,9 @@ work (talent/audit fixes) is included.
   (`dropChance` gate). Added under the all-positions pass (§6).
 - ✅ **10,000-game audit** confirms magnitudes on target (FG DiD **+5.8pp**,
   comp **+3.4pp**, INT **−0.2pp**, all normal-moment gaps ≈0). See §5.
-- ⬜ **Ball-security + discipline channels** (§6) — designed, awaiting go.
+- ✅ **Ball-security + discipline channels** (§6) — QB strip-sack + carrier
+  fumbles + pre-snap discipline penalties, all via the proven `_clutchMod`.
+  Rare-event magnitudes are subtle (not separately aggregate-measured — see §5).
 - ⬜ **Phase 3 — scouting confidence** (the "watch the film" half).
 - ⬜ **Phase 4 — reputation tracking**: career big-moment splits.
 
@@ -154,6 +156,13 @@ Distribution over 100k rolls: mean **48.8**, ice-veins (≥80) **~1.5%**, folds
 - **Defensive INT-catch (hands):** `- _clutchMod(wouldCatch, 0.10)` subtracted
   inside the DB `dropChance` (the drop-the-pick gate) so a composed DB secures
   the game-sealing interception and a folder lets it slip. Mirrors WR catching.
+- **Ball security:** `- _clutchMod(QB, 0.04)` in `stripChance` (strip-sack),
+  `- _clutchMod(rcvr, 0.004)` in `yacFumbleChance`, `- _clutchMod(RB, 0.005)` in
+  the run `fumblePct` — composure → fewer fumbles late.
+- **Discipline (pre-snap only):** in `_penMod`, late-and-close False Start /
+  Delay of Game / Defensive Offsides / Neutral Zone / Encroachment get
+  `rate *= clamp(1 - _clutchMod(sampledOffender, 0.5), 0.5, 1.6)` — a composed
+  unit jumps the snap less, a choker more. `_isLateClose()` is now the shared gate.
 
 **Magnitudes** (regular season; ×1.5 in playoffs): FG ≈ **±6pp**, completion ≈
 **±4pp** (QB) **+±3pp** (WR), INT ≈ **∓1.2pp**, all only in late-and-close.
@@ -232,8 +241,8 @@ break-tackle, top speed, FG range, tackling, closing speed) are never touched.
 |---|---|---|---|
 | **Accuracy / decision** | QB (completion, INT), K (FG) | `compPct`, `intPct`, `fgPct` | ✅ done |
 | **Hands / catching** | WR, **TE, RB-receiving** (same gate — free), DB interception | `compPct` (target `rcvr`); `dropChance` (DB) | ✅ done (incl. DB INT-catch) |
-| **Ball security** | QB (strip-sack), RB/WR/TE carrier | `stripChance` (~4516), `yacFumbleChance` (~5205), run-fumble (~5500) | ⬜ designed |
-| **Discipline / penalties** | OL (false start), DL (offsides), DB (DPI/holding) | `_PENALTY_RATES` + `_pickPenaltyOffender` (rate-level) | ⬜ optional (messier) |
+| **Ball security** | QB (strip-sack), RB/WR/TE carrier | `stripChance`, `yacFumbleChance`, run-`fumblePct` | ✅ done |
+| **Discipline / penalties** | OL (false start), DL (offsides/NZI/encroach), QB (DOG) | `_penMod` rate × unit composure | ✅ done (pre-snap only) |
 
 **Findings from the pass:**
 - **TE and pass-catching RBs are covered for free** — the completion gate keys
@@ -246,15 +255,21 @@ break-tackle, top speed, FG range, tackling, closing speed) are never touched.
 - **Ball security is clean and per-player** for QB (strip-sack fumble), and any
   ball-carrier/receiver (YAC + run fumbles) — each gate has the player in scope.
 
-**Recommended tiers:**
-1. **Tier 1 (clean, per-player, iconic):** DB INT-catch [done] + ball-security
-   fumbles (QB strip-sack, carrier YAC/run). Same "concentration" principle as
-   catching, all gates exist, all per-player.
-2. **Tier 2 (linemen):** discipline/penalties — the only way OL/DL get clutch;
-   requires unit-level penalty-rate modulation. Worth it for the iconic
-   false-start-kills-the-drive moment, but a different kind of change.
-3. **Skip:** punter placement, returner muffs, long-snap/hold — low narrative
+**Implemented tiers:**
+1. **Tier 1 — done:** DB INT-catch + ball-security fumbles (QB strip-sack,
+   carrier YAC/run). Clean, per-player, same "concentration" principle as catching.
+2. **Tier 2 — done:** pre-snap discipline penalties (False Start / Defensive
+   Offsides / NZI / Encroachment / Delay of Game) modulated by the responsible
+   unit's composure — the iconic false-start-kills-the-drive lever for linemen.
+3. **Skipped:** punter placement, returner muffs, long-snap/hold — low narrative
    value or not granularly modeled.
+
+**Verification note.** Ball-security and discipline both ride the proven
+`_clutchMod` (15-check unit-verified) and pass an end-to-end engine smoke, but —
+like INT — they act on *rare* events (fumbles ~0.5–1%/touch; discipline
+penalties ~1–2%/play before the clutch gate), so their aggregate magnitude is
+subtle and not separately DiD-measured. Extend `_clutch_audit.js` to track
+fumble/penalty rates by tier if a hard aggregate number is wanted.
 
 ## 7. What's left (Phase 3–4 — the "scoutable" half)
 

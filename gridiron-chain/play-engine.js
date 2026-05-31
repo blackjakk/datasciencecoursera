@@ -2618,10 +2618,13 @@ class GameSimulator {
   // and is amplified in the playoffs. Reads the hidden _clutch attribute
   // (50 = neutral). Accuracy / decision-making / catching ONLY — never
   // physical attributes (speed / strength / range).
+  // Late-and-close: Q4/OT, under 5:00, one-score. The canonical clutch gate.
+  _isLateClose() {
+    return this.quarter >= 4 && this.time < 300
+        && Math.abs(this.score.home - this.score.away) <= 8;
+  }
   _clutchMod(name, scale) {
-    const lateClose = this.quarter >= 4 && this.time < 300
-                   && Math.abs(this.score.home - this.score.away) <= 8;
-    if (!lateClose || !name) return 0;
+    if (!name || !this._isLateClose()) return 0;
     const p = this._playerByName?.get?.(name);
     const sig = ((p?._clutch ?? 50) - 50) / 50;          // [-1,+1]; <0 = choker
     return sig * scale * (this.isPlayoff ? 1.5 : 1.0);
@@ -3830,6 +3833,18 @@ class GameSimulator {
           // expose mobility directly so use AWR as a noisy proxy.
           if (_qbAwr < 70) m *= 1.40;
         }
+        // Clutch DISCIPLINE: under late-and-close pressure (loud crowd, high
+        // stakes) a low-composure unit jumps the snap / false-starts more; a
+        // composed unit holds. Pre-snap discipline penalties ONLY — post-snap
+        // holding/DPI are technique, not nerves. Sample a representative
+        // offender from the responsible unit and tilt the rate by their clutch.
+        if (this._isLateClose() &&
+            (type === "False Start" || type === "Delay of Game" ||
+             type === "Defensive Offsides" || type === "Neutral Zone Infraction" ||
+             type === "Encroachment")) {
+          const cand = this._pickPenaltyOffender(_PENALTY_POSITIONS[type], _PENALTY_RATES[type].on);
+          m *= clamp(1 - this._clutchMod(cand, 0.5), 0.5, 1.6);
+        }
         return m;
       };
       // Build cumulative thresholds.
@@ -4515,7 +4530,9 @@ class GameSimulator {
         // Strip-sack — NFL ~10% of sacks force a fumble. Low-AWR QBs (poor
         // ball security) are more vulnerable; high-AWR feel the rush and
         // tuck the ball.
-        const stripChance = clamp(0.10 - (qbAwr - 70) / 400, 0.04, 0.18);
+        // Clutch ball security: a composed QB feels the rush and tucks it away;
+        // a folder coughs it up under late pressure. (Composure, never physical.)
+        const stripChance = clamp(0.10 - (qbAwr - 70) / 400 - this._clutchMod(QB, 0.04), 0.04, 0.18);
         const isStripSack = Math.random() < stripChance;
         let recoveredByDef = false;
         let recoveredBy = null;
@@ -5206,7 +5223,7 @@ class GameSimulator {
         // Tuned to land per-catch fumble rate near NFL 0.5%. Big YAC and low
         // CAT amplify; elite receivers (CAT 90+) bring it under 0.3%.
         const yacFumbleChance = yac > 0
-          ? clamp(0.003 + Math.max(0, (yac - 5) / 500) - Math.max(0, (rcvrCatStat - 75) / 1200), 0.001, 0.012)
+          ? clamp(0.003 + Math.max(0, (yac - 5) / 500) - Math.max(0, (rcvrCatStat - 75) / 1200) - this._clutchMod(rcvr, 0.004), 0.001, 0.012)
           : 0;
         if (Math.random() < yacFumbleChance) {
           // Catch happens at catchYL. Ball comes out somewhere in YAC.
@@ -5523,7 +5540,7 @@ class GameSimulator {
     // originally (~2.5x NFL); grip/archetype/pressure/weather mods land an
     // average back near 1/80-90 carries. Elite-grip backs (floor 0.004) get
     // genuinely sure-handed; POWER backs in the rain still cough it up.
-    const fumblePct = clamp((0.0085 + gripMod + archFumbleAdd + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul, 0.004, 0.10);
+    const fumblePct = clamp((0.0085 + gripMod + archFumbleAdd + Math.max(0, pressure) * 0.013 + wxFumMod - this._clutchMod(RB, 0.005)) * optionMul, 0.004, 0.10);
     if (Math.random() < fumblePct) {
       // Scrum-based recovery — the ball bounces in a pile of converging players.
       // Defense has a slight edge in open field (2-4 dive attempts each kick the
