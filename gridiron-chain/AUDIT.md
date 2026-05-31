@@ -1,4 +1,5 @@
-# GridironChain — Realism Audit Runbook
+# Hashmark Heros — Realism Audit Runbook
+*(originally documented as "GridironChain"; renamed 2026-05)*
 
 > **Purpose.** Two headless Node harnesses that run the *real* game engine
 > (no browser) over many games/seasons and check that the output matches NFL

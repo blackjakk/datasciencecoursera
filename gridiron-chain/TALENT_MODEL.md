@@ -1,4 +1,5 @@
-# GridironChain — Talent Model, From First Principles
+# Hashmark Heros — Talent Model, From First Principles
+*(originally documented as "GridironChain"; renamed 2026-05 — references in the body kept verbatim where they refer to the codebase rather than the product)*
 
 > Written before retuning, after the 100-season audit showed the league
 > over-inflates (90+ share **14.7%** vs NFL ~2-3%, roster mean **80.8**), R1 picks

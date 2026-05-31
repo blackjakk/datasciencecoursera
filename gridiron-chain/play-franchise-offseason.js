@@ -2085,7 +2085,7 @@ function _showWeekRecapIfReady() {
   el.innerHTML = `
     <div class="frn-week-recap-card">
       <div class="frn-week-recap-header">
-        <div class="frn-week-recap-eyebrow">📺 GRIDIRON CHAIN HIGHLIGHTS</div>
+        <div class="frn-week-recap-eyebrow">📺 HASHMARK HEROS HIGHLIGHTS</div>
         <h1 class="frn-week-recap-title">WEEK ${completedWeek} TOP PLAYS</h1>
         <div class="frn-week-recap-sub">${top.length} of the league's best moments — click ▶ to re-watch in slow-mo.</div>
       </div>
@@ -2236,7 +2236,7 @@ function renderFrnReplayLib() {
   el.innerHTML = `
     <div class="frn-rpl-wrap">
       <div class="frn-rpl-hero">
-        <div class="frn-rpl-hero-eyebrow">📺 GRIDIRON CHAIN HIGHLIGHTS</div>
+        <div class="frn-rpl-hero-eyebrow">📺 HASHMARK HEROS HIGHLIGHTS</div>
         <h1 class="frn-rpl-hero-title">TOP PLAYS${titleSuffix}</h1>
         <div class="frn-rpl-hero-sub">Auto-curated from the engine — TDs, pick-sixes, big hits, 4th-down gambles. Click ▶ to re-watch in slow motion.</div>
       </div>
