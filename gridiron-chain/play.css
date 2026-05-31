@@ -1016,6 +1016,64 @@
   .frn-start-sub { color: var(--gray); font-size: .75rem; }
   .frn-start-load .frn-start-icon { font-size: 1.8rem; }
 
+  /* Alt-row: two side-by-side secondary buttons below the QUICK START hero —
+     'Choose Your Story →' (archetype picker) and 'Browse All 32 Teams →'
+     (legacy picker). Smaller than QUICK START so the primary action stays
+     unambiguous. */
+  .frn-start-alt-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .55rem;
+    margin-top: .55rem;
+  }
+  .frn-start-alt {
+    padding: .65rem .85rem; background: var(--bg2); border: 1px solid var(--border);
+    color: var(--fg); cursor: pointer; text-align: left;
+    transition: all .12s ease;
+    font-family: inherit;
+  }
+  .frn-start-alt:hover { border-color: var(--gold-lt); background: rgba(200,169,0,0.06); }
+  .frn-start-alt-title { font-size: .82rem; font-weight: 700; color: var(--gold-lt); }
+  .frn-start-alt-sub   { font-size: .68rem; color: var(--gray); margin-top: .2rem; }
+
+  /* ─── "Choose Your Story" archetype picker ─────────────────────────── */
+  .frn-story-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem;
+    margin-top: 1rem;
+  }
+  @media (max-width: 720px) {
+    .frn-story-grid { grid-template-columns: 1fr; }
+  }
+  .frn-story-card {
+    padding: 1rem 1rem .85rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .frn-story-card::before { content:"┌"; position:absolute; top:-.55em; left:-.15em; color:var(--gold); font-size:1.15em; line-height:1; }
+  .frn-story-card::after  { content:"┘"; position:absolute; bottom:-.55em; right:-.15em; color:var(--gold); font-size:1.15em; line-height:1; }
+  .frn-story-head {
+    display: flex; align-items: center; gap: .5rem;
+    margin-bottom: .55rem;
+  }
+  .frn-story-icon { font-size: 1.5rem; }
+  .frn-story-title {
+    font-family: 'Anton', 'Bebas Neue', sans-serif;
+    font-size: 1.2rem; letter-spacing: 1.5px; color: var(--gold);
+  }
+  .frn-story-pitch { font-size: .78rem; line-height: 1.45; color: var(--fg); margin-bottom: .5rem; }
+  .frn-story-diff  { font-size: .68rem; color: var(--gray); margin-bottom: .85rem; font-style: italic; }
+  .frn-story-teams { display: flex; flex-direction: column; gap: .35rem; margin-top: auto; }
+  .frn-story-team {
+    display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+    padding: .45rem .6rem; background: var(--bg); border: 1px solid var(--border);
+    color: var(--fg); cursor: pointer; font-family: inherit; text-align: left;
+    transition: all .1s ease;
+  }
+  .frn-story-team:hover { border-color: var(--gold); background: rgba(200,169,0,0.08); }
+  .frn-story-team-name { font-size: .76rem; font-weight: 600; }
+  .frn-story-team-rating { font-size: .68rem; color: var(--gray); }
+  .frn-story-team-rating b { color: var(--gold-lt); }
+  .frn-story-empty { color: var(--gray); font-size: .7rem; font-style: italic; }
+
   /* Team banner — top of dashboard, primary team identity */
   .frn-team-banner {
     display: grid; grid-template-columns: auto 1fr auto;

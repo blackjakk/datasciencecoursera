@@ -4271,11 +4271,21 @@ function renderFrnStartScreen() {
     <div class="frn-slots-list">${slotsHtml}</div>
 
     <div style="margin-top:1rem">
-      <button class="frn-start-btn frn-start-new" onclick="frnStartNew()" style="width:100%">
-        <div class="frn-start-icon">＋</div>
-        <div class="frn-start-title">START NEW FRANCHISE</div>
-        <div class="frn-start-sub">Pick a team and begin a fresh career</div>
+      <button class="frn-start-btn frn-start-new" onclick="frnQuickStart()" style="width:100%">
+        <div class="frn-start-icon">🚀</div>
+        <div class="frn-start-title">QUICK START</div>
+        <div class="frn-start-sub">Random top team · skip preseason · play your first game in 30 seconds</div>
       </button>
+      <div class="frn-start-alt-row">
+        <button class="frn-start-alt" onclick="renderFrnStoryPicker()">
+          <div class="frn-start-alt-title">Choose Your Story →</div>
+          <div class="frn-start-alt-sub">3 archetypes: Win Now · Rising · Rebuild</div>
+        </button>
+        <button class="frn-start-alt" onclick="frnStartNew()">
+          <div class="frn-start-alt-title">Browse All 32 Teams →</div>
+          <div class="frn-start-alt-sub">Pick any team — full picker</div>
+        </button>
+      </div>
     </div>
   `;
 }
@@ -4289,6 +4299,107 @@ function frnStartNew() {
   franchise = null;
   franchiseDraft = _buildDraftLeague();
   renderFrnTeamPicker();
+}
+
+// ─── Quick Start ───────────────────────────────────────────────────────────
+// 30-second path from cold start → playing your first game. Picks a random
+// POWERHOUSE team (highest tier = best new-player experience), skips the
+// 32-team picker AND the preseason/FA phases, drops the user directly into
+// Week 1 with a top-tier roster. They can manage the team anytime, but their
+// first interaction is sim-a-game, not roster-management. Friction matters
+// most in the first 60 seconds.
+function frnQuickStart() {
+  const meta = _readSlotsMeta();
+  meta.activeSlotId = null;
+  _writeSlotsMeta(meta);
+  franchise = null;
+  franchiseDraft = _buildDraftLeague();
+  // Pick a random powerhouse from the freshly-generated league
+  const tiers = franchiseDraft.teamTiers;
+  const powerhouses = TEAMS.filter(t => tiers[t.id] === "powerhouse");
+  const choice = powerhouses[Math.floor(Math.random() * powerhouses.length)] || TEAMS[0];
+  startFranchise(choice.id);
+  // Skip preseason + free agency entirely — drop straight into Week 1.
+  // The same state transitions frnStartSeason()/frnFAFinish() would run
+  // collapsed into one jump so the new user's first action is a real game.
+  franchise.phase = "regular";
+  franchise.freeAgents = [];
+  franchise._faOffers = {};
+  franchise._faResults = null;
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+// ─── "Choose Your Story" archetype picker ──────────────────────────────────
+// Replaces the 32-team grid with a curated 3-archetype × 2-3-teams view. Maps
+// internal team tiers to user-facing narrative archetypes:
+//   WIN NOW  = powerhouse — vet cores, championship NOW
+//   RISING   = contender  — young rosters, dynasty arc
+//   REBUILD  = rebuilding — bottom of the league, long game
+function renderFrnStoryPicker() {
+  // Build (or reuse) the candidate league so we can read team tiers.
+  if (!franchiseDraft) franchiseDraft = _buildDraftLeague();
+  const tiers = franchiseDraft.teamTiers;
+  const byTier = { powerhouse: [], contender: [], rebuilding: [] };
+  for (const t of TEAMS) if (byTier[tiers[t.id]]) byTier[tiers[t.id]].push(t);
+  // Hand-pick the first 3 of each (the league is randomized per session).
+  const picks = {
+    WIN_NOW: byTier.powerhouse.slice(0, 3),
+    RISING:  byTier.contender.slice(0, 3),
+    REBUILD: byTier.rebuilding.slice(0, 3),
+  };
+  // Mean OVR for the team's top-22 (gives a real "talent level" badge).
+  const teamRating = (t) => {
+    const roster = (franchiseDraft.rosters && franchiseDraft.rosters[t.id]) || [];
+    const top = roster.slice().sort((a, b) => (b.overall||0) - (a.overall||0)).slice(0, 22);
+    if (!top.length) return 70;
+    return Math.round(top.reduce((s, p) => s + (p.overall||0), 0) / top.length);
+  };
+  const teamCard = (t) => {
+    const rating = teamRating(t);
+    return `<button class="frn-story-team" onclick="renderFrnTeamDetail(${t.id})">
+      <div class="frn-story-team-name">${t.city} ${t.name}</div>
+      <div class="frn-story-team-rating">Roster OVR <b>${rating}</b></div>
+    </button>`;
+  };
+  const archetypes = [
+    { key: "WIN_NOW", icon: "🏆", title: "WIN NOW",
+      pitch: "Veteran core, championship window <b>right now</b>. Win the Super Bowl in 2-3 seasons or it's over.",
+      diff:  "Easier short-term · cap problems · aging stars" },
+    { key: "RISING", icon: "⚡", title: "RISING",
+      pitch: "Young star + draft capital. <b>Build a dynasty</b> over the next 4-5 years.",
+      diff:  "Medium difficulty · long arc · highest ceiling" },
+    { key: "REBUILD", icon: "🔧", title: "REBUILD",
+      pitch: "Bottom of the league. <b>Blank slate</b>. How long until you're a contender?",
+      diff:  "Hard short-term · patient game · cathartic payoff" },
+  ];
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-welcome">
+      <div class="frn-welcome-title" style="font-size:1.1rem">CHOOSE YOUR STORY</div>
+      <div class="frn-welcome-sub" style="font-size:.78rem">Pick the kind of franchise you want to run — each archetype is a different rhythm</div>
+    </div>
+    <div class="frn-story-grid">
+      ${archetypes.map(a => `
+        <div class="frn-story-card frn-story-${a.key.toLowerCase()}">
+          <div class="frn-story-head">
+            <span class="frn-story-icon">${a.icon}</span>
+            <span class="frn-story-title">${a.title}</span>
+          </div>
+          <div class="frn-story-pitch">${a.pitch}</div>
+          <div class="frn-story-diff">${a.diff}</div>
+          <div class="frn-story-teams">
+            ${picks[a.key].map(teamCard).join("")}
+            ${picks[a.key].length === 0 ? '<div class="frn-story-empty">No teams in this tier this season.</div>' : ""}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+    <div style="margin-top:1.25rem;display:flex;gap:.5rem;justify-content:center;font-size:.74rem;color:var(--gray)">
+      <a href="#" onclick="event.preventDefault();renderFrnTeamPicker()" style="color:var(--gold-lt);text-decoration:underline">Browse all 32 teams instead →</a>
+      <span>·</span>
+      <a href="#" onclick="event.preventDefault();renderFrnStartScreen()" style="color:var(--gray);text-decoration:underline">← Back</a>
+    </div>
+  `;
 }
 
 // Build a fresh candidate league: rosters, ages, contracts, team tiers.

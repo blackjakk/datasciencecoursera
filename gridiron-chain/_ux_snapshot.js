@@ -120,6 +120,29 @@ const SHOTS = {
       await page.waitForTimeout(200);
     },
   },
+  // "Choose Your Story" archetype picker — the new-player onboarding path.
+  "story-picker": {
+    desc: "Choose Your Story (3-archetype path)",
+    viewport: "desktop",
+    setup: async (page) => { /* nothing */ },
+    url: URL,
+    after: async (page) => {
+      await page.click("button.frn-start-alt:has-text('Choose Your Story')", { timeout: 5000 });
+      await page.waitForSelector(".frn-story-grid", { timeout: 3000 });
+      await page.waitForTimeout(200);
+    },
+  },
+  "story-picker-mobile": {
+    desc: "Choose Your Story (mobile viewport)",
+    viewport: "mobile",
+    setup: async (page) => { /* nothing */ },
+    url: URL,
+    after: async (page) => {
+      await page.click("button.frn-start-alt:has-text('Choose Your Story')", { timeout: 5000 });
+      await page.waitForSelector(".frn-story-grid", { timeout: 3000 });
+      await page.waitForTimeout(200);
+    },
+  },
   // Just the ⋯ menu open, no modal — verifies the popover visually.
   "slot-menu": {
     desc: "Slot row ⋯ popover menu (Rename / Delete options)",
