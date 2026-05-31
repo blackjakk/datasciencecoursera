@@ -233,7 +233,9 @@ const harness = `
   let totalGemsRolled = 0;
   let legendEmergences = 0;          // any tracked gem that reaches OVR >= 96
   let lateRoundLegends = 0;          // round >= 5 OR UDFA
-  let bradyEmergences = 0;           // round >= 6 OR UDFA (the actual Brady definition)
+  let bradyEmergences = 0;           // round >= 6 OR UDFA, ANY position (late-round legend)
+  let bradyQbEmergences = 0;         // round >= 6 OR UDFA AND QB — the TRUE Brady (once-a-generation)
+  const emergeByPos = {};            // position → count of R6+/UDFA → 96+ emergences
   const seenGems = new Map();        // name → { round, peakOvr, emerged }
   // Keep the actual player object for any legend so we can dump their full
   // career (history rows, accolades, championships) at the end of the sim.
@@ -399,7 +401,11 @@ const harness = `
             g.emerged = true;
             legendEmergences++;
             if (g.round >= 5) lateRoundLegends++;
-            if (g.round >= 6) bradyEmergences++;
+            if (g.round >= 6) {
+              bradyEmergences++;
+              emergeByPos[p.position] = (emergeByPos[p.position] || 0) + 1;
+              if (p.position === "QB") bradyQbEmergences++;   // the true Brady
+            }
             // Stash the live player ref so we can dump the career at sim end.
             legendPlayers.push({ player: p, emergedSeason: franchise.season });
           }
@@ -572,12 +578,21 @@ const harness = `
   console.log("  Hidden gems rolled (any round, any ceiling): " + totalGemsRolled);
   console.log("  Legend-tier emergences (gem hit 96+ OVR):     " + legendEmergences);
   console.log("  Late-round legends (R5+ or UDFA):             " + lateRoundLegends);
-  console.log("  BRADY-TIER (R6+/UDFA → 96+ OVR):              " + bradyEmergences);
+  console.log("  Late-round legends — R6+/UDFA, ALL positions: " + bradyEmergences);
   console.log("");
-  const cadence = bradyEmergences > 0 ? (${SEASONS} / bradyEmergences).toFixed(1) : "∞";
-  const target = 75;
-  const ok = bradyEmergences > 0 && Math.abs((${SEASONS}/bradyEmergences) - target) / target < 0.5;
-  console.log("  Cadence: 1 per " + cadence + " years (target: ~1 per " + target + " years)  " + (ok?"OK":"!!"));
+  // Two distinct cadences (these were conflated before): the QB-specific Brady
+  // is once-a-generation; late-round legends across ALL positions (Terrell Davis
+  // RB, Gates/Sharpe TE, Sherman CB, Harrison LB...) are far more common.
+  const _cad = n => n > 0 ? ("1 per " + (${SEASONS}/n).toFixed(0) + " yrs") : "none";
+  console.log("  ── TRUE BRADY (R6+/UDFA QB → 96+): " + bradyQbEmergences + "  (" + _cad(bradyQbEmergences) + ", target ~1 per 75 yrs) ──");
+  const qbOk = bradyQbEmergences > 0 && Math.abs((${SEASONS}/bradyQbEmergences) - 75) / 75 < 0.6;
+  console.log("       " + (bradyQbEmergences === 0 ? "!! (none in " + ${SEASONS} + " yrs — need a longer run or dev too weak)" : (qbOk ? "OK" : "!! off target")));
+  console.log("  ── ALL-POSITION late-round legends: " + bradyEmergences + "  (" + _cad(bradyEmergences) + ") ──");
+  if (Object.keys(emergeByPos).length) {
+    const byp = Object.entries(emergeByPos).sort((a,b)=>b[1]-a[1])
+      .map(([k,v]) => k + " " + v + " (" + _cad(v) + ")").join(",  ");
+    console.log("       by position: " + byp);
+  }
   console.log("");
 
   // ── RECORD BOOK ───────────────────────────────────────────────────────
