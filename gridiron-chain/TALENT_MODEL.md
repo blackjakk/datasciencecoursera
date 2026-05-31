@@ -47,14 +47,31 @@ the top, three set how it LEAVES. We have to move them *together*.
   error. Busts and gems are the two *symmetric tails* of that error: a R1 busts
   when his true ceiling is **below** where he was drafted; a R7 gem hits when his
   true ceiling is **above**. Bust rate ≈ gem rate ≈ the scouting-error rate.
-- **Current:** rookies enter the NFL at their **true current OVR** (offseason
-  ~21840); only the *ceiling* carries perception noise. Hidden **gems exist**
-  (late picks with high hidden ceilings) but there is **no bust side** — no early
-  picks with hidden *low* ceilings. The model only generates *positive*
-  surprises.
-- **Gap:** the negative tail is missing. **This is exactly why R1 bust = 0%.**
-  Some R1/R2 picks must have true ceilings *below* their draft slot (overrated →
-  bust). Symmetry is the structural fix, independent of inflation.
+- **Current:** rookies enter the NFL at their **true current OVR**. Scouting
+  error IS modeled via `_aiScoutBias` (offseason ~19265) — `polarRoll` is mostly
+  symmetric (30% negative, 30% positive, 40% small noise) and there's a small
+  symmetric wildcard tail (5% ±10) + ultra tail (1% ±15). **BUT the
+  `scoutBuyIn` layer is asymmetrically gated by ceiling:**
+  - ceiling ≥ 88: **55% chance of +3 to +9** (scouts hype high-ceiling guys)
+  - ceiling ≥ 80: 35% chance of +2 to +6
+  - ceiling ≥ 55: 30% chance of −2 to −6 (low-ceiling guys fall)
+  - ceiling < 55: 50% chance of −3 to −9 (real fallers)
+
+  So R1 picks are **structurally protected** from being busts: they're heavily
+  correlated with high ceilings → which get the positive buy-in → which inflates
+  them into R1 → and they actually have high ceilings → and they realize. The
+  system creates *more gems* (low-ceiling guys falling out of the draft) than
+  *busts* (low-ceiling guys staying in R1). The thin wildcard/ultra tail (~6%)
+  is the only path to true R1 busts → that's why bust rate is 0.0-1.1%.
+- **Gap:** not that the symmetric scouting model is missing — it's that the
+  `scoutBuyIn` correlation with ceiling clamps the bust tail. **Fix is
+  structural decoupling, not new invention.** Two options:
+  - Make 5-10% of high-ceiling prospects get NO buy-in (or negative buy-in)
+    despite scout consensus — creates "the consensus was wrong" busts.
+  - Add a separate "draft-hype" mechanic: 3-5% of prospects get +5 to +10 bias
+    *independent* of ceiling, creating overhyped low-ceiling busts.
+
+  Either approach generates the negative tail without inventing a new system.
 
 ### 3. Development — how *reliably* the ceiling is realized (the spread)
 - **Principle:** growth toward ceiling should be *uncertain* — real variance and
@@ -146,6 +163,124 @@ Tune the *flows* to hit that steady state; don't chase any single metric.
    check S isn't structurally easiest.
 
 Each step re-runs the long audit and reads the equilibrium, not one season.
+
+---
+
+## Retune log (executed)
+
+Per the discipline: one valve per step, 40-season audit, read the *equilibrium*
+(DRIFT BY DECADE flatness + 90+ share + R1 bust%). Each row is a single change
++ the measured result.
+
+| step | change | 90+ share | drift | R1 bust | notes |
+|---|---|---|---|---|---|
+| **baseline (100s)** | (pre-retune) | 14.7% | rising | 0.0% | inflation visible |
+| **r-1: decline ×1.75** | `_dc` 35/55/70% (was 20/30/40), +25% chance of −2 drops | 13.9% | flat ~81 | 0.1% | direction right, magnitude small. **Drift flattened** — equilibrium-able |
+| **r-2: ceilings cut** | 88+ band 16%→4%, 80-87 24%→13%, mass shifted to 70-79 | **6.8%** | flat ~79 | 0.9% | big move; R1 PB% 95→78% |
+| **r-3: ceilings further** | 88+ 4%→2.5%, 80-87 13%→10%, 70-79 22%→26.5% | 6.0% | flat ~79 | 0.7% | small move — diminishing returns |
+| **r-4: NFL_DEV_SCALE 0.35→0.25** | slow dev so growthRate variance drives outcomes | 5.7% | flat ~79 | 0.8% | barely moved — gap math means same outcome over more years |
+| **r-5: wear-driven decline** | `wearMul` on `_dc` (high-wear → 1.7× decline, low → 0.9×) | 5.7% | flat ~78 | 1.1% | level stuck, **but bust % ticked up structurally** (0.8→1.1) — wear-decline is real |
+| **r-6: coachBoost cap ≤ 2.0** | clamp compound multiplier (was hitting 2.9×+) | _in flight_ | — | — | targets the hidden inflation pump |
+
+**Key learnings from the log:**
+- **Drift flattened on r-1** (decline steepened) and has stayed flat ever since,
+  across 4 retunes that moved different valves. The model is at a stable
+  equilibrium that *can hold* — what we're tuning is the *level*.
+- **The 5.7% floor wasn't a tuning failure** — r-3, r-4, r-5 all attacked
+  different valves (ceilings, dev pace, decline rate) and the floor didn't
+  budge. That's the signal that **a previously-unexamined inflation pump exists**.
+- **Wear-driven decline added structural busts** even though it didn't move the
+  level (R1 bust 0.8% → 1.1%, R7 13.5% → 15.1%). Confirms the *shape* is now
+  more realistic — low-usage R1s that don't play age out before realizing.
+- **The hidden pump was coach compounding** (HC 1.35 × coachable 1.25 × FO 1.6
+  × coachs_son 1.15 × captains 1.10 → ~2.9× for a coachable young player on a
+  great staff). Discovered via the system-discovery audit, untouched by any
+  prior retune. Capping at 2.0× is r-6.
+
+---
+
+## Engine systems inventory (discovered via system-discovery agent)
+
+A comprehensive scan turned up many systems that exist in the engine but weren't
+in this doc or our audit. Documented here so the retune work has the full
+context (and so we don't accidentally re-invent any of them).
+
+### Hidden persistent player state (the underscore fields)
+
+| field | range | what it drives | UI |
+|---|---|---|---|
+| `_drive` | 20-99 | dev `driveMul = 0.85 + (drive−50)/300`; in-engine clutch / 2nd-effort bonuses | hidden (intel tag only) |
+| `_durability` | 25-99 | inverse injury vulnerability multiplier | hidden |
+| `_trajectory` | enum: EARLY_BLOOM / LATE_BLOOM / CONSISTENT / STREAKY / FLASH | career-arc archetype; STREAKY adds ×1.9 OVR swing variance; FLASH = low-OVR breakout potential | ✓ shown on player history card |
+| `_devMult` | 0.30-1.20 | per-player dev timing variance (slow-burn vs Bo-Jackson-fast) | hidden |
+| `_peakMult` | ~0.85-1.15 | per-player ceiling-height variation | hidden |
+| `_growthRate` | enum 0.35 / 0.65 / 0.90 | intrinsic growth capacity (HiddenOracle.roll.growthRate) | hidden |
+| `_awrCeiling` | 70-95 | AWR stat cap (HIGH_FOOTBALL_IQ gets 85-95, else 70-85) | hidden |
+| `_tecCeiling` | similar | TEC stat cap | hidden |
+| `_devFreezeUntilSeason` | season # | ignoring contract demand → 1-yr growth freeze | ✓ locker-room consequences |
+| `_physicalPeak` | { spd/agi/str: { peak, onset } } | position-specific peak ages for SPD/AGI/STR | hidden |
+| `_aiScoutBias` | −10 to +10 | perceived OVR adjustment (see valve 2) | hidden mechanism, visible via consensus grade |
+| `_generatedRound` | 0-7 | consensus draft round from `trueOvr + bias` | ✓ "R3" / "UDFA" badge |
+| `_combineResult` | { overall, isRiser, isFaller, isSuperathlete } | combine performance snapshot, riser/faller flags | ✓ "📈 COMBINE RISER" banner |
+| `_slipGrade` | 1-7 | original consensus grade for UDFAs who slipped | ✓ "↓ ~R3 SLIP" notation |
+| `_scoutedAtDraftSeason` / `_apbScoutedSeason` / `_jpScoutedSeason` | season # | scout-effort timestamps; sharpen perceived-OVR noise bands | hidden mechanism |
+| `_psFlashLog` | array | practice-squad flash performance log; multi-flash = real talent | ✓ "Flashes: 2" badge |
+| `_yips` / `_yipsAccPenalty` / `_yipsLastMissWeek` | { weeksRemaining, severity } | kicker/punter confidence meltdown; escalates if misses cluster within 10 wks | ✓ broadcast "YIPS EPISODE" |
+| `_bodyWear` | { head, neck, shoulder, ... } | per-body-part wear → re-injury risk by body part | hidden |
+| `_concussionsThisSeason` / `_concussionsLifetime` | counts | per-season escalation + career CTE arc | ✓ vitals "CTE risk" tag |
+| `_lastConcussionWeek` | week # | Second-Impact tracker (concussion ≤ 3 wks after another → catastrophic) | hidden |
+| `_rehabSeasons` / `_rehabRestore` / `_rehabPermGain` | counters | post-injury rehab state machine | ✓ "Out (Rehab)" |
+| `_postseasonDepth` / `_postseasonDepthSeason` | round idx 0-3, season # | deepest playoff round; sharpens scout grade | ✓ intel narrative |
+| `_facedInPlayoffsSeason` / `_facedInPlayoffsMajor` / `_regSeasonFacedSeason` / `_regSeasonFacedMajor` | season # | experience tracking by tier (playoff / major playoff / reg-season / major reg-season role) | ✓ "Faced in major playoff" narrative |
+| `_tradedAtSeason` | season # | trade-cooldown / freshness check | hidden |
+| `_tradeReaction` / `_tradeReactionYrs` / `_tradeReactionRevealed` / `_tradeReactionSeason` / `_tradeReactionFromCut` | enum + state | CHIP / SULK reaction with delayed reveal | ✓ "🔥 CHIPPED" / "😒 SULKING" badge |
+| `_cutSeason` / `_cutFromTeamId` / `_unsignedSeasons` | season #, team ID, count | FA market eligibility + age-out timing | hidden |
+| `_elitePlateauBumped` | bool | one-time elite ceiling-bump idempotency | hidden |
+| `_retired` / `_retiredHOF` / `_retiringFromInjury` / `_forceRetire` / `_retiredAt` / `_retiredTeamName` | flags + season | retirement state + cause | ✓ "(retired)" / "🏆 HOF BOUND" |
+| `_potentialRerolled` | bool | breakout reroll idempotency | hidden |
+| `_collegeJoinedSeason` | season # | college-pipeline tracking | hidden |
+| `_milestonesSeen` | { key: true } | milestone-notification dedup | hidden |
+| `_careerGeneratedBackfill` | bool | procedural-vs-drafted career flag | hidden |
+
+### Compound dev multiplier stack (the inflation pump)
+
+Each player's offseason `coachBoost` is the product of *all* of these (cap added
+in r-6: clamp ≤ 2.0):
+
+| layer | mul | gate |
+|---|---|---|
+| HC `Player Developer` specialtyTrait | **×1.35** | per HC |
+| `coachable` trait | ×1.25 | 25-45% of prospects |
+| FO strength coach `_foDevBoost` | up to ×1.6 | per team rating + trait match |
+| `coachs_son` personality | ×1.15 | 4% of prospects |
+| Team captains (player ≤25, non-captain) | up to ×1.10 | 8% captain rate per team |
+| `quiet_pro` personality | ×0.88 | 12% of prospects (slow growth AND slow decline) |
+| Cancer team-wide drain | ×penalty | 2% cancer rate per team |
+| CHIP trade reaction | ×1.50 | one-shot, year after trade |
+| SULK trade reaction | ×0.80 | one-shot, year after trade |
+
+DC traits affect TEC specifically (not in `coachBoost`): `Film Mastermind` DC
+gives **×2.0 TEC growth for coachable defenders** (×1.2 non-coachable). TEC is
+15% of every position's OVR formula — silent inflation lever.
+
+In-engine effects (coordinator traits affect snap-by-snap):
+- OC `Run Architect`: +0.05 run yardage formula bias (engine.js:5816)
+- DC `Run Stopper`: −0.05 run yardage formula bias
+
+### Discoveries that were already partially covered
+
+| system | docs status |
+|---|---|
+| Wear (`_wear`) — Q4 eff-OVR + injury rate + (now) decline rate | ✓ wired into _dc in r-5 |
+| Stress (`_stress`) — non-contact injury driver | ✓ in AUDIT.md STRESS REPORT |
+| Concussion lifetime CTE arc | ✓ documented; **AWR decline gap below** |
+| HC 4th-down `specialtyTrait` aggression | ✓ COACHING BREAKDOWN |
+| HC `cultureTrait` injury rate | ✓ INJURY by HC culture |
+| Trainer trait | ✓ INJURY by trainer |
+| Personality archetypes (rates) | ✓ PERSONALITY REPORT |
+| All positional archetypes | ✓ `_arch_probe` |
+| `_stamina` (base stat) | ✓ snap chart "STAM XXX" |
+| Trade reactions | ✓ shipped this session |
 
 ---
 
@@ -285,3 +420,70 @@ the mechanism proves out.
 usage→aging mechanism for all positions; mileage adds the RB-specific career-arc
 refinement. If wear gets 90+ share in band, mileage is polish + RB narrative
 flavor; if wear doesn't close the gap, mileage is the closer.
+
+### Concussion-driven AWR decline (queued — 3rd sticky load layer)
+Concussion tracking already exists (`_concussionsThisSeason` / `_concussionsLifetime`)
+and drives CTE escalation + catastrophic injury risk + career-ending arc. But
+there's **no persistent AWR decline** tied to lifetime concussion count — a QB
+with 5 lifetime concussions decays AWR at the same rate as a QB with 0.
+
+This is the third leg of the same "career punishment → diminished player"
+mechanism alongside wear and mileage. Concrete impl in physical-decline block:
+
+```js
+const cct = (p._concussionsLifetime || 0) + (p._concussionsThisSeason || 0);
+if (cct >= 4 && age >= 28) {
+  const awrProb = cct >= 6 ? 0.30 : cct >= 5 ? 0.20 : 0.12;
+  if (Math.random() < awrProb) p.stats[3] = Math.max(40, (p.stats[3] || 70) - 1);
+}
+```
+
+A 6-time-concussed 30-yo QB / LB starts losing AWR ~3pp/yr — the Aaron Hernandez
+/ Junior Seau arc. Queue alongside mileage, both apply after the level retune.
+
+### `_aiScoutBias` → buy-in/ceiling decoupling (queued — valve 2 final piece)
+Per the valve 2 analysis above: the symmetric scout-error model already exists,
+but `scoutBuyIn` is gated by ceiling, which clamps the bust tail. Two options:
+- **Decouple ~5-10% of high-ceiling prospects from their positive buy-in** — they
+  get NO buy-in (or negative buy-in) despite scout consensus. "The consensus was
+  wrong" busts emerge naturally.
+- **Add an independent draft-hype mechanic** — 3-5% of prospects get a +5 to +10
+  bias independent of ceiling. Overhyped low-ceiling busts.
+
+Queued because retune-6 (coach compound cap) may resolve enough of the inflation
+that R1 bust rate ticks up organically (wear-decline already moved it 0.0% →
+1.1%, showing the mechanism responds). If r-6 lands 90+ in band but R1 bust is
+still <10%, this is the structural close.
+
+### Dead code to remove (orphan systems)
+The system-discovery agent found code that's deleted but never set anywhere —
+planned features that were superseded. Safe to remove for clarity:
+
+| field | location | status |
+|---|---|---|
+| `_srStockMaker` / `_srStockBreaker` | offseason ~19562-63 (only deletion code) | QB draft-stock momentum, never wired |
+| `_breakoutYear` / `_breakoutSeverity` / `_breakoutMagnitude` / `_breakoutFired` | offseason ~19553-60 (only deletion code) | replaced by hidden-gem breakout mechanic |
+| `_secondaryFired` / `_secondaryMagnitude` | offseason ~19553-60 | multi-wave breakout, never wired |
+| `_tertiaryFired` / `_tertiaryMagnitude` | offseason ~19553-60 | same |
+
+Plus the legacy `_tradedAtSeason` (now cleared by the trade-reaction system but
+the field is still set + cleared in 4 trade-exec sites — could be folded into
+`_tradeReactionSeason`).
+
+Cleanup is cosmetic + reduces grep confusion; no functional change.
+
+### Real gaps (systems that should exist but don't)
+
+| gap | what exists | what's missing |
+|---|---|---|
+| **Contract-year walk** | `_ignoredDemandSeason` exists, *penalizes* ignored demands with dev freeze | no walk-year *boost* — Aaron Donald lifting before extension isn't modeled |
+| **Rookie wall (year-2 collapse)** | `_trajectory` has FLASH for late bloomers | no explicit year-2 sophomore-slump mechanic; partially absorbed by `_devMult` variance |
+| **Mentor/rookie pairing** | flavor text ("wants to mentor a rookie") on veteran FA cards | no mechanical bonus when a rookie shares a roster with a same-position vet |
+| **QB-WR chemistry** | `player.systemYears` field referenced in career assignment | field exists, **zero mechanics** use it — no familiarity bonus, no continuity premium |
+| **Garbage-time stat scaling** | none | every stat counts equally regardless of margin; contributes to "records run hot" finding |
+| **Primetime / playoff scaling** | playoff games sim normally | no big-game boost/choke, no showman bonus in primetime (showman is gen-flag only) |
+| **Workout warrior decay** | `_combineResult.isRiser` flag exists | no mechanism for workout-grade to fade if performance doesn't match (Vernon Adams effect) |
+| **Position switch / re-position** | none | a CB who can't cover but can hit could move to S, etc. — no in-engine re-categorization |
+
+These are all *additive* features (not corrections), so they don't gate any
+current retune. Worth tracking as future depth.

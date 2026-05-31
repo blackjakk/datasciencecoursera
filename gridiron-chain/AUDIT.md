@@ -73,6 +73,19 @@ Three tables:
   players (OL/DL) end ~59 median / ~68 P90, RB workhorse P90 ~60, QB/low-snap
   stay fresh; Q4 efficiency dips ~3% (realistic). (Caught the no-recovery bug —
   see calibration.)
+- **RUN-PLAY YARDAGE HISTOGRAM** — per-play yardage distribution for run plays
+  (incl. scrambles) by down. 7 buckets: `loss / 0 / 1-3 / 4-9 / 10-19 / 20-39 /
+  40+`. Per-down columns + mean + 10+% (chunk rate). Reveals shape bugs a mean
+  would hide. 4th-down runs hit more chunks (defense sells out for stop). 1-season
+  smoke: run mean 5.0 (NFL ~4.4, slightly hot).
+- **COMPLETION YARDAGE HISTOGRAM** — per-completion yardage distribution by
+  down (catches only, sacks/incompletes excluded). Same buckets. 3rd-down
+  completions are deepest (mean 13.6, 60% gain 10+ — engine throws downfield
+  on 3rd correctly). 4th-down completions shortest (checkdown bias).
+- **3RD-DOWN CONVERSION BY DISTANCE** — `short(1-2)/medium(3-6)/long(7-10)/
+  xlong(11+)` att/conv/conv% with NFL bands per bucket (~70/45/30/17%).
+  Smoke: 72/50/33/20%, all in band. Catches shape bugs a 41.6% aggregate would
+  hide.
 
 ### 1b. `_qb_probe.js` — QB-archetype isolation probe
 `node _qb_probe.js [games]` (default 300). Builds **one fixed home roster + one
@@ -97,6 +110,15 @@ if two archetypes produce the same box score, the label is cosmetic. Verdict
 (2026-05): every archetype differentiates except the three HYBRID types
 (TE/LB/S) which were flavor-only and picker-capped to low OVR — since fixed.
 
+### 1d. `_jumbo_probe.js` — 13-personnel matchup probe
+`node _jumbo_probe.js [games]` (default 250). Forces the offense into JUMBO (13
+personnel — 1 RB / 3 TE / 1 WR) on every play, pins the defense to each scheme
+(BLITZ_46 / BASE_43 / BASE_34 / NICKEL / DIME / PREVENT) via getter shadow, and
+measures how 13-personnel produces against each. Answers *"what is 13 personnel
+best against?"* Confirms design intent: 13 punishes blitz/heavy fronts via PA
+shots (BLITZ_46 6.81 Y/play, 30 PTS/g — best for offense); least valuable vs
+DIME (6.26, 27.3 PTS/g). Seeded → reproducible.
+
 ### 2. `_brady_audit.js` — franchise + player development
 Drives a full franchise headlessly season-by-season (plays every game + the
 playoff bracket, runs the awards/retirement/draft/offseason chain). Answers:
@@ -119,6 +141,10 @@ Tables:
 - **CAREER LENGTH BY POSITION** — attrition gradient (RB/DL short, QB/K/P long).
 - **LEGEND CAREERS** — full per-season story for every OVR-96+ player:
   trajectory, accolades (SB/MVP/All-Pro/PB), career totals.
+- **STAR CAREERS** — top-15 peak-90+ careers that never crossed the 96+ legend
+  bar (Nasser/Peterson/Sherman tier). Header includes archetype; long careers
+  windowed to 8 seasons around the peak. Closes the gap where generational
+  near-legends left no career record. (`starPlayers` map; sec ~242, dump ~1040.)
 - **INJURY REPORT** — injuries/team-season (contact vs non-contact split),
   non-contact share %, season-ending (8+ wk) rate, career-ending rate, games
   missed, median/P90 weeks out, by-position rate, and injury-type frequencies.
@@ -339,6 +365,39 @@ swept; every archetype confirmed to move the box score except where noted)
 - **Coverage comp% was a bogus 100%** — coverage is logged only on completions,
   so incompletes weren't tagged. Relabeled the table to per-completion Y/CMP.
 
+**Engine realism (shipped this session — see TALENT_MODEL.md for the talent retune)**
+- **Dual-threat QB run game** — designed QB runs were playbook-gated; now QB
+  archetype + mobility drive them, layered on the playbook. DUAL_ELITE 2.3 →
+  9.8 rush att/g.
+- **RB fumble tilt was inverted** — POWER's high STR drove `grip` so low the
+  ×1.35 fumble multiplier was canceled; rewrote as additive `archFumbleAdd` on
+  AWR-dominant grip. POWER now > ELUSIVE as intended.
+- **K range was invisible** — FG ceiling was a flat 57 yd for every kicker. Max
+  attempt now scales with `KPW` + LEG/PRECISION archetype: LEG FGlong 57→61,
+  PRECISION 53 (highest FG%). League FG% in band.
+- **WR archetype `archAirMod` orphan** — defined at engine ~4986, NEVER consumed
+  (only YAC + comp% read the archetype, not air-yards). Wired into `airYds` so
+  SLOT actually throws short (was leading the team in Y/REC like a deep threat)
+  and DEEP_THREAT boosted +3 → +4.5 to lead vertically.
+- **HYBRID archetypes (TE/LB/S) were flavor-only** — engine never read them; pickers
+  capped them to low OVR. Pickers rewritten + balanced engine hooks added (HYBRID
+  TE air/YAC between rec+blocking; HYBRID LB partial coverage + run-stuff; HYBRID
+  S balanced ball production). All three appear at real OVR ~82-84 now.
+- **Weather: WINDY + HOT were no-ops.** WINDY effects were direction-symmetric;
+  HOT was labeled but never referenced. Added net-negative WINDY comp + air-yard
+  + FG penalty + HOT comp dip. Gradient is now CLEAR → WINDY/HOT mild → RAIN/SNOW
+  worst.
+- **Coaching: HC trait now exercised** in `_sim_audit` (was no-op without
+  franchise stub). Riverboat 1.56 4th-down go/g > Game Manager 1.22 > Conservative
+  0.96.
+- **13 personnel / JUMBO surfaced** + made real. `JUMBO` package added to
+  PERSONNEL with run/air/sack/comp mods (best PA in the game, max protection);
+  play-by-play chip shows the package; **TE2 now targetable** in 2+ TE sets so
+  the 3-TE package has a real 2nd receiving threat.
+- **Trade reactions** (chip/sulk/neutral) — personality+age biased roll on every
+  trade, replacing the flat +20% boost. Delayed reveal at season-end; cancer+CHIP
+  redemption arc (personality flips to normal). Cut-and-resigned gets a milder roll.
+
 ---
 
 ## Known limitations
@@ -366,10 +425,16 @@ swept; every archetype confirmed to move the box score except where noted)
 
 ---
 
-## SESSION STATE — dev-model unification (IN PROGRESS) + open work
+## SESSION STATE — talent retune (IN PROGRESS) + open work
 
-> Recorded so a future session can resume without re-deriving. This is the live
-> state as of commit `bdd9921`.
+> Recorded so a future session can resume without re-deriving. Two docs split
+> the work: this one (`AUDIT.md`) covers the audit infrastructure + game-realism
+> calibration; `TALENT_MODEL.md` covers the talent-economy first-principles
+> framework + the retune log + queued items. **For talent retune state and
+> queued findings, start with `TALENT_MODEL.md`.**
+>
+> Live position: r-6 in flight (coachBoost cap ≤ 2.0). r-1 through r-5 logged
+> in TALENT_MODEL.md "Retune log" section.
 
 ### The big architectural arc: unify NFL development onto the college model
 **Root finding (took far too long — I anchored on the NFL gem mechanic and never
