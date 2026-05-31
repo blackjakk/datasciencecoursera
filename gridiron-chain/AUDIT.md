@@ -55,9 +55,13 @@ Three tables:
   OPTION run-heavy; OPTION fewest sacks — QB keepers dodge the rush). Also
   surfaces the passing-hot theme (AIR_RAID over-scores).
 - **WEATHER BREAKDOWN** — per-team-game tagged by condition: comp%, yds, points,
-  fumbles, FG%. SNOW/RAIN correctly cut completion% + FG% and spike fumbles.
-  (Known quirks: WINDY under-differentiated ~CLEAR; HOT slightly inverted on a
-  small ~4% sample.)
+  fumbles, FG%. Gradient: CLEAR best → WINDY/HOT mild → RAIN/SNOW worst (cut
+  comp% + FG%, spike fumbles). (WINDY/HOT quirks fixed — see calibration.)
+- **COACHING BREAKDOWN** — `_sim_audit` injects a `franchise.coaches` stub
+  assigning each team a balanced HC `specialtyTrait`, then tags 4th-down
+  go-attempts / conversion% / points by trait. Confirms `hcAggMul` fires:
+  Riverboat Gambler 1.56 go/g > Neutral 1.27 > Game Manager 1.22 > Conservative
+  0.96 (62% more aggressive than Conservative).
 
 ### 1b. `_qb_probe.js` — QB-archetype isolation probe
 `node _qb_probe.js [games]` (default 300). Builds **one fixed home roster + one
@@ -298,6 +302,18 @@ swept; every archetype confirmed to move the box score except where noted)
   partial coverage + run-stuff; S run-stuff + ball production). All three went
   from low-OVR traps to legitimate do-it-all players. (`ec2a2e8`)
 
+**Gameplay systems** (found via the new PLAYBOOK/WEATHER/COACHING breakdowns)
+- **Playbooks differentiate correctly** — AIR_RAID 66% pass / 6.8 ypp / most pts,
+  GROUND_AND_POUND & OPTION run-heavy, OPTION fewest sacks. (Surfaces the
+  passing-hot theme: AIR_RAID over-scores ~30 pts.)
+- **Weather: WINDY + HOT were no-ops.** WINDY effects were direction-symmetric
+  (helped with-wind, hurt into-wind → averaged to ~0), and HOT was labeled but
+  never referenced. Added a net-negative WINDY component to completion/air-yards/
+  FG plus a HOT completion dip. Now CLEAR best → WINDY/HOT mild → RAIN/SNOW worst.
+- **Coaching: HC trait now exercised + audited.** `_sim_audit` had no franchise,
+  so coaching never fired; injected a balanced `franchise.coaches` stub. Verified
+  Riverboat 1.56 4th-down go/g > Game Manager 1.22 > Conservative 0.96.
+
 ---
 
 ## Known limitations
@@ -404,15 +420,13 @@ ephemeral — re-run if the container recycled.*
 
 ### Gameplay-system audit coverage (what's measured vs not)
 **Covered:** offensive playbooks (PLAYBOOK BREAKDOWN), weather (WEATHER
-BREAKDOWN), injuries (INJURY REPORT), every positional archetype (`_arch_probe`),
-QB styles (`_qb_probe`), box score / drives / situational / kicking / per-position.
+BREAKDOWN), **coaching (COACHING BREAKDOWN — HC 4th-down aggression)**, injuries
+(INJURY REPORT), every positional archetype (`_arch_probe`), QB styles
+(`_qb_probe`), box score / drives / situational / kicking / per-position.
 **NOT yet covered (engine has them, audit doesn't isolate them):**
-- **Coaching system** — HC `specialtyTrait` (Riverboat Gambler/Conservative/Game
-  Manager → 4th-down go-rate), `cultureTrait` (injury rate), OC/DC run tilts
-  (`ocRunArchBonus`/`dcRunStopperMalus`), `coachBoost` (dev). `_sim_audit` has NO
-  `franchise`, so all coach traits default to neutral — coaching's in-game effect
-  is entirely unexercised there. Needs either a `franchise.coaches` injection in
-  `_sim_audit` or a dedicated coaching probe reporting 4th-down go% by HC trait.
+- **Coaching — partial:** HC 4th-down aggression IS now audited. Still not
+  isolated: OC/DC run tilts (`ocRunArchBonus`/`dcRunStopperMalus`), HC
+  `cultureTrait` injury effect, `coachBoost` (dev).
 - **Defensive playbooks** (BLITZ_46/DIME/PREVENT/NICKEL…) — chosen dynamically
   per play; exercised but not broken down by scheme.
 - **Personnel packages** (TRIPS/SPREAD/EMPTY/HEAVY/I_FORM) + **coverages**
@@ -422,8 +436,6 @@ QB styles (`_qb_probe`), box score / drives / situational / kicking / per-positi
 - Franchise-health **unique-champions band** is wrong (set 45-100, impossible —
   capped at 32 teams). - **OL n=0** in per-position (not individually tracked).
 - Career-length absolute ~1.5× NFL (definitional — active-roster seasons).
-- **WINDY** weather under-differentiated (~CLEAR); **HOT** slightly inverted
-  (best offense) on a small ~4% sample — wind should hurt deep passing + long FGs.
 - Injury **count** flags low (15/team-season vs rough 18-42 band) though
   games-missed (~68) is realistic — bands are approximate, may need refining.
 
