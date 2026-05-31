@@ -8476,6 +8476,7 @@ function frnConfirmResignings() {
 function frnProceedToRosterChanges() {
   _runCoachingCarousel();
   franchise._offChanges = runFrnOffseason();
+  enforceCapCompliance();   // AI teams restructure under the cap (skips user)
   saveFranchise();
   renderFrnOffseason();
 }
@@ -22191,6 +22192,36 @@ function _perceivedOverall(p, opts = {}) {
 // ≠ retirement; cut players hit the open market and can be re-signed).
 // Tagged with _cutSeason + _unsignedSeasons so _ageUnsignedFreeAgents
 // can retire vets who go unsigned too long.
+// Cap compliance — AI teams restructure (proportional AAV scale-down + bonus
+// re-proration) to fit under the salary cap each offseason. Size-trimming
+// (_trimAiRostersToCap) only ever cut for ROSTER SIZE, never money, so teams
+// drifted to ~127% of cap as draft/FA piled contracts on. Skips the user's
+// team (they manage their own cap in the UI). Idempotent — a compliant team
+// is left untouched. Models leaguewide restructuring (bonus proration), which
+// keeps rosters intact rather than gutting them to fit.
+function enforceCapCompliance(opts = {}) {
+  const userId = opts.includeUser ? null : (typeof franchise !== "undefined" ? franchise.chosenTeamId : null);
+  const cap = (typeof franchise !== "undefined" && franchise.salaryCap) || SALARY_CAP_BASE;
+  const target = cap * 0.94;
+  for (const t of TEAMS) {
+    if (userId != null && t.id === userId) continue;
+    const roster = (franchise.rosters && franchise.rosters[t.id]) || [];
+    const hit = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
+    if (hit <= cap) continue;                       // already cap-compliant
+    const scale = target / hit;
+    for (const p of roster) {
+      const c = p.contract; if (!c) continue;
+      c.aav = Math.max(0.5, Math.round((c.aav || 0) * scale * 10) / 10);
+      if (typeof _signingBonusCalc === "function" && typeof _baseSalarySchedule === "function") {
+        const { signingBonus, bonusProration } = _signingBonusCalc(c.aav, c.years || 1, p.overall || 70);
+        c.signingBonus = signingBonus;
+        c.bonusProration = bonusProration;
+        c.baseSalaries = _baseSalarySchedule(c.aav, c.years || 1, c.structure || "BALANCED", bonusProration);
+      }
+      c.signedAav = c.aav;
+    }
+  }
+}
 function _trimAiRostersToCap(targetSize = 55, opts = {}) {
   const userId = opts.includeUser ? null : franchise.chosenTeamId;
   const floors = (typeof ROSTER_SLOTS === "object" && ROSTER_SLOTS) || {};
@@ -22239,6 +22270,8 @@ function _trimAiRostersToCap(targetSize = 55, opts = {}) {
     }
     totalCut += cutSet.size;
   }
+  // After size-trimming, bring any still-over-cap AI team under the cap.
+  enforceCapCompliance(opts);
   return totalCut;
 }
 

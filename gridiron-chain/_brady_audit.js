@@ -499,7 +499,9 @@ const harness = `
       for (const p of roster) {
         if (_stress[p.position]) _stress[p.position].push(p._stress || 0);
         const pk = p.personality || "normal"; _pers[pk] = (_pers[pk]||0)+1;
-        payroll += (p.salary || p.aav || (p.contract && (p.contract.aav || p.contract.salary)) || 0);
+        payroll += (typeof currentYearCapHit === "function")
+          ? currentYearCapHit(p)
+          : (p.salary || (p.contract && p.contract.aav) || 0);
       }
       const cap = franchise.salaryCap || 0;
       if (cap > 0) { _cap.teams++; _cap.util.push(100*payroll/cap); _cap.capTotal = cap; }
