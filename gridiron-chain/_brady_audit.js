@@ -237,6 +237,11 @@ const harness = `
   let bradyQbEmergences = 0;         // round >= 6 OR UDFA AND QB — the TRUE Brady (once-a-generation)
   const emergeByPos = {};            // position → count of R6+/UDFA → 96+ emergences
   const seenGems = new Map();        // name → { round, peakOvr, emerged }
+  // Star-tier tracker — peak OVR >= 90 regardless of gem status. Catches
+  // Nasser-tier near-legend careers (4 of top-5 single-season rushing
+  // performances, peak ~92-95 OVR) that never crossed the legend 96+ bar and
+  // would otherwise leave no career record. Separate from gems by design.
+  const starPlayers = new Map();     // name → { player, peakOvr, peakSeason }
   // Keep the actual player object for any legend so we can dump their full
   // career (history rows, accolades, championships) at the end of the sim.
   const legendPlayers = [];          // [{ player, emergedSeason }]
@@ -409,6 +414,12 @@ const harness = `
             // Stash the live player ref so we can dump the career at sim end.
             legendPlayers.push({ player: p, emergedSeason: franchise.season });
           }
+        }
+        // Star-tier capture — any player whose CURRENT OVR >= 90, gem or not.
+        if ((p.overall || 0) >= 90) {
+          const cur = starPlayers.get(p.name);
+          if (!cur) starPlayers.set(p.name, { player: p, peakOvr: p.overall, peakSeason: franchise.season });
+          else if (p.overall > cur.peakOvr) { cur.peakOvr = p.overall; cur.peakSeason = franchise.season; }
         }
       }
     }
@@ -955,7 +966,7 @@ const harness = `
   // Per-position stat columns — pick the 3 fields most relevant to the role.
   function _statCols(pos) {
     if (pos === "QB") return [["pass_yds","PassY"], ["pass_td","TD"], ["pass_int","INT"]];
-    if (pos === "RB") return [["rush_att","Att"], ["rush_yds","RushY"], ["rush_td","TD"]];
+    if (pos === "RB") return [["rush_att","Att"], ["rush_yds","RushY"], ["rush_td","TD"], ["rec","Rec"], ["rec_yds","RecY"]];
     if (pos === "WR" || pos === "TE") return [["rec","Rec"], ["rec_yds","RecY"], ["rec_td","TD"]];
     if (pos === "OL") return [["pancakes","Pncks"], ["sacks_allowed","SkAlw"], [null, ""]];
     // Defense — engine fields tracked: tkl, sk, int_made, int_td, pd, ff, fr, def_td.
@@ -1009,6 +1020,78 @@ const harness = `
         console.log(" " + row.join(" "));
       }
       // Career totals — pull from p.careerStats
+      const cs = p.careerStats || {};
+      const totals = [];
+      for (const [k, label] of cols) {
+        if (!k) continue;
+        totals.push(label + " " + (cs[k] || 0).toLocaleString());
+      }
+      if (totals.length) console.log(" CAREER TOTALS:  " + totals.join("  ·  "));
+    }
+    console.log("");
+  }
+
+  // ── STAR CAREERS ──────────────────────────────────────────────────────
+  // Top peak-90+ careers that NEVER crossed the 96+ legend bar. Catches the
+  // Nasser/Peterson/Sherman tier of generational players who sustained near-
+  // legend production without quite reaching the legend ceiling. Includes
+  // archetype on the header line. Capped at top 15 by peak OVR to keep the
+  // dump readable; per-season table is windowed to 8 seasons around the peak
+  // for long careers.
+  const _stars = Array.from(starPlayers.values())
+    .filter(s => s.peakOvr < 96)              // legends already have their section
+    .sort((a, b) => b.peakOvr - a.peakOvr)
+    .slice(0, 15);
+  if (_stars.length) {
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" STAR CAREERS — top " + _stars.length + " peak-90+ careers (non-legend)");
+    console.log("══════════════════════════════════════════════════════════");
+    for (const { player: p, peakOvr, peakSeason } of _stars) {
+      const hist = (p.careerHistory || []).slice().sort((a, b) => (a.season || 0) - (b.season || 0));
+      const round = (p.draftRound === 0 || p.udfa) ? "UDFA" :
+                    (p.draftRound != null ? ("R" + p.draftRound) : "?");
+      const draftPick = p.draftPick != null ? " pick " + p.draftPick : "";
+      const draftSeason = p.draftSeason != null ? "S" + p.draftSeason : "?";
+      const careerYrs = hist.length ? (hist[0].season + "-" + hist[hist.length - 1].season + " (" + hist.length + " yrs)") : "—";
+      const arch = p.archetype || "—";
+      console.log("");
+      console.log(" " + p.name + "  (" + p.position + " · " + arch + ")  ·  Drafted " + round + draftPick + ", " + draftSeason +
+                  "  ·  Peak OVR " + peakOvr + " (S" + peakSeason + ")");
+      console.log(" Career: " + careerYrs +
+                  (p.age != null ? "  ·  Final age " + p.age : "") +
+                  (p._retired ? " (retired)" : ""));
+      console.log(" Honors: " + _accoladeTally(p));
+      const cols = _statCols(p.position);
+      // For long careers, window to 8 seasons centered on the peak.
+      const showHist = hist.length > 8
+        ? (() => {
+            const peakIdx = Math.max(0, hist.findIndex(h => (h.season || 0) === peakSeason));
+            const start = Math.max(0, peakIdx - 3);
+            const end = Math.min(hist.length, start + 8);
+            return hist.slice(start, end);
+          })()
+        : hist;
+      const headerCells = ["S#","Age","Team","OVR"].concat(cols.filter(c => c[0]).map(c => c[1])).concat(["Accolades"]);
+      console.log(" " + "-".repeat(72));
+      console.log(" " + headerCells.map((c, i) => i < 4 ? c.padStart(4) : c.padStart(7)).join(" "));
+      console.log(" " + "-".repeat(72));
+      if (hist.length > 8) console.log(" (showing " + showHist.length + "-yr peak window of " + hist.length + "-yr career)");
+      for (const h of showHist) {
+        const ovr = h.overall != null ? h.overall : (h.ovr != null ? h.ovr : "");
+        const tm = (h.teamName || "—").slice(0, 12);
+        const row = [String(h.season || "").padStart(4),
+                     String(h.age || "").padStart(4),
+                     tm.padEnd(12),
+                     String(ovr).padStart(4)];
+        for (const [k] of cols) {
+          if (!k) continue;
+          const v = (h[k] != null) ? h[k] : (h.playoff && h.playoff[k] != null ? h.playoff[k] : 0);
+          row.push(String(v).padStart(7));
+        }
+        const accStr = (h.accolades && h.accolades.length) ? h.accolades.join(", ") : "";
+        row.push(accStr);
+        console.log(" " + row.join(" "));
+      }
       const cs = p.careerStats || {};
       const totals = [];
       for (const [k, label] of cols) {

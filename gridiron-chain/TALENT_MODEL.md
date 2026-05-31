@@ -185,10 +185,11 @@ max THR specifically to clear 96+, and the gem grind doesn't push THR fast
 enough. Fix is structural (per-position dev stat selection in `_gemDevStats`,
 not multipliers).
 
-### Star-tier ("near-legend") tracking gap
-`LEGEND CAREERS` only tracks peak OVR ≥ 96. Generational players like Cason
-Nasser (18,104 career rush yds, 4 of top-5 single-season rushing performances,
-peak ~92-95 OVR) get no career page in the audit. Add a **STAR CAREERS** section
-(peak OVR ≥ 90) so the audit captures the Peterson/Dickerson-tier guys who
-sustained dominance without crossing the legend bar. Implementation: extend the
-existing legend-tracking pool to a second threshold.
+### Star-tier ("near-legend") tracking gap — **DONE**
+~~`LEGEND CAREERS` only tracks peak OVR ≥ 96.~~ Added **STAR CAREERS** to
+`_brady_audit.js`: parallel `starPlayers` map captures every player whose peak
+OVR reaches ≥ 90 regardless of gem status; dumped after LEGEND CAREERS, top 15
+by peak OVR, with archetype on the header line and an 8-season window centered
+on the peak for long careers. RB stat-cols also expanded to include receiving
+(rec / rec_yds) so Nasser-tier dual-threat backs show their full role. Next
+audit produces the data; doesn't affect engine.
