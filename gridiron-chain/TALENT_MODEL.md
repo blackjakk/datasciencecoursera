@@ -193,3 +193,26 @@ by peak OVR, with archetype on the header line and an 8-season window centered
 on the peak for long careers. RB stat-cols also expanded to include receiving
 (rec / rec_yds) so Nasser-tier dual-threat backs show their full role. Next
 audit produces the data; doesn't affect engine.
+
+### Dev-curve shape — sharkfin gaps (do AFTER level retune settles)
+The ascent is already quasi-sharkfin via gap-driven exponential taper (year-1
+~6 OVR, year-5 ~1.5 OVR for a high-ceiling player). Two real gaps remain:
+
+**1. No rookie year-1 burst.** Mahomes/Lamar/Stroud-style year-1-to-year-2
+jumps are bigger than the gap math alone produces. Currently `intensity` weights
+(`4.0/1.8/1.0` at `0.2/0.3/0.5`) are constant by year. Fix: bias year-1 toward
+the burst tail (`0.5/0.3/0.2`). Concrete impl: `HiddenOracle.roll.intensity(p,
+year)` — special-case `yearsInLeague <= 1` to use rookie-burst weights.
+
+**2. Decline uniform across positions.** Current `_dc(onset)` = `35/55/70%` per
+stat/yr is the same for everyone — only `peakAge` differs. Real NFL: **RB =
+cliff**, WR/CB/S = gradual, QB/OL/TE = extended plateau. Concrete impl: make
+`_dc` position-aware in `_developNflPlayer` / physical-decline pass:
+- RB (& other speed-cliff positions): `60/80/90%` (Henry-at-30 cliff)
+- WR / CB / S / LB: `35/55/70%` (current — gradual)
+- QB / OL / TE / K / P: `20/35/50%` (Brady plateau)
+
+Both changes are **shape, not level** — they shouldn't materially shift the 90+
+equilibrium (rookie burst pushes some R1s to 90+ year-1 = small +; RB cliff
+shortens dwell time at peak = small −; roughly washes). Do AFTER the current
+level retune so the signals don't muddle.
