@@ -5143,6 +5143,9 @@ function showFrnAwards() {
       leagueMVP, superBowlMVP: sbMVP, opoy, dpoy, roy, comeback, breakout, allPros,
       oloy, stpoty,
     });
+    // Reveal trade reactions whose first season has now played out — the news +
+    // tag come AFTER the production tells the story (delayed visibility per design).
+    if (typeof _revealTradeReactions === "function") _revealTradeReactions();
     // Emit award wire entries for the user's eye-line
     if (oloy && typeof _pushNews === "function") {
       const t = getTeam(oloy.teamId);
@@ -10798,6 +10801,90 @@ function _applyGemDevelopment(p, targetOvr) {
 //   • only pre-peak players develop; plateau/decline/retirement stay as-is.
 // A Brady now emerges naturally: a late-round prospect whose college oracle
 // ceiling is 90+ and who realizes it — no separate gem/flash machinery needed.
+// ─── TRADE REACTIONS — chip on shoulder / sulk / neutral ─────────────────
+// When a player changes teams via TRADE, roll a reaction biased by personality
+// + age. CHIP players get a one-year dev boost + ceiling unlock (Hopkins-to-ARI,
+// Diggs-to-BUF, Stafford-to-LAR); SULK players regress + show up out of shape;
+// most are neutral. Cut-and-resigned via FA gets a milder roll (no SULK; weaker
+// CHIP — "they didn't want me" is real but less than being traded). The reaction
+// is HIDDEN at trade time and REVEALED at the end of the first season under it,
+// when the production tells the story. Cancer-personality players who roll CHIP
+// flip to "normal" permanently (the redemption arc).
+const _TR_REACTION_DISTS = {
+  normal:     { CHIP: 0.22, NEUTRAL: 0.60, SULK: 0.18 },
+  captain:    { CHIP: 0.38, NEUTRAL: 0.55, SULK: 0.07 },
+  showman:    { CHIP: 0.35, NEUTRAL: 0.50, SULK: 0.15 },
+  quiet_pro:  { CHIP: 0.28, NEUTRAL: 0.65, SULK: 0.07 },
+  coachs_son: { CHIP: 0.32, NEUTRAL: 0.62, SULK: 0.06 },
+  cancer:     { CHIP: 0.12, NEUTRAL: 0.38, SULK: 0.50 },
+};
+function _rollTradeReaction(p, opts) {
+  if (!p) return;
+  const cutAndSigned = !!(opts && opts.cutAndSigned);
+  const personality = p.personality || "normal";
+  const base = { ..._TR_REACTION_DISTS[personality] || _TR_REACTION_DISTS.normal };
+  // Age tilt: vets (28+) lean CHIP; rookies (<=23) lean NEUTRAL.
+  const age = p.age || 25;
+  if (age >= 28)      { base.CHIP += 0.06; base.NEUTRAL -= 0.03; base.SULK -= 0.03; }
+  else if (age <= 23) { base.CHIP -= 0.05; base.NEUTRAL += 0.05; }
+  // Cut-and-signed: half the CHIP rate, no SULK (they're grateful to be picked up).
+  if (cutAndSigned) {
+    base.CHIP *= 0.5;
+    base.NEUTRAL += base.SULK;
+    base.SULK = 0;
+  }
+  for (const k of ["CHIP", "NEUTRAL", "SULK"]) base[k] = Math.max(0, base[k]);
+  const total = base.CHIP + base.NEUTRAL + base.SULK;
+  if (total <= 0) return;
+  let r = Math.random() * total;
+  const reaction = (r -= base.CHIP) < 0 ? "CHIP" : (r -= base.NEUTRAL) < 0 ? "NEUTRAL" : "SULK";
+  // NEUTRAL gets no state — keeps player object clean.
+  if (reaction === "NEUTRAL") return;
+  p._tradeReaction = reaction;
+  p._tradeReactionYrs = 2;
+  p._tradeReactionRevealed = false;
+  p._tradeReactionSeason = (typeof franchise !== "undefined" ? franchise.season : 0);
+  p._tradeReactionFromCut = cutAndSigned;
+}
+// Reveal trigger — call at season-end (after the player has played a full
+// season under the boost/penalty) so the news + tag are backed by actual
+// production. Idempotent; only fires once per reaction. Returns true if a
+// reveal happened (caller can choose to push news on the user's own players).
+function _revealTradeReactions() {
+  if (typeof franchise === "undefined" || !franchise.rosters) return;
+  const _pn = (typeof _pushNews === "function") ? _pushNews : null;
+  for (const tId of Object.keys(franchise.rosters)) {
+    for (const p of franchise.rosters[tId]) {
+      if (!p || !p._tradeReaction || p._tradeReactionRevealed) continue;
+      // Only reveal after the player has been on the new team through one full
+      // offseason (where the dev hook fired) AND one season (where production
+      // showed). reactionSeason = trade year; reveal at season+1 end.
+      if ((franchise.season - (p._tradeReactionSeason || 0)) < 1) continue;
+      p._tradeReactionRevealed = true;
+      // Cancer + CHIP redemption arc — permanent personality flip.
+      if (p._tradeReaction === "CHIP" && p.personality === "cancer") {
+        p.personality = "normal";
+        p._cancerRedeemed = true;
+      }
+      // Career-history stamp for the player's page.
+      const hist = p.careerHistory || (p.careerHistory = []);
+      const tag = p._tradeReaction === "CHIP"
+        ? (p._cancerRedeemed ? "🔥 Found his footing after trade — redemption arc"
+                              : (p._tradeReactionFromCut ? "🔥 Chip on shoulder after being cut" : "🔥 Chip on shoulder after trade"))
+        : "😒 Sulking after trade — disappointing season";
+      hist.push({ season: franchise.season, kind: "trade_reaction", note: tag });
+      // News ticker — only push for the user's team (avoid spamming with 31 AI signals).
+      if (_pn && tId === franchise.chosenTeamId) {
+        const icon = p._tradeReaction === "CHIP" ? "🔥" : "😒";
+        const verb = p._tradeReaction === "CHIP"
+          ? (p._cancerRedeemed ? "found his footing in the new locker room"
+                                : "played with a chip on his shoulder")
+          : "looked unhappy in his first season after the move";
+        _pn({ type: "trade_reaction", label: `${icon} ${p.position} ${p.name} ${verb}` });
+      }
+    }
+  }
+}
 function _developNflPlayer(p, mult) {
   if (!p || !p.stats || !p.stats.length) return;
   // Drafted prospects carry oracle destiny; UDFAs/synthetics roll it now.
@@ -11016,11 +11103,45 @@ function runFrnOffseason() {
       // Trade fresh-start boost: a player traded last season gets a
       // one-time growth amplifier next offseason (Tannehill / Stafford /
       // Mahomes-after-Smith arcs). Applies once, then clears.
+      // Trade-reaction dev hook (replaces the old flat +20% for all traded players).
+      // CHIP players get a real pop (+50% dev) + a one-time ceiling unlock so they
+      // actually have headroom to break out; SULK players regress (-20% dev) plus
+      // a one-time stat hit ("showed up out of shape"). Effects run for 2 seasons
+      // (counter decremented here) and apply during the dev pass — visibility is
+      // delayed and revealed at season-end by _revealTradeReactions().
       let tradeBoost = 1.0;
-      if (p._tradedAtSeason != null && (franchise.season - p._tradedAtSeason) === 1) {
-        tradeBoost = 1.20;
-        delete p._tradedAtSeason; // one-time bonus
+      if (p._tradeReaction && (p._tradeReactionYrs || 0) > 0) {
+        const firstYear = (franchise.season - (p._tradeReactionSeason || 0)) === 1;
+        if (p._tradeReaction === "CHIP") {
+          tradeBoost = 1.50;
+          if (firstYear) {
+            const bump = 3 + Math.floor(Math.random() * 3);   // +3..+5 ceiling unlock
+            p.potential = Math.min(99, (p.potential || 70) + bump);
+            if (p.hiddenGem && p.hiddenGem.ceiling != null) {
+              p.hiddenGem.ceiling = Math.min(99, p.hiddenGem.ceiling + bump);
+            }
+          }
+        } else if (p._tradeReaction === "SULK") {
+          tradeBoost = 0.80;
+          if (firstYear && p.stats && _gemDevStats) {
+            const idxs = _gemDevStats(p.position) || [];
+            if (idxs.length) {
+              const i = idxs[Math.floor(Math.random() * idxs.length)];
+              p.stats[i] = Math.max(35, (p.stats[i] || 60) - 2);
+              p.overall = calcOverall(p.position, p.stats);
+            }
+          }
+        }
+        p._tradeReactionYrs -= 1;
+        if (p._tradeReactionYrs <= 0) {
+          // Effect window done; keep the _tradeReaction tag for the player's
+          // career history but stop applying boosts. Cleared if traded again.
+          delete p._tradeReactionYrs;
+        }
       }
+      // Legacy compatibility — clear the old flag so it doesn't double-fire if
+      // a save predates the reaction system; new trade hook now rolls the reaction.
+      if (p._tradedAtSeason != null) delete p._tradedAtSeason;
 
       // Resolve gem ceiling — remove flag once reached
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
@@ -15115,6 +15236,7 @@ function frnAcceptOffer(offerId) {
     _clearGrudgeFlags(p);
     p.systemYears = 0; // new system — familiarity resets
     p._tradedAtSeason = franchise.season; // fresh-start dev bonus
+    _rollTradeReaction(p);                 // hidden roll: chip / neutral / sulk
     const i = myRoster.indexOf(p); if (i !== -1) myRoster.splice(i, 1);
     theirRoster.push(p);
   }
@@ -15124,6 +15246,7 @@ function frnAcceptOffer(offerId) {
     _clearGrudgeFlags(p);
     p.systemYears = 0; // new system — familiarity resets
     p._tradedAtSeason = franchise.season;
+    _rollTradeReaction(p);                 // hidden roll: chip / neutral / sulk
     const i = theirRoster.indexOf(p); if (i !== -1) theirRoster.splice(i, 1);
     myRoster.push(p);
   }
@@ -15560,12 +15683,14 @@ function frnSubmitTrade() {
       if (i !== -1) myRoster.splice(i, 1);
       theirRoster.push(p);
       p._tradedAtSeason = franchise.season;       // fresh-start dev bonus next offseason
+      _rollTradeReaction(p);                       // hidden chip/neutral/sulk roll
     }
     for (const p of recvPlayers) {
       const i = theirRoster.indexOf(p);
       if (i !== -1) theirRoster.splice(i, 1);
       myRoster.push(p);
       p._tradedAtSeason = franchise.season;
+      _rollTradeReaction(p);                       // hidden chip/neutral/sulk roll
     }
     // Picks — flip currentOwnerId
     for (const pk of sendPicks)  pk.currentOwnerId = otherId;
@@ -22369,9 +22494,14 @@ function _aiSignFreeAgents(opts = {}) {
     );
     const team = candidates[0].team;
     // Sign — clear FA tags, push to roster.
+    // If the player was CUT (not just an aging FA pool synthetic), roll a milder
+    // trade-reaction: cut = "they didn't want me" → smaller chip rate, no sulk
+    // (they're grateful to be picked up). Skip for synthetic FA-pool templates.
+    const wasCut = !!fa._cutSeason;
     delete fa._cutSeason;
     delete fa._unsignedSeasons;
     delete fa._cutFromTeamId;
+    if (wasCut && typeof _rollTradeReaction === "function") _rollTradeReaction(fa, { cutAndSigned: true });
     franchise.rosters[team.id].push(fa);
     signedIds.add(fa.name);
     totalSigned++;

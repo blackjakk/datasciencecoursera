@@ -7531,6 +7531,13 @@ function _faRiskBadges(player) {
   if ((player.age || 0) >= (player.declineAge ?? 33)) out.push({ tag: "📉 DECLINE", col: "#ffc850" });
   if (player.coachable) out.push({ tag: "🎯 COACH", col: "#86e0a3" });
   if ((player._tradedAtSeason != null) && (franchise.season - player._tradedAtSeason <= 1)) out.push({ tag: "🔄 NEW", col: "#5ed4d4" });
+  // Trade-reaction badge — only shown AFTER reveal (delayed visibility: player's
+  // first season under the boost/penalty has to play out before the tag appears).
+  if (player._tradeReactionRevealed && player._tradeReaction === "CHIP") {
+    out.push({ tag: player._cancerRedeemed ? "🔥 REDEEMED" : "🔥 CHIPPED", col: "#ff8c42" });
+  } else if (player._tradeReactionRevealed && player._tradeReaction === "SULK") {
+    out.push({ tag: "😒 SULKING", col: "#9a8db5" });
+  }
   return out;
 }
 
