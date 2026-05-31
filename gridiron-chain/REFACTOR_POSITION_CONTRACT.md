@@ -178,6 +178,49 @@ budget (~3620), `dropFrac`/`throwFrac` (~3592). All currently sized from
 
 ---
 
+## Stage 0 — BUILT (detector operational, baseline captured)
+
+Three dev harnesses (committed, mirror the `_sim_audit.js` loader conventions):
+- **`_teleport_capture.js`** (node) — runs the engine headlessly, buckets REAL
+  play-visual objects by (kind × concept × coverage × targetSlot × poss), and
+  writes per-game context (`teams`, `ratings`, serialized `playerLookup` Map,
+  plays) → `/tmp/teleport_plays.json`.
+- **`_teleport_detect.js`** (Playwright) — loads the real page, replays each
+  play through `buildAnimForPlay`, records `drawPlayer`/`drawBall` positions per
+  frame, and flags any per-frame jump over a human-speed cap. Players are the
+  headline; the ball gets a high flight cap; non-finite (vanished) draws are a
+  separate failure class.
+- **`_teleport_trace.js`** — single-play per-frame dump for diagnosis.
+
+**Gotchas solved (record for the next instance):**
+- Scripts load as classic `<script>` — `buildAnimForPlay`/`drawPlayer` are
+  global and reassignable. But `gameResult`/`cameraMode` are top-level **`let`s**
+  (script scope, NOT `window`): assign by **bare name** inside `page.evaluate`.
+- `playerLookup` is a **Map** → serialize as entry-pairs, rebuild per game; each
+  play must replay against its OWN game's ratings+lookup or named lookups fail.
+- `drawPlayer(ctx, x, y, …)` → **x=args[1], y=args[2]**. An off-by-one here
+  (reading args[2]/args[3]) made the detector read the color string as "y",
+  `isFinite` dropped every player, and it falsely reported "0 teleports."
+  **Lesson: validate the detector against a known bug before trusting green.**
+
+**Baseline on HEAD (5 games, 279 field plays, broadcast cam):**
+- **228 plays** have a player teleport over the cap · 0 non-finite · 3 ball
+  anomalies (spike — legit) · 1 render error.
+- Teleports span BOTH targets and secondary players (converging defenders,
+  downfield blockers) — i.e. the Family-A handoff seams the scoping inventory
+  flagged (`_cbFollow`, tackler `_sim` sync, `_followX`).
+- The interim RB anchor-fix (`eb67c82`) corrects catch position + ball-flight
+  distance but does NOT change the post-catch teleports the detector finds
+  (`complete/rb` worst 20.5yd at f38→39 is identical with the fix on/off) —
+  confirming those are SEPARATE seams for Stages 2–4.
+
+**Calibration TODO before this is a CI gate:** 228/279 mixes egregious
+(10–20yd single-frame) with borderline (~6yd near the cap). Add an absolute-yards
+floor (trust >8yd today) and handle multi-draw-per-frame entities. The egregious
+tier is already a trustworthy regression signal.
+
+---
+
 ## Resume pointer
 
 - Interim patches already in: RB reference-frame remap `eb67c82`, FG sail/cheer
