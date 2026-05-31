@@ -76,6 +76,29 @@ const PERSONNEL = {
   SPREAD: { rb: 1, te: 0, wr: 4, label: "Spread (10)",  skill: 5 },
   EMPTY:  { rb: 0, te: 1, wr: 4, label: "Empty (01)",   skill: 5 },
 };
+// ── FORMATION_DEPTHS — single source of truth for pre-snap skill positions ──
+// Each tracked offensive skill slot's formation START, in LOS-RELATIVE YARDS:
+//   backYd = yards behind the LOS (toward own end zone; +X back for offense)
+//   latYd  = yards from field center (− = the WR1 side, + = the WR2 side)
+// makeFormation (play-render.js) derives the canonical (normal-down, non-GL,
+// 1-back) positions from this table; goal-line / long-yardage / multi-back are
+// variants applied on top there. The engine (play-engine.js) emits each motion
+// track's t=0 waypoint from the SAME table, so renderer and engine share one
+// frame and a tracked player's start is never re-derived two ways. Lateral
+// magnitudes also drive the matching CB alignment widths in makeFormation, so
+// editing a WR here moves its corner too (coupling preserved by derivation).
+// (fb + the 2-back I/PRO variants live in makeFormation for now.)
+const FORMATION_DEPTHS = {
+  qb:  { backYd: 6,       latYd: 0 },
+  rb:  { backYd: 8,       latYd: 28 / 15 },   // +1.867 yd (28px off center)
+  wr1: { backYd: 0,       latYd: -16 },       // outside left (−240px)
+  wr2: { backYd: 0,       latYd: 16 },        // outside right
+  wr3: { backYd: 0,       latYd: -10 },       // slot left (−150px)
+  wr4: { backYd: 0,       latYd: 10 },        // slot right
+  wr5: { backYd: 0,       latYd: 95 / 15 },   // +6.333 yd (tight slot, 95px)
+  te1: { backYd: 2 / 15,  latYd: 78 / 15 },   // 2px off LOS, +5.2 yd
+  te2: { backYd: 2 / 15,  latYd: -78 / 15 },
+};
 // Defensive package counts — subs are made off the base 4-3 (DL stays 4).
 const DEF_PACKAGE = {
   BASE_43: { dl: 4, lb: 3, cb: 2, s: 2, label: "4-3 Base" },

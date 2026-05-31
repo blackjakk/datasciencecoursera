@@ -2817,9 +2817,12 @@ function makeFormation(losX, poss, opts = {}) {
   // ── WIDE RECEIVERS (1-5 depending on personnel) ──
   // wr1/wr2: outside on the numbers. wr3 in slot left. wr4 in slot right
   // (or trips bunch on the wr1 side). 5th WR (00 personnel) inside slot.
-  const wrSplit  = isGL ? 110 : 240;
-  const slotWide = isGL ? 70  : 150;
-  const slotInner = isGL ? 40 : 95;
+  // Normal-down split widths derive from FORMATION_DEPTHS (single source);
+  // goal-line keeps its tighter literals. These widths also align the CBs
+  // below, so a WR edit in the table moves its corner too.
+  const wrSplit  = isGL ? 110 : Math.abs(FORMATION_DEPTHS.wr1.latYd) * PX;
+  const slotWide = isGL ? 70  : Math.abs(FORMATION_DEPTHS.wr3.latYd) * PX;
+  const slotInner = isGL ? 40 : FORMATION_DEPTHS.wr5.latYd * PX;
   const wrSlots = [];
   if (personDef.wr >= 1) wrSlots.push({ x: losX, y: cy - wrSplit, role: "WR1" });
   if (personDef.wr >= 2) wrSlots.push({ x: losX, y: cy + wrSplit, role: "WR2" });
@@ -2830,18 +2833,18 @@ function makeFormation(losX, poss, opts = {}) {
   // ── TIGHT ENDS (0-2) ──
   // TE1 outside RT; TE2 (HEAVY personnel) on the opposite side as a Y-flex.
   const teSlots = [];
-  if (personDef.te >= 1) teSlots.push({ x: losX - dir * 2, y: cy + (isGL ? 60 : 78), role: "TE1" });
-  if (personDef.te >= 2) teSlots.push({ x: losX - dir * 2, y: cy - (isGL ? 60 : 78), role: "TE2" });
+  if (personDef.te >= 1) teSlots.push({ x: losX - dir * FORMATION_DEPTHS.te1.backYd * PX, y: cy + (isGL ? 60 : FORMATION_DEPTHS.te1.latYd * PX), role: "TE1" });
+  if (personDef.te >= 2) teSlots.push({ x: losX - dir * FORMATION_DEPTHS.te2.backYd * PX, y: cy + (isGL ? -60 : FORMATION_DEPTHS.te2.latYd * PX), role: "TE2" });
 
   // QB — goal-line, QB is closer to the LOS (no deep dropback needed)
-  const qb = { x: losX - dir * (isGL ? 3 : 6) * PX, y: cy, role: "QB" };
+  const qb = { x: losX - dir * (isGL ? 3 : FORMATION_DEPTHS.qb.backYd) * PX, y: cy + FORMATION_DEPTHS.qb.latYd * PX, role: "QB" };
 
   // ── RUNNING BACKS (0-2) ──
   // 0 RB = empty backfield (00/01 personnel). 1 RB = standard. 2 RB = I-form
   // (FB stacked behind QB) or pro-set (side-by-side).
   let rb = null, fb = null;
   if (personDef.rb >= 1) {
-    rb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy + (isGL ? 18 : 28), role: "RB" };
+    rb = { x: losX - dir * (isGL ? 6 : FORMATION_DEPTHS.rb.backYd) * PX, y: cy + (isGL ? 18 : FORMATION_DEPTHS.rb.latYd * PX), role: "RB" };
   }
   if (personDef.rb >= 2) {
     const style = opts.twoBackStyle || (Math.random() < 0.5 ? "I" : "PRO");
