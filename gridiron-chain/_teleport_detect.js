@@ -21,7 +21,7 @@ const { chromium } = require(PW_LIB);
 
 const URL = "http://localhost:5173/play.html";
 const CAM = process.argv[2] || "broadcast";
-const FRAMES = 48;              // render samples across t∈[0,1]
+// Sampling is native 60fps per play (computed per-play from anim.duration).
 const MAX_YPS = 13;            // visual top speed in the engine (10.5–13)
 const TOLERANCE = 1.7;        // slack so legit cuts/accel don't false-positive
 const PX_PER_YARD = 15;
@@ -41,7 +41,7 @@ const FIELD_KINDS = new Set([
     ...g, plays: g.plays.filter(p => FIELD_KINDS.has(p.kind)),
   })).filter(g => g.plays.length);
   const totalPlays = games.reduce((n, g) => n + g.plays.length, 0);
-  console.log(`Replaying ${totalPlays} field-action plays across ${games.length} games · cam=${CAM} · ${FRAMES} frames/play`);
+  console.log(`Replaying ${totalPlays} field-action plays across ${games.length} games · cam=${CAM} · native 60fps sampling`);
 
   const browser = await chromium.launch({ headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -51,7 +51,7 @@ const FIELD_KINDS = new Set([
   await page.goto(URL, { waitUntil: "networkidle", timeout: 20000 });
   await page.waitForTimeout(600);
 
-  const report = await page.evaluate(async ({ games, cam, FRAMES, MAX_YPS, TOLERANCE, PX_PER_YARD }) => {
+  const report = await page.evaluate(async ({ games, cam, MAX_YPS, TOLERANCE, PX_PER_YARD }) => {
     // ── Install instrumentation. drawPlayer/drawBall are global functions;
     // reassigning the global is picked up by buildAnimForPlay's by-name calls. ──
     const REC = { frame: 0, hits: [], nonFinite: new Set() };   // hits: {id,x,y,frame}; nonFinite: ids drawn at NaN/∞
@@ -128,43 +128,69 @@ const FIELD_KINDS = new Set([
         if (!anim || typeof anim.render !== "function") { entry.error = "no-render"; }
         else {
           const dur = anim.duration || 3000;
-          for (let f = 0; f < FRAMES; f++) {
+          // FIDELITY: sample at native ~60fps (the real raf cadence), NOT a few
+          // coarse steps — coarse sampling turns continuous fast motion into
+          // fake "jumps". AND drive a CONTROLLED CLOCK: the post-catch sims
+          // (_wrSim, pursuit) integrate on performance.now() wall-clock; in a
+          // tight replay loop that's ~0 so they'd freeze, and a frozen sim
+          // handing off to a moving branch manufactures a phantom teleport.
+          // Advancing performance.now() by the play-time dt makes them step
+          // exactly as they do live.
+          const dtMs = 1000 / 60;
+          const N = Math.max(30, Math.min(900, Math.round(dur / dtMs)));
+          const _origNow = performance.now;
+          let _clock = 0;
+          try { performance.now = () => _clock; } catch (e) {}
+          for (let f = 0; f < N; f++) {
             REC.frame = f;
-            const t = f / (FRAMES - 1);
+            _clock = f * dtMs;
+            const t = N > 1 ? f / (N - 1) : 0;
             try { anim.render(t, cctx); }
             catch (e) { entry.error = "render@" + f + ":" + (e.message || e).slice(0, 80); break; }
           }
-          // Build per-entity series and find max physical-cap violation.
+          try { performance.now = _origNow; } catch (e) {}
+          entry.frames = N;
+          // Build per-entity series.
           const series = new Map();
           for (const h of REC.hits) {
             const arr = series.get(h.id) || []; arr.push(h); series.set(h.id, arr);
           }
-          const dtMs = dur / (FRAMES - 1);
-          // Players move at human speed; the BALL legitimately flies fast on a
-          // throw/punt/kick, so it gets its own much-higher cap (a 50-yd pass
-          // in ~0.8s ≈ 60 yps). Players are the headline signal for teleports.
-          const playerMaxYdPerStep = MAX_YPS * (dtMs / 1000) * TOLERANCE;
-          const ballMaxYdPerStep   = 70 * (dtMs / 1000);
+          // Player cap at native dt; the BALL flies fast (own high cap). Add an
+          // absolute floor so micro easing-glitches don't register — a true
+          // teleport is a discontinuity of several yards in one ~16ms frame.
+          const playerCap = Math.max(MAX_YPS * (dtMs / 1000) * TOLERANCE, 0);
+          const ballCap   = 90 * (dtMs / 1000);
+          const ABS_FLOOR_YD = 2.0;
           for (const [id, arr] of series) {
-            const cap = id === "BALL" ? ballMaxYdPerStep : playerMaxYdPerStep;
-            // arr is in draw order; multiple draws per frame possible — keep the
-            // LAST draw per frame (final position that frame).
+            const isBall = id === "BALL";
+            const cap = isBall ? ballCap : playerCap;
+            // Multi-draw-per-frame: an entity can be drawn more than once a
+            // frame (carrier + celebrant). Chain by CONTINUITY — each frame pick
+            // the draw closest to the running position — so a transient 2nd draw
+            // doesn't fake an oscillation. Also note the max intra-frame spread.
             const byFrame = new Map();
-            for (const h of arr) byFrame.set(h.frame, h);
+            for (const h of arr) { const a = byFrame.get(h.frame) || []; a.push(h); byFrame.set(h.frame, a); }
             const frames = [...byFrame.keys()].sort((a, b) => a - b);
-            let worst = null;
-            for (let i = 1; i < frames.length; i++) {
-              const a = byFrame.get(frames[i - 1]), b = byFrame.get(frames[i]);
-              const gap = frames[i] - frames[i - 1];          // frame gap (≥1)
-              const dPx = Math.hypot(b.x - a.x, b.y - a.y);
-              const dYd = dPx / PX_PER_YARD;
-              const allow = cap * gap;                         // scale by frame gap
-              if (dYd > allow && (!worst || dYd > worst.dYd)) {
-                worst = { id, isBall: id === "BALL", fromFrame: frames[i - 1], toFrame: frames[i],
-                          dYd: +dYd.toFixed(1), allowYd: +allow.toFixed(1),
-                          from: [Math.round(a.x), Math.round(a.y)],
-                          to: [Math.round(b.x), Math.round(b.y)] };
+            let worst = null, running = null;
+            for (let i = 0; i < frames.length; i++) {
+              const cands = byFrame.get(frames[i]);
+              let pick = cands[0];
+              if (running) {
+                let bd = Infinity;
+                for (const c of cands) { const d = Math.hypot(c.x - running.x, c.y - running.y); if (d < bd) { bd = d; pick = c; } }
               }
+              if (running) {
+                const gap = frames[i] - frames[i - 1];
+                const dYd = Math.hypot(pick.x - running.x, pick.y - running.y) / PX_PER_YARD;
+                const allow = Math.max(cap * gap, ABS_FLOOR_YD);
+                if (dYd > allow && (!worst || dYd > worst.dYd)) {
+                  worst = { id, isBall, fromFrame: frames[i - 1], toFrame: frames[i],
+                            dYd: +dYd.toFixed(1), allowYd: +allow.toFixed(1),
+                            from: [Math.round(running.x), Math.round(running.y)],
+                            to: [Math.round(pick.x), Math.round(pick.y)] };
+                }
+              }
+              running = pick;
             }
             if (worst) entry.teleports.push(worst);
           }
@@ -181,16 +207,19 @@ const FIELD_KINDS = new Set([
      }
     }
     return out;
-  }, { games, cam: CAM, FRAMES, MAX_YPS, TOLERANCE, PX_PER_YARD });
+  }, { games, cam: CAM, MAX_YPS, TOLERANCE, PX_PER_YARD });
 
   await browser.close();
 
   // ── Report ── PLAYER teleports are the headline (the bug family we're
   // closing); BALL jumps are tracked separately under a high flight cap.
+  const EGREGIOUS_YD = 6;   // a true teleport is several yards in one ~16ms frame
   for (const r of report) {
     r.playerTp = r.teleports.filter(t => !t.isBall);
     r.ballTp   = r.teleports.filter(t => t.isBall);
+    r.egregious = r.playerTp.filter(t => t.dYd >= EGREGIOUS_YD);
   }
+  const withEgregious = report.filter(r => r.egregious.length);
   const withPlayerTp = report.filter(r => r.playerTp.length);
   const withBallTp   = report.filter(r => r.ballTp.length);
   const withNonFin   = report.filter(r => (r.nonFinite || []).length);
@@ -214,22 +243,31 @@ const FIELD_KINDS = new Set([
   console.log("════════════════════════════════════════════════════════════");
   console.log(` TELEPORT DETECTOR — ${report.length} plays · cam=${CAM}`);
   console.log("════════════════════════════════════════════════════════════");
-  console.log(` PLAYER teleports: ${withPlayerTp.length} plays  (the bug family)`);
+  console.log(` EGREGIOUS player teleports (≥${EGREGIOUS_YD}yd/frame): ${withEgregious.length} plays  ← the real signal`);
+  console.log(` All player flags (incl. borderline near cap):        ${withPlayerTp.length} plays`);
   console.log(` Non-finite (vanished) player draws: ${withNonFin.length} plays`);
-  console.log(` Ball anomalies:   ${withBallTp.length} plays  (>70yps flight cap)`);
+  console.log(` Ball anomalies:   ${withBallTp.length} plays  (>90yps flight cap)`);
   console.log(` Render/build errors: ${withErr.length} plays`);
   if (pageErrors.length) console.log(` Page errors: ${pageErrors.length} (e.g. ${pageErrors[0]})`);
   console.log("");
 
-  if (withPlayerTp.length) {
-    console.log(" ⚠ PLAYER teleport classes (kind/targetSlot · count · worst jump):");
-    for (const [k, c] of classGroups(withPlayerTp, r => r.playerTp)) {
-      const t = c.sample.playerTp[0];
+  if (withEgregious.length) {
+    console.log(` ⚠ EGREGIOUS teleport classes (kind/targetSlot · count · worst jump):`);
+    for (const [k, c] of classGroups(withEgregious, r => r.egregious)) {
+      const t = c.sample.egregious[0];
       console.log(`   ${k.padEnd(22)} ×${String(c.n).padStart(3)}  worst ${String(c.worst).padStart(5)}yd ` +
         `(${t.id} f${t.fromFrame}→${t.toFrame}: ${t.from}→${t.to}, allowed ${t.allowYd}yd)`);
     }
   } else {
-    console.log(" ✓ No PLAYER teleports above the human-speed cap.");
+    console.log(" ✓ No EGREGIOUS player teleports.");
+  }
+  if (withPlayerTp.length > withEgregious.length) {
+    console.log("");
+    console.log(` Borderline player-flag classes (just over cap — likely fast legit motion):`);
+    const borderline = report.filter(r => r.playerTp.length && !r.egregious.length);
+    for (const [k, c] of classGroups(borderline, r => r.playerTp).slice(0, 8)) {
+      console.log(`   ${k.padEnd(22)} ×${String(c.n).padStart(3)}  worst ${String(c.worst).padStart(5)}yd`);
+    }
   }
 
   if (withBallTp.length) {

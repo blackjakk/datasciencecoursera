@@ -214,10 +214,37 @@ Three dev harnesses (committed, mirror the `_sim_audit.js` loader conventions):
   (`complete/rb` worst 20.5yd at f38→39 is identical with the fix on/off) —
   confirming those are SEPARATE seams for Stages 2–4.
 
-**Calibration TODO before this is a CI gate:** 228/279 mixes egregious
-(10–20yd single-frame) with borderline (~6yd near the cap). Add an absolute-yards
-floor (trust >8yd today) and handle multi-draw-per-frame entities. The egregious
-tier is already a trustworthy regression signal.
+**Calibrated (done).** The first baseline (228/279) was inflated by two
+harness-fidelity bugs, both now fixed in `_teleport_detect.js`:
+- **Coarse sampling.** Stepping only 48 frames turned continuous fast motion
+  into fake jumps. Now samples at **native ~60fps** (N = round(dur/16.67)), so a
+  flagged jump is a real discontinuity in `render(t)` — which the live raf loop
+  samples at the same cadence, so it IS visible on screen.
+- **Frozen wall-clock sims.** `_wrSim` / pursuit integrate on
+  `performance.now()`; in a tight replay loop that's ~0 so they froze, and a
+  frozen sim handing off to a moving branch manufactured phantom jumps. Now a
+  **controlled clock** advances `performance.now()` by the play-time dt each
+  frame, so those sims step exactly as they do live.
+- Plus **multi-draw continuity chaining** (an entity drawn twice in a frame is
+  matched to the closest prior position, not "last wins") and **severity tiers**.
+
+**Validated against a real bug:** traced a flagged play frame-by-frame — a
+defender (Renly Pope) holds his formation spot in `stance` for many frames, then
+**snaps 10.6yd to his pursuit start** in one frame as the pose flips to `run`.
+A genuine Family-A teleport (formation-hold → pursuit-sim handoff with no
+continuity), not an artifact.
+
+**Calibrated baseline (HEAD, 5 games / 279 field plays, broadcast):**
+- **116 plays** with an EGREGIOUS (≥6yd in one ~16ms frame) player teleport ←
+  the regression gate. Each migration stage must drive this DOWN.
+- 242 plays with any flag (incl. borderline 2–6yd); 0 non-finite; 1 ball
+  anomaly; 1 render error.
+- Dominant classes: complete/wr1, /wr2, /rb, /te, /- (catch & post-catch
+  handoffs) and run/-, sack/- (defender formation→pursuit snaps). Mostly
+  SECONDARY players (defenders, blockers) — the seams Stages 2–4 migrate.
+
+Usage: `node _teleport_capture.js 6` then `node _teleport_detect.js broadcast`
+(dev server on :5173). Report → `/tmp/teleport_report.json`.
 
 ---
 
