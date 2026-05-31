@@ -146,3 +146,49 @@ Tune the *flows* to hit that steady state; don't chase any single metric.
    check S isn't structurally easiest.
 
 Each step re-runs the long audit and reads the equilibrium, not one season.
+
+---
+
+## Queued findings (post-retune)
+
+Tracked here so they're not lost; **do not tune until the talent retune settles**
+(otherwise we'd be calibrating against a moving target).
+
+### HoF position multipliers are over-corrected (stale 500-season rebalance)
+At 100 seasons of the pre-retune sim:
+
+| pos | inductees | % of HoF | NFL target | verdict |
+|---|---|---|---|---|
+| LB | 135 | 23.9% | ~8% | **way over** (1.15× mul + tackle volume) |
+| QB | 128 | 22.7% | ~10-12% | over (counting bonus too generous given hot sim stats) |
+| OL | 83 | 14.7% | ~17% | OK |
+| DL | 78 | 13.8% | ~12% | OK |
+| K  | 46 | 8.1%  | ~1% | **way over** (counting-only + no accolades) |
+| RB | 32 | 5.7%  | ~6% | OK |
+| P  | 23 | 4.1%  | ~0.5% | **way over** |
+| WR | 22 | 3.9%  | ~12% | **way under** |
+| TE | 17 | 3.0%  | ~5% | under |
+| CB | 1  | 0.18% | ~9% | **catastrophically under** |
+| S  | 0  | 0%    | ~6% | **broken** (4 in-sim 96+ LEGENDS were all safeties, but ZERO inducted) |
+
+`_hofPositionMul` (`play-franchise-season.js:1604`) currently has CB/S at 0.85×
+and K/P at 1.30-1.45×. The 0.85 over-corrected DBs from 25.7% (pre-rebalance) to
+~0%. Re-tune **against the post-retune 100-season equilibrium** (sim stat rates
+will have shifted by then) — adjust mults toward NFL shares.
+
+### S-only legend bias (per-position reachability — already valve 6)
+4 of 4 legend (96+) emergences in 100 seasons were **safeties** — confirms the
+position-formula bias flagged in valve 6. S OVR = `SPD×21 + COV×30 + TCK×26 +
+AWR×8 + TEC×15`: COV and TCK are both heavily developable through the gem path,
+so 56% of the formula is "easy growth." Compare QB OVR = `THR×42` — needs near-
+max THR specifically to clear 96+, and the gem grind doesn't push THR fast
+enough. Fix is structural (per-position dev stat selection in `_gemDevStats`,
+not multipliers).
+
+### Star-tier ("near-legend") tracking gap
+`LEGEND CAREERS` only tracks peak OVR ≥ 96. Generational players like Cason
+Nasser (18,104 career rush yds, 4 of top-5 single-season rushing performances,
+peak ~92-95 OVR) get no career page in the audit. Add a **STAR CAREERS** section
+(peak OVR ≥ 90) so the audit captures the Peterson/Dickerson-tier guys who
+sustained dominance without crossing the legend bar. Implementation: extend the
+existing legend-tracking pool to a second threshold.
