@@ -3896,7 +3896,7 @@ function frnImportSave() {
       const parsed = JSON.parse(text);
       const incoming = parsed.__gridironSave ? parsed.franchise : parsed;
       if (!incoming || !incoming.chosenTeamId || !incoming.rosters) {
-        alert("That doesn't look like a Hashmark Heros save file.");
+        alert("That doesn't look like a Hashmark Heroes save file.");
         return;
       }
       if (franchise && !confirm("Importing will replace your current active franchise. Continue?")) return;
@@ -4256,7 +4256,7 @@ function renderFrnStartScreen() {
 
   $("frnHomeContent").innerHTML = `
     <div class="frn-welcome">
-      <div class="frn-welcome-title">🏈 HASHMARK HEROS</div>
+      <div class="frn-welcome-title">🏈 HASHMARK HEROES</div>
       <div class="frn-welcome-sub">American Football Manager</div>
       <div class="frn-welcome-feats">
         <div class="frn-welcome-feat"><strong>14</strong> regular-season games</div>

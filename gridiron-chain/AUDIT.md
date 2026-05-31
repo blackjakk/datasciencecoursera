@@ -1,4 +1,4 @@
-# Hashmark Heros — Realism Audit Runbook
+# Hashmark Heroes — Realism Audit Runbook
 *(originally documented as "GridironChain"; renamed 2026-05)*
 
 > **Purpose.** Two headless Node harnesses that run the *real* game engine

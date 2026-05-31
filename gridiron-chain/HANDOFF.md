@@ -1,4 +1,4 @@
-# Hashmark Heros — Handover Document
+# Hashmark Heroes — Handover Document
 *(originally documented as "GridironChain"; renamed 2026-05)*
 
 ## 1. Project overview

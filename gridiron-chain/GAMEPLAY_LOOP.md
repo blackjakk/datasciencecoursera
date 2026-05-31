@@ -1,4 +1,4 @@
-# Hashmark Heros — Gameplay Loop & UX Map
+# Hashmark Heroes — Gameplay Loop & UX Map
 *(originally documented as "GridironChain"; renamed 2026-05)*
 
 > **Purpose.** The durable map of the franchise-mode gameplay loop: every
