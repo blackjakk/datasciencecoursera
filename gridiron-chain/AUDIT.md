@@ -44,6 +44,47 @@ with `2>&1 | grep -vE "missing pick|IDB|^\s+at "` if you want it clean).
 
 ---
 
+## ⚠ Harness invariant — the draft class MUST cycle (rosters stay ~full)
+
+**The big one — found & fixed.** `_brady_audit.js` drove the offseason with a
+*synchronous* `step()` that fire-and-forgot the **async** draft chain
+(`frnAutoDraftRemaining`, `frnDraftFinishScramble`, which `await _frnConfirm`).
+The part that **mints next year's draft picks and fills rosters to 53 never
+ran**, so the pick inventory (seeded with only ~3 years at `startFranchise`)
+stopped cycling. From ~season 4 the draft starved, rosters bled out via
+retirement, and the league collapsed to **~6 players/team**. Every long-run
+roster-dependent metric — roster construction, cap utilization, **and the
+talent distribution itself** — was computed on a ~190-player league instead of
+~1,700. It failed **silently** (an un-awaited Promise; node just exited 0).
+
+**Fix (commit `0c3955d`):** `await` the async offseason steps (`stepA`),
+auto-resolve `_frnConfirm` headless (`async () => true`), make the
+`requestAnimationFrame` stub actually fire its callback (so frame-yield awaits
+resolve instead of hanging), async IIFE + clean `process.exit(0)`.
+
+**Guard (so it can't recur):** the season loop checks mean roster size each
+season after season 2 and **aborts LOUD** (`process.exit(3)`, banner) if it
+drops below 40/team. A regression in the await chain trips this in seconds
+instead of emitting 13 minutes of garbage.
+
+**Recognize it again by:** "mean roster size" well under 53 in the LEAGUE OVR
+DISTRIBUTION header; round buckets dominated by R4–R7/UDFA with a tiny R1 count;
+cap utilization near 0%.
+
+**Sample size (healthy):** a full league is 32 × 53 = **1,696 players**; the
+audit snapshots active rosters once per season, so an N-season run pools
+**~1,696 × N player-seasons** for the league OVR / draft-round distributions
+(40 seasons ≈ **~68,000 player-seasons**). The collapsed runs pooled only
+~7,300 over 40 seasons (~183/season) — a ~9× smaller *and* survivor-biased
+sample. Career/bust tables count distinct players (thousands); ROSTER
+CONSTRUCTION + cap are the final-season snapshot (1,696 players / 32 teams).
+
+**⚠ Consequence:** numbers in `TALENT_MODEL.md` predating commit `0c3955d`
+were measured on collapsed rosters and need re-validation. First clean read:
+elite 90+ share moved 1.3% (collapsed) → 4.4% (full, 3 seasons).
+
+---
+
 ## The two harnesses
 
 ### 1. `_sim_audit.js` — game realism

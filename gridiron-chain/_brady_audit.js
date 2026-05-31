@@ -668,6 +668,25 @@ const harness = `
     step(typeof frnNewSeason !== "undefined" && frnNewSeason, "newSeason", s);
     scanGems();
     snapshotLeagueOvr(s + 1);   // record this season's active-roster OVR spread
+    // ── REGRESSION GUARD — draft-class cycling ────────────────────────────
+    // The async offseason/draft chain (frnAutoDraftRemaining/Scramble +
+    // _frnConfirm) MUST be awaited or the draft stops minting picks and rosters
+    // collapse to ~6/team, silently invalidating every roster-dependent metric.
+    // If that ever regresses, abort LOUD here instead of emitting garbage.
+    // Healthy = ~53/team; only checks after a couple seasons of normal churn.
+    if (s >= 2) {
+      let _rt = 0; for (const t of TEAMS) _rt += (franchise.rosters[t.id] || []).length;
+      const _rmean = _rt / TEAMS.length;
+      if (_rmean < 40) {
+        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        console.error("ROSTER COLLAPSE at season " + (s+1) + ": mean roster " + _rmean.toFixed(1) + "/team (expect ~53).");
+        console.error("Draft class not cycling — the async offseason/draft chain is likely");
+        console.error("not being awaited (see AUDIT.md 'draft-class cycling'). ABORTING —");
+        console.error("every roster-dependent metric would be invalid on a starved league.");
+        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        process.exit(3);
+      }
+    }
     if ((s+1) % 10 === 0) {
       console.error("  ...season "+(s+1)+"/"+${SEASONS}+" — gems rolled "+totalGemsRolled+", legends "+legendEmergences+", Brady-tier "+bradyEmergences+" ("+((Date.now()-t0)/1000).toFixed(0)+"s)");
     }

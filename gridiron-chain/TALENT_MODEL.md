@@ -5,6 +5,17 @@
 
 ## ⏯ RESUME HERE (post-compact pointer)
 
+> **⚠ CALIBRATION INVALIDATION (recorded after the draft-cycling fix).** Every
+> long-run audit below this line was run on a harness that **silently collapsed
+> rosters to ~6 players/team** (the async offseason/draft chain wasn't awaited,
+> so the draft class stopped cycling — see `AUDIT.md` "Harness invariant" and
+> commit `0c3955d`). So the "90+ share 6.0%", bust shapes, and per-position
+> tails here were measured on a ~190-player survivor-biased league, **not** a
+> full ~1,696-player one. They need RE-VALIDATION on the fixed harness before
+> being trusted. First clean signal: elite 90+ share 1.3%(collapsed) → 4.4%
+> (full, 3 seasons), so the real distribution differs materially. Branch is now
+> `claude/charming-brown-b18u2`.
+
 **Branch:** `claude/football-sim-blockchain-game-b3sdq` (push with `-u origin`, retry exponential backoff per session rules).
 
 **Where things stand:**
