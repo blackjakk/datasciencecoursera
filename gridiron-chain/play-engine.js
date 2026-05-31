@@ -3278,7 +3278,7 @@ class GameSimulator {
         // windWith = +1 if wind is at the kicker's back, -1 if into his face
         const windWith = wKick.windStrength * (wKick.windDir === teamKickDir ? 1 : -1);
         let wxPenalty = 0;
-        if (wKick.label === "WINDY") wxPenalty = (dist - 30) * 0.012 * (-windWith);   // ~10-15% penalty into a strong wind from 50yds
+        if (wKick.label === "WINDY") wxPenalty = (wKick.windStrength || 0) * 0.04 + (dist - 30) * 0.012 * (-windWith);   // net base penalty + directional tilt
         else if (wKick.label === "SNOW")  wxPenalty = 0.10 + (dist - 25) * 0.008 * (-windWith);
         else if (wKick.label === "RAIN")  wxPenalty = Math.max(0, (dist - 35)) * 0.004;
         // K archetype tilts FG math: LEG = more range less accuracy, PRECISION =
@@ -4885,8 +4885,14 @@ class GameSimulator {
       // Weather: slippery ball (rain/snow) drops completion %, wind hurts
       // deep passes (caught further below in airMean adjustment).
       const wxPass = this.weather || { label: "CLEAR" };
-      const wxCompMod = wxPass.label === "RAIN" ? -0.05
-                      : wxPass.label === "SNOW" ? -0.08
+      // WINDY/HOT were previously no-ops on completion: WINDY only tilted air
+      // yards by wind DIRECTION (averaging to ~0 across games) and HOT did
+      // nothing despite its "minor fatigue late" intent. Wind disrupts timing
+      // and ball flight both ways → a small NET comp penalty; HOT legs tire.
+      const wxCompMod = wxPass.label === "RAIN"  ? -0.05
+                      : wxPass.label === "SNOW"  ? -0.08
+                      : wxPass.label === "WINDY" ? -0.015 - (wxPass.windStrength || 0) * 0.025
+                      : wxPass.label === "HOT"   ? -0.015
                       : 0;
       // Defensive-scheme tilt: nickel / dime tighten pass coverage, 46 blitz leaves windows open.
       // DC Cover Scheme: -3% completion rate for the offense
@@ -4972,7 +4978,7 @@ class GameSimulator {
         const passWindWith = wxPass.windStrength
           ? wxPass.windStrength * (wxPass.windDir === teamPassDir ? 1 : -1)
           : 0;
-        const wxAirMod = wxPass.label === "WINDY" ? passWindWith * 2.5
+        const wxAirMod = wxPass.label === "WINDY" ? -((wxPass.windStrength || 0) * 1.8) + passWindWith * 2.0
                        : wxPass.label === "SNOW"  ? passWindWith * 2.0 - 1.5
                        : wxPass.label === "RAIN"  ? -1.0
                        : 0;

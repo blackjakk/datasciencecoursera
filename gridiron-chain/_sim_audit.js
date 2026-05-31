@@ -101,6 +101,19 @@ const audit = `
   const _pbInit = id => (PB[id] || (PB[id] = { g:0, plays:0, passYds:0, rushYds:0, pAtt:0, rAtt:0, comp:0, pts:0, sacksAllowed:0 }));
   const _wxInit = l => (WX[l] || (WX[l] = { g:0, passYds:0, rushYds:0, pAtt:0, comp:0, pts:0, fum:0, fgM:0, fgA:0 }));
 
+  // ── COACHING SYSTEM (gameplay-system audit) ──
+  // _sim_audit normally has NO franchise, so every HC trait defaults to neutral
+  // and the coaching dial never fires. Inject a franchise.coaches stub assigning
+  // each team an HC specialtyTrait (balanced across the 4 types) so the 4th-down
+  // aggression multiplier (hcAggMul) activates, then tag 4th-down go-attempts by
+  // trait to verify Riverboat Gambler > Game Manager > Conservative.
+  const HC_TRAITS = ["Riverboat Gambler", "Conservative", "Game Manager", null];
+  globalThis.franchise = { coaches:{}, week:1, season:1, _careerEndingLog:{}, _ejectionLog:{} };
+  TEAMS.forEach((t, i) => { globalThis.franchise.coaches[t.id] = { hc: { specialtyTrait: HC_TRAITS[i % HC_TRAITS.length] } }; });
+  const CO = {};
+  const _coKey = t => (globalThis.franchise.coaches[t.id] && globalThis.franchise.coaches[t.id].hc.specialtyTrait) || "Neutral";
+  const _coInit = k => (CO[k] || (CO[k] = { g:0, fourthAtt:0, fourthConv:0, pts:0 }));
+
   const t0 = Date.now();
   for (let s = 0; s < SEASONS; s++) {
     const rosters = {};
@@ -139,6 +152,8 @@ const audit = `
           _pb.pts += pts; _pb.sacksAllowed += (tm.sacks_allowed||0);
           _wx.g++; _wx.passYds += tm.passYds; _wx.rushYds += tm.rushYds;
           _wx.pAtt += tm.pass_att; _wx.comp += tm.pass_comp; _wx.pts += pts;
+          const _co = _coInit(_coKey(_offTeam));
+          _co.g++; _co.fourthAtt += (tm.fourthAtt||0); _co.fourthConv += (tm.fourthConv||0); _co.pts += pts;
           // Situational (team stats)
           lb.thirdAtt += (tm.thirdAtt||0); lb.thirdConv += (tm.thirdConv||0);
           lb.fourthAtt += (tm.fourthAtt||0); lb.fourthConv += (tm.fourthConv||0);
@@ -462,6 +477,21 @@ const audit = `
     console.log("   "+lab.padEnd(10)+(100*s.g/_wxTot).toFixed(1).padStart(7)+(100*s.comp/Math.max(1,s.pAtt)).toFixed(1).padStart(7)
       +(s.passYds/s.g).toFixed(0).padStart(7)+(s.rushYds/s.g).toFixed(0).padStart(7)+(s.pts/s.g).toFixed(1).padStart(6)
       +(s.fum/s.g).toFixed(3).padStart(7)+(100*s.fgM/Math.max(1,s.fgA)).toFixed(1).padStart(7));
+  }
+
+  // ============== COACHING BREAKDOWN — HC trait → gameplay ==============
+  // Each team got a franchise HC specialtyTrait; this confirms the trait moves
+  // 4th-down aggression (Riverboat goes for it most, Conservative least).
+  console.log("");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" COACHING BREAKDOWN — 4th-down aggression by HC trait");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("   "+"HC TRAIT".padEnd(20)+"4thGo/g".padStart(9)+"conv%".padStart(8)+"PTS/g".padStart(8));
+  const _coOrder = { "Riverboat Gambler":0, "Neutral":1, "Game Manager":2, "Conservative":3 };
+  for (const [k, s] of Object.entries(CO).sort((a,b)=>(_coOrder[a[0]]??9)-(_coOrder[b[0]]??9))) {
+    if (!s.g) continue;
+    console.log("   "+k.padEnd(20)+(s.fourthAtt/s.g).toFixed(2).padStart(9)
+      +(100*s.fourthConv/Math.max(1,s.fourthAtt)).toFixed(0).padStart(7)+"%"+(s.pts/s.g).toFixed(1).padStart(8));
   }
   console.log("");
 })();
