@@ -10921,7 +10921,16 @@ function _developNflPlayer(p, mult) {
   // outcomes: high-growth players (stars/Bradys) still reach their ceiling, low-
   // growth players plateau below it (busts) before the peak-age cutoff. The
   // 0.6*gap single-year cap still allows a burst-intensity year-1 jump.
-  const NFL_DEV_SCALE = 0.35;
+  // Retune step 4 (valve 3 / dev spread): 0.35 -> 0.25. Retune-3 (ceiling
+  // tighten) barely moved 90+ share (6.8 -> 6.0%) — the equilibrium showed
+  // R1 picks reaching peak and STAYING at peak for 5-7 straight seasons
+  // (e.g. Mueller's 95/93/95/95/95/95/95 stretch), implying over-realization
+  // not over-generation. Slowing the average growth lets the growthRate
+  // VARIANCE drive outcomes harder: high-growth players still reach ceiling
+  // (in 5-6 yrs instead of 2-4), low-growth players plateau below it = real
+  // busts emerge naturally before peak-age. The 0.6*gap single-year cap still
+  // permits the year-1 burst-intensity jump.
+  const NFL_DEV_SCALE = 0.25;
   const grew = Math.min(gap * 0.6, gap * rate * intensity * NFL_DEV_SCALE * (mult || 1));
   if (grew < 0.5) return;
   _applyGemDevelopment(p, Math.min(ceiling, current + grew));
