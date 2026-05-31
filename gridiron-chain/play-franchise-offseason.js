@@ -11117,6 +11117,16 @@ function runFrnOffseason() {
         coachBoost *= 1.0 + Math.min(0.10, teamCaptains * 0.04); // up to +10% from team captains
       }
       coachBoost *= cancerPenalty; // team-wide drain from locker-room cancers
+      // Retune step 6 (valve 1 / coach compounding cap): the full multiplier
+      // stack (HC Player Developer 1.35 × coachable 1.25 × FO up to 1.6 ×
+      // coachs_son 1.15 × captains 1.10) can compound to ~2.9× for the right
+      // player profile. Discovered as the hidden inflation pump keeping mid-
+      // career stars climbing past 90+: ceiling cuts + dev scale + wear-driven
+      // decline all hit a 5.7% floor on 90+ share because coach compounding
+      // was unmeasured + uncapped. Clamp at 2.0× — preserves the full range of
+      // realistic boosts (a coachable young player on a great staff still
+      // gets a meaningful edge) without letting the perfect stack run away.
+      coachBoost = Math.min(2.0, coachBoost);
       // Trade fresh-start boost: a player traded last season gets a
       // one-time growth amplifier next offseason (Tannehill / Stafford /
       // Mahomes-after-Smith arcs). Applies once, then clears.
