@@ -296,6 +296,7 @@ const harness = `
   const decadeOvr = [[], [], [], [], [], [], [], []];  // per-decade OVR pools (index = (year-1)/10)
   const rcRoster = {};   // ROSTER CONSTRUCTION: round label → [ovr,...] (all 53 spots, final season)
   const rcStarter = {};  // round label → [ovr,...] (depth-chart starters, final season)
+  let rcSynthCount = 0, rcInSimCount = 0;   // synthetic (pre-S1, OVR-backfilled round) vs in-sim-drafted survivors
   // Per-position OVR pool — every active-roster player-season tagged by pos so
   // we can dump a full distribution per position (count / mean / med / P10/P90
   // / %90+ / %85+ / %75+) alongside the leaguewide one. Catches position-specific
@@ -419,6 +420,7 @@ const harness = `
         }
         for (const p of active) {
           const lbl = _rcLabel(p);
+          if (p.draftSeason != null && p.draftSeason < 1) rcSynthCount++; else rcInSimCount++;
           (rcRoster[lbl] = rcRoster[lbl] || []).push(p.overall || 0);
           if (_starters.has(p)) (rcStarter[lbl] = rcStarter[lbl] || []).push(p.overall || 0);
         }
@@ -1023,6 +1025,10 @@ const harness = `
         + (100 * sa.length / totS).toFixed(1).padStart(8) + "%"
         + _avg(sa).toFixed(1).padStart(8));
     }
+    const _rcTot = rcSynthCount + rcInSimCount;
+    console.log(" " + "-".repeat(64));
+    console.log(" attribution check — synthetic (pre-S1) survivors: " + rcSynthCount + " / " + _rcTot
+      + "   (~0 => round labels are clean true-draft; in-sim drafted: " + rcInSimCount + ")");
     console.log("");
   }
 
