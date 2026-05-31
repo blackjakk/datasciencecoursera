@@ -131,6 +131,14 @@ const audit = `
   const QF = {};   // quarter → { plays, yds }
   const _qfI = q => (QF[q] || (QF[q] = { plays:0, yds:0 }));
 
+  // Misc gameplay-system counters (special teams returns, trick plays, 2-pt /
+  // onside, clock, momentum, play-type mix, ejections).
+  const ST = { krAtt:0, krYds:0, krTd:0, prAtt:0, prYds:0, prTd:0, muff:0 };
+  const TR = { reverse:0, option:0, flea:0, fakePunt:0, fakeFg:0 };
+  const SIT2 = { twoAtt:0, twoMade:0, onside:0, onsideRec:0, kneel:0, spike:0, mom:0 };
+  const PTYPE = {};                       // pass concept → count
+  let SCRpass = 0, PASSN = 0;             // screen rate denominator
+
   const t0 = Date.now();
   for (let s = 0; s < SEASONS; s++) {
     const rosters = {};
@@ -193,6 +201,8 @@ const audit = `
             lb.xpMade += (p.xp_made||0); lb.xpAtt += (p.xp_att||0);
             lb.puntAtt += (p.punt_att||0); lb.puntYds += (p.punt_yds||0);
             _wx.fum += (p.fumbles||0); _wx.fgM += (p.fg_made||0); _wx.fgA += (p.fg_att||0);
+            ST.krAtt += (p.kr_att||0); ST.krYds += (p.kr_yds||0); ST.krTd += (p.kr_td||0);
+            ST.prAtt += (p.pr_att||0); ST.prYds += (p.pr_yds||0); ST.prTd += (p.pr_td||0);
             const P = normPos(p.pos);
             if (pp[P]) {
               const stat = sigStat[P];
@@ -242,11 +252,26 @@ const audit = `
           }
           // Per-play scheme tagging (defensive package / personnel / coverage)
           const k = p.kind;
+          // Rare-event + situational counters — ALL play kinds, before the
+          // run/pass filter so kickoffs / kneels / spikes / momentum aren't skipped.
+          if      (k === "muff")     ST.muff++;
+          else if (k === "kneel")    SIT2.kneel++;
+          else if (k === "spike")    SIT2.spike++;
+          else if (k === "momentum") SIT2.mom++;
+          if (p.isReverse)     TR.reverse++;
+          if (p.isSpeedOption) TR.option++;
+          if (p.isFakePunt)    TR.fakePunt++;
+          const _d = p.desc || "";
+          if (/flea/i.test(_d)) TR.flea++;
+          if (/fake (field goal|fg)\b/i.test(_d)) TR.fakeFg++;
+          if (/2-?point|2-?pt\b/i.test(_d)) { SIT2.twoAtt++; if (!/no good|fail|stuff|incomplete|stopped/i.test(_d)) SIT2.twoMade++; }
+          if (/onside/i.test(_d)) { SIT2.onside++; if (/recover/i.test(_d)) SIT2.onsideRec++; }
           const isPass = k === "complete" || k === "incomplete" || k === "sack";
           const isRun  = k === "run" || k === "scramble";
           if (!isPass && !isRun) continue;
           const yds = p.yards || 0;
           const qn = p.quarter || p.qtr; if (qn) { const qf = _qfI(qn); qf.plays++; qf.yds += yds; }
+          if (p.concept) { PTYPE[p.concept] = (PTYPE[p.concept]||0) + 1; PASSN++; if (p.isScreen || p.concept === "SCREEN") SCRpass++; }
           const dp = _dpI(p.defPackage || "BASE_43");
           dp.plays++; dp.yds += yds;
           if (isPass) { if (k === "sack") dp.sk++; else { dp.patt++; if (k === "complete") dp.comp++; } }
@@ -590,6 +615,38 @@ const audit = `
     const s = QF[q]; if (!s.plays) continue;
     console.log("   "+("Q"+q).padEnd(6)+(s.yds/s.plays).toFixed(2).padStart(8)+String(s.plays).padStart(8));
   }
+
+  // ============== SPECIAL TEAMS RETURNS ==============
+  const _gp = lb.games || 1;
+  console.log("");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" SPECIAL TEAMS RETURNS (per game, both teams)  NFL refs in (parens)");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("   Kick returns:  "+(ST.krAtt/_gp).toFixed(1)+"/g  avg "+(ST.krYds/Math.max(1,ST.krAtt)).toFixed(1)+" (~22)  TD "+(ST.krTd/Math.max(1,_gp)).toFixed(3)+"/g");
+  console.log("   Punt returns:  "+(ST.prAtt/_gp).toFixed(1)+"/g  avg "+(ST.prYds/Math.max(1,ST.prAtt)).toFixed(1)+" (~9)   TD "+(ST.prTd/Math.max(1,_gp)).toFixed(3)+"/g");
+  console.log("   Muffs: "+(ST.muff/_gp).toFixed(3)+"/g");
+
+  // ============== TRICK PLAYS & SITUATIONAL ==============
+  console.log("");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" TRICK PLAYS & SITUATIONAL (per game unless noted)");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("   Reverses "+(TR.reverse/_gp).toFixed(3)+"  SpeedOption "+(TR.option/_gp).toFixed(2)+"  FleaFlicker "+(TR.flea/_gp).toFixed(3)+"  FakePunt "+(TR.fakePunt/_gp).toFixed(3)+"  FakeFG "+(TR.fakeFg/_gp).toFixed(3));
+  console.log("   2-pt att "+(SIT2.twoAtt/_gp).toFixed(3)+"/g  conv% "+(100*SIT2.twoMade/Math.max(1,SIT2.twoAtt)).toFixed(0)+"   Onside "+(SIT2.onside/_gp).toFixed(3)+"/g  recov% "+(100*SIT2.onsideRec/Math.max(1,SIT2.onside)).toFixed(0));
+  console.log("   Kneels "+(SIT2.kneel/_gp).toFixed(2)+"/g  Spikes "+(SIT2.spike/_gp).toFixed(2)+"/g  Momentum swings "+(SIT2.mom/_gp).toFixed(2)+"/g");
+  const _ej = (typeof globalThis.franchise!=="undefined" && globalThis.franchise._ejectionLog)
+    ? Object.values(globalThis.franchise._ejectionLog).reduce((n,a)=>n+(a?a.length:0),0) : 0;
+  console.log("   Ejections "+(_ej/_gp).toFixed(4)+"/g ("+_ej+" total — HEADHUNTER big-hit mechanic)");
+
+  // ============== PLAY-TYPE MIX (pass concepts) ==============
+  console.log("");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" PLAY-TYPE MIX — pass concept distribution (% of pass plays)");
+  console.log("══════════════════════════════════════════════════════════");
+  for (const [c,n] of Object.entries(PTYPE).sort((a,b)=>b[1]-a[1])) {
+    console.log("   "+c.padEnd(14)+(100*n/Math.max(1,PASSN)).toFixed(1).padStart(6)+"%");
+  }
+  console.log("   (screens "+(100*SCRpass/Math.max(1,PASSN)).toFixed(1)+"% of pass plays)");
   console.log("");
 })();
 `;
