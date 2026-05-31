@@ -126,7 +126,13 @@ Tables:
   fire per game in `recordFranchiseResult`) so every injury is tallied at
   assignment — players later cut/retired are still counted. This is also the
   only lens on the **HEADHUNTER** archetype, whose identity is causing injuries
-  (×1.5 on big hits), invisible to the box-score archetype probe.
+  (×1.5 on big hits), invisible to the box-score archetype probe. Also split by
+  **HC culture trait** (Disciplinarian lowest) and **trainer trait**.
+- **STRESS REPORT** — final-season `_stress` (0-100) by position; drives
+  non-contact injuries. Concentrates in WR/CB/S; OL/QB/RB/TE near 0.
+- **PERSONALITY REPORT** — league distribution % (matches gen rates) + avg
+  career length by personality (captain/cancer/quiet_pro/showman/coachs_son).
+- **SALARY CAP** — final-season payroll/cap utilization (mean/P10/P90).
 
 ---
 
@@ -438,27 +444,30 @@ ephemeral — re-run if the container recycled.*
    SLOT. Lever: `archAirMod` / deep-completion rate in the pass model.
 
 ### Gameplay-system audit coverage (what's measured vs not)
-**Covered:** offensive playbooks, **defensive schemes, personnel packages,
-coverages** (per-play breakdowns), weather, **coaching (HC 4th-down)**, **fatigue**
-(FATIGUE BREAKDOWN), injuries (INJURY REPORT), every positional archetype
-(`_arch_probe`), QB styles (`_qb_probe`), box score / drives / situational /
-kicking / per-position.
-**NOT yet covered (engine has them, audit doesn't isolate them):**
-- **Coaching — partial:** HC 4th-down aggression audited. Still not isolated:
-  OC/DC run tilts (`ocRunArchBonus`/`dcRunStopperMalus`), HC `cultureTrait`
-  injury effect, `coachBoost` (dev).
-- **Momentum** (`_swingMomentum` → `momCompMod`) — swings affect completion%.
-- **Special-teams returns** — KR/PR yards, return TDs, muffs (we audit FG/XP/punt
-  distance but not the return game).
-- **Trick plays** (reverse / flea-flicker / fake punt / fake FG), **2-pt
-  conversions**, **onside kicks** — rare-event rates.
-- **Play-type mix** (play-action / RPO / screen / deep-shot distribution).
-- **Ejections** (HEADHUNTER `_ejectionLog`), **clock management** (2-min drill,
-  kneels, spikes, hurry-up).
-- **Stress** (`_stress`, separate from wear — drives non-contact injuries).
-- **Off-field / franchise:** trades, free agency, contracts / salary cap,
-  **personality archetypes** (captain/cancer/quiet_pro/showman/coachs_son →
-  dev+chemistry+longevity), scouting/draft-eval accuracy, GM / trainer traits.
+**Covered:** offensive playbooks, defensive schemes, personnel packages (incl.
+**13/JUMBO** — added 2026-05), coverages, weather, coaching (HC 4th-down +
+**culture-trait injury**), fatigue, **stress**, **special-teams returns**, **trick
+plays / 2-pt / onside**, **play-type mix + play-action**, **ejections**, **clock
+(kneels/spikes/momentum)**, **personality**, **salary-cap utilization**,
+**injury-by-trainer**, injuries, every positional archetype (`_arch_probe`),
+QB styles (`_qb_probe`), box score / drives / situational / kicking / per-position.
+**NOT yet isolated (audit notes them but doesn't deeply attribute):**
+- **Coaching:** OC/DC run tilts (`ocRunArchBonus`/`dcRunStopperMalus`),
+  `coachBoost` (dev gain by coach) — still not isolated.
+- **Trades / free agency** — cap utilization is reported, but per-transaction
+  trade/FA realism (volume, value) isn't tracked.
+- **Scouting / draft-eval accuracy** (projected vs actual ceiling), GM traits.
+
+### Findings from the new system audits (open realism items)
+- **Salary cap not enforced** — teams run **~127% of cap** (P90 150%); the cap
+  isn't a binding roster constraint (or contracts aren't real cap hits). Biggest.
+- **quiet_pro longevity not showing** — its avg career (~4.0) ≈ normal; the
+  "slower decline" trait doesn't translate to longer careers.
+- **Trainer effect weak** — Sports Sci isn't clearly the lowest-injury trainer.
+- **Stress shape** — concentrates in WR/CB/S; OL/QB/RB/TE ~0 (trench load gap?).
+- **Trick-play rates run a touch hot** (flea-flicker ~0.5/g, onside ~0.3/g);
+  measurement is correct (log flags), the engine call-rates are slightly high.
+- **KR avg ~29 / PR att ~4.4/g** mildly hot vs NFL (~23 / ~2.5).
 
 ### Audit-band quirks to fix (cosmetic, measurement-only)
 - Franchise-health **unique-champions band** is wrong (set 45-100, impossible —
