@@ -114,6 +114,15 @@ const audit = `
   const _coKey = t => (globalThis.franchise.coaches[t.id] && globalThis.franchise.coaches[t.id].hc.specialtyTrait) || "Neutral";
   const _coInit = k => (CO[k] || (CO[k] = { g:0, fourthAtt:0, fourthConv:0, pts:0 }));
 
+  // Per-play breakdowns (defensive scheme / offensive personnel / coverage shell).
+  // These are chosen dynamically each play, so they're tagged from the play log
+  // rather than per team-game. Verifies each scheme/package/coverage behaves
+  // distinctly (e.g. DIME tighter vs pass, HEAVY run-heavy, man vs zone comp%).
+  const DP = {}, PN = {}, CV = {};
+  const _dpI = k => (DP[k] || (DP[k] = { plays:0, yds:0, patt:0, comp:0, sk:0 }));
+  const _pnI = k => (PN[k] || (PN[k] = { plays:0, yds:0, patt:0 }));
+  const _cvI = k => (CV[k] || (CV[k] = { att:0, comp:0, yds:0 }));
+
   const t0 = Date.now();
   for (let s = 0; s < SEASONS; s++) {
     const rosters = {};
@@ -211,6 +220,20 @@ const audit = `
             if (dist < 40)      { lb.fg0_39_a++; if (made) lb.fg0_39_m++; }
             else if (dist < 50) { lb.fg40_49_a++; if (made) lb.fg40_49_m++; }
             else                { lb.fg50_a++; if (made) lb.fg50_m++; }
+          }
+          // Per-play scheme tagging (defensive package / personnel / coverage)
+          const k = p.kind;
+          const isPass = k === "complete" || k === "incomplete" || k === "sack";
+          const isRun  = k === "run" || k === "scramble";
+          if (!isPass && !isRun) continue;
+          const yds = p.yards || 0;
+          const dp = _dpI(p.defPackage || "BASE_43");
+          dp.plays++; dp.yds += yds;
+          if (isPass) { if (k === "sack") dp.sk++; else { dp.patt++; if (k === "complete") dp.comp++; } }
+          const pn = _pnI(p.personnel || "BASE");
+          pn.plays++; pn.yds += yds; if (isPass && k !== "sack") pn.patt++;
+          if (isPass && k !== "sack" && p.coverage) {
+            const cv = _cvI(p.coverage); cv.att++; if (k === "complete") { cv.comp++; cv.yds += yds; }
           }
         }
       }
@@ -492,6 +515,41 @@ const audit = `
     if (!s.g) continue;
     console.log("   "+k.padEnd(20)+(s.fourthAtt/s.g).toFixed(2).padStart(9)
       +(100*s.fourthConv/Math.max(1,s.fourthAtt)).toFixed(0).padStart(7)+"%"+(s.pts/s.g).toFixed(1).padStart(8));
+  }
+
+  // ====== DEFENSIVE SCHEME / PERSONNEL / COVERAGE (per-play) ======
+  console.log("");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" DEFENSIVE SCHEME BREAKDOWN (per play faced)");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("   "+"PACKAGE".padEnd(14)+"plays%".padStart(8)+"Y/PLAY".padStart(8)+"CMP%".padStart(7)+"SK%".padStart(7));
+  const _dpTot = Object.values(DP).reduce((n,s)=>n+s.plays,0)||1;
+  for (const [k,s] of Object.entries(DP).sort((a,b)=>b[1].plays-a[1].plays)) {
+    if (s.plays<50) continue;
+    console.log("   "+k.padEnd(14)+(100*s.plays/_dpTot).toFixed(1).padStart(8)+(s.yds/s.plays).toFixed(2).padStart(8)
+      +(100*s.comp/Math.max(1,s.patt)).toFixed(1).padStart(7)+(100*s.sk/Math.max(1,s.plays)).toFixed(1).padStart(7));
+  }
+  console.log("");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" PERSONNEL BREAKDOWN (offense, per play)");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("   "+"PERSONNEL".padEnd(14)+"plays%".padStart(8)+"Y/PLAY".padStart(8)+"PASS%".padStart(7));
+  const _pnTot = Object.values(PN).reduce((n,s)=>n+s.plays,0)||1;
+  for (const [k,s] of Object.entries(PN).sort((a,b)=>b[1].plays-a[1].plays)) {
+    if (s.plays<50) continue;
+    console.log("   "+k.padEnd(14)+(100*s.plays/_pnTot).toFixed(1).padStart(8)+(s.yds/s.plays).toFixed(2).padStart(8)
+      +(100*s.patt/Math.max(1,s.plays)).toFixed(1).padStart(7));
+  }
+  console.log("");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" COVERAGE BREAKDOWN (pass plays, comp% + yds/att allowed)");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("   "+"COVERAGE".padEnd(14)+"att%".padStart(8)+"CMP%".padStart(7)+"Y/ATT".padStart(8));
+  const _cvTot = Object.values(CV).reduce((n,s)=>n+s.att,0)||1;
+  for (const [k,s] of Object.entries(CV).sort((a,b)=>b[1].att-a[1].att)) {
+    if (s.att<50) continue;
+    console.log("   "+k.padEnd(14)+(100*s.att/_cvTot).toFixed(1).padStart(8)+(100*s.comp/Math.max(1,s.att)).toFixed(1).padStart(7)
+      +(s.yds/Math.max(1,s.att)).toFixed(2).padStart(8));
   }
   console.log("");
 })();
