@@ -1681,15 +1681,16 @@ const HOF_THRESHOLDS = {
 // representative star at each position lands in the same ~70 score
 // band when they belong in Canton.
 function _hofPositionMul(pos) {
-  // Rebalanced from the 500-season audit. CB/S dominated HoF at 25.7%
-  // (real NFL ~4%); LB was at 1.4% (real NFL ~8%); QB/OL/RB all
-  // crowded out. Dropped DB multiplier to 0.85 (was 1.05) and bumped
-  // LB to 1.15 (was 1.0). OL bumped to 1.30 (was 1.20) to recover
-  // the 17% share real NFL has. K/P stay high because they live and
-  // die on counting stats with no accolades to lean on.
-  return { QB:1.05, RB:1.05, WR:0.95, TE:1.0,
-           OL:1.30, LT:1.30, LG:1.30, C:1.30, RG:1.30, RT:1.30,
-           DL:1.0, LB:1.15, CB:0.85, S:0.85, K:1.30, P:1.45 }[pos] || 1.0;
+  // HoF mult retune r-1 (post level-retune equilibrium, validate100 baseline).
+  // Prior 500-season audit was on a higher-inflation sim — once the level
+  // retune trimmed dev/wear/coaches, the LB tackle-firehose pushed LB to
+  // 26% of HoF (target ~10%) while CB/S collapsed to 0.7% / 0% (target
+  // 8% / 6%). K/P also over-share because peak OVR is easy to reach
+  // at those positions and accolades stack. New mults aim at NFL shares
+  // QB 13 / RB 12 / WR 10 / TE 3 / OL 17 / DL 14 / LB 10 / CB 8 / S 6 / K 2 / P 1.
+  return { QB:0.90, RB:1.30, WR:1.20, TE:1.10,
+           OL:1.45, LT:1.45, LG:1.45, C:1.45, RG:1.45, RT:1.45,
+           DL:1.00, LB:0.65, CB:1.60, S:1.70, K:0.65, P:0.50 }[pos] || 1.0;
 }
 
 // Composite HOF score: peak ability + accolades + counting stats +
