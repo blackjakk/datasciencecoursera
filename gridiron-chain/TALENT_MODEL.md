@@ -27,11 +27,20 @@ remaining flow-tuning re-points at drift/career/bust realism, not share counts.
 (`a5875b0`) — NFL-realistic shares (the old CB 0.7% / S 0% / LB 24% / K 8%
 catastrophe is fixed). This becomes Layer 2's seed ordering.
 
-**Resuming on:** the staged build plan in `TALENT_RATING_ARCHITECTURE.md`
-(S1 measure → S2 fit Layer 1 → S3 build Layer 2 → S4 flip atomically → S5
-re-point tuning). Layer 1 + Layer 2 must ship together. The old queue (Valve 6
-reachability surgery, wear/mileage/concussion, sharkfin) is superseded or
-re-homed per that doc's "Relationship" section.
+**✅ RESOLVED (see `TALENT_RATING_ARCHITECTURE.md` OUTCOME):** Stable
+100-season audits showed the "per-position reachability spread" was a
+small-sample artifact; the one real problem was a **K/P OVR inflation bug**
+(decline only chipped STR — not in their formula — while AWR grew and kpw was
+uncapped → ratchet to 99 over a long career, K 23.4% at 90+). Fixed at the
+source (commits `6d091c6`, `a398d97`): K 23.4%→0.0%, P 8.8%→0.0% at 90+, every
+position now in a uniform 0–3.5% band, and **HoF shares went NFL-realistic with
+K 2.0% / P 1.0%**. The full per-position calibration was never built (would have
+fit noise); the existing `_hofPositionMul` is the only value weight needed.
+
+**Still open (separate, pre-existing — not rating-architecture):** HoF
+first-ballot 91% (target ~15%), HoF induction rate ~2/yr (target ~7-8) —
+threshold/vote-logic. And Valve-6 *legend reachability* (QB late-round Brady) is
+distinct from the K/P bias and untouched.
 
 **Tools in use:**
 - `node gridiron-chain/_brady_audit.js 40` — fast retune iteration (~17 min)

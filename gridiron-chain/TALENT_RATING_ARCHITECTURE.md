@@ -24,7 +24,34 @@ re-points what we tune for.*
 > over-engineered architecture — the simpler fix turned out to be the more
 > correct one.
 
-Status: **K/P source fix IN PROGRESS (v1, pending audit). Layer 2 next.**
+Status: **✅ RESOLVED. The whole thread collapsed to a ~50-line K/P source fix.**
+
+> ## ✅ OUTCOME (100-season confirm)
+> The K/P inflation fix (`calcOverall` input clamp kpw≤90/awr≤84/tec≤88 +
+> lower kpw floor + K/P decline their own OVR stats + remove the K/P
+> `awrOvrWeight` nudge leak) **fully killed the bug** at the 100-season
+> timescale where it was worst:
+> - **K: 23.4% → 0.0% at 90+, mean 79.6 → 69.0.** **P: 8.8% → 0.0%, 76.8 → 68.2.**
+> - Every position now in a uniform **0.0–3.5% band at 90+** — no outliers, no drift.
+> - **HoF shares went NFL-realistic** (DL 16.9 / OL 13.4 / QB 12.4 / LB 12.4 /
+>   WR 10.9 / RB 10.9 / CB 8.5 / S 7.0 / TE 4.5 / **K 2.0 / P 1.0**).
+>
+> **Layer 1 (per-position calibration): never built — was noise-fitting.**
+> **Layer 2 (`POSITION_VALUE`): not needed as new plumbing.** Fixing K/P OVR at
+> the source resolved every cross-position symptom directly (best-player,
+> contracts, 90+ count), and `_hofPositionMul` (r-3) already serves as the HoF
+> value weight. The conceptual two-layer model is still *true*; it just turned
+> out the system only needed the one value weight it already had, plus the bug
+> fixed.
+>
+> **Not addressed (separate, pre-existing — not rating-architecture):** HoF
+> first-ballot 91% (target ~15%) and induction rate ~2/yr (target ~7-8) are
+> threshold/vote-logic issues, tracked for later.
+>
+> **The lesson:** stable data turned a grand multi-stage architecture into a
+> localized bug fix that is both smaller and more correct. The rigor paid for
+> itself — building Layer 1 would have been effort spent fitting a small-sample
+> artifact.
 
 ---
 
