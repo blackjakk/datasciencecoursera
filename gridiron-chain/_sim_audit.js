@@ -165,6 +165,20 @@ const audit = `
   const RUN_HIST = _newGrid();    // run yardage (excludes sacks)
   const CMP_HIST = _newGrid();    // completion yardage (sacks/incompletes excluded)
 
+  // 3rd-down conversion rate by distance bucket. NFL benchmarks:
+  // short (≤2): ~70%, medium (3-6): ~45%, long (7-10): ~30%, xlong (≥11): ~15-20%.
+  // Per-play count: attempt = any 3rd-down play; conv = yards gained >= ytg.
+  // (Penalties / kneels excluded — we already filter to pass+run plays above.)
+  const TD_DIST = {
+    short:  { att: 0, conv: 0 },
+    medium: { att: 0, conv: 0 },
+    long:   { att: 0, conv: 0 },
+    xlong:  { att: 0, conv: 0 },
+  };
+  function _tdBucket(ytg) {
+    return ytg <= 2 ? "short" : ytg <= 6 ? "medium" : ytg <= 10 ? "long" : "xlong";
+  }
+
   const t0 = Date.now();
   for (let s = 0; s < SEASONS; s++) {
     const rosters = {};
@@ -307,6 +321,15 @@ const audit = `
             } else if (k === "complete") {
               const bi = _ydBucket(yds);
               if (bi >= 0) { CMP_HIST[bi][0]++; if (downIdx) CMP_HIST[bi][downIdx]++; }
+            }
+            // 3rd-down conversion bucket — counts attempts and successes by
+            // distance. Conv = play that gained the ytg (incl. by sack/incomplete
+            // it's auto-fail since yds <= 0).
+            if (dn === 3) {
+              const tg = p.ytg || 10;
+              const buck = _tdBucket(tg);
+              TD_DIST[buck].att++;
+              if (yds >= tg) TD_DIST[buck].conv++;
             }
           }
           if (p.concept) { PTYPE[p.concept] = (PTYPE[p.concept]||0) + 1; PASSN++; if (p.isScreen || p.concept === "SCREEN") SCRpass++; if (p.isPlayAction) SIT2.pa++; }
@@ -740,6 +763,23 @@ const audit = `
   }
   _printHist("RUN-PLAY YARDAGE — distribution by down", RUN_HIST);
   _printHist("COMPLETION YARDAGE — distribution by down (catches only)", CMP_HIST);
+
+  // ============== 3RD-DOWN CONVERSION BY DISTANCE ==============
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" 3RD-DOWN CONVERSION BY DISTANCE  (NFL: short ~70 / med ~45 / long ~30 / xlong ~17)");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("  "+"BUCKET".padEnd(20)+"att".padStart(8)+"conv".padStart(8)+"conv%".padStart(9)+"   NFL band");
+  const _tdBands = { short: "65-75%", medium: "40-50%", long: "25-35%", xlong: "10-22%" };
+  const _tdLabels = { short: "short  (1-2 yds)", medium: "medium (3-6 yds)", long: "long   (7-10 yds)", xlong: "xlong  (11+ yds)" };
+  let totA = 0, totC = 0;
+  for (const k of ["short","medium","long","xlong"]) {
+    const s = TD_DIST[k]; totA += s.att; totC += s.conv;
+    const pct = s.att ? (100*s.conv/s.att).toFixed(1)+"%" : "—";
+    console.log("  "+_tdLabels[k].padEnd(20)+String(s.att).padStart(8)+String(s.conv).padStart(8)+pct.padStart(9)+"   "+_tdBands[k]);
+  }
+  console.log("  "+"─".repeat(50));
+  console.log("  "+"ALL 3rd downs".padEnd(20)+String(totA).padStart(8)+String(totC).padStart(8)+(totA?(100*totC/totA).toFixed(1)+"%":"—").padStart(9)+"   36-44%");
+  console.log("");
 
 })();
 `;
