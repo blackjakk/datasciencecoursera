@@ -139,11 +139,35 @@ const harness = `
     ["sk","Sacks"], ["tkl","Tackles"],
     ["int_made","INTs"], ["int_td","Pick sixes"],
     ["pd","Pass deflect"], ["ff","Forced fum"], ["fr","Fum recov"], ["def_td","Def TDs"],
+    // K / OL / P marquee stats — needed so the BEST-SEASON-BY-POSITION table can
+    // rank every position, not just skill/defense.
+    ["fg_made","FG made"], ["pancakes","Pancakes"], ["punt_yds","Punt yds"], ["punts","Punts"],
   ];
   const career = new Map();          // name → { games, <cat sums> }
   let   seasonAcc = new Map();       // name → season sums (reset each season)
   const seasonRec = {};              // cat → { val, name, season }
   const gameRec   = {};              // cat → { val, name, season, opp }
+  // BEST SINGLE SEASON BY POSITION — the best individual (real-named) season at
+  // each position. The engine keys some stat lines by a position/slot label
+  // (placeholder aggregates like "QB"/"WR1"/"MLB"); those are filtered so only
+  // real players surface. Position comes from a name→pos map rebuilt each season.
+  const bestSeasonByPos = {};        // pos → { name, season, metric, line }
+  const _normPos = (p) => ({ LT:"OL",LG:"OL",C:"OL",RG:"OL",RT:"OL", LDE:"DL",RDE:"DL",LDT:"DL",RDT:"DL",DE:"DL",DT:"DL",NT:"DL",
+                             MLB:"LB",OLB:"LB",ILB:"LB",WLB:"LB",SLB:"LB", FS:"S",SS:"S", NB:"CB",DB:"CB" }[p] || p);
+  const _posMetric = (pos, r) => {
+    switch (pos) {
+      case "QB": return (r.pass_yds||0) + (r.pass_td||0)*25 - (r.pass_int||0)*20;
+      case "RB": return (r.rush_yds||0) + (r.rush_td||0)*10 + (r.rec_yds||0)*0.5;
+      case "WR": case "TE": return (r.rec_yds||0) + (r.rec_td||0)*10;
+      case "OL": return (r.pancakes||0);
+      case "DL": return (r.sk||0)*10 + (r.tkl||0) + (r.ff||0)*5;
+      case "LB": return (r.tkl||0) + (r.sk||0)*6 + (r.int_made||0)*8;
+      case "CB": case "S": return (r.int_made||0)*12 + (r.pd||0)*2 + (r.tkl||0)*0.3 + (r.def_td||0)*15;
+      case "K": return (r.fg_made||0);
+      case "P": return (r.punt_yds||0);
+      default: return 0;
+    }
+  };
   function _accInto(map, name, line) {
     let r = map.get(name);
     if (!r) { r = { games: 0 }; for (const [k] of CATS) r[k] = 0; map.set(name, r); }
@@ -182,6 +206,13 @@ const harness = `
   // Also maintains a top-5 single-season leaderboard per stat (seasonTop5).
   const seasonTop5 = {};   // cat → [{val,name,season}, ...] sorted desc, len<=5
   function _foldSeasonRecords() {
+    // name → normalized position, from this season's active rosters.
+    const nameToPos = {};
+    for (const roster of Object.values(franchise.rosters || {}))
+      for (const p of roster) if (p.name) nameToPos[p.name] = _normPos(p.position);
+    // Placeholder aggregate? (no space + short all-caps = a slot/position label
+    // like "QB", "WR1", "MLB" that the engine keyed nameless stats under).
+    const _isPlaceholder = (n) => !/\s/.test(n) && /^[A-Z0-9]{1,4}$/.test(n);
     for (const [name, r] of seasonAcc) {
       for (const [k] of CATS) {
         const v = r[k] || 0;
@@ -191,6 +222,14 @@ const harness = `
         lb5.push({ val: v, name, season: franchise.season });
         lb5.sort((a, b) => b.val - a.val);
         if (lb5.length > 5) lb5.length = 5;
+      }
+      // Best season by position — real players only.
+      if (_isPlaceholder(name)) continue;
+      const pos = nameToPos[name];
+      if (!pos) continue;
+      const m = _posMetric(pos, r);
+      if (m > 0 && (!bestSeasonByPos[pos] || m > bestSeasonByPos[pos].metric)) {
+        bestSeasonByPos[pos] = { name, season: franchise.season, metric: m, line: { ...r } };
       }
     }
     seasonAcc = new Map();
@@ -645,6 +684,32 @@ const harness = `
     const sStr = sr ? (sr.val.toLocaleString() + " — " + sr.name + " (S" + sr.season + ")") : "—";
     const gStr = gr ? (gr.val.toLocaleString() + " — " + gr.name + " (S" + gr.season + ")") : "—";
     console.log(" " + label.padEnd(13) + " " + sStr.padEnd(22).slice(0,22) + "  " + gStr);
+  }
+  console.log("");
+
+  // ── BEST SINGLE SEASON BY POSITION (real players, all 11 positions) ──
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" BEST SINGLE SEASON BY POSITION — best individual season at each spot");
+  console.log("══════════════════════════════════════════════════════════");
+  const _statLine = (pos, r) => {
+    const n = (k) => Math.round(r[k] || 0).toLocaleString();
+    switch (pos) {
+      case "QB": return n("pass_yds")+" yds, "+n("pass_td")+" TD, "+n("pass_int")+" INT";
+      case "RB": return n("rush_yds")+" yds, "+n("rush_td")+" TD"+(r.rec_yds?(", "+n("rec_yds")+" rec yds"):"");
+      case "WR": case "TE": return n("rec")+" rec, "+n("rec_yds")+" yds, "+n("rec_td")+" TD";
+      case "OL": return n("pancakes")+" pancakes";
+      case "DL": return n("sk")+" sacks, "+n("tkl")+" tkl"+(r.ff?(", "+n("ff")+" FF"):"");
+      case "LB": return n("tkl")+" tkl, "+n("sk")+" sacks"+(r.int_made?(", "+n("int_made")+" INT"):"");
+      case "CB": case "S": return n("int_made")+" INT, "+n("pd")+" PD, "+n("tkl")+" tkl"+(r.def_td?(", "+n("def_td")+" TD"):"");
+      case "K": return n("fg_made")+" FG made";
+      case "P": return n("punt_yds")+" punt yds, "+n("punts")+" punts";
+      default: return "";
+    }
+  };
+  for (const pos of ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"]) {
+    const b = bestSeasonByPos[pos];
+    if (!b) { console.log(" " + pos.padEnd(3) + "  —"); continue; }
+    console.log(" " + pos.padEnd(3) + "  " + (b.name + " (S" + b.season + ")").padEnd(32) + " " + _statLine(pos, b.line));
   }
   console.log("");
 
