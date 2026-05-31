@@ -852,7 +852,15 @@ function calcOverall(pos, s) {
   // For trench positions (OL/DL/LB/RB/TE), AWR is NOT in the OVR formula — it feeds
   // engine behavior (snap timing, gap reads, blitz pickup) instead.
   switch (pos) {
-    case "QB": v = spd*9+agi*13+awr*21+thr*42+tec*15; break;
+    // QB: weight shifted from genetics (agi/spd) to the coachable core
+    // (thr/awr/tec). The old 22% on agi+spd — frozen at draft, ~80 for a
+    // non-athlete — capped even a thr-99/awr-99 QB at ~94, BELOW the 96 legend
+    // bar, so no QB (drafted high OR a late-round gem) ever became a legend
+    // (0 Bradys in 100 seasons). At 13% genetic weight a maxed pocket passer
+    // can reach 96, and the gem dev (grows thr/awr/tec) now carries to it.
+    // Mean QB ≈ unchanged; only the elite tail extends. (Tradeoff: pure
+    // mobility QBs valued slightly less, pocket passers more.)
+    case "QB": v = spd*5+agi*8+awr*24+thr*46+tec*17;  break;
     case "RB": v = spd*30+str*17+agi*21+cat*17+tec*15; break;
     case "WR": v = spd*26+agi*21+cat*30+awr*8+tec*15;  break;
     case "TE": v = spd*17+cat*34+blk*25+str*9+tec*15;  break;
@@ -861,17 +869,20 @@ function calcOverall(pos, s) {
     case "LB": v = prs*21+cov*22+tck*26+spd*16+tec*15; break;
     case "CB": v = spd*26+agi*21+cov*30+awr*8+tec*15;  break;
     case "S":  v = spd*21+cov*30+tck*26+awr*8+tec*15;  break;
-    // K/P: leg (kpw) + accuracy (awr) saturate — value doesn't keep climbing
-    // with a 99 leg. Clamp the inputs so the OVR tops out ~90, reached only by
-    // a kicker elite on ALL of leg+accuracy+technique (a generational Tucker/
-    // Guy — rare), then faded by age. The runaway inflation (23.4% of K at 90+
-    // over 100 seasons) was the no-decline ratchet + the AWR-nudge leak, both
-    // fixed separately (K/P stat decline + awrOvrWeight removal), so this clamp
-    // only needs to set a realistic ceiling, not a hard wall. Max = round(
-    // 93·.43 + 88·.42 + 90·.15) = round(90.45) = 90.
-    default:   v = Math.min(93, kpw)*43 + Math.min(88, awr)*42 + Math.min(90, tec)*15;
+    // K/P: natural formula (uncapped inputs), output capped at 95 below — PARITY
+    // with the league's natural elite ceiling (other positions top ~95-96), so
+    // kickers aren't handicapped BELOW everyone, but a perfect specialist still
+    // can't be a 99 franchise piece. The 90+ RATE is held in band by K/P stat
+    // decline + the dev caps + the awrOvrWeight removal; cross-position VALUE
+    // (HoF/contracts/best-player) is handled by POSITION_VALUE/_hofPositionMul,
+    // NOT by suppressing the rating. Uncapping is rate-neutral vs the old 90
+    // clamp — would-be 90-95 kickers spread out instead of piling at 90.
+    default:   v = kpw*43 + awr*42 + tec*15;
   }
-  return Math.min(99, Math.max(40, Math.round(v / 100)));
+  // K/P cap at 95 (parity with the league's natural elite ceiling); everyone
+  // else at the global 99. See the K/P note in the switch default above.
+  const _ovrMax = (pos === "K" || pos === "P") ? 95 : 99;
+  return Math.min(_ovrMax, Math.max(40, Math.round(v / 100)));
 }
 // ─── Trench archetypes & rock-paper-scissors matchup matrix ─────────────
 // Each DL has a fighting style with signature pass-rush moves. Each OL has

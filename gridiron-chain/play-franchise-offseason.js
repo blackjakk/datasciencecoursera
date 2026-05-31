@@ -11227,10 +11227,10 @@ function runFrnOffseason() {
         // Rolled once at first sighting and frozen. Gems untouched (their
         // ceiling is the dev cap there).
         if (p._peakMult == null) p._peakMult = 0.75 + Math.random() * 0.30;
-        // K/P cap at 90: this dev path writes p.overall DIRECTLY (not via
-        // calcOverall), so it bypasses the K/P input clamp — without this a
-        // high-potential punter grows past 90 to effPotential (~98).
-        const _effCap = (p.position === "K" || p.position === "P") ? 90 : 99;
+        // K/P cap at 95 (parity with league elite ceiling): this dev path
+        // writes p.overall DIRECTLY (not via calcOverall), so it bypasses the
+        // K/P output cap — without this a high-potential punter grows past it.
+        const _effCap = (p.position === "K" || p.position === "P") ? 95 : 99;
         const effPotential = Math.min(_effCap, Math.round(p.potential * p._peakMult));
         const gap = effPotential - p.overall;
         if (gap > 0 && p.age < (p.peakAge ?? 27) + 1) {
@@ -11617,10 +11617,10 @@ function runFrnOffseason() {
       } else if (!p.hiddenGem) {
         // Same _peakMult ceiling + _devMult timing as active-roster path.
         if (p._peakMult == null) p._peakMult = 0.75 + Math.random() * 0.30;
-        // K/P cap at 90: this dev path writes p.overall DIRECTLY (not via
-        // calcOverall), so it bypasses the K/P input clamp — without this a
-        // high-potential punter grows past 90 to effPotential (~98).
-        const _effCap = (p.position === "K" || p.position === "P") ? 90 : 99;
+        // K/P cap at 95 (parity with league elite ceiling): this dev path
+        // writes p.overall DIRECTLY (not via calcOverall), so it bypasses the
+        // K/P output cap — without this a high-potential punter grows past it.
+        const _effCap = (p.position === "K" || p.position === "P") ? 95 : 99;
         const effPotential = Math.min(_effCap, Math.round(p.potential * p._peakMult));
         const gap = effPotential - p.overall;
         if (gap > 0 && p.age <= 27) {
