@@ -459,8 +459,13 @@ QB styles (`_qb_probe`), box score / drives / situational / kicking / per-positi
 - **Scouting / draft-eval accuracy** (projected vs actual ceiling), GM traits.
 
 ### Findings from the new system audits (open realism items)
-- **Salary cap not enforced** — teams run **~127% of cap** (P90 150%); the cap
-  isn't a binding roster constraint (or contracts aren't real cap hits). Biggest.
+- **Salary cap not enforced — FIXED.** Teams ran **~127% of cap** (P90 150%):
+  `_trimAiRostersToCap` only cut for roster SIZE, and `assignContracts`'
+  normalization never re-ran. Added `enforceCapCompliance()` — each offseason any
+  over-cap AI team restructures (proportional AAV scale-down + bonus re-proration)
+  to ~94% of cap; wired into `frnProceedToRosterChanges` (live + audit). Now 83.9%
+  mean / 91.7% P90, no team over. (Mean slightly conservative — rebuilders run
+  cheap; raising it is a separate FA-aggression lever.)
 - **quiet_pro longevity not showing** — its avg career (~4.0) ≈ normal; the
   "slower decline" trait doesn't translate to longer careers.
 - **Trainer effect weak** — Sports Sci isn't clearly the lowest-injury trainer.
