@@ -120,6 +120,33 @@ best against?"* Confirms design intent: 13 punishes blitz/heavy fronts via PA
 shots (BLITZ_46 6.81 Y/play, 30 PTS/g — best for offense); least valuable vs
 DIME (6.26, 27.3 PTS/g). Seeded → reproducible.
 
+### 1e. `_ux_snapshot.js` — Playwright visual-verification harness
+`node _ux_snapshot.js [shot|ALL]` (default: all default shots). The UX
+counterpart to the audit harnesses — instead of stats, produces directly-
+readable PNG screenshots in `/tmp/ux/` for every major UI state. Backbone of
+the UX retune (banner removal, delete safety, Quick Start flow, nav rail).
+
+**Prereq**: an http-server on :5173 (run once per session, persists in
+background): `nohup npx http-server -p 5173 -c-1 -s . > /tmp/dev-server.log
+2>&1 &`. Uses the pre-installed Chromium at `/opt/pw-browsers/chromium-1194/`
+via the global Playwright (`/opt/node22/lib/node_modules/playwright`); the
+`node_modules` install in repo root is just the deps record (gitignored).
+
+**Default shots:**
+- `cold` — fresh visitor, no saves (the cold-start screen)
+- `returning` — seeded slot data, slot list visible
+- `mobile` — 390×844 viewport
+- `dev` — `?dev=1` URL — testing-tools entry
+- `slot-menu` — `⋯` popover (rename / delete) open
+- `delete-modal-low` / `delete-modal-high` — styled confirm modal, with + without type-name gate
+- `story-picker` / `story-picker-mobile` — the Choose Your Story archetype view
+- `navbar-fa` / `navbar-awards` / `navbar-playoffs` — in-loop nav rail per phase
+
+**Interactive driver** — each shot has optional `setup(page)` (pre-navigation:
+seed localStorage) + `after(page)` (post-navigation: click/type to reach the
+target UI state). `franchise` is a top-level `let` (not on window) — access by
+name from `page.evaluate`, NOT `window.franchise`.
+
 ### 2. `_brady_audit.js` — franchise + player development
 Drives a full franchise headlessly season-by-season (plays every game + the
 playoff bracket, runs the awards/retirement/draft/offseason chain). Answers:

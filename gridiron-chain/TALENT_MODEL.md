@@ -1,6 +1,33 @@
 # Hashmark Heroes — Talent Model, From First Principles
 *(originally documented as "GridironChain"; renamed 2026-05 — references in the body kept verbatim where they refer to the codebase rather than the product)*
 
+---
+
+## ⏯ RESUME HERE (post-compact pointer)
+
+**Branch:** `claude/football-sim-blockchain-game-b3sdq` (push with `-u origin`, retry exponential backoff per session rules).
+
+**Where things stand:**
+- **Level retune: settled** (r-8 + 100-season validation). 90+ share **6.0%** (target 2-3%, still ~2× over — accepted as architectural floor with flat DRIFT BY DECADE 5.6-6.7% over 8 measured decades). R1 bust **1.5%**, R3 bust 9%, R7 bust 12% — bust shape working. Full retune log in `## Retune log (executed)` below.
+- **UX work: complete.** All 6 steps shipped (banner removed, dev demoted, delete safety, Your Story flow, in-loop nav rail, confirm modal conversion). See `GAMEPLAY_LOOP.md` for the full breakdown.
+- **Rebrand:** GridironChain → **Hashmark Heroes — American Football Manager**. User-facing only; codebase identifiers preserved.
+
+**Resuming on:** continuing the talent retune via the **queued findings** section below. **Next item: HoF position-multiplier re-tune** — CB has 1 inductee in 100 seasons (target ~9%), S has 0 (target ~6%), LB has 135 (24%, target ~8%). Stale `_hofPositionMul` at `play-franchise-season.js:1604` from a 500-season audit on an earlier sim state. Recommended order: HoF mults → Valve 6 (QB legend reachability via `_gemDevStats`) → wear+mileage+concussion sticky-load triad → sharkfin shape polish → dead code cleanup.
+
+**Tools in use:**
+- `node gridiron-chain/_brady_audit.js 40` — fast retune iteration (~17 min)
+- `node gridiron-chain/_brady_audit.js 100` — equilibrium validation (~50 min)
+- `node gridiron-chain/_sim_audit.js 2` — game-realism check
+- `node gridiron-chain/_arch_probe.js` / `_qb_probe.js` / `_jumbo_probe.js` — archetype/style probes
+- `node gridiron-chain/_ux_snapshot.js` — visual UX verification (Playwright PNG screenshots in `/tmp/ux/`)
+
+**Companion docs:**
+- `AUDIT.md` — audit harnesses, NFL reference bands, calibration history
+- `GAMEPLAY_LOOP.md` — UX map + executed step log
+- `HANDOFF.md` — broader project context (from earlier animation-arc session)
+
+---
+
 > Written before retuning, after the 100-season audit showed the league
 > over-inflates (90+ share **14.7%** vs NFL ~2-3%, roster mean **80.8**), R1 picks
 > **never bust** (0% / 95% Pro Bowl), and QBs **never** emerge as late-round

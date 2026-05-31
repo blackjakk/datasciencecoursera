@@ -141,12 +141,25 @@ screens) and **redundant raw confirms**, not click count.
 
 ---
 
-## 5. Action items (prioritized)
+## 5. Action items (executed — full 6-step UX plan shipped 2026-05)
 
-1. **Unify next/back/home** (§2 proposal) — persistent nav bar, Home-not-undo
-   semantics, styled confirm modal, milestones-as-phases. *Biggest UX win.*
-2. **Surface 13 personnel** in the in-game HUD + play-by-play (and decide on
-   TE2 targeting). *Newest engine feature, currently invisible.*
-3. **Surface per-game fatigue** (stamina bar in-game).
-4. Harden the dangerous mid-playoff / mid-draft back buttons.
+This is the original prioritized plan. All 6 steps shipped in this session.
+
+| step | what | commit(s) |
+|---|---|---|
+| ✅ 1 | **Banner removed** — ASCII-art "GRIDIRON CHAIN" header gone from play.html. Brand identity carried by browser tab title + welcome card title for new users / `frnAppShell` team nameplate for returning users. Frees the prime above-the-fold real estate. | `7c8e5b3` |
+| ✅ 2 | **Testing tools demoted** — `🏈 Franchise Mode / 🧪 Testing Tools` tabs no longer on front page (new-player trap). Reachable via discreet `🛠 dev tools` footer link or `?dev=1` URL param. Testing panel gets its own `← Back to Franchise` button. | `7c8e5b3` |
+| ✅ 3 | **Delete safety** — Slot row `[▶ Load] [✎] [✗]` → `[▶ Load] [⋯]` with Rename + Delete inside a popover menu (kills misclick chain). `_frnConfirmModal(opts)` styled async modal with rich slot summary (team, season, record, last saved) + red "cannot be undone" warning + **type-the-name gate for franchises ≥ 5 seasons**. | `c14f4ee` |
+| ✅ 4 | **Your Story new-player flow** — `🚀 QUICK START` (random powerhouse team → skip preseason → Week 1 in 30s) + `Choose Your Story →` (3 archetypes: 🏆 WIN NOW / ⚡ RISING / 🔧 REBUILD, each with 3 hand-picked teams + Roster OVR + pitch + difficulty hint) + `Browse All 32 Teams →` (legacy picker). Replaces "32-team grid with no context" cold-start. | `e2a5e02` |
+| ✅ 5 | **Unified in-loop nav rail** — `<div id="frnNavBar">` between `frnAppShell` and `frnHomeContent`, populated by `_frnUpdateNavBar()` called from `showFranchiseDashboard` (single touch point, NOT N render fns). Layout: `[← Home]   Title · Season N · step`. Two variants: `milestone` (neutral gold border, "← Home") for awards/recap/grade screens; `locked` (gold-amber gradient, "← Home (saved)") for FA/playoffs/draft/offseason where progress IS preserved. `_frnGoHome()` saves + clears active + returns to start screen — never an undo. Universal escape hatch — even renders above error-fallback screens. | `4c2afde` |
+| ✅ 6 | **All raw confirm() → styled modal** — 40 native `window.confirm()` callsites across 4 files swapped to `await _frnConfirm(msg)` (Promise<boolean>-returning shim routing through `_frnConfirmModal`). 41 enclosing functions marked async via deterministic walk-back. The wrapper at season.js:7252 stays as fallback to `window.confirm` if the modal helper isn't loaded. Inline onclick at stats.js:3874 handled via `data-confirm-msg` + async IIFE. | (this session) |
+
+**Also done this session:**
+- 🏈 **Rebrand**: GridironChain → Hashmark Heroes — American Football Manager. User-facing strings only; codebase identifiers (directory, CSS classes, var names) preserved to avoid massive non-UX churn.
+- 🔧 **UX verification harness**: `_ux_snapshot.js` (Playwright) — see `AUDIT.md`. Standard verification loop for any UX edit; produces directly-readable PNGs in `/tmp/ux/`.
+
+**Queued / next** (post-talent-retune polish):
+1. **Office-mode aesthetic** — diegetic GM-at-a-desk treatment (inbox / spreadsheet / formal-document framings). Long arc, multi-session.
+2. **Surface per-game fatigue** in the in-game player chips / snap chart (the recovery fix from earlier has no UI).
+3. **Defensive-coding pass** — `renderFrnPlayoffs` crashed on minimal stub during step 5 verification; suggests other render functions have similar non-defensive assumptions about `franchise.playoffBracket.rounds` etc.
 5. Replace remaining `window.confirm()` calls.
