@@ -6792,6 +6792,10 @@ function buildAnimForPlay(play, prevPlay) {
 
       // ── Special-teams formation (drawn instead of regular formation) ──
       // 9-man protection along the LOS, holder kneeling, kicker offset.
+      // On a GOOD kick, once the ball has cleared (t > 0.82, when the
+      // IT'S GOOD! banner fires), the kicking team breaks into a
+      // celebration — arms up, bouncing — so a make reads as a make.
+      const _kickCheer = isGood && t > 0.82;
       const olY = [-50, -36, -22, -8, 6, 20, 34, 48, 62];
       for (let i = 0; i < 9; i++) {
         const olXOff = (i === 0 || i === 8) ? -dir * 4 : 0;   // wings slightly back
@@ -6799,7 +6803,12 @@ function buildAnimForPlay(play, prevPlay) {
         // Without it, all 9 OL share "OL||R" as the id, overwrite each
         // other's lastX/lastY, and oscillate vxEMA → sprite direction
         // flickers between octants per frame = visible stutter.
-        drawPlayer(ctx, losX - dir * 1 + olXOff, cy + olY[i], possColor, team.secondary, "", "stance", t, dir, { role: "OL", bodyType: "BIG", name: "fg-ol-" + i });
+        // Stagger the celebration t per lineman so they don't bounce in
+        // lockstep (each OL's name-hash phases the wave).
+        const _olHash = ((i * 37 + 13) % 100) / 100;
+        drawPlayer(ctx, losX - dir * 1 + olXOff, cy + olY[i], possColor, team.secondary, "",
+          _kickCheer ? "celebrate" : "stance", _kickCheer ? t + _olHash : t, dir,
+          { role: "OL", bodyType: "BIG", name: "fg-ol-" + i });
       }
       // Defense — 11-man FG defense: 4 interior DL, 4 edge rushers/LBs,
       // 2 wing CBs sealing the outside, 1 deep safety for return / spy.
@@ -6843,7 +6852,9 @@ function buildAnimForPlay(play, prevPlay) {
         kickerPoseY = holderY + 4;
         kickerPose = "kick";
       }
-      drawPlayer(ctx, kickerPoseX, kickerPoseY, possColor, team.secondary, "", kickerPose, t, dir, { role: "K" });
+      // Kicker celebrates his own make once the ball clears.
+      if (_kickCheer) kickerPose = "celebrate";
+      drawPlayer(ctx, kickerPoseX, kickerPoseY, possColor, team.secondary, "", kickerPose, t, dir, { role: "K", celebStyle: "fist_pump" });
 
       // Holder kneeling at the spot (drawn behind ball during placement)
       if (t < 0.85) {
@@ -6889,11 +6900,18 @@ function buildAnimForPlay(play, prevPlay) {
           ballY = holderY;
           arc = Math.sin(kt * Math.PI) * 50;
         } else if (missType === "good") {
-          // Ball clears the crossbar and continues PAST the uprights
-          // into the netting / behind the goal. Extended flight window
-          // means the ball is still visible (and elevated) when the
-          // banner fires at t=0.82.
-          const endXForGood = goalX + dir * 55;   // ~3.5 yds past the uprights
+          // Ball clears the crossbar and sails ALL THE WAY THROUGH the
+          // uprights into the netting behind the goal. The posts were
+          // moved back to the end line: in broadcast cam the stadium
+          // goalposts stand at FIELD.W+8 (home) / -8 (away) per
+          // drawStadiumGoalposts — NOT at goalX (which is only ~40% into
+          // the end zone). Targeting goalX left the ball stopping short
+          // of the visible posts. Aim at the real post X (camera-aware),
+          // plus a margin so it passes between and beyond them. Tactical
+          // cam still draws the flat H at goalX, so target that there.
+          const _isBroadcast = (typeof cameraMode !== "undefined" && cameraMode === "broadcast");
+          const _postX = _isBroadcast ? (poss === "home" ? FIELD.W + 8 : -8) : goalX;
+          const endXForGood = _postX + dir * 30;   // sail past the posts into the net
           ballX = holderX + (endXForGood - holderX) * kt;
           ballY = cy;
           // Asymmetric arc: peak at kt=0.55, still 50px elevated at kt=1
