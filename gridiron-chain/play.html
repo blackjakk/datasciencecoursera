@@ -17,22 +17,7 @@
 <div class="crt-scanlines"></div>
 <div class="crt-vignette"></div>
 
-<div class="header">
-  <pre class="ascii-logo">  ____ ____  ___ ____ ___ ____   ___  _   _      ____ _   _    _    ___ _   _
- / ___|  _ \|_ _|  _ \_ _|  _ \ / _ \| \ | |    / ___| | | |  / \  |_ _| \ | |
-| |  _| |_) || || | | | || |_) | | | |  \| |   | |   | |_| | / _ \  | ||  \| |
-| |_| |  _ &lt; | || |_| | ||  _ &lt;| |_| | |\  |   | |___|  _  |/ ___ \ | || |\  |
- \____|_| \_\___|____/___|_| \_\\___/|_| \_|    \____|_| |_/_/   \_\___|_| \_|</pre>
-  <p>[ 2D Animated Football Simulator -- Standalone Demo ]</p>
-</div>
-
 <div class="container">
-
-  <!-- Mode tabs — switch between Franchise mode (primary) and Testing Tools -->
-  <div class="mode-tabs">
-    <button class="mode-tab active" id="modeFranchiseBtn">🏈 Franchise Mode</button>
-    <button class="mode-tab" id="modeTestingBtn">🧪 Testing Tools</button>
-  </div>
 
   <!-- Franchise home (default visible) — rendered inline, no modal.
        Bloomberg-style multi-row shell: frnAppShell renders the ticker
@@ -48,6 +33,12 @@
 
   <!-- Testing Tools panel — wraps the legacy team-selector and sim/debug buttons -->
   <div id="testingPanel" style="display:none">
+    <!-- Top bar inside testing — gives dev-tools users a clear way home now
+         that the mode tabs are gone from the front page. -->
+    <div style="margin:0 0 .75rem 0;display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:var(--gray)">
+      <button type="button" class="btn btn-outline" id="testingBackBtn" style="font-size:.66rem;padding:.25rem .55rem">← Back to Franchise</button>
+      <span style="opacity:.7">🛠 Dev Tools</span>
+    </div>
     <!-- Team selector + depth chart -->
     <div class="selector">
       <div class="team-col">
@@ -115,6 +106,13 @@
     <div class="empty-icon">🏈</div>
     <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: .25rem;">Start a Franchise or use Testing Tools</div>
     <div style="color: var(--gray);">Animated 2D field with live play-by-play action</div>
+  </div>
+
+  <!-- Discreet dev-tools entry. Click to toggle into testing mode (the legacy
+       team selector / sim debug panel). Also reachable via ?dev=1 URL param.
+       Intentionally unobtrusive — the front page is for players. -->
+  <div id="devToolsFooter" style="margin-top:1.25rem;text-align:center;font-size:.62rem;color:var(--gray);opacity:.4">
+    <a href="#" id="devToolsLink" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--gray)">🛠 dev tools</a>
   </div>
 
 </div>

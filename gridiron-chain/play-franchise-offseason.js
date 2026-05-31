@@ -23190,14 +23190,31 @@ function frnAbandon() {
   renderFrnStartScreen();
 }
 
-// ── Wire mode tabs + initial setup ────────────────────────────────────────────
-$("modeFranchiseBtn").addEventListener("click", () => setAppMode("franchise"));
-$("modeTestingBtn").addEventListener("click",   () => setAppMode("testing"));
+// ── Wire mode entry points + initial setup ───────────────────────────────────
+// Front-page mode tabs were removed (the page is for players, not dev). Dev
+// tools are now reachable two ways:
+//   1. Discreet footer link "🛠 dev tools" in play.html
+//   2. URL param `?dev=1` (or `?testing=1`) so dev users can bookmark / share
+// Once in testing mode, the testing panel has its own "← Back to Franchise"
+// button (id #testingBackBtn) so there's a clear way home.
+const _modeFB = $("modeFranchiseBtn"); if (_modeFB) _modeFB.addEventListener("click", () => setAppMode("franchise"));
+const _modeTB = $("modeTestingBtn");   if (_modeTB) _modeTB.addEventListener("click",   () => setAppMode("testing"));
+const _devLink = $("devToolsLink");
+if (_devLink) _devLink.addEventListener("click", (e) => { e.preventDefault(); setAppMode("testing"); });
+const _testBack = $("testingBackBtn");
+if (_testBack) _testBack.addEventListener("click", () => setAppMode("franchise"));
 
-// Default to franchise mode on page load
-document.addEventListener("DOMContentLoaded", () => setAppMode("franchise"));
+// Default to franchise mode unless the URL explicitly requests dev/testing.
+function _initialMode() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("dev") === "1" || q.get("testing") === "1") return "testing";
+  } catch (_) { /* ignore */ }
+  return "franchise";
+}
+document.addEventListener("DOMContentLoaded", () => setAppMode(_initialMode()));
 // If DOMContentLoaded already fired, run immediately
-if (document.readyState !== "loading") setAppMode("franchise");
+if (document.readyState !== "loading") setAppMode(_initialMode());
 
 // ─── END FRANCHISE MODE ────────────────────────────────────────────────────
 

@@ -4065,8 +4065,13 @@ function setAppMode(mode) {
     document.body.classList.add(`mode-${mode}`);
     $("franchiseHome").style.display = mode === "franchise" ? "block" : "none";
     $("testingPanel").style.display  = mode === "testing"   ? "block" : "none";
-    $("modeFranchiseBtn").classList.toggle("active", mode === "franchise");
-    $("modeTestingBtn").classList.toggle("active",   mode === "testing");
+    // Dev-tools footer link: hide when in testing mode (the testing panel has
+    // its own "Back to Franchise" button so the user has a clear way home).
+    const _devFt = $("devToolsFooter");
+    if (_devFt) _devFt.style.display = mode === "testing" ? "none" : "block";
+    // Legacy mode-tab buttons may not exist (removed from front page). Guard.
+    const _mfb = $("modeFranchiseBtn"); if (_mfb) _mfb.classList.toggle("active", mode === "franchise");
+    const _mtb = $("modeTestingBtn");   if (_mtb) _mtb.classList.toggle("active", mode === "testing");
     if (mode === "franchise") showFranchiseHome();
   } catch (err) {
     console.error("setAppMode error:", err);
