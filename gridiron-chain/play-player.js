@@ -695,8 +695,12 @@ const POSITION_PHYSICAL_CAPS = {
   LB:  { 1:{min:70}, 2:{min:70}, 3:{min:72}, 8:{min:60}, 9:{min:75} },
   CB:  { 1:{max:78}, 2:{min:68}, 3:{min:65}, 6:{max:50}, 8:{min:60} },
   S:   { 1:{max:88, min:60}, 2:{min:72}, 3:{min:75}, 8:{min:70}, 9:{min:72} },
-  K:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:75} },
-  P:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:72} },
+  // K/P kpw floor lowered (was 75/72) so weak-legged specialists exist and
+  // pull the position mean down toward the rest of the league (audit had K
+  // mean 79.6, highest of any position — should be ~73). OVR-tail cap is
+  // enforced in calcOverall (kpw≤90, awr≤84).
+  K:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:60} },
+  P:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:56} },
 };
 function _applyPositionCaps(pos, stats) {
   // 1. Map SPD into position-realistic range
@@ -857,7 +861,13 @@ function calcOverall(pos, s) {
     case "LB": v = prs*21+cov*22+tck*26+spd*16+tec*15; break;
     case "CB": v = spd*26+agi*21+cov*30+awr*8+tec*15;  break;
     case "S":  v = spd*21+cov*30+tck*26+awr*8+tec*15;  break;
-    default:   v = kpw*43+awr*42+tec*15;
+    // K/P: leg (kpw) + accuracy (awr) saturate — a kicker's roster value doesn't
+    // keep climbing with a 95 leg or 95 awareness. Clamp the inputs so the
+    // formula can't mint 90+ kickers. Without this, awr (42% weight) GROWS in
+    // season and K/P never decline their OVR stats (decline only chips STR,
+    // which isn't in this formula) → OVR ratchets to 99 and the pool fills with
+    // ancient elite kickers (audit: 23.4% of K at 90+ over 100 seasons).
+    default:   v = Math.min(90, kpw)*43 + Math.min(84, awr)*42 + Math.min(88, tec)*15;
   }
   return Math.min(99, Math.max(40, Math.round(v / 100)));
 }

@@ -11084,6 +11084,14 @@ function runFrnOffseason() {
         if (yearsPast >= 2 && Math.random() < 0.5) {
           p.stats[1] = Math.max(30, p.stats[1] - 1); // STR
         }
+        // K/P decline their OWN OVR stats — leg (kpw) and accuracy (awr) — else
+        // their OVR never falls (the generic decline only touches STR, which
+        // isn't in the K/P formula) and the pool inflates without bound. Aging
+        // kickers lose leg power; this gives K/P a real post-peak fade.
+        if (p.position === "K" || p.position === "P") {
+          if (Math.random() < 0.6) p.stats[10] = Math.max(40, (p.stats[10] || 70) - 1); // kpw
+          if (yearsPast >= 1 && Math.random() < 0.4) p.stats[3] = Math.max(40, (p.stats[3] || 70) - 1); // awr
+        }
       }
       // Young progression: grow toward potential ceiling each offseason.
       // Hidden gems use a flat per-season rate toward their true ceiling;

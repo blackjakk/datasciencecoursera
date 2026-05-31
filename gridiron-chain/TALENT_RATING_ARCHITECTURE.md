@@ -2,7 +2,29 @@
 
 *Successor framing to `TALENT_MODEL.md`. The valve/stock-and-flow model there
 is still correct for **career dynamics**; this doc fixes what OVR **means** and
-re-points what we tune for. Status: **DESIGN — agreed in principle, not built.***
+re-points what we tune for.*
+
+> ## ⚠ SCOPE COLLAPSE (data update — read this first)
+> Stable 100-season audits **killed most of this plan.** The "28× per-position
+> reachability spread" that motivated the full per-position calibration was a
+> **small-sample artifact** of the 40-season audit's ~6-player rosters. At
+> stable n, **every non-K/P position sits in a tight 0–2.7% band at 90+** —
+> there is no spread to calibrate. The *one* replicable problem is a **K/P
+> inflation bug**: their decline only chips STR (not in their OVR formula),
+> AWR (42% weight) grows in-season, and kpw is uncapped — so K/P OVR ratchets
+> up monotonically over an age-41 career and never falls. Result: **K hits
+> 23.4% at 90+ (mean 79.6, highest of any position), kpw → 99** over 100 seasons.
+>
+> **So Layer 1's per-position quantile calibration is DROPPED.** The
+> proportionate fix is a **source-level K/P repair** (cap kpw/awr in
+> calcOverall; make K/P decline their own OVR stats) + **Layer 2
+> (`POSITION_VALUE`) for cross-position consumers**, which is still right.
+> The verbose calibration design below is kept as rejected-alternative
+> rationale, not the plan. This is a case study in letting stable data kill an
+> over-engineered architecture — the simpler fix turned out to be the more
+> correct one.
+
+Status: **K/P source fix IN PROGRESS (v1, pending audit). Layer 2 next.**
 
 ---
 
