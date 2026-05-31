@@ -123,6 +123,14 @@ const audit = `
   const _pnI = k => (PN[k] || (PN[k] = { plays:0, yds:0, patt:0 }));
   const _cvI = k => (CV[k] || (CV[k] = { att:0, comp:0, yds:0 }));
 
+  // FATIGUE/WEAR audit. Fatigue is per-game (sim._fatigue, 0-100, read post-game);
+  // it should leave a workhorse RB ~60-70 by the 4th quarter (15-20% rating cut)
+  // and barely touch low-snap positions. Per-quarter yds/play surfaces whether
+  // the late-game fatigue tax shows up as a realistic (mild) efficiency dropoff.
+  const FT = { QB:[], RB:[], WR:[], TE:[], OL:[], DL:[], LB:[], CB:[], S:[] };
+  const QF = {};   // quarter → { plays, yds }
+  const _qfI = q => (QF[q] || (QF[q] = { plays:0, yds:0 }));
+
   const t0 = Date.now();
   for (let s = 0; s < SEASONS; s++) {
     const rosters = {};
@@ -134,6 +142,17 @@ const audit = `
         const r = sim.simulate();
         lb.games++; lb.ptsSum += (r.homeScore + r.awayScore);
         game_margin.push(Math.abs(r.homeScore - r.awayScore));
+        // End-of-game fatigue by starter position (read off the sim instance).
+        const _fat = sim._fatigue || {};
+        for (const sid of [h.id, a.id]) {
+          const byPos = {};
+          for (const pl of rosters[sid]) (byPos[pl.position] || (byPos[pl.position] = [])).push(pl);
+          for (const Pn in FT) {
+            const arr = byPos[Pn]; if (!arr || !arr.length) continue;
+            const starter = arr.reduce((b,p)=>(p.overall||0)>(b.overall||0)?p:b);
+            FT[Pn].push(_fat[starter.name] || 0);
+          }
+        }
         const _wxL = (sim.weather && sim.weather.label) || "CLEAR";
         const _wx = _wxInit(_wxL);
         for (const side of ["home","away"]) {
@@ -227,6 +246,7 @@ const audit = `
           const isRun  = k === "run" || k === "scramble";
           if (!isPass && !isRun) continue;
           const yds = p.yards || 0;
+          const qn = p.quarter || p.qtr; if (qn) { const qf = _qfI(qn); qf.plays++; qf.yds += yds; }
           const dp = _dpI(p.defPackage || "BASE_43");
           dp.plays++; dp.yds += yds;
           if (isPass) { if (k === "sack") dp.sk++; else { dp.patt++; if (k === "complete") dp.comp++; } }
@@ -542,14 +562,33 @@ const audit = `
   }
   console.log("");
   console.log("══════════════════════════════════════════════════════════");
-  console.log(" COVERAGE BREAKDOWN (pass plays, comp% + yds/att allowed)");
+  console.log(" COVERAGE BREAKDOWN (per completion — which shell gets beaten deepest)");
   console.log("══════════════════════════════════════════════════════════");
-  console.log("   "+"COVERAGE".padEnd(14)+"att%".padStart(8)+"CMP%".padStart(7)+"Y/ATT".padStart(8));
-  const _cvTot = Object.values(CV).reduce((n,s)=>n+s.att,0)||1;
-  for (const [k,s] of Object.entries(CV).sort((a,b)=>b[1].att-a[1].att)) {
-    if (s.att<50) continue;
-    console.log("   "+k.padEnd(14)+(100*s.att/_cvTot).toFixed(1).padStart(8)+(100*s.comp/Math.max(1,s.att)).toFixed(1).padStart(7)
-      +(s.yds/Math.max(1,s.att)).toFixed(2).padStart(8));
+  console.log("   (coverage is logged only on completions, so comp%-allowed isn't");
+  console.log("    derivable from the log — Y/CMP is the reliable softness signal)");
+  console.log("   "+"COVERAGE".padEnd(14)+"cmp%".padStart(8)+"Y/CMP".padStart(8));
+  const _cvTot = Object.values(CV).reduce((n,s)=>n+s.comp,0)||1;
+  for (const [k,s] of Object.entries(CV).sort((a,b)=>b[1].comp-a[1].comp)) {
+    if (s.comp<50) continue;
+    console.log("   "+k.padEnd(14)+(100*s.comp/_cvTot).toFixed(1).padStart(8)+(s.yds/Math.max(1,s.comp)).toFixed(2).padStart(8));
+  }
+
+  // ============== FATIGUE / WEAR — end-game fatigue + per-quarter ==============
+  console.log("");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log(" FATIGUE BREAKDOWN — starter end-of-game fatigue (0-100) by position");
+  console.log("══════════════════════════════════════════════════════════");
+  console.log("   (workhorse RB should end ~60-70; low-snap positions stay low)");
+  console.log("   "+"POS".padEnd(6)+"med".padStart(6)+"P90".padStart(6)+"max".padStart(6));
+  for (const Pn of ["QB","RB","WR","TE","OL","DL","LB","CB","S"]) {
+    const a = FT[Pn]; if (!a || !a.length) continue;
+    console.log("   "+Pn.padEnd(6)+_q(a,.5).toFixed(0).padStart(6)+_q(a,.9).toFixed(0).padStart(6)+_mx(a).toFixed(0).padStart(6));
+  }
+  console.log(" PER-QUARTER efficiency (fatigue tax should make Q4 dip slightly):");
+  console.log("   "+"QTR".padEnd(6)+"Y/PLAY".padStart(8)+"plays".padStart(8));
+  for (const q of Object.keys(QF).sort((a,b)=>a-b)) {
+    const s = QF[q]; if (!s.plays) continue;
+    console.log("   "+("Q"+q).padEnd(6)+(s.yds/s.plays).toFixed(2).padStart(8)+String(s.plays).padStart(8));
   }
   console.log("");
 })();
