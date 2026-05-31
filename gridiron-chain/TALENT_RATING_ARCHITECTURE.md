@@ -75,18 +75,33 @@ The fix is to make the two layers explicit:
 ## The architecture
 
 ### Layer 1 — OVR as within-position percentile
-`calcOverall(pos, stats)` returns the raw weighted sum today. Wrap it:
+**`player.overall` must stay RAW** — do NOT wrap `calcOverall` globally. Career
+dynamics are calibrated to raw OVR in raw-OVR space: the hidden-gem `ceiling`
+and `potential` are raw-OVR numbers, the breakout jumps to `ceiling × 0.82–0.87`
+and develops stats until `calcOverall` (raw) reaches it, and the bust cap is
+`potential × peakMult` (raw) — all in `_rerollPotentialForBreakouts`
+(`play-franchise-stats.js:8982–9019`). Recalibrating `calcOverall` would shift
+every one of those thresholds → a career-dynamics feedback loop. Verified, not
+hypothesized.
+
+So Layer 1 is a **derived rating**, not a replacement:
 
 ```
-ovr = CALIBRATE[pos]( rawWeightedSum(pos, stats) )
+rawWeightedSum            → player.overall   (UNCHANGED — internal dynamics only)
+CALIBRATE[pos](overall)  → player.ovrPct     (NEW — within-position percentile, consumers)
 ```
 
-`CALIBRATE[pos]` is a per-position monotone map that pins each position's OVR
-distribution to ONE common target shape. Start with an **affine** fit
-(`a_pos · raw + b_pos`, matching mean+spread); upgrade K/P (and maybe TE) to a
-**piecewise-quantile** map because their raw shape is bimodal and affine can't
-fix that. Params are CONSTANTS fit offline from an audit (like the physical
-caps), re-fit only when generation/dev changes — never per play.
+`CALIBRATE[pos]` is a per-position monotone map pinning each position's raw OVR
+distribution to ONE common target shape. A **piecewise-quantile** map (knot LUT
+from the S1 audit dump `CALIB_LUT_JSON`) handles the bimodal K/P that an affine
+can't. Params are CONSTANTS fit offline (like the physical caps), re-fit only
+when generation/dev changes — never per play. `ovrPct` is stamped wherever
+`overall` is recomputed.
+
+**This also shrinks the migration surface:** internal dynamics (dev, decline,
+peak, breakout, ceiling, in-sim selection) keep reading `overall` untouched;
+only the *cross-position consumers* below switch to `ovrPct` (× `POSITION_VALUE`
+where it's a value question).
 
 **Common target shape (every position identical — that's the point):**
 
@@ -154,10 +169,10 @@ percentile."
 - **S1 — Measure.** Audit dumps the RAW per-position OVR distribution
   (`_brady_audit` already has the histogram; add raw-vs-calibrated columns).
   Establishes the `CALIBRATE[pos]` fit targets.
-- **S2 — Fit Layer 1.** Derive `CALIBRATE[pos]` (affine first; quantile for K/P).
-  Wrap `calcOverall`. Behind a flag. Verify each position's calibrated
-  distribution matches the common shape; confirm `stats[]`-driven sim outcomes
-  are byte-unchanged (sim never reads OVR for matchups).
+- **S2 — Fit Layer 1.** Derive `CALIBRATE[pos]` (piecewise-quantile from the S1
+  LUT). Stamp `player.ovrPct` wherever `overall` is recomputed. `overall` is
+  UNTOUCHED, so sim + career dynamics are byte-unchanged by construction; verify
+  the `ovrPct` distribution per position matches the common target shape.
 - **S3 — Build Layer 2.** Canonical `POSITION_VALUE`; reroute HoF (replace
   `_hofPositionMul`), "best player"/awards displays, contract/trade value, and
   the `g`/`gw` weights through it.

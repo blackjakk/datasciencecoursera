@@ -866,6 +866,35 @@ const harness = `
         +_shr(a,75).toFixed(1).padStart(5)+"%");
     }
     console.log("");
+
+    // ── CALIBRATION LUT (S1 of TALENT_RATING_ARCHITECTURE.md) ──
+    // Per-position raw-OVR quantile LUT, machine-readable, so Layer-1
+    // calibration (CALIBRATE[pos]) can be fit to map each position's raw
+    // distribution onto one common within-position target shape. Dumps the
+    // pooled raw player.overall quantiles at the knots the quantile-map needs.
+    const _qExact = (a, p) => {
+      if (!a.length) return 0;
+      const s = a.slice().sort((x,y)=>x-y);
+      const idx = Math.min(s.length-1, Math.max(0, Math.round((s.length-1)*p)));
+      return s[idx];
+    };
+    const KNOTS = [0.01,0.02,0.05,0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,0.95,0.98,0.99];
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" CALIBRATION LUT — raw per-position OVR quantiles (knots: "+KNOTS.join(",")+")");
+    console.log("══════════════════════════════════════════════════════════");
+    const lut = {};
+    for (const P of allPos) {
+      const a = POS_OVR[P]; if (!a || !a.length) continue;
+      lut[P] = { n: a.length, q: KNOTS.map(k => _qExact(a, k)) };
+    }
+    console.log("CALIB_LUT_JSON " + JSON.stringify(lut));
+    // Also the pooled ALL-position distribution = the natural common target shape.
+    const _allOvr = [];
+    for (const P of allPos) { const a = POS_OVR[P]; if (a) for (const v of a) _allOvr.push(v); }
+    if (_allOvr.length) {
+      console.log("CALIB_TARGET_JSON " + JSON.stringify({ n:_allOvr.length, q: KNOTS.map(k => _qExact(_allOvr, k)) }));
+    }
+    console.log("");
   }
 
   // ── LEAGUE LEADERS RIGHT NOW (final-season snapshot, with stats) ────────
