@@ -294,6 +294,8 @@ const harness = `
   // cherry-picks if the underlying rosters are much larger than 53).
   const leagueOvr = [];
   const decadeOvr = [[], [], [], [], [], [], [], []];  // per-decade OVR pools (index = (year-1)/10)
+  const rcRoster = {};   // ROSTER CONSTRUCTION: round label → [ovr,...] (all 53 spots, final season)
+  const rcStarter = {};  // round label → [ovr,...] (depth-chart starters, final season)
   // Per-position OVR pool — every active-roster player-season tagged by pos so
   // we can dump a full distribution per position (count / mean / med / P10/P90
   // / %90+ / %85+ / %75+) alongside the leaguewide one. Catches position-specific
@@ -395,10 +397,32 @@ const harness = `
     // of the league should still count as their round's draftee, otherwise R7
     // bust % is undercounted — they retire from FA, never from a roster).
     const cpSeen = new Set();
+    // ROSTER CONSTRUCTION snapshot — final season only. By year ~100 every
+    // rostered player came through the draft (synthetic season-1 players have
+    // retired), so this is a clean read of "what a roster is built from" by
+    // draft round, split into full-roster vs depth-chart starters.
+    const _isFinal = (year >= SEASONS);
+    const _RC_DEPTH = { QB:1, RB:2, WR:3, TE:1, OL:5, DL:4, LB:3, CB:2, S:2, K:1, P:1 };
+    const _rcLabel = (p) => { const r = p.draftRound; return (r == null || r === 0) ? "UDFA" : (r >= 7 ? "R7" : "R" + r); };
     for (const t of TEAMS) {
       const full = franchise.rosters[t.id] || [];
       rosterSizeSum += full.length; rosterSizeN++;
       const active = full.slice().sort((a, b) => (b.overall || 0) - (a.overall || 0)).slice(0, 53);
+      if (_isFinal) {
+        const _byPos = {};
+        for (const p of active) (_byPos[p.position] = _byPos[p.position] || []).push(p);
+        const _starters = new Set();
+        for (const pos in _byPos) {
+          _byPos[pos].sort((a, b) => (b.overall || 0) - (a.overall || 0));
+          const n = _RC_DEPTH[pos] || 1;
+          for (let i = 0; i < Math.min(n, _byPos[pos].length); i++) _starters.add(_byPos[pos][i]);
+        }
+        for (const p of active) {
+          const lbl = _rcLabel(p);
+          (rcRoster[lbl] = rcRoster[lbl] || []).push(p.overall || 0);
+          if (_starters.has(p)) (rcStarter[lbl] = rcStarter[lbl] || []).push(p.overall || 0);
+        }
+      }
       for (const p of active) {
         const o = p.overall || 0;
         leagueOvr.push(o); decadeOvr[dIdx].push(o);
@@ -975,6 +999,30 @@ const harness = `
     console.log(" TOP 10 QBs — final season (OVR range = #1 vs #10)");
     console.log("══════════════════════════════════════════════════════════");
     qbTop.forEach((p,i)=>console.log(" "+String(i+1).padStart(2)+". OVR "+String(p.ovr).padStart(2)+"  "+(p.name+" ("+p.age+")").padEnd(28)+" "+p.line));
+    console.log("");
+  }
+
+  // ── ROSTER CONSTRUCTION BY DRAFT ROUND (final-season snapshot) ──
+  if (Object.keys(rcRoster).length) {
+    const _avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0;
+    const ORDER = ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "UDFA"];
+    const totR = ORDER.reduce((s, r) => s + ((rcRoster[r] || []).length), 0) || 1;
+    const totS = ORDER.reduce((s, r) => s + ((rcStarter[r] || []).length), 0) || 1;
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" ROSTER CONSTRUCTION BY DRAFT ROUND — final season, all 32 rosters");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" RND    roster#  roster%  meanOVR  |  starter#  starter%  meanOVR");
+    console.log(" " + "-".repeat(64));
+    for (const r of ORDER) {
+      const ra = rcRoster[r] || [], sa = rcStarter[r] || [];
+      console.log(" " + r.padEnd(5)
+        + String(ra.length).padStart(7)
+        + (100 * ra.length / totR).toFixed(1).padStart(8) + "%"
+        + _avg(ra).toFixed(1).padStart(8) + "   | "
+        + String(sa.length).padStart(7)
+        + (100 * sa.length / totS).toFixed(1).padStart(8) + "%"
+        + _avg(sa).toFixed(1).padStart(8));
+    }
     console.log("");
   }
 
