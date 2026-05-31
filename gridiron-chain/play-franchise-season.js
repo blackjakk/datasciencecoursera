@@ -939,14 +939,14 @@ function _buildPSTab(myId) {
   </div>`;
 }
 
-function frnPSPromote(playerName) {
+async function frnPSPromote(playerName) {
   const myId = franchise.chosenTeamId;
   const ps = franchise.practiceSquads?.[myId] || [];
   const p = ps.find(x => x.name === playerName);
   if (!p) return;
   const myRoster = franchise.rosters[myId] || [];
   if (myRoster.length >= 53) {
-    if (!confirm(`Your roster is full (53 players). Promote ${p.name} anyway? You'll need to cut someone.`)) return;
+    if (!await _frnConfirm(`Your roster is full (53 players). Promote ${p.name} anyway? You'll need to cut someone.`)) return;
   }
   _psPromote(myId, p);
   saveFranchise();
@@ -6531,9 +6531,9 @@ function frnFAMatchHigh(name) {
   saveFranchise();
   renderFrnFANegotiations(n.state === "signed" ? null : name);
 }
-function frnFAFoldNeg(negKey) {
+async function frnFAFoldNeg(negKey) {
   const n = franchise.faNegotiations?.[negKey]; if (!n) return;
-  if (!confirm(`Withdraw from negotiations for ${n.fa.name}?`)) return;
+  if (!await _frnConfirm(`Withdraw from negotiations for ${n.fa.name}?`)) return;
   n.yourBid = null;
   n.history.push({ teamId: franchise.chosenTeamId, label: "You FOLDED", aav: 0, years: 0, week: franchise.week });
   saveFranchise();
@@ -7092,7 +7092,7 @@ function frnFAEnterBid(name) {
 // it must clear the current high by $0.5M. Triggers instant sign only
 // if you're the SOLE team over the knockout threshold; otherwise the
 // war keeps escalating.
-function frnFAKnockoutBid(negKey) {
+async function frnFAKnockoutBid(negKey) {
   const n = franchise.faNegotiations?.[negKey]; if (!n) return;
   const name = n.fa.name; // display name — negKey is the pid-or-name lookup key
   const baseKO  = n.fa.demandedAAV * FA_KNOCKOUT_MULT;
@@ -7112,7 +7112,7 @@ function frnFAKnockoutBid(negKey) {
   }
   const isWar = !!n.knockoutWar;
   const label = isWar ? "TOP KNOCKOUT" : "KNOCKOUT BID";
-  if (!confirm(`💥 ${label} — pay $${knockoutAav.toFixed(1)}M × ${n.yourBid?.years || n.fa.demandedYears}yr for ${name}?${isWar ? "\n\nThis is a bidding war — other teams may keep raising next week." : ""}`)) return;
+  if (!await _frnConfirm(`💥 ${label} — pay $${knockoutAav.toFixed(1)}M × ${n.yourBid?.years || n.fa.demandedYears}yr for ${name}?${isWar ? "\n\nThis is a bidding war — other teams may keep raising next week." : ""}`)) return;
   n.yourBid = {
     aav: knockoutAav,
     years: n.yourBid?.years || n.fa.demandedYears,
@@ -7237,21 +7237,35 @@ function frnFAGoToCuts() {
   renderFrnFACuts();
 }
 
-function frnFAStartWithGrace() {
+async function frnFAStartWithGrace() {
   // 1-week grace: deadline is end of Week 1
   franchise.capGraceDeadline = 2;
   frnFAFinish();
 }
 
 // ── Custom dialog wrapper ─────────────────────────────────────────────
-// Native confirm()/alert() are used codebase-wide. Swapping them all at
-// once is a separate pass. These wrappers fall through to native today
-// but give us a single seam to swap to a styled modal later — replacing
-// the call sites in OUR new code lets us upgrade once without breaking
-// the rest of the game's confirm flow.
-function _frnConfirm(msg) {
-  // For now: native. Future: replace with a styled modal that returns
-  // a Promise<boolean>. Callers using await will work either way.
+// Confirm wrapper — Promise<boolean>-returning shim that routes to the styled
+// modal (_frnConfirmModal in play-franchise-core.js). Drop-in replacement for
+// confirm(): same single-arg signature, just `await` it instead of treating
+// the return value as sync. Optional 2nd-arg object for title/danger/etc.
+//
+// Callers should be `async` and use `if (!await _frnConfirm(msg))`. Existing
+// sync-style usage `if (!_frnConfirm(msg))` will silently fail (always truthy
+// Promise) — the conversion to await is mechanical and we've done a sweep.
+async function _frnConfirm(msg, opts) {
+  const o = opts || {};
+  if (typeof _frnConfirmModal === "function") {
+    return _frnConfirmModal({
+      title: o.title || "Confirm",
+      body: msg,
+      confirmLabel: o.confirmLabel || (o.danger ? "Yes, do it" : "Continue"),
+      cancelLabel:  o.cancelLabel  || "Cancel",
+      danger: !!o.danger,
+      requireTypeName: o.requireTypeName || null,
+    });
+  }
+  // Fallback to native if the modal helper isn't loaded yet (shouldn't happen
+  // since both live on the franchise pages).
   return window.confirm(msg);
 }
 function _frnAlert(msg) {
@@ -8273,8 +8287,8 @@ function renderFrnFACuts() {
 // Legacy direct-cut shim — staging is the new primary path, but this is
 // still referenced from FA flows that want to release immediately
 // (e.g., the FA negotiations "cut to make room" panel uses it directly).
-function frnFACutPlayer(name, pos) {
-  if (!confirm(`Release ${name}? They free up their cap immediately.`)) return;
+async function frnFACutPlayer(name, pos) {
+  if (!await _frnConfirm(`Release ${name}? They free up their cap immediately.`)) return;
   const roster = franchise.rosters[franchise.chosenTeamId];
   const idx = roster.findIndex(p => p.name === name && p.position === pos);
   if (idx !== -1) roster.splice(idx, 1);

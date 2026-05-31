@@ -681,21 +681,21 @@ function _renderPSScoutedTab(myId) {
   </table>`;
 }
 
-function frnPSPromote(name) {
+async function frnPSPromote(name) {
   const myId = franchise.chosenTeamId;
   const ps = franchise.practiceSquads?.[myId] || [];
   const p = ps.find(x => x.name === name);
   if (!p) return;
   const cap = effectiveSalaryCap(myId);
   if (capUsedByTeam(myId) + 1.0 > cap) {
-    if (!confirm(`Promoting ${name} pushes you over the cap. Continue?`)) return;
+    if (!await _frnConfirm(`Promoting ${name} pushes you over the cap. Continue?`)) return;
   }
   _psPromote(myId, p);
   saveFranchise();
   renderFrnPracticeSquad("mine");
 }
-function frnPSRelease(name) {
-  if (!confirm(`Release ${name} from the practice squad?`)) return;
+async function frnPSRelease(name) {
+  if (!await _frnConfirm(`Release ${name} from the practice squad?`)) return;
   const myId = franchise.chosenTeamId;
   const ps = franchise.practiceSquads?.[myId] || [];
   const idx = ps.findIndex(x => x.name === name);
@@ -3016,11 +3016,11 @@ function renderFrnCoaches() {
     </div>`;
 }
 
-function frnHireCoach(idx) {
+async function frnHireCoach(idx) {
   const pool = franchise._coachingFAs || [];
   const hire = pool[idx];
   if (!hire) return;
-  if (!confirm(`Hire ${hire.name} (${hire.trait})?`)) return;
+  if (!await _frnConfirm(`Hire ${hire.name} (${hire.trait})?`)) return;
   const myId = franchise.chosenTeamId;
   const oldHc = franchise.coaches[myId]?.hc;
   if (oldHc) pool.push(oldHc); // released coach lands back on the FA market
@@ -3033,11 +3033,11 @@ function frnHireCoach(idx) {
   renderFrnCoaches();
 }
 
-function frnFireCoach() {
+async function frnFireCoach() {
   const myId = franchise.chosenTeamId;
   const hc = franchise.coaches[myId]?.hc;
   if (!hc) return;
-  if (!confirm(`Fire ${hc.name}? They'll go back to the FA pool.`)) return;
+  if (!await _frnConfirm(`Fire ${hc.name}? They'll go back to the FA pool.`)) return;
   if (!franchise._coachingFAs) franchise._coachingFAs = [];
   franchise._coachingFAs.push(hc);
   franchise.coaches[myId] = { hc: null };
@@ -3310,7 +3310,7 @@ function _frnDepthAutoFromHome() {
 // Set a manual snap share for a slot (locks it from the auto-optimizer).
 // User can say "I want my RB committee 50/50" — that intent persists
 // across roster changes, injuries, and "auto-set by OVR".
-function frnDepthSetSnapShare(slotKey) {
+async function frnDepthSetSnapShare(slotKey) {
   const myId = franchise.chosenTeamId;
   if (!franchise.snapShares?.[myId]) return;
   const sd = franchise.snapShares[myId][slotKey] || {};
@@ -3376,7 +3376,7 @@ function frnDepthSetSnapShare(slotKey) {
   }
   const newPct = Math.max(floor, Math.min(ceil, parsed));
   if (newPct !== parsed) {
-    if (!confirm(`Value clamped to slot range (${floor}-${ceil}%): ${parsed}% → ${newPct}%. Continue?`)) return;
+    if (!await _frnConfirm(`Value clamped to slot range (${floor}-${ceil}%): ${parsed}% → ${newPct}%. Continue?`)) return;
   }
   franchise.snapShares[myId][slotKey] = {
     ...sd,
@@ -3430,7 +3430,7 @@ function frnDepthSetTab(unit) {
   renderFrnDepthChart();
 }
 
-function renderFrnDepthChart() {
+async function renderFrnDepthChart() {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
   const myId   = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
@@ -3871,7 +3871,7 @@ function renderFrnDepthChart() {
             ${policyChip("playoff_push", "Playoff",  "From W14+: aggressive rest of wear≥60, save legs for January")}
           </div>`;
         })()}
-        <button class="frn-dc-auto-btn${autoChangedSlots>0?" hot":""}" onclick="if(confirm('${autoBtnConfirm}'))frnDepthAutoSetOVR()">${autoBtnLabel}</button>
+        <button class="frn-dc-auto-btn${autoChangedSlots>0?" hot":""}" data-confirm-msg="${autoBtnConfirm.replace(/"/g,"&quot;")}" onclick="(async()=>{ if(await _frnConfirm(this.dataset.confirmMsg)) frnDepthAutoSetOVR(); })()">${autoBtnLabel}</button>
         <button class="btn btn-outline" onclick="showFranchiseDashboard()">← Back</button>
       </div>
     </div>
@@ -4770,8 +4770,8 @@ function frnSnapResetSlot(slotKey) {
   renderFrnSnapShares();
 }
 
-function frnSnapResetAll() {
-  if (!confirm("Reset every slot's snap share to the auto-recommended value? Clears all manual edits.")) return;
+async function frnSnapResetAll() {
+  if (!await _frnConfirm("Reset every slot's snap share to the auto-recommended value? Clears all manual edits.")) return;
   _optimizeSnapShares(franchise.chosenTeamId);
   // _optimizeSnapShares skips manual=true slots, so wipe the flags first.
   const ss = franchise.snapShares?.[franchise.chosenTeamId] || {};
@@ -10221,14 +10221,14 @@ function _refreshFrontOfficeMarket() {
     },
   };
 }
-function frnFOFire(role) {
+async function frnFOFire(role) {
   const myId = franchise.chosenTeamId;
   const fo = franchise.frontOffice?.[myId];
   if (!fo?.[role]) return;
   const p = fo[role];
   // Buyout: remaining contract years × salary (narrative cost, no cap hit).
   const buyout = (p.salary || 0) * Math.max(1, p.contractYears || 1);
-  if (!confirm(`Fire ${p.name} (${role.toUpperCase()})? Buyout ≈ $${buyout.toFixed(1)}M. You can hire a replacement from the candidate market.`)) return;
+  if (!await _frnConfirm(`Fire ${p.name} (${role.toUpperCase()})? Buyout ≈ $${buyout.toFixed(1)}M. You can hire a replacement from the candidate market.`)) return;
   fo[role] = null;
   if (typeof _pushNews === "function") {
     _pushNews({ type: "coach_depart", label: `🗞 ${p.name} (${role.toUpperCase()}) released by ${getTeam(myId)?.name} — $${buyout.toFixed(1)}M buyout` });
@@ -10236,7 +10236,7 @@ function frnFOFire(role) {
   saveFranchise();
   renderFrnFrontOffice();
 }
-function frnFOHire(role, candidateIdx) {
+async function frnFOHire(role, candidateIdx) {
   const myId = franchise.chosenTeamId;
   const market = franchise._foMarket?.candidates?.[role];
   if (!market || !market[candidateIdx]) return;
@@ -10244,7 +10244,7 @@ function frnFOHire(role, candidateIdx) {
   if (!franchise.frontOffice) franchise.frontOffice = {};
   if (!franchise.frontOffice[myId]) franchise.frontOffice[myId] = {};
   // Confirm the hire so a misclick can't burn the pick.
-  if (!confirm(`Sign ${cand.name} as your ${role.toUpperCase()}? ${cand.contractYears}yr · $${(cand.salary||0).toFixed(1)}M`)) return;
+  if (!await _frnConfirm(`Sign ${cand.name} as your ${role.toUpperCase()}? ${cand.contractYears}yr · $${(cand.salary||0).toFixed(1)}M`)) return;
   franchise.frontOffice[myId][role] = cand;
   // Remove from market so user can't double-pick.
   market.splice(candidateIdx, 1);
@@ -10597,7 +10597,7 @@ function _renderPlayerDevelopmentPanel(myId, staff) {
 }
 
 // ── Coaching staff action handlers ───────────────────────────────────────────
-function frnFireStaffSlot(slot) {
+async function frnFireStaffSlot(slot) {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
   if (!staff) return;
@@ -10609,11 +10609,11 @@ function frnFireStaffSlot(slot) {
     ? `\n\n⚠ Dead cap: $${dead.toFixed(1)}M over ${yrsLeft} yr${yrsLeft===1?"":"s"} ($${(dead/Math.max(1,yrsLeft)).toFixed(1)}M/yr against coaching budget)`
     : "";
   if (slot === "hc") {
-    if (!confirm(`Release ${name}?${deadMsg}\n\nYou will choose a replacement on the next screen.`)) return;
+    if (!await _frnConfirm(`Release ${name}?${deadMsg}\n\nYou will choose a replacement on the next screen.`)) return;
     _renderHcVacancyPanel();
     return;
   }
-  if (!confirm(`Release ${name}?${deadMsg}\n\nA replacement will be hired immediately.`)) return;
+  if (!await _frnConfirm(`Release ${name}?${deadMsg}\n\nA replacement will be hired immediately.`)) return;
   if (slot === "oc") {
     const taken = typeof _coordMayTakePosCoach === "function" ? _coordMayTakePosCoach(staff, "oc") : null;
     if (taken) _pushNews({ type:"coach_depart",
@@ -11061,7 +11061,7 @@ function frnScoutRandomPositionCoach(group) {
   renderFrnCoachingStaff();
 }
 
-function frnUpgradePositionCoach(group) {
+async function frnUpgradePositionCoach(group) {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
   if (!staff) return;
@@ -11080,7 +11080,7 @@ function frnUpgradePositionCoach(group) {
                     - (cur.salary || 0) + cost;
   const capWarn = budgetAfter > 15
     ? `\n⚠ Coaching budget will be $${budgetAfter.toFixed(1)}M — overage penalizes player cap.` : "";
-  if (!confirm(`Promote ${group} coach ${cur.name} to ${nextTier} tier?\n$${cost}M/yr${capWarn}`)) return;
+  if (!await _frnConfirm(`Promote ${group} coach ${cur.name} to ${nextTier} tier?\n$${cost}M/yr${capWarn}`)) return;
   cur.tier   = nextTier;
   cur.salary = cost;
   _pushNews({ type:"coach_hire", label: `Promoted ${group} coach ${cur.name} to ${nextTier} tier` });
@@ -11088,14 +11088,14 @@ function frnUpgradePositionCoach(group) {
   renderFrnCoachingStaff();
 }
 
-function frnReleasePositionCoach(group) {
+async function frnReleasePositionCoach(group) {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
   if (!staff?.positionStaff) return;
   const idx = staff.positionStaff.findIndex(s => s.group === group);
   if (idx === -1) return;
   const coach = staff.positionStaff[idx];
-  if (!confirm(`Release ${group} coach ${coach.name}? They will enter the coaching pool.`)) return;
+  if (!await _frnConfirm(`Release ${group} coach ${coach.name}? They will enter the coaching pool.`)) return;
   staff.positionStaff.splice(idx, 1);
   if (!franchise._posCoachPool) franchise._posCoachPool = [];
   franchise._posCoachPool.push({ ...coach, retiredSeason: franchise.season || 1 });
@@ -11104,7 +11104,7 @@ function frnReleasePositionCoach(group) {
   renderFrnCoachingStaff();
 }
 
-function frnPromotePositionCoach(group) {
+async function frnPromotePositionCoach(group) {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
   if (!staff?.positionStaff) return;
@@ -11115,7 +11115,7 @@ function frnPromotePositionCoach(group) {
   const label = type === "oc" ? "OC" : "DC";
   const existingName = staff[type]?.name || "current coordinator";
   const loyalNote = coord.developedByTeamId === myId ? "\n🏠 Developing them here gives a hometown discount on future extensions." : "";
-  if (!confirm(
+  if (!await _frnConfirm(
     `Promote ${pc.group} coach ${pc.name} to ${label}?\n` +
     `PC rating ${pc.rating || "?"} → ${label} rating ${coord.rating} · $${coord.salary}M/yr\n` +
     `Trait: ${coord.trait}\n` +

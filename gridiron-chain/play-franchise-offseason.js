@@ -3221,30 +3221,30 @@ function frnSimToEndOfSeason() {
 // Confirm-wrapped UI entry points — every sim that advances time
 // requires an explicit second click so a misclick can't burn weeks
 // of franchise management.
-function frnConfirmSimWeek() {
+async function frnConfirmSimWeek() {
   const w = franchise.week;
   const games = franchise.schedule.filter(g => g.week === w && !g.played).length;
-  if (!confirm(`Sim through Week ${w}? ${games} game${games===1?"":"s"} will play and the week will close.`)) return;
+  if (!await _frnConfirm(`Sim through Week ${w}? ${games} game${games===1?"":"s"} will play and the week will close.`)) return;
   _frnSimPanelOpen = false;
   frnSimWeek();
 }
-function frnConfirmSimToWeek(target) {
+async function frnConfirmSimToWeek(target) {
   const t = Math.max(franchise.week, Math.min(FRANCHISE_WEEKS, Number(target) || franchise.week));
   if (t <= franchise.week) return frnConfirmSimWeek();
   const weeks = t - franchise.week + 1;
-  if (!confirm(`Sim through Week ${t}? That's ${weeks} weeks — you won't be able to make roster moves in the interim.`)) return;
+  if (!await _frnConfirm(`Sim through Week ${t}? That's ${weeks} weeks — you won't be able to make roster moves in the interim.`)) return;
   _frnSimPanelOpen = false;
   frnSimToWeek(t);
 }
-function frnConfirmSimToPlayoffs() {
+async function frnConfirmSimToPlayoffs() {
   const t = FRANCHISE_WEEKS;
   const weeks = t - franchise.week + 1;
   if (weeks <= 0) return;
-  if (!confirm(`Sim to end of regular season (Week ${t})? That's ${weeks} weeks. You'll land on the playoff bracket.`)) return;
+  if (!await _frnConfirm(`Sim to end of regular season (Week ${t})? That's ${weeks} weeks. You'll land on the playoff bracket.`)) return;
   _frnSimPanelOpen = false;
   frnSimToWeek(t);
 }
-function frnConfirmSimToEndOfSeason() {
+async function frnConfirmSimToEndOfSeason() {
   const msg = "⚠ SIM TO END OF SEASON\n\n" +
               "This will:\n" +
               " • Sim every remaining regular-season game\n" +
@@ -3252,7 +3252,7 @@ function frnConfirmSimToEndOfSeason() {
               " • Land you on the awards / offseason screen\n\n" +
               "You'll lose all ability to manage your team this season.\n\n" +
               "Continue?";
-  if (!confirm(msg)) return;
+  if (!await _frnConfirm(msg)) return;
   _frnSimPanelOpen = false;
   frnSimToEndOfSeason();
 }
@@ -3262,28 +3262,28 @@ function frnConfirmSimToEndOfSeason() {
 // kept raw so programmatic chains (sim → auto-advance) still work without
 // nagging the user. The frnConfirm* versions wrap with confirm() and are
 // what the UI buttons route through, making every advance two-click.
-function frnConfirmAdvanceWeek() {
+async function frnConfirmAdvanceWeek() {
   const nextW = (franchise.week || 0) + 1;
-  if (!confirm(`Advance to Week ${nextW}? Week-end resolution (FA round, injuries, AWR growth) runs now.`)) return;
+  if (!await _frnConfirm(`Advance to Week ${nextW}? Week-end resolution (FA round, injuries, AWR growth) runs now.`)) return;
   frnAdvanceWeek();
 }
-function frnConfirmStartPlayoffs() {
-  if (!confirm("Start the playoffs? The regular season closes and the bracket gets seeded.")) return;
+async function frnConfirmStartPlayoffs() {
+  if (!await _frnConfirm("Start the playoffs? The regular season closes and the bracket gets seeded.")) return;
   startFrnPlayoffs();
 }
-function frnConfirmAdvancePlayoffRound() {
-  if (!confirm("Advance to the next playoff round?")) return;
+async function frnConfirmAdvancePlayoffRound() {
+  if (!await _frnConfirm("Advance to the next playoff round?")) return;
   frnAdvancePlayoffRound();
 }
-function frnConfirmFAFinish() {
-  if (!confirm("Lock in free agency and start Week 1? You won't be able to make further signings until the offseason.")) return;
+async function frnConfirmFAFinish() {
+  if (!await _frnConfirm("Lock in free agency and start Week 1? You won't be able to make further signings until the offseason.")) return;
   frnFAFinish();
 }
-function frnConfirmGoToDraft() {
-  if (!confirm("Open the draft? Roster moves still happen in FA after, but this leaves the offseason home.")) return;
+async function frnConfirmGoToDraft() {
+  if (!await _frnConfirm("Open the draft? Roster moves still happen in FA after, but this leaves the offseason home.")) return;
   frnGoToDraft();
 }
-function frnConfirmNewSeason() {
+async function frnConfirmNewSeason() {
   const nextS = (franchise.season || 1) + 1;
   const msg = "⚠ BEGIN SEASON " + nextS + "\n\n" +
               "This will:\n" +
@@ -3292,7 +3292,7 @@ function frnConfirmNewSeason() {
               " • Roll players' careers forward (age, retire, develop)\n" +
               " • Open a new free-agency window\n\n" +
               "Continue?";
-  if (!confirm(msg)) return;
+  if (!await _frnConfirm(msg)) return;
   frnNewSeason();
 }
 function frnConfirmDraftContinueToSeason() { frnConfirmNewSeason(); }
@@ -8346,13 +8346,13 @@ function frnResignSetStructure(idx, structure) {
   _renderResignUIRefresh();
 }
 
-function frnResignTag(idx) {
+async function frnResignTag(idx) {
   if (!_franchiseTagAvailable()) { alert("You've already used your franchise tag this offseason."); return; }
   const row = franchise._resignPending?.[idx];
   if (!row || row.decision) return;
   const cap = effectiveSalaryCap(franchise.chosenTeamId);
   const tagAAV = _franchiseTagAAV({ position: row.pos, name: row.name }, cap);
-  if (!confirm(`Franchise tag ${row.name}? 1yr fully guaranteed at $${tagAAV.toFixed(1)}M. You only get one tag per offseason.`)) return;
+  if (!await _frnConfirm(`Franchise tag ${row.name}? 1yr fully guaranteed at $${tagAAV.toFixed(1)}M. You only get one tag per offseason.`)) return;
   row.decision = "tag";
   row.tagAAV = tagAAV;
   franchise.franchiseTagUsed = franchise.season;
@@ -15402,7 +15402,7 @@ function frnToggleTradePlayer(side, name) {
 // Click a league-browse player on the PROPOSE tab. Sets the partner
 // team (if not already locked) and adds to youReceive. If a different
 // partner is already locked, asks first.
-function frnAddReceiveFromBrowse(teamId, name) {
+async function frnAddReceiveFromBrowse(teamId, name) {
   const tp = franchise._tradeProp;
   if (!tp) return;
   teamId = Number(teamId);
@@ -15418,7 +15418,7 @@ function frnAddReceiveFromBrowse(teamId, name) {
   } else {
     // Different partner — confirm switch
     const newTeam = getTeam(teamId), oldTeam = getTeam(tp.targetTeamId);
-    if (!confirm(`Switch trade partner from ${oldTeam?.name||"?"} to ${newTeam?.name||"?"}? Your current selections will be cleared.`)) return;
+    if (!await _frnConfirm(`Switch trade partner from ${oldTeam?.name||"?"} to ${newTeam?.name||"?"}? Your current selections will be cleared.`)) return;
     tp.targetTeamId = teamId;
     tp.youReceive = [name];
     tp.youSend = [];
@@ -15463,7 +15463,7 @@ function frnToggleTradeNeedsOnly() {
 // confirm() pattern in frnAddReceiveFromBrowse.
 //
 // Same partner → just replace youReceive (and clear stale result).
-function frnShopProposeForPlayer(teamId, name) {
+async function frnShopProposeForPlayer(teamId, name) {
   const tp = franchise._tradeProp;
   if (!tp) return;
   const switchingPartner = tp.targetTeamId != null && tp.targetTeamId !== teamId;
@@ -15471,7 +15471,7 @@ function frnShopProposeForPlayer(teamId, name) {
   // another team's player" doesn't count as work to protect.
   const hasWork = (tp.youSend?.length || tp.picksSend?.length || tp.picksReceive?.length);
   if (switchingPartner && hasWork) {
-    if (!confirm("You have an in-progress proposal with another team. Switching partners will clear it. Continue?")) return;
+    if (!await _frnConfirm("You have an in-progress proposal with another team. Switching partners will clear it. Continue?")) return;
     tp.youSend = [];
     tp.picksSend = [];
     tp.picksReceive = [];
@@ -21478,8 +21478,8 @@ function frnDraftWatchToggle(name) {
   renderFrnDraft();
 }
 
-function frnDraftClearWatchlist() {
-  if (!confirm("Clear your entire watchlist? This affects every screen that uses it (draft, trade market, FA).")) return;
+async function frnDraftClearWatchlist() {
+  if (!await _frnConfirm("Clear your entire watchlist? This affects every screen that uses it (draft, trade market, FA).")) return;
   franchise.watchedPlayers = [];
   saveFranchise();
   renderFrnDraft();
@@ -21704,13 +21704,13 @@ function frnDraftScout(name) {
 // directly on a pick they need to make. User explicitly chose to
 // skip — no animation. User's pick within the round respects their
 // target list, consistent with Auto-Pick / Auto-Draft Rest.
-function frnSimRound() {
+async function frnSimRound() {
   const d = franchise.draft;
   if (!d) return;
   const myId = franchise.chosenTeamId;
   const curRound = d.pickOrder[d.currentIdx]?.round;
   if (!curRound) return;
-  if (!confirm(`Sim the rest of round ${curRound}? Your pick this round will be auto-selected from your targets. This can't be undone.`)) return;
+  if (!await _frnConfirm(`Sim the rest of round ${curRound}? Your pick this round will be auto-selected from your targets. This can't be undone.`)) return;
   const targetSet = new Set(d.targets || []);
   // Count guards: match frnAutoDraftRemaining's safety. If `available`
   // ever empties before slots resolve (corrupt save, sparse class),
@@ -21761,10 +21761,10 @@ function frnAutoPickThisSlot() {
 // Autopick all remaining picks — both AI and user — until the draft
 // ends. User's slots respect their target list via _aiAutoPick opts.
 // Same one-confirm pattern as Sim Rest of Round but for the whole draft.
-function frnAutoDraftRemaining() {
+async function frnAutoDraftRemaining() {
   const d = franchise.draft;
   if (!d) return;
-  if (!confirm("Auto-draft all remaining picks? Your remaining picks will use AI scoring with a strong preference for your targets. This can't be undone.")) return;
+  if (!await _frnConfirm("Auto-draft all remaining picks? Your remaining picks will use AI scoring with a strong preference for your targets. This can't be undone.")) return;
   const myId = franchise.chosenTeamId;
   const targetSet = new Set(d.targets || []);
   let count = 0;
@@ -22063,7 +22063,7 @@ function _aiAutoPick(slot, opts) {
   }
 }
 
-function frnDraftPick(name) {
+async function frnDraftPick(name) {
   const d = franchise.draft;
   const slot = d.pickOrder[d.currentIdx];
   if (!slot || !slot.teamId) {
@@ -22081,7 +22081,7 @@ function frnDraftPick(name) {
   if (prospect._generatedRound === 0) {
     const pickLbl = `R${slot.round}.${slot.pickInRound}${slot.isComp ? "c" : ""}`;
     const msg = `${prospect.name} grades below R7 (camp-body / UDFA tier).\n\nMost prospects at this grade fall to UDFA signings where you can pick them up free.\n\nDraft them with your ${pickLbl} pick anyway? You'd lock in a 4-yr contract instead of 3-yr UDFA terms.`;
-    if (!confirm(msg)) return;
+    if (!await _frnConfirm(msg)) return;
   }
   // Snapshot for the 5-second undo banner. Deep-copy the prospect's
   // pre-pick state so we can restore it if the user clicks UNDO. We
@@ -22745,7 +22745,7 @@ function _runUdfaAiClaims() {
   d.udfaAiClaims = aiClaims;
 }
 
-function frnDraftFinishScramble() {
+async function frnDraftFinishScramble() {
   const d = franchise.draft;
   if (!d) return;
   // Destructive boundary — once this runs, AI claims execute and
@@ -22756,7 +22756,7 @@ function frnDraftFinishScramble() {
   const msg = claimCount
     ? `Sign ${claimCount} UDFA${claimCount===1?"":"s"} and finish the draft? AI teams will claim the rest. This can't be undone.`
     : "Finish the draft without signing any UDFAs? AI teams will claim the rest. This can't be undone.";
-  if (!confirm(msg)) return;
+  if (!await _frnConfirm(msg)) return;
   const myId = franchise.chosenTeamId;
   const myRoster = franchise.rosters[myId];
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
@@ -23183,8 +23183,8 @@ function _dedupCareerHistory(player) {
 }
 
 // ── Abandon franchise ─────────────────────────────────────────────────────────
-function frnAbandon() {
-  if (!confirm("Abandon this franchise? All progress will be lost.")) return;
+async function frnAbandon() {
+  if (!await _frnConfirm("Abandon this franchise? All progress will be lost.")) return;
   franchise = null;
   try { localStorage.removeItem(FRANCHISE_KEY); } catch(e) {}
   renderFrnStartScreen();

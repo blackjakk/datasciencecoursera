@@ -3884,7 +3884,7 @@ function frnExportSave() {
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 }
 
-function frnImportSave() {
+async function frnImportSave() {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "application/json,.json";
@@ -3899,7 +3899,7 @@ function frnImportSave() {
         alert("That doesn't look like a Hashmark Heroes save file.");
         return;
       }
-      if (franchise && !confirm("Importing will replace your current active franchise. Continue?")) return;
+      if (franchise && !await _frnConfirm("Importing will replace your current active franchise. Continue?")) return;
       franchise = incoming;
       _flushSaveFranchise();
       if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
@@ -4431,8 +4431,8 @@ function _buildDraftLeague() {
 }
 
 // Reroll the draft league while staying on the picker.
-function frnRerollLeague() {
-  if (!confirm("Reroll the entire league? Every team's roster will be regenerated.")) return;
+async function frnRerollLeague() {
+  if (!await _frnConfirm("Reroll the entire league? Every team's roster will be regenerated.")) return;
   franchiseDraft = _buildDraftLeague();
   renderFrnTeamPicker();
 }
