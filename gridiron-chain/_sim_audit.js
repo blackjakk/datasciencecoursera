@@ -139,6 +139,32 @@ const audit = `
   const PTYPE = {};                       // pass concept → count
   let SCRpass = 0, PASSN = 0;             // screen rate denominator
 
+  // ── PER-PLAY YARDAGE DISTRIBUTIONS ──
+  // Histogram buckets (yardage). Negative bucket -> stuff (rare big losses go
+  // into the -3 floor); zero is its own bucket; positives split into short /
+  // medium / chunk / explosive. Mirrored buckets for runs and catches so the
+  // two distributions are directly comparable.
+  const YD_BUCKETS = [
+    { lo: -99, hi: -1, label: "loss" },
+    { lo:   0, hi:  0, label: "0" },
+    { lo:   1, hi:  3, label: "1-3" },
+    { lo:   4, hi:  9, label: "4-9" },
+    { lo:  10, hi: 19, label: "10-19" },
+    { lo:  20, hi: 39, label: "20-39" },
+    { lo:  40, hi: 99, label: "40+" },
+  ];
+  function _ydBucket(y) {
+    for (let i = 0; i < YD_BUCKETS.length; i++) {
+      const b = YD_BUCKETS[i];
+      if (y >= b.lo && y <= b.hi) return i;
+    }
+    return -1;
+  }
+  // Two parallel grids: [bucket][down] count. Down 1-4; "all" = down 0.
+  const _newGrid = () => YD_BUCKETS.map(() => [0, 0, 0, 0, 0]);  // index 0 = all downs
+  const RUN_HIST = _newGrid();    // run yardage (excludes sacks)
+  const CMP_HIST = _newGrid();    // completion yardage (sacks/incompletes excluded)
+
   const t0 = Date.now();
   for (let s = 0; s < SEASONS; s++) {
     const rosters = {};
@@ -270,6 +296,19 @@ const audit = `
           if (!isPass && !isRun) continue;
           const yds = p.yards || 0;
           const qn = p.quarter || p.qtr; if (qn) { const qf = _qfI(qn); qf.plays++; qf.yds += yds; }
+          // Per-play yardage histogram by down. Runs include scrambles; pass
+          // completions only (sacks/incompletes excluded — different question).
+          {
+            const dn = p.down || 0;                  // 1-4 valid; 0 = unknown
+            const downIdx = (dn >= 1 && dn <= 4) ? dn : 0;
+            if (isRun) {
+              const bi = _ydBucket(yds);
+              if (bi >= 0) { RUN_HIST[bi][0]++; if (downIdx) RUN_HIST[bi][downIdx]++; }
+            } else if (k === "complete") {
+              const bi = _ydBucket(yds);
+              if (bi >= 0) { CMP_HIST[bi][0]++; if (downIdx) CMP_HIST[bi][downIdx]++; }
+            }
+          }
           if (p.concept) { PTYPE[p.concept] = (PTYPE[p.concept]||0) + 1; PASSN++; if (p.isScreen || p.concept === "SCREEN") SCRpass++; if (p.isPlayAction) SIT2.pa++; }
           const dp = _dpI(p.defPackage || "BASE_43");
           dp.plays++; dp.yds += yds;
@@ -647,6 +686,61 @@ const audit = `
   }
   console.log("   (screens "+(100*SCRpass/Math.max(1,PASSN)).toFixed(1)+"% of pass plays)");
   console.log("");
+
+  // ============== YARDAGE DISTRIBUTION — per play, by down ==============
+  function _printHist(label, grid) {
+    const totalAll = grid.reduce((s, r) => s + r[0], 0) || 1;
+    const totalsByDown = [0,0,0,0,0];
+    for (const r of grid) for (let d = 0; d < 5; d++) totalsByDown[d] += r[d];
+    for (let d = 0; d < 5; d++) totalsByDown[d] = totalsByDown[d] || 1;
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" " + label + " (% of plays in each bucket; n=" + totalAll + ")");
+    console.log("══════════════════════════════════════════════════════════");
+    const head = "  " + "BUCKET".padEnd(7) + "ALL".padStart(7) + "1st".padStart(7) + "2nd".padStart(7) + "3rd".padStart(7) + "4th".padStart(7) + "  hist (ALL)";
+    console.log(head);
+    console.log("  " + "-".repeat(head.length - 2));
+    for (let i = 0; i < YD_BUCKETS.length; i++) {
+      const row = grid[i];
+      const pctAll = 100 * row[0] / totalAll;
+      const cells = [
+        ("  " + YD_BUCKETS[i].label).padEnd(7),
+        pctAll.toFixed(1).padStart(6) + "%",
+      ];
+      for (let d = 1; d <= 4; d++) cells.push((100 * row[d] / totalsByDown[d]).toFixed(1).padStart(6) + "%");
+      // Visual bar — capped 40 chars at 100%, scaled by ALL%.
+      const bar = "█".repeat(Math.min(40, Math.round(pctAll * 0.8)));
+      console.log(cells.join("") + "  " + bar);
+    }
+    // Quick summary stats per down (mean, % of plays gaining 10+).
+    const meanByDown = [0,0,0,0,0], explByDown = [0,0,0,0,0];
+    for (let d = 0; d < 5; d++) {
+      let sum = 0;
+      for (let i = 0; i < YD_BUCKETS.length; i++) {
+        const mid = (YD_BUCKETS[i].lo === -99) ? -3   // approximate stuff at -3
+                  : (YD_BUCKETS[i].hi === 99) ? 50    // approximate explosive at 50
+                  : (YD_BUCKETS[i].lo + YD_BUCKETS[i].hi) / 2;
+        sum += grid[i][d] * mid;
+        if (YD_BUCKETS[i].lo >= 10) explByDown[d] += grid[i][d];
+      }
+      meanByDown[d] = sum / totalsByDown[d];
+    }
+    console.log("  " + "mean   ".padEnd(7)
+      + meanByDown[0].toFixed(1).padStart(6) + " "
+      + meanByDown[1].toFixed(1).padStart(6) + " "
+      + meanByDown[2].toFixed(1).padStart(6) + " "
+      + meanByDown[3].toFixed(1).padStart(6) + " "
+      + meanByDown[4].toFixed(1).padStart(6));
+    console.log("  " + "10+%   ".padEnd(7)
+      + (100*explByDown[0]/totalsByDown[0]).toFixed(1).padStart(5) + "% "
+      + (100*explByDown[1]/totalsByDown[1]).toFixed(1).padStart(5) + "% "
+      + (100*explByDown[2]/totalsByDown[2]).toFixed(1).padStart(5) + "% "
+      + (100*explByDown[3]/totalsByDown[3]).toFixed(1).padStart(5) + "% "
+      + (100*explByDown[4]/totalsByDown[4]).toFixed(1).padStart(5) + "%");
+    console.log("");
+  }
+  _printHist("RUN-PLAY YARDAGE — distribution by down", RUN_HIST);
+  _printHist("COMPLETION YARDAGE — distribution by down (catches only)", CMP_HIST);
+
 })();
 `;
 
