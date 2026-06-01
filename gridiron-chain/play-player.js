@@ -1548,7 +1548,12 @@ function _rollHiddenGem(player) {
   // No position multiplier on rate — Brady wasn't "more likely to be
   // a gem than other R6 picks." His remarkable trait was that the gem
   // ceiling was HOF-tier. That's modeled in the ceiling skew below.
-  const rates = { 0: 0.045, 7: 0.028, 6: 0.022, 5: 0.015, 4: 0.008, 3: 0.004 };
+  // R5 0.015 → 0.018 to smooth the R5→R6 transition. Audit showed R5 produced
+  // fewer 90+% (0.8%) than R6 (1.3%) because the gem rate jumped 47% from R5
+  // to R6. NFL pattern has some late-round gems in R5 too (Kam Chancellor,
+  // Devonta Freeman), so a modest bump keeps the curve smooth and reduces the
+  // R5 bust rate. R6 remains distinctly the "Brady tier" — the gap is still real.
+  const rates = { 0: 0.045, 7: 0.028, 6: 0.022, 5: 0.018, 4: 0.008, 3: 0.004 };
   const rate = rates[player.draftRound] ?? 0;
   // Deterministic seed: a prospect's gem destiny is fixed at class
   // generation, just revealed when drafted. Same player gets the same
@@ -1578,11 +1583,16 @@ function _rollHiddenGem(player) {
   const isQB = player.position === "QB";
   let ceiling;
   if (isQB) {
-    if (r < 0.40)      ceiling = 78 + Math.floor(rng() * 12); // 78-89
+    if (r < 0.40)      ceiling = 77 + Math.floor(rng() * 12); // 77-88
     else if (r < 0.75) ceiling = 90 + Math.floor(rng() * 6);  // 90-95
     else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 (25%)
   } else {
-    if (r < 0.78)      ceiling = 78 + Math.floor(rng() * 12); // 78-89 common
+    // 78-89 → 77-88 (-1 shift) on the common tier. Brady audit reported league
+    // mean OVR drift to 77.8 (band 74-77) after the legends fix made gems more
+    // likely to reach their ceiling. The drift is in the middle tier (75-89),
+    // not elite (90+% still in band at 5.8%). Shifting common gems down 1 OVR
+    // compresses the middle without touching the 90+/96+ tiers.
+    if (r < 0.78)      ceiling = 77 + Math.floor(rng() * 12); // 77-88 common
     else if (r < 0.92) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
     else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 extreme (8%)
   }

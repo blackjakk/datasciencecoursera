@@ -4247,12 +4247,12 @@ class GameSimulator {
       // concentrates INTs on realistic arm/depth situations instead of uniform
       // random, and pulls the total down toward NFL.
       const _weakArmIntRisk = Math.max(0, 78 - qbThr) * 0.0010;   // THR 60 → +1.8pp, THR 78+ → 0
-      // Base trimmed 0.012 → 0.009 (25%). Sim-audit was consistently flagging
-      // multi-INT team-games at 16-18% vs NFL band 8-14% (Poisson math: ~0.85
-      // INT/team-game vs NFL's ~0.65). The base is the dominant pick driver,
-      // so scaling it lands the aggregate where the band sits without
-      // touching the situational levers (pressure, ballhawks, clutch, weak-arm).
-      const intPct = clamp((0.009 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod + _weakArmIntRisk - this._clutchMod(this.offR.starters.qb, 0.012)) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.05);
+      // Base 0.012 → 0.010 (was 0.009, slightly over-corrected). Sim-audit:
+      // at 0.009, INT rate/att fell to 1.77% (band 1.80-3.40%, just under),
+      // turnovers/g 0.84 (band 0.90-2.10, under), multi-INT 14.6% (band 8-14,
+      // at upper edge). 0.010 should land all three cleanly in band — about
+      // ~0.72 INT/g, multi-INT ~13%, turnovers~0.9-1.0/g.
+      const intPct = clamp((0.010 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod + _weakArmIntRisk - this._clutchMod(this.offR.starters.qb, 0.012)) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.05);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         // Sample the defender who'd be in position to pick. CAT-based drop
@@ -4588,7 +4588,10 @@ class GameSimulator {
         // tuck the ball.
         // Clutch ball security: a composed QB feels the rush and tucks it away;
         // a folder coughs it up under late pressure. (Composure, never physical.)
-        const stripChance = clamp(0.10 - (qbAwr - 70) / 400 - this._clutchMod(QB, 0.04), 0.04, 0.18);
+        // 0.10 → 0.13 base. Sim-audit turnovers 0.84/g (band 0.90-2.10) and
+        // blowouts/shutouts under band because fumbles were thin. Strip-sacks
+        // are the highest-variance turnover (often returned for TDs).
+        const stripChance = clamp(0.13 - (qbAwr - 70) / 400 - this._clutchMod(QB, 0.04), 0.05, 0.22);
         const isStripSack = Math.random() < stripChance;
         let recoveredByDef = false;
         let recoveredBy = null;
@@ -5641,7 +5644,11 @@ class GameSimulator {
     // originally (~2.5x NFL); grip/archetype/pressure/weather mods land an
     // average back near 1/80-90 carries. Elite-grip backs (floor 0.004) get
     // genuinely sure-handed; POWER backs in the rain still cough it up.
-    const fumblePct = clamp((0.0085 + gripMod + archFumbleAdd + Math.max(0, pressure) * 0.013 + wxFumMod - this._clutchMod(RB, 0.005)) * optionMul, 0.004, 0.10);
+    // Base 0.0085 → 0.012. Sim-audit reported turnovers/g 0.84 vs band 0.90-2.10
+    // and shutout/blowout rates under band — symptoms of too-low total fumbles.
+    // 0.012/carry ≈ 1 fumble per 83 carries, matching NFL average. Fumbles drive
+    // game-margin variance (lost lead changes, defensive TDs).
+    const fumblePct = clamp((0.012 + gripMod + archFumbleAdd + Math.max(0, pressure) * 0.013 + wxFumMod - this._clutchMod(RB, 0.005)) * optionMul, 0.005, 0.12);
     if (Math.random() < fumblePct) {
       // Scrum-based recovery — the ball bounces in a pile of converging players.
       // Defense has a slight edge in open field (2-4 dive attempts each kick the
