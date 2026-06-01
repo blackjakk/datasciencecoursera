@@ -22507,15 +22507,17 @@ function enforceCapCompliance(opts = {}) {
 // Mirror of enforceCapCompliance, but UPWARD. NFL teams must spend toward a
 // cash floor (~89% over rolling periods); without this, AI teams that don't
 // chase free agency sit well under the cap and league utilization reads low.
-// Landing target 0.96 (not 0.92): a probe showed cap util drops ~6pp during
-// the regular season (retirements, mid-season FA churn, contract-year slot
-// progression for backloaded deals). 0.92 post-offseason landed at ~86% mid-
-// season — just under the 88-100% band. 0.96 lands at ~90% mid-season, in
-// band, and matches what NFL teams actually carry in-season (95-99%).
+// Landing target 0.99 (not 0.92 or 0.96): cap-flow probe showed end-of-regular-
+// season measurement drops ~10pp from post-offseason peak (retirements, mid-
+// season FA churn, contract-year slot progression for backloaded deals). Floor
+// 0.92 → audit mean 84%; 0.96 → 85%. Lifting to 0.99 puts post-offseason peak
+// right at cap, lands mid-season mean near 89% (NFL ~88-100% band). Per-contract
+// AAVs are still clamped at salary cap so no individual deal can run wild, and
+// enforceCapCompliance still fires past 100% to clamp any overshoot.
 function enforceCapFloor(opts = {}) {
   const userId = opts.includeUser ? null : (typeof franchise !== "undefined" ? franchise.chosenTeamId : null);
   const cap = (typeof franchise !== "undefined" && franchise.salaryCap) || SALARY_CAP_BASE;
-  const floor = cap * 0.96;
+  const floor = cap * 0.99;
   for (const t of TEAMS) {
     if (userId != null && t.id === userId) continue;
     const roster = (franchise.rosters && franchise.rosters[t.id]) || [];
