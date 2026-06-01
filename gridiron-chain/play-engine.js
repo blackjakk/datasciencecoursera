@@ -3749,14 +3749,22 @@ class GameSimulator {
                      : ocBiasTrait === "Run Architect"   ? -0.08
                      : ocBiasTrait === "Trench General"  ? -0.10
                      :                                       0;
-    if (ocPassBias) passProb = clamp(passProb + ocPassBias, 0.10, 0.95);
     // HC personality also tilts — Riverboat Gambler more pass (he wants
     // chunk plays), Conservative more run (clock-bleed).
     const hcStyleTrait = (typeof franchise !== "undefined") ? franchise.coaches?.[offTid]?.hc?.specialtyTrait : null;
     const hcPassBias = hcStyleTrait === "Riverboat Gambler" ?  0.04
                      : hcStyleTrait === "Conservative"      ? -0.05
                      :                                          0;
-    if (hcPassBias) passProb = clamp(passProb + hcPassBias, 0.10, 0.95);
+    // OC and HC bias used to apply ADDITIVELY uncapped (Air Attack OC +0.10 plus
+    // Riverboat HC +0.04 = +0.14 stacked, on a pass-heavy 0.61 playbook → ~0.75
+    // mid-down pass rate, then game-plan delta could push it higher still). NFL's
+    // pass-heaviest teams sit at 0.65-0.68 on neutral downs, so the stack was
+    // letting fantasy Air-Attack offenses past realism — Brady-audit top QB
+    // seasons compounded to 6000+ yards (NFL all-time record 5,477). Cap the
+    // OC+HC combined deviation at ±0.07 so scheme stacking can't drive a team
+    // past the NFL ceiling. Game-plan delta still applies separately below.
+    const _coachBiasStack = clamp(ocPassBias + hcPassBias, -0.07, 0.07);
+    if (_coachBiasStack) passProb = clamp(passProb + _coachBiasStack, 0.10, 0.95);
     // Weekly game plan tilt — head coach has scouted the opponent and
     // dialed up pass or run accordingly. Stamped on the sim by frnSimOnce.
     const wgp = this.poss === "home" ? this.homeWgp : this.awayWgp;
