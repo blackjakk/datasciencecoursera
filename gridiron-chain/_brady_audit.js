@@ -151,6 +151,7 @@ const harness = `
   ];
   const career = new Map();          // name → { games, <cat sums> }
   let   seasonAcc = new Map();       // name → season sums (reset each season)
+  let   playerTeamThisSeason = new Map();   // name → teamId (this season only; for snapshot of record-setter's team)
   const careerByName = new Map();    // name → { pos, seasons, st:{} } — career production accumulator (CAREER-BY-POSITION)
   let   lastSeasonByPos = {};        // pos → [{name,m,r}] — rebuilt each fold; ends holding the FINAL season (TOP-10-BY-POSITION)
   const seasonRec = {};              // cat → { val, name, season }
@@ -199,9 +200,13 @@ const harness = `
           const sNum = franchise.season;
           for (const side of ["home", "away"]) {
             const players = (st[side] && st[side].players) || {};
+            const sideTeamId = side === "home" ? homeId : awayId;
             for (const [name, line] of Object.entries(players)) {
               _accInto(career, name, line);
               _accInto(seasonAcc, name, line);
+              // Track which team this player was on this season (last-team-seen wins —
+              // covers mid-season trades by attributing to their final team).
+              playerTeamThisSeason.set(name, sideTeamId);
               // single-game highs
               for (const [k, label] of CATS) {
                 const v = line[k] || 0;
@@ -233,7 +238,37 @@ const harness = `
       for (const [k] of CATS) {
         const v = r[k] || 0;
         if (v <= 0) continue;
-        if (!seasonRec[k] || v > seasonRec[k].val) seasonRec[k] = { val: v, name, season: franchise.season };
+        if (!seasonRec[k] || v > seasonRec[k].val) {
+          // When a new pass_yds (QB) record is set, snapshot the team's full
+          // offense at this season — measurables, OVR, stats, archetype. By
+          // audit-end the roster will have evolved; capturing now preserves
+          // the offense that powered the record.
+          let offenseSnap = null;
+          if (k === "pass_yds") {
+            const tid = playerTeamThisSeason.get(name);
+            const team = (typeof getTeam === "function" && tid != null) ? getTeam(tid) : null;
+            const roster = (franchise?.rosters?.[tid] || []);
+            offenseSnap = {
+              teamId: tid,
+              teamCity: team?.city || "?",
+              teamName: team?.name || "?",
+              offense: roster
+                .filter(p => ["QB","RB","WR","TE","OL","K"].includes(p.position))
+                .sort((a,b) => (b.overall||0) - (a.overall||0))
+                .map(p => ({
+                  name: p.name, position: p.position, archetype: p.archetype || "—",
+                  ovr: p.overall || 0, age: p.age || 0, draftRound: p.draftRound,
+                  stats: Array.isArray(p.stats) ? p.stats.slice() : [],
+                  hiddenGem: p.hiddenGem?.ceiling || null,
+                  drive: p._drive ?? null,
+                  durability: p._durability ?? null,
+                  clutch: p._clutch ?? null,
+                })),
+            };
+          }
+          seasonRec[k] = { val: v, name, season: franchise.season,
+                           ...(offenseSnap ? { offenseSnap } : {}) };
+        }
         const lb5 = (seasonTop5[k] = seasonTop5[k] || []);
         lb5.push({ val: v, name, season: franchise.season });
         lb5.sort((a, b) => b.val - a.val);
@@ -255,6 +290,7 @@ const harness = `
       }
     }
     seasonAcc = new Map();
+    playerTeamThisSeason = new Map();   // reset per-season team tracking
   }
 
   // Award history — tally each season's accolade winners by player (persists
@@ -1221,6 +1257,45 @@ const harness = `
   for (const [k,label] of _ssCats) {
     const lb5 = seasonTop5[k]; if (!lb5 || !lb5.length) continue;
     console.log(" " + label.padEnd(13) + " " + lb5.map(e => _fmt(e.val)+" ("+e.name+" S"+e.season+")").join("  ·  "));
+  }
+  // ── RECORD QB OFFENSE SNAPSHOT — measurables + stats ─────────────────────
+  // For the top single-season passing record, dump the FULL offense at that
+  // season's roster snapshot: position, archetype, OVR, age, draftRound,
+  // stats array, and hidden attrs (drive, durability, clutch). Reveals
+  // whether the record is driven by elite QB + elite offense stacking.
+  if (seasonRec.pass_yds && seasonRec.pass_yds.offenseSnap) {
+    const snap = seasonRec.pass_yds.offenseSnap;
+    const rec = seasonRec.pass_yds;
+    console.log("");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" RECORD-QB OFFENSE — " + rec.name + " (" + _fmt(rec.val) + " yds, S" + rec.season + ")");
+    console.log(" Team: " + snap.teamCity + " " + snap.teamName);
+    console.log("══════════════════════════════════════════════════════════");
+    // STAT LABELS by column index — engine layout:
+    //   0=SPD  1=STR  2=AGI  3=AWR  4=THR  5=CAT
+    //   6=BLK  7=PRS  8=COV  9=TCK  10=KPW 11=TEC
+    const _statLabel = ["SPD","STR","AGI","AWR","THR","CAT","BLK","PRS","COV","TCK","KPW","TEC"];
+    console.log(" " + "Pos".padEnd(4) + " " + "Name".padEnd(28) + " " + "Arch".padEnd(14) + " OVR Age R " +
+      _statLabel.map(s => s.padStart(3)).join(" ") + "  Drv Dur Clt Gem");
+    console.log(" " + "-".repeat(126));
+    for (const p of snap.offense) {
+      const stats = (p.stats || []).slice(0, 12);
+      while (stats.length < 12) stats.push("-");
+      const statsStr = stats.map(s => String(s ?? "-").padStart(3)).join(" ");
+      const r = p.draftRound === 0 ? "U" : (p.draftRound ?? "-");
+      console.log(" " + (p.position||"").padEnd(4) + " " +
+        (p.name||"").padEnd(28).slice(0, 28) + " " +
+        (p.archetype||"—").padEnd(14).slice(0, 14) + " " +
+        String(p.ovr).padStart(3) + " " +
+        String(p.age).padStart(3) + " " +
+        String(r).padStart(1) + " " +
+        statsStr + " " +
+        String(p.drive ?? "-").padStart(3) + " " +
+        String(p.durability ?? "-").padStart(3) + " " +
+        String(p.clutch ?? "-").padStart(3) + " " +
+        String(p.hiddenGem ?? "-").padStart(3));
+    }
+    console.log("");
   }
   console.log("");
 
