@@ -1121,13 +1121,22 @@ const harness = `
     console.log("══════════════════════════════════════════════════════════");
     console.log(" FRANCHISE HEALTH — competitive balance over " + seasonStandings.length + " seasons");
     console.log("══════════════════════════════════════════════════════════");
+    // Unique-champions ceiling is the TEAM COUNT, not the season count — there
+    // are only TEAMS.length teams that CAN win, so over a long sim the max unique
+    // champions is min(seasons, teams). The old band (45-100 for a 100-season run)
+    // was impossible: >32 teams could never be satisfied. Bound by min(seasons,
+    // teams); realistic floor ~60% of that (a long span spreads titles to most
+    // teams even with dynasties — only a tiny title-hogging clique falls below).
+    // 27/32 over 100yr = 5 perennial non-winners, which is NFL-realistic (12 of
+    // 32 teams have never won a Super Bowl in 58 years).
+    const _champCeil = Math.min(seasonStandings.length, TEAMS.length);
     const FH = [
       ["Best team win% (P99 season)", tq(0.99)*100, 76, 90, v=>v.toFixed(0)+"%"],
       ["Worst team win% (P01 season)", tq(0.01)*100, 10, 24, v=>v.toFixed(0)+"%"],
       ["Win% spread P90-P10", (tq(0.90)-tq(0.10))*100, 30, 55, v=>v.toFixed(0)+"pts"],
       ["Yr-to-yr persistence (r)", r, 0.30, 0.65, v=>v.toFixed(2)],
       ["Worst-to-first rate", w2fOpps?w2f/w2fOpps*100:0, 3, 12, v=>v.toFixed(1)+"%"],
-      ["Unique champions / " + seasonStandings.length + "yr", uniqueChamps, Math.round(seasonStandings.length*0.45), seasonStandings.length, v=>v.toFixed(0)],
+      ["Unique champions / " + seasonStandings.length + "yr", uniqueChamps, Math.round(_champCeil*0.60), _champCeil, v=>v.toFixed(0)],
       ["Repeat champions (2+ titles)", repeatChamps, 1, Math.max(2,Math.round(seasonStandings.length*0.25)), v=>v.toFixed(0)],
       ["Most titles by one team", maxTitles, 2, Math.max(3,Math.round(seasonStandings.length*0.15)), v=>v.toFixed(0)],
     ];
