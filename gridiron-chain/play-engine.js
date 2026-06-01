@@ -4202,7 +4202,14 @@ class GameSimulator {
       // Clutch decision-making: ice-veins QBs protect the ball late (fewer
       // forced throws/picks), folders press and turn it over. Subtract the
       // signed clutch mod so composure (>0) lowers INT% and choke (<0) raises it.
-      const intPct = clamp((0.040 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod - this._clutchMod(this.offR.starters.qb, 0.012)) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.045);
+      // Base INT rate CUT (0.040 → 0.030): the old flat ~4% hit EVERY throw
+      // depth-blind, the reason multi-INT games ran ~28% (NFL 8-14%). In its
+      // place, ARM STRENGTH drives picks — a weak arm can't drive the deep ball,
+      // so it gets underthrown and undercut by the trailing defender. This
+      // concentrates INTs on realistic arm/depth situations instead of uniform
+      // random, and pulls the total down toward NFL.
+      const _weakArmIntRisk = Math.max(0, 78 - qbThr) * 0.0013;   // THR 60 → +2.3pp, THR 78+ → 0
+      const intPct = clamp((0.030 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod + _weakArmIntRisk - this._clutchMod(this.offR.starters.qb, 0.012)) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.05);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         // Sample the defender who'd be in position to pick. CAT-based drop
@@ -4301,15 +4308,21 @@ class GameSimulator {
           throwT: _intThrowT,
           tracks: { ..._intZoneDrops },
         };
+        // Underthrown pick: a deep ball a weak arm couldn't drive there → the
+        // beaten defender closes and undercuts it. (Phase-2 visual: ball lands
+        // short, receiver decelerates to come back, defender drives on it.)
+        const _utPick = targetDepth >= 15 && qbThr < 72;
         this._pushVisual({
           kind: "int", desc: isPickSix
             ? `PICK SIX! ${intBy} returns it ${finalRetYds} yds for a touchdown!`
             : isTouchback
               ? `INTERCEPTION! ${intBy} picks it off in the end zone — touchback`
-              : finalRetYds > 0
-                ? `INTERCEPTION! ${intBy} picks off ${this.offR.starters.qb} and returns ${finalRetYds} yds`
-                : `INTERCEPTION! ${this.offR.starters.qb} picked off!`,
-          startYard, targetDepth, endYard: startYard,
+              : _utPick
+                ? `UNDERTHROWN — ${this.offR.starters.qb} can't drive it deep, ${intBy} undercuts it for the pick${finalRetYds > 0 ? ` (+${finalRetYds})` : ""}`
+                : finalRetYds > 0
+                  ? `INTERCEPTION! ${intBy} picks off ${this.offR.starters.qb} and returns ${finalRetYds} yds`
+                  : `INTERCEPTION! ${this.offR.starters.qb} picked off!`,
+          startYard, targetDepth, endYard: startYard, isUnderthrown: _utPick,
           passer: this.offR.starters.qb, defender: intBy,
           intReturnYds: finalRetYds, isPickSix, isTouchback, intSpotYL,
           isPlayAction, isFleaFlicker,
