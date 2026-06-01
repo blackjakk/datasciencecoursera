@@ -1544,6 +1544,54 @@ function genPlayer(pos, tier) {
 // Assign a hidden gem flag to a newly-created draft pick or UDFA.
 // Called immediately after draftRound is stamped on the player.
 // Rates are grounded in NFL history: ~1 UDFA star per 4-5 classes league-wide,
+// Raise a high-ceiling gem's FROZEN physical stats just enough that maxing the
+// developable stats reaches the ceiling OVR — fixes the "99 wall" where a
+// single-number ceiling is unreachable because pedestrian physicals cap the
+// multi-stat OVR. Works off calcOverall directly (formula-agnostic). Only raises.
+// FROZEN = physical stats in each position's OVR formula NOT in _gemDevStats
+// (the coachable core). K/P excluded by caller (all their stats are developable).
+const _GEM_FROZEN_PHYS = {
+  QB:[0,2,4],   // spd, agi, thr
+  RB:[0,1,2],   // spd, str, agi
+  WR:[0,2],     // spd, agi
+  TE:[0,1],     // spd, str
+  OL:[1,2],     // str, agi
+  DL:[0,1],     // spd, str
+  LB:[0],       // spd
+  CB:[0,2],     // spd, agi
+  S:[0],        // spd
+};
+const _GEM_DEV_IDX = {
+  QB:[3,11], RB:[5,11], WR:[5,3,11], TE:[5,6,11], OL:[6,11],
+  DL:[7,11], LB:[9,8,7,11], CB:[8,3,11], S:[8,9,3,11],
+};
+function _gemPhysicalFloor(player, ceiling, rng) {
+  const pos = player.position;
+  const frozen = _GEM_FROZEN_PHYS[pos], dev = _GEM_DEV_IDX[pos];
+  if (!frozen || !dev || typeof calcOverall !== "function") return;
+  // Target ceiling minus a small slack so 96-ceiling gems don't ALL need 99
+  // physicals (slack lets the rare ones land 96-97 with strong-but-not-max gifts).
+  const target = ceiling;
+  // Probe: developable stats maxed to 99; raise frozen (lowest-first) until OVR
+  // reaches the ceiling or frozen caps at 99.
+  const probe = player.stats.slice();
+  for (const i of dev) probe[i] = 99;
+  let guard = 0;
+  while (calcOverall(pos, probe) < target && guard++ < 200) {
+    const order = frozen.slice().sort((a, b) => probe[a] - probe[b]);
+    let raised = false;
+    for (const i of order) { if (probe[i] < 99) { probe[i]++; raised = true; break; } }
+    if (!raised) break;
+  }
+  // Apply discovered frozen floors to the REAL stats (only raise). For the very
+  // top ceilings (97+) use the exact floor so 99 is cleanly reachable; below that
+  // allow 0-2 of slack so elite gems don't all have identical measurables.
+  const slack = ceiling >= 97 ? 0 : 2;
+  for (const i of frozen) {
+    const floor = Math.max(40, probe[i] - (slack && rng ? Math.floor(rng() * (slack + 1)) : 0));
+    if ((player.stats[i] ?? 0) < floor) player.stats[i] = floor;
+  }
+}
 // ~5-6% of rounds 5-7 produce pro-bowl caliber players over time.
 // The gem is fully invisible — no scout grade tell, no combine signal.
 function _rollHiddenGem(player) {
@@ -1625,24 +1673,19 @@ function _rollHiddenGem(player) {
     ceiling,
     growthRate: 4 + Math.floor(rng() * 5),
   };
-  // QB GEM PHYSICAL BASELINE. THR is frozen (out of dev pools) AND only 18% of
-  // QB OVR, while spd/agi are 10% — so a high-ceiling QB gem with pedestrian
-  // physicals can't REACH his ceiling OVR no matter how much accuracy he
-  // develops. Math: a spd72/agi76/thr93 gem maxing AWR+TEC to 99 caps at OVR 95,
-  // below the 96 legend bar → True Brady was structurally 0/100yr. A HOF-ceiling
-  // late-round gem is the "scouts missed a COMPLETE player" case (Brady/Wilson/
-  // Romo had good arms AND were solid athletes; they slipped for size/system/
-  // combine reasons). So stamp arm + athleticism floors high enough that maxing
-  // the coachable core realizes the ceiling. Only RAISES sub-floor stats; QB only.
-  if (player.position === "QB" && player.stats) {
-    let armFloor = 0, spdFloor = 0, agiFloor = 0;
-    if (ceiling >= 96)      { armFloor = 93 + Math.floor(rng() * 6); spdFloor = 76 + Math.floor(rng() * 6); agiFloor = 78 + Math.floor(rng() * 6); } // 93-98 / 76-81 / 78-83
-    else if (ceiling >= 90) { armFloor = 86 + Math.floor(rng() * 6); spdFloor = 70 + Math.floor(rng() * 6); agiFloor = 72 + Math.floor(rng() * 6); }
-    else if (ceiling >= 82) { armFloor = 80 + Math.floor(rng() * 5); }
-    if (armFloor && (player.stats[4] ?? 0) < armFloor) player.stats[4] = armFloor;
-    if (spdFloor && (player.stats[0] ?? 0) < spdFloor) player.stats[0] = spdFloor;
-    if (agiFloor && (player.stats[2] ?? 0) < agiFloor) player.stats[2] = agiFloor;
-    if (typeof calcOverall === "function") player.overall = calcOverall("QB", player.stats);
+  // GEM PHYSICAL BASELINE (all positions). A gem's "ceiling" is a single number,
+  // but OVR is a weighted sum of many stats — and the FROZEN physical stats (out
+  // of the dev pools) cap what's achievable. A high-ceiling gem with pedestrian
+  // physicals can't REACH his ceiling no matter how much he develops the coachable
+  // stats — the "99 wall" (0% of 96-99 ceiling gems reached 99; True Brady was 0).
+  // So for an elite-ceiling gem, raise the frozen physicals just enough that maxing
+  // the developable stats realizes the ceiling. This is the rare "scouts whiffed on
+  // a complete player who fell for off-field/measurement reasons" case (Brady,
+  // Wilson, Romo, UDFA freaks). Solved off calcOverall directly so it tracks any
+  // formula. Only RAISES sub-floor stats.
+  if (player.stats && ceiling >= 90 && player.position !== "K" && player.position !== "P") {
+    _gemPhysicalFloor(player, ceiling, rng);
+    if (typeof calcOverall === "function") player.overall = calcOverall(player.position, player.stats);
   }
   // Propagate the gem ceiling into p.potential so the drafting team's perceived
   // upside (via _perceivedPotential / cutValue) reflects the practice-insight
