@@ -22573,8 +22573,13 @@ function _trimAiRostersToCap(targetSize = 55, opts = {}) {
     }
     totalCut += cutSet.size;
   }
-  // After size-trimming, bring any still-over-cap AI team under the cap.
+  // After size-trimming, bring any still-over-cap AI team under the cap — and
+  // any UNDER-spending team UP to the floor. This runs on the FINAL roster
+  // (post-draft, post-trim), so the spend-up sticks instead of being undone by
+  // later roster churn the way the early offseason pass (frnProceedToRosterChanges)
+  // was. Both bounds applied here so utilization lands in a realistic ~92-94%.
   enforceCapCompliance(opts);
+  enforceCapFloor(opts);
   return totalCut;
 }
 
