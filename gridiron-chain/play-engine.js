@@ -3743,11 +3743,17 @@ class GameSimulator {
     // QB Whisperer slightly pass; Red Zone Genius slightly run.
     const offTid = this.poss === "home" ? this.home.id : this.away.id;
     const ocBiasTrait = (typeof franchise !== "undefined") ? franchise.coaches?.[offTid]?.oc?.trait : null;
-    const ocPassBias = ocBiasTrait === "Air Attack"      ?  0.10
-                     : ocBiasTrait === "QB Whisperer"   ?  0.05
-                     : ocBiasTrait === "Red Zone Genius" ? -0.04
-                     : ocBiasTrait === "Run Architect"   ? -0.08
-                     : ocBiasTrait === "Trench General"  ? -0.10
+    // Per-trait magnitudes halved from the fantasy-football tier (+/-0.10) to NFL-
+    // realistic (+/-0.05). Real coach effect on pass rate is ~4-6pp at the extreme
+    // (most coaches sit within a couple points of league mean even in their preferred
+    // direction). With the per-trait magnitudes at the old values, even my OC+HC
+    // ±0.07 stack cap was being hit by Air Attack alone — leaving HC bias structurally
+    // bounded but Air Attack still pushed close to a full +7pp from base.
+    const ocPassBias = ocBiasTrait === "Air Attack"      ?  0.05
+                     : ocBiasTrait === "QB Whisperer"   ?  0.03
+                     : ocBiasTrait === "Red Zone Genius" ? -0.03
+                     : ocBiasTrait === "Run Architect"   ? -0.04
+                     : ocBiasTrait === "Trench General"  ? -0.05
                      :                                       0;
     // HC personality also tilts — Riverboat Gambler more pass (he wants
     // chunk plays), Conservative more run (clock-bleed).
