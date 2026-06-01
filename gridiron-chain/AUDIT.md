@@ -658,7 +658,7 @@ QB styles (`_qb_probe`), box score / drives / situational / kicking / per-positi
   over-cap AI team restructures (proportional AAV scale-down + bonus re-proration)
   to ~94% of cap; wired into `frnProceedToRosterChanges` (live + audit).
 - **Cap floor stuck at ~83% — FIXED.** Mean util kept landing just below the
-  88-100% band. A focused cap-flow probe traced two compounding issues:
+  88-100% band. A focused cap-flow probe traced three compounding issues:
   (1) `enforceCapFloor`'s scale cap was `min(1.5, floor/hit)` — a team whose hit
   was 50% of cap had `floor/hit = 1.84`, so the 1.5 ceiling BLOCKED the lift and
   the team stayed stuck under floor. Bumped to `min(2.5, floor/hit)`; individual
@@ -669,9 +669,13 @@ QB styles (`_qb_probe`), box score / drives / situational / kicking / per-positi
   the pre-draft skeleton, so under-spending teams stayed under-spent. Added a
   `_trimAiRostersToCap(53)` call at the end of `_draftFinalize` (default skips
   user team) so the live flow mirrors what the audit was doing manually.
-  Probe-verified: end-of-offseason util now 100%+ with no team below 99%; the
-  in-season churn (~10pp drift between offseason end and next end-of-season
-  snapshot) is a separate auto-cut-behavior lever, not a floor issue.
+  (3) Floor landing target was 0.92, but the audit snapshots cap util at END of
+  regular season — AFTER ~10pp in-season churn (retirements, mid-season FA
+  signings, contract-year slot progression for backloaded deals). 0.92 - 0.10 =
+  ~82% audit reading, fitting the original 83.5% complaint. Raised landing
+  target to 0.99: post-offseason peak at ~99%, after ~10pp churn lands at ~89%
+  audit reading. Probe-verified across cycles; brady (8s) reads mean 90.2%,
+  P10 83.3%, P90 96.6% — in band, cap utilization no longer in FLAGS.
 - **quiet_pro longevity not showing** — its avg career (~4.0) ≈ normal; the
   "slower decline" trait doesn't translate to longer careers.
 - **Trainer effect weak** — Sports Sci isn't clearly the lowest-injury trainer.
