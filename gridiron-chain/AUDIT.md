@@ -381,6 +381,41 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
 > The audits *found* every one of these. Kept here so the reasoning isn't lost.
 
 **Game engine**
+- **Score-variance bundle — turnovers, shutouts, blowouts all → in band.** Sim-
+  audit was flagging too-FEW extreme games: shutouts 0.55% (band 1.0-2.5),
+  margin≥14 38.1% (40-55), blowouts≥21 17.3% (20-32), turnovers/g 0.84 (0.90-
+  2.10) — yet repeat-champions ran HIGH (11-12 vs band 1-10). The contradiction
+  was the tell: not a parity problem (top teams did win), but too-little game-to-
+  game variance — a great team beat a bad one 24-20 instead of sometimes 38-3.
+  Root cause was thin fumbles (the highest-variance turnover — lost leads, scoop-
+  and-score TDs). Fixes: RB fumble base 0.0085 → 0.012 (≈1 per 83 carries, NFL
+  avg), strip-sack chance 0.10 → 0.13. Result: shutouts 1.06%, margin≥14 40.7%,
+  blowouts≥21 21.6%, turnovers 1.00, repeat-champs 10 — all in band. (`e1c5444`)
+- **INT base re-tuned 0.012 → 0.009 → 0.010.** First trim (to 0.009) over-
+  corrected: INT rate/att fell to 1.77% (band 1.80-3.40, just under) and
+  turnovers under band. 0.010 lands INT rate/att 2.05%, multi-INT ~14-17%
+  (Poisson-consistent with NFL's modern ~16-18% multi-INT cadence at 0.72 INT/g).
+  The 8-14% multi-INT band is Poisson-strict; 14-17% is NFL-realistic. (`e1c5444`)
+- **R5 gem rate 1.5% → 1.8%.** R5 produced fewer 90+ players (0.8%) than R6
+  (1.3%) because the gem rate jumped 47% from R5→R6, leaving R5 with a thin
+  elite tail despite a better median. Smoothed to keep R6 distinctly the "Brady
+  tier" while giving R5 a few more late-round emergences (Kam Chancellor /
+  Devonta Freeman pattern). (`e1c5444`)
+- **Top QB season yds — diagnosed as a MEASUREMENT artifact, not engine.** The
+  audit checks MAX(QB pass_yds) over the whole sim against 4,500-5,500 (the NFL
+  single-season record). But a top-40 all-time leaderboard (added to the audit,
+  `cdafbcf`) showed the field is healthy: median 5,732, avg 5,887 — for a 17-game
+  season the NFL-adjusted record is ~5,800, so the top-40 MEDIAN sits right at
+  the real-world ceiling. The flagged MAX (6,848) was ONE generational QB (Lou
+  Bell-Burke, 98 OVR DUAL_THREAT, 12 of the top-40 seasons, 4 straight 6,000+
+  years S22-25) on a five-deep WR corps (two 95+ WRs). Strip that one outlier
+  and the field max is ~6,365 — ~10% over the 17g record, defensible. The MAX of
+  1,280 QB-seasons over 40 years is the rightmost tail and grows with sample
+  size; comparing it to the single NFL record is structurally always-red. The
+  record-QB offense snapshot (full 25-man supporting cast w/ measurables +
+  hidden attrs) confirms elite-on-elite stacking, not a per-QB inflation bug.
+  RECOMMENDATION (open): change the band to a stable statistic (top-40 median, or
+  QB-season P95) instead of raw MAX.
 - **Top QB season yds (partial) + injuries / team-season + season-ending — multi-lever.**
   Brady audit flagged three related metrics: top QB season yds 6,439 (band 4,500–
   5,500), injuries / team-season 15.1 (band 18–42), season-ending 2.1 (band 4–14).
@@ -447,6 +482,14 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
   Result (40-season audit): 1 True Brady — R8/QB peak 96, growth rate 0.65,
   hidden ceiling 98. Gem mass-distribution shifted up: most gems now peak 85-89
   instead of 70-79.
+  COUPLING (open): making gems realize their ceilings raised league mean OVR
+  (77.0 → ~77.9, band 74-77) and elite 90+ share (5.7 → 6.2%, band 2-6) — both
+  ~0.5-1pp over. A gem-ceiling −1 shift (78-89 → 77-88) was tried but didn't
+  compress it: the dominant driver is gem VOLUME/survival, not the per-gem
+  ceiling. These two flags are now structurally coupled to the legends fix —
+  pushing mean OVR back into band means fewer/weaker gems, which re-breaks
+  legends. Accept the ~1pp elite inflation as the cost of a working Brady
+  pipeline, OR thin the oracle's base 88+ ceiling tap (source of all elites).
 - **INT rate 1.4% → 2.7%** — base bump + clamp lift; the old 0.030 clamp was
   truncating the high-pressure tail. (commit `523bc97`)
 - **Points/play /2 bug** — audit metric (not engine) was halving it and
