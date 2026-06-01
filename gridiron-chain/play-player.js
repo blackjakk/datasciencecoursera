@@ -1612,8 +1612,13 @@ function _rollHiddenGem(player) {
     else if (r < 0.50) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
     else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 HOF (50%)
   } else {
-    if (r < 0.78)      ceiling = 77 + Math.floor(rng() * 12); // 77-88 common
-    else if (r < 0.92) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
+    // Mid (90-95) tier trimmed 14%→8%: a 100-season audit showed 146 R6+/UDFA
+    // players reaching 90+ (target ~60-100) — bottom-heavy, the 90-94 band ~6× the
+    // 95+ band vs the intended ~3×. The over-population was mid-ceiling gems (most
+    // reach 90+ easily). Trimming mid pulls the 90+ total toward ~90 while leaving
+    // the 96+ EXTREME tier (8%) — which feeds the 95+/99 tail — untouched.
+    if (r < 0.84)      ceiling = 77 + Math.floor(rng() * 12); // 77-88 common (84%)
+    else if (r < 0.92) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid (8%)
     else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 extreme (8%)
   }
   player.hiddenGem = {

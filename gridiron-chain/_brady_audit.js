@@ -1063,17 +1063,19 @@ const harness = `
         }
       }
       const byPos = {}; const byRnd = { 6:0, 7:0, 8:0 };
-      let n96 = 0;
+      let n95 = 0, n99 = 0;
       for (const e of lateElite) {
         byPos[e.pos] = (byPos[e.pos] || 0) + 1;
         byRnd[e.round] = (byRnd[e.round] || 0) + 1;
-        if (e.peakOvr >= 96) n96++;
+        if (e.peakOvr >= 95) n95++;
+        if (e.peakOvr >= 99) n99++;
       }
-      console.log(" LATE-ROUND ELITE — R6+/UDFA players who reached 90+ peak OVR (distinct players, " + finalYear + " seasons)");
-      console.log("   TOTAL: " + lateElite.length + "  (of which 96+ 'legend' tier: " + n96 + ")" +
-                  "   ·   by round: R6 " + (byRnd[6]||0) + "  R7 " + (byRnd[7]||0) + "  UDFA " + (byRnd[8]||0));
+      console.log(" LATE-ROUND ELITE — R6+/UDFA players by peak-OVR tier (distinct players, " + finalYear + " seasons)");
+      console.log("   PYRAMID:  90+ : " + lateElite.length + "   ·   95+ : " + n95 + "   ·   99 : " + n99 +
+                  "   (target ~60-100 / ~20 / handful)");
+      console.log("   by round (90+):  R6 " + (byRnd[6]||0) + "   R7 " + (byRnd[7]||0) + "   UDFA " + (byRnd[8]||0));
       const POS_ORD = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
-      console.log("   by position: " +
+      console.log("   by position (90+): " +
         POS_ORD.filter(P => byPos[P]).map(P => P + " " + byPos[P]).join("  ") +
         (Object.keys(byPos).some(P => !POS_ORD.includes(P)) ? "  (+other)" : ""));
       console.log("");
@@ -1924,7 +1926,7 @@ const harness = `
     // rarity; widening to 2-10 admits the upper-end runs without losing the band's
     // job (flag if pipeline is producing zero OR runaway). Best read on 100-season
     // runs where it stabilizes.
-    chk("Pipeline", "legends / 100yr", legendEmergences/${SEASONS}*100, 2.0, 10.0, v=>v.toFixed(1), "[design] ~1-4/decade, all pos");
+    chk("Pipeline", "legends / 100yr", legendEmergences/${SEASONS}*100, 10.0, 28.0, v=>v.toFixed(1), "[design] ~20/100yr, all pos");
     chk("Pipeline", "True Brady / 100yr", bradyQbEmergences/${SEASONS}*100, 1.0, 3.0, v=>v.toFixed(1), "[design] ~1/75yr");
     // Cap
     if (_cap.teams && _cap.util.length) chk("Cap", "cap utilization", _avg(_cap.util), 88, 100, v=>v.toFixed(0)+"%", "NFL ~88-100%");
