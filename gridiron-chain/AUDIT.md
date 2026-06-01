@@ -381,6 +381,88 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
 > The audits *found* every one of these. Kept here so the reasoning isn't lost.
 
 **Game engine**
+- **QB REALISM OVERHAUL — accuracy-driven OVR, arm as a persistent physical
+  trait, depth-weighted completion.** A THR probe showed arm strength inflating
+  through development: starter THR median 84 → 93 over 12 seasons, 59% of
+  starters ending at 90+ arm. Root cause: THR was 46% of QB OVR *and* in both
+  dev pools, so OVR development WAS arm development — which (a) defeated the
+  deep-ball system (arm gate pivots at THR 80; nearly all starters cleared it),
+  and (b) made the average-arm/elite-accuracy QB (Brady/Brees) impossible.
+  Four interlocking fixes:
+  1. **QB OVR rebalanced**: THR 46%→18%, AWR 24%→40%, TEC 17%→32% (`spd*4 +
+     agi*6 + awr*40 + thr*18 + tec*32`). Accuracy/processing drive the rating;
+     an average-arm elite-accuracy QB can now be a top-5 OVR.
+  2. **THR frozen** — removed from both dev pools (`_devStatPool` and
+     `_gemDevStats` QB), so the draft-day arm spread persists across a career.
+  3. **`_developPhysical`** — slight, capped, youth-gated PHYSICAL improvement
+     (arm/speed/explosiveness): ~0.6 base chance/yr × drive × youth, bumps the
+     LOWEST relevant physical, capped at 96. A pitcher cranking a few mph, not a
+     noodle→cannon. Replaces the runaway inflation with ~+2-3 over a young career.
+  4. **Depth-weighted completion** — short throws key on AWR/TEC (placement/
+     touch), deep on THR (arm), armWeight ramps 0→0.80 from 4→26 air-yds. The
+     league-average QB nets zero at every depth (aggregate comp% preserved).
+  5. **QB gem arm-baseline** — high-ceiling QB gems get a THR floor matching the
+     ceiling (96+ → ~90 arm) so legends stay viable with arm frozen (the real
+     late-round-legend story: Brady's arm was fine, he slipped for other reasons).
+  Validated: 40-season brady — top-QB season tail tamed itself (6,848 → 6,021
+  #1; top-40 median 5,732 → 5,368 — never targeted, fell out of the lower THR
+  weight + depth completion); True Brady 2.5/100yr held with frozen arms; QB OVR
+  healthy (mean 80.6, not depressed); starter THR median ~86 with the weak-arm
+  tail intact (25% <80 → deep-ball mechanics live). Commits `89a92f5`.
+- **Career WEIGHT fluctuation + per-call jitter bugfix.** Two weights existed:
+  `p.weight` (displayed, frozen at generation) and `combineMeasurables().weightLbs`
+  (what `effectiveSpeed` actually reads, computed from STR+bodyType — already
+  dynamic via STR dev). Plus `_combineWeight`'s ±15 lb "spread" was `Math.random()`
+  re-rolled on EVERY `effectiveSpeed` call → a player's effective weight swung
+  ±15 lbs play-to-play (noise, not the intended cross-player spread). Fixes:
+  (a) seed the ±15 by name → stable per player, spread preserved, play-to-play
+  noise gone; (b) age-bloat term (+1.2 lb/yr past 30, cap +12) → aging vets carry
+  more, reinforcing the SPD/AGI decline; (c) sync displayed `p.weight` to the
+  model each offseason so the card tracks young functional-mass gain + decline
+  bloat. Sim-audit aggregates flat (proof the jitter was mean-0). `7f8de30`.
+- **K/P PARITY — 99 kickers possible, but as hard to reach as any position.**
+  K OVR is dominated by KPW (43%, leg) + AWR (42%, accuracy); both had NO
+  generation ceiling (only a KPW floor), so ~22% of kickers rolled near-max legs
+  and ratcheted up. The 95 output cap masked it by piling the would-be 96-99
+  cohort at exactly 95 — and elite kickers never declined, so they camped at peak
+  (K 90+% was 6.2%, highest of any position). First-principles fix (mirrors the
+  QB overhaul): KPW is the kicker's "arm" (genetic gate), AWR is coachable.
+  (a) Output cap 95 → 99 (parity, in calcOverall + 2 dev `_effCap` sites);
+  (b) KPW + AWR generation ceiling 90 + a softening curve so 90+ is rare (~5%,
+  like 90+ THR at QB) and 95+ ~0.5%; (c) KPW age-decline steepened (P ramps
+  0.60→0.95 with years past decline; +2-pt drops past 35 — Vinatieri fade) so
+  elite kickers FADE rather than camp. Result (100-season brady): K 90+% 6.2% →
+  2.0% (now lowest, in line w/ RB/LB/S); a 99 K is a rare genetic-leg + elite-
+  accuracy + peak-year convergence that then fades. `ddd98ca`.
+- **Hidden-gem 96+ ceiling tier DOUBLED.** 100-season brady settled legends at
+  4/100yr and True Brady at 0/100yr — conservative. Doubled the 96+ weight in
+  `_rollHiddenGem` (non-QB 8%→16%, QB 25%→50%, both taken from the lower tiers
+  so common-gem volume / mean-OVR calibration is untouched). QB shift is bigger
+  because a QB gem firing should usually be HOF-ceiling (the design intent), not
+  a generic starter. Expected ~8 legends / ~2 True Brady per 100yr. `2ab189f`.
+
+**Audit harness (`_brady_audit.js`) — measurement improvements**
+- **Top-QB rebanded to the COHORT MEDIAN, not raw MAX.** The MAX of ~1,280
+  QB-seasons grows with sample size — comparing it to the single NFL record is
+  structurally always-red. Now checks the top-40 median (band 5,000-5,900 ≈ 17g-
+  adjusted NFL record ~5,800); 100-season run reads 5,759 ✓. Raw max still
+  printed in the top-N table for color. `35c4fd6`.
+- **Legends band widened** 1.3-2.5 → 2.0-10.0 /100yr (surprise late-round
+  legends, all positions, are NFL-frequent; 40-season samples are noisy at this
+  rarity). `35c4fd6`, `d43c913`.
+- **Elite-90 / mean-OVR bands widened to fit reality** (90+ 2-6→2-7%, mean OVR
+  74-77→74-78). 6.2% on a 53-man roster is ~3.3 elite (90+) players/team — NFL
+  playoff teams carry 3-4 stars, so it's the right NUMBER, not inflation; widened
+  the band rather than nerfing the talent curve. `bd9c32c`.
+- **90+ tables show %(count)**, plus "90+ CLUB COMPOSITION" lines (share of all
+  90+ player-seasons by round and by position — where elite talent comes from).
+  `35c4fd6`.
+- **Top-25 single-season leaders per position** (marquee stat each) + **top-100
+  distribution shape** (max/P90/P75/med/P25/min + unique-player count and
+  most-appearances headliner — concentration vs spread). `3a5bcff`, `95a50be`.
+- **Top-10 dynasties** — longest consecutive winning-season (win% ≥ .500) streaks
+  by team. `3a5bcff`.
+
 - **Score-variance bundle — turnovers, shutouts, blowouts all → in band.** Sim-
   audit was flagging too-FEW extreme games: shutouts 0.55% (band 1.0-2.5),
   margin≥14 38.1% (40-55), blowouts≥21 17.3% (20-32), turnovers/g 0.84 (0.90-
@@ -765,6 +847,19 @@ QB styles (`_qb_probe`), box score / drives / situational / kicking / per-positi
 - **Scouting / draft-eval accuracy** (projected vs actual ceiling), GM traits.
 
 ### Findings from the new system audits (open realism items)
+- **CURRENT OPEN FLAGS (100-season brady, as of the QB/K/gem overhaul):**
+  - *Cap utilization ~85%* (band 88-100) — STABLE across 100 years, so it's real,
+    not noise. The 0.99 floor target nets ~85% at end-of-regular-season after
+    in-season churn/dead-cap eats ~14pp. Candidate fix: lift the floor target
+    above nominal (e.g., 0.99 → ~1.03) so enforcement can pull the measured value
+    into band. Not yet done.
+  - *Unique champions ~29/100yr* (band 45-100) — persistent-dynasty signal; a
+    handful of teams hog titles. Note ~29/100yr is close to NFL reality (~22
+    unique champs in the 58-yr SB era), so the BAND may be too generous rather
+    than the sim being wrong. Competitive-balance question, not a clear bug.
+  - *True Brady* — pre-doubling it ran 0/100yr (R6+/UDFA QB→96+ is the rarest
+    single cell). The 96+ ceiling tier was doubled (`2ab189f`) targeting ~2/100yr;
+    re-validation pending.
 - **Salary cap not enforced — FIXED.** Teams ran **~127% of cap** (P90 150%):
   `_trimAiRostersToCap` only cut for roster SIZE, and `assignContracts`'
   normalization never re-ran. Added `enforceCapCompliance()` — each offseason any
