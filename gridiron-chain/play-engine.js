@@ -4994,7 +4994,20 @@ class GameSimulator {
       // a 0.40-read matchup subtracts ~5pp. Open routes complete; covered
       // routes don't.
       const opennessCompMod = (_hoistedReadP - 0.55) * 0.35;
-      const compPct = clamp((0.62 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + clutchCompMod + boxStackCompMod + opennessCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.95);
+      // ── DEPTH-TIERED COMPLETION (first principles) ──────────────────────
+      // Probability-weighted intended depth of this concept (primary if the
+      // read wins, fallback if not). Deeper throws complete LESS even when open
+      // — longer flight, tighter window — so a single depth-blind comp% let deep
+      // balls over-complete and fattened the explosive-play / season-yardage
+      // tail. Pivot at league aDOT (~8) so the AGGREGATE comp% is preserved while
+      // the SHAPE gets right: short ↑, deep ↓. And QB quality separates MORE with
+      // depth (arm + accuracy) — elites hit the deep ball, everyone completes the
+      // short stuff. This replaces the flat qbCompFromOvr term.
+      const _expDepth = _hoistedReadP * (PASS_CONCEPTS[_hoistedConcept]?.primaryDepth ?? 8)
+                      + (1 - _hoistedReadP) * (PASS_CONCEPTS[_hoistedConcept]?.fallbackDepth ?? 4);
+      const depthCompMod = (8 - _expDepth) * 0.013;                          // short +, deep −
+      const qbDepthSkill = qbCompFromOvr * (1 + Math.max(0, _expDepth - 8) / 12); // QB edge grows deep
+      const compPct = clamp((0.62 + adv * 0.13 + qbDepthSkill + depthCompMod - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + clutchCompMod + boxStackCompMod + opennessCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.95);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
