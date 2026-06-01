@@ -83,6 +83,20 @@ CONSTRUCTION + cap are the final-season snapshot (1,696 players / 32 teams).
 were measured on collapsed rosters and need re-validation. First clean read:
 elite 90+ share moved 1.3% (collapsed) → 4.4% (full, 3 seasons).
 
+## ⚠ Harness invariant — production stats are REGULAR-SEASON ONLY
+
+`_brady_audit`'s per-player season/career **production** (season highs, career
+leaders, best-by-position, single-game highs, TOP-10-by-position, typical
+career) accumulates **only from regular-season games**. The `frnSimOnce`
+wrapper returns early when `isPlayoff` — otherwise a deep playoff run folds ~4
+extra games into a player's "season", inflating every production view (a
+Super-Bowl QB's season/career totals balloon). This was a real bug, fixed; if
+you see season-game counts above the regular-season length or suspiciously high
+season totals for contending teams, the `isPlayoff` guard has regressed.
+(Talent / OVR / roster / cap / gem snapshots are roster-based and unaffected
+either way.) `_sim_audit` is regular-season by construction — round-robin, no
+bracket, one line per game.
+
 ---
 
 ## The two harnesses

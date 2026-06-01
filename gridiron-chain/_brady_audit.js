@@ -186,6 +186,13 @@ const harness = `
     const _origSimOnce = frnSimOnce;
     frnSimOnce = function(homeId, awayId, isPlayoff) {
       const res = _origSimOnce.apply(this, arguments);
+      // REGULAR-SEASON STATS ONLY. Playoff games would inflate season + career
+      // totals (a deep run folds ~4 extra games into a player's "season"), which
+      // would skew every production view: season highs, career leaders,
+      // best-by-position, single-game highs, and the TOP-10 / typical-career
+      // tables — all read career/seasonAcc. (Talent/OVR/roster/cap/gem snapshots
+      // are taken separately from rosters and are unaffected either way.)
+      if (isPlayoff) return res;
       try {
         const st = res && res.full && res.full.stats;
         if (st) {
