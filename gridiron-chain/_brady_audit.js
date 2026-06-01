@@ -706,6 +706,24 @@ const harness = `
     const _origRNC = _rollNonContactInjuries;
     _rollNonContactInjuries = function (id) { const r = _origRNC(id); _tallyInjuriesFor(id); return r; };
   }
+  // COLLEGE INJURY capture — wrap _rollCollegeInjury to tally severity + whether
+  // it produced a medical faller (high-ceiling prospect slipping for medical reasons).
+  const _cInj = { moderate:0, severe:0, career:0, total:0, fallers:[], byPos:{} };
+  if (typeof _rollCollegeInjury === "function") {
+    const _origCI = _rollCollegeInjury;
+    _rollCollegeInjury = function (p) {
+      const r = _origCI(p);
+      if (r) {
+        _cInj.total++; _cInj[r.severity] = (_cInj[r.severity] || 0) + 1;
+        _cInj.byPos[p.position] = (_cInj.byPos[p.position] || 0) + 1;
+        const ceil = p.potential || p.hiddenGem?.ceiling || 0;
+        if (ceil >= 88 && r.stockHit >= 5 && _cInj.fallers.length < 12) {
+          _cInj.fallers.push({ pos: p.position, ceil, sev: r.severity, type: r.type });
+        }
+      }
+      return r;
+    };
+  }
 
   // ── FRANCHISE SYSTEMS capture (stress / personality / salary cap) ──
   const _stress = { QB:[], RB:[], WR:[], TE:[], OL:[], DL:[], LB:[], CB:[], S:[], K:[], P:[] };
@@ -1080,6 +1098,19 @@ const harness = `
         (Object.keys(byPos).some(P => !POS_ORD.includes(P)) ? "  (+other)" : ""));
       console.log("");
     }
+  }
+
+  // ── COLLEGE INJURIES — the medical-faller pipeline ───────────────────────
+  if (_cInj.total) {
+    const POS_ORD2 = ["QB","RB","WR","TE","OL","DL","LB","CB","S"];
+    console.log(" COLLEGE INJURIES — " + _cInj.total + " over " + ${SEASONS} + " seasons" +
+      "   (moderate " + _cInj.moderate + "  ·  severe " + _cInj.severe + "  ·  career-ending " + _cInj.career + ")");
+    console.log("   by position: " + POS_ORD2.filter(P=>_cInj.byPos[P]).map(P => P+" "+_cInj.byPos[P]).join("  "));
+    if (_cInj.fallers.length) {
+      console.log("   MEDICAL FALLERS (88+ ceiling, slipped on a real injury) — sample:");
+      for (const f of _cInj.fallers) console.log("     " + f.pos.padEnd(3) + " ceil~" + f.ceil + "  " + f.sev + " (" + f.type + ")");
+    }
+    console.log("");
   }
 
   // ── TIER 3: FRANCHISE HEALTH (competitive balance over the sim) ─────────

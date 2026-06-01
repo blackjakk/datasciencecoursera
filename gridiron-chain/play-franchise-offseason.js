@@ -17246,6 +17246,15 @@ const _KNOCK_TYPES_BY_POS = {
 function _selectKnock(p, round) {
   const knockList = _KNOCK_TYPES_BY_POS[p.position] || [];
   if (!knockList.length) return null;
+  // A real college injury overrides the random knock with an injury/medical one
+  // (whichever the position carries) so the scouting report SHOWS the reason he
+  // slipped — the knock is now EARNED, not fabricated.
+  if (p._collegeInjury) {
+    if (knockList.includes("injury"))    return "injury";
+    if (knockList.includes("medical"))   return "medical";
+    if (knockList.includes("durability"))return "durability";
+    // position has no medical knock type — fall through to normal selection
+  }
   const expected = { 1:88,2:81,3:75,4:70,5:66,6:63,7:60,0:58 }[round] ?? 65;
   const isHighUpsideLate = (p.potential || 65) >= expected + 4 && round >= 4;
   const knockProb = { 1:0.12,2:0.12,3:0.30,4:0.55,5:0.55,6:0.70,7:0.70 }[round] ?? 0.50;
@@ -19499,6 +19508,11 @@ const HiddenOracle = {
 function _applyConsensusGrade(p, rookieYear) {
   const ceiling = HiddenOracle.read.ceiling(p) || 70;
   p._aiScoutBias = HiddenOracle.roll.scoutBias(p, rookieYear, ceiling);
+  // College injury craters PERCEIVED stock (the medical faller) — true ceiling
+  // is untouched, so a hurt-but-talented prospect slips with his upside intact.
+  if (p._collegeInjury && p._collegeInjury.stockHit) {
+    p._aiScoutBias = clamp(Math.round(((p._aiScoutBias || 0) - p._collegeInjury.stockHit) * 10) / 10, -16, 10);
+  }
   // Consensus grade — what the world sees. The draft AI ranks by this,
   // user-visible grade badge shows this, scout reveals can shift it.
   const trueOvr = p.overall || 60;
@@ -19800,6 +19814,64 @@ function _developCollegePlayer(p) {
   p.overall = calcOverall(p.position, p.stats);
 }
 
+// ── COLLEGE INJURIES ─────────────────────────────────────────────────────────
+// Real college players get hurt — and it's the #1 reason talented prospects SLIP
+// in the draft (Tua's hip, Jaylon Smith's knee, Jonathan Taylor's...). Roll a
+// per-prospect, per-college-year injury. KEY design: the injury craters PERCEIVED
+// draft stock (via _aiScoutBias, applied at grade time) but leaves TRUE talent
+// (the hidden ceiling) intact — so a high-ceiling prospect who tears something
+// senior year slips to the late rounds with his upside preserved. That's the
+// realistic "medical faller → late-round gem" pipeline (more believable than
+// "scouts randomly whiffed"). It also dents hidden _durability (real elevated NFL
+// injury risk + counts toward injury-prone) so it's no free lunch, and severe
+// injuries can permanently rob a step (athleticism ding) or, rarely, end a career
+// before the NFL.
+const _COLLEGE_INJ_POSMUL = { RB:1.45, WR:1.15, TE:1.10, DL:1.15, LB:1.15, CB:1.05, S:1.05, OL:1.0, QB:0.95, K:0.2, P:0.2 };
+const _COLLEGE_INJ_MODERATE = ["high-ankle sprain","hamstring tear","torn labrum (shoulder)","broken hand","MCL sprain"];
+const _COLLEGE_INJ_SEVERE   = ["torn ACL","torn Achilles","Lisfranc fracture","hip labrum tear","stress fracture (back)"];
+const _COLLEGE_INJ_CAREER   = ["spinal stenosis","multiple knee reconstructions","chronic concussion syndrome"];
+const _COLLEGE_PHYS_IDX     = { QB:[0,2], RB:[0,2,1], WR:[0,2], TE:[0,1], OL:[1,2], DL:[0,1], LB:[0], CB:[0,2], S:[0] };
+function _rollCollegeInjury(p) {
+  if (!p || !p.stats || p.position === "K" || p.position === "P") return null;
+  const dur = p._durability ?? 65;
+  const posMul = _COLLEGE_INJ_POSMUL[p.position] ?? 1.0;
+  // Base ~3.3%/yr, durability-scaled (dur 40 → ~6%, dur 95 → ~1.5%). ~12% of
+  // prospects get hurt over a 4-yr career; most are minor-to-moderate.
+  const chance = 0.033 * posMul * clamp(1.4 - (dur - 50) / 90, 0.4, 2.2);
+  if (Math.random() >= chance) return null;
+  const r = Math.random();
+  const sev = r < 0.62 ? "moderate" : r < 0.95 ? "severe" : "career";
+  let durHit = 25, stockHit = 0, type, permDing = 0, careerEnding = false, wks = 6;
+  if (sev === "moderate") {
+    type = _COLLEGE_INJ_MODERATE[Math.floor(Math.random() * _COLLEGE_INJ_MODERATE.length)];
+    durHit = 4 + Math.floor(Math.random() * 6);     // -4..-9
+    stockHit = 2 + Math.floor(Math.random() * 4);   // perceived OVR -2..-5
+  } else if (sev === "severe") {
+    type = _COLLEGE_INJ_SEVERE[Math.floor(Math.random() * _COLLEGE_INJ_SEVERE.length)];
+    durHit = 12 + Math.floor(Math.random() * 11);   // -12..-22
+    stockHit = 6 + Math.floor(Math.random() * 7);   // perceived OVR -6..-12 → slips 1-2 rounds
+    wks = 16;
+    if (Math.random() < 0.45) permDing = 2 + Math.floor(Math.random() * 4); // 45%: lost a step (-2..-5)
+  } else {
+    type = _COLLEGE_INJ_CAREER[Math.floor(Math.random() * _COLLEGE_INJ_CAREER.length)];
+    careerEnding = true; wks = 99;
+  }
+  p._durability = Math.max(20, dur - durHit);
+  p.injuryHistory = p.injuryHistory || [];
+  p.injuryHistory.push({ label: type, season: (typeof franchise !== "undefined" ? franchise.season : 0) || 0,
+    weeks: wks, duration: wks, catastrophic: sev !== "moderate", careerEnding, cause: "college", bodyPart: null });
+  if (p.injuryHistory.length > 20) p.injuryHistory = p.injuryHistory.slice(-20);
+  if (permDing) {  // robbed athleticism — a PHYSICAL (frozen) stat takes a permanent hit
+    const idxs = _COLLEGE_PHYS_IDX[p.position] || [0];
+    const i = idxs[Math.floor(Math.random() * idxs.length)];
+    p.stats[i] = Math.max(35, (p.stats[i] || 60) - permDing);
+    p.overall = calcOverall(p.position, p.stats);
+  }
+  // Stock penalty (perceived value only) — applied in _applyConsensusGrade.
+  p._collegeInjury = { type, severity: sev, season: (typeof franchise !== "undefined" ? franchise.season : 0) || 0, stockHit, careerEnding };
+  return p._collegeInjury;
+}
+
 // Age all remaining college players one year forward; drop anyone now in
 // the NFL (drafted previous offseason) or who graduated as SR; add a new
 // freshman class. Called once per franchise season in frnNewSeason.
@@ -19837,7 +19909,11 @@ function _advanceCollegePipeline() {
     p.draftSeason = (franchise.season || 1) + _COLLEGE_SEASONS_TO_DRAFT[p.collegeYear];
     p.draftYear   = (new Date().getFullYear()) + p.draftSeason;
     _developCollegePlayer(p);
+    _rollCollegeInjury(p);   // college injury — may dent stock/durability or end a career
   }
+  // Career-ending college injuries never reach the NFL — the "what could have
+  // been" cases. Drop them from the pipeline.
+  players = players.filter(p => !(p._collegeInjury && p._collegeInjury.careerEnding));
   // Generate new freshman class
   const allTaken = new Set();
   players.forEach(p => allTaken.add(p.name));
