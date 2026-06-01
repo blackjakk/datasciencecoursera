@@ -225,6 +225,7 @@ const harness = `
   // record book, then reset for the next season. Called once per season.
   // Also maintains a top-5 single-season leaderboard per stat (seasonTop5).
   const seasonTop5 = {};   // cat → [{val,name,season}, ...] sorted desc, len<=5
+  const qbSeasonTop40 = []; // top-40 single-season QB passing years, all-time (richer entries)
   function _foldSeasonRecords() {
     // name → normalized position, from this season's active rosters.
     const nameToPos = {};
@@ -273,6 +274,21 @@ const harness = `
         lb5.push({ val: v, name, season: franchise.season });
         lb5.sort((a, b) => b.val - a.val);
         if (lb5.length > 5) lb5.length = 5;
+        // Top-40 all-time QB passing seasons (richer: team, age, OVR, TD/INT).
+        if (k === "pass_yds" && nameToPos[name] === "QB") {
+          const tid = playerTeamThisSeason.get(name);
+          const team = (typeof getTeam === "function" && tid != null) ? getTeam(tid) : null;
+          const qb = (franchise?.rosters?.[tid] || []).find(p => p.name === name);
+          qbSeasonTop40.push({
+            val: v, name, season: franchise.season,
+            team: team ? (team.city + " " + team.name) : "?",
+            age: qb?.age ?? null, ovr: qb?.overall ?? null,
+            draftRound: qb?.draftRound ?? null,
+            td: r.pass_td || 0, int: r.pass_int || 0,
+          });
+          qbSeasonTop40.sort((a, b) => b.val - a.val);
+          if (qbSeasonTop40.length > 40) qbSeasonTop40.length = 40;
+        }
       }
       // Best season by position — real players only.
       if (_isPlaceholder(name)) continue;
@@ -1257,6 +1273,33 @@ const harness = `
   for (const [k,label] of _ssCats) {
     const lb5 = seasonTop5[k]; if (!lb5 || !lb5.length) continue;
     console.log(" " + label.padEnd(13) + " " + lb5.map(e => _fmt(e.val)+" ("+e.name+" S"+e.season+")").join("  ·  "));
+  }
+  // ── TOP 40 QB PASSING SEASONS — all-time, this sim ───────────────────────
+  if (qbSeasonTop40.length) {
+    console.log("");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" TOP 40 QB PASSING SEASONS — all-time (" + ${SEASONS} + " seasons)");
+    console.log(" NFL refs: single-season record 5,477 yds (16g) ≈ ~5,800 over 17g");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log("  # " + "Yds".padStart(6) + " " + "TD".padStart(3) + " " + "INT".padStart(3) +
+      "  " + "Age".padStart(3) + " " + "OVR".padStart(3) + " R  " + "Player".padEnd(26) + " S#  Team");
+    console.log("  " + "-".repeat(92));
+    qbSeasonTop40.forEach((e, i) => {
+      const r = e.draftRound === 0 ? "U" : (e.draftRound ?? "-");
+      console.log("  " + String(i + 1).padStart(2) + " " +
+        _fmt(e.val).padStart(6) + " " +
+        String(e.td).padStart(3) + " " + String(e.int).padStart(3) + "  " +
+        String(e.age ?? "-").padStart(3) + " " + String(e.ovr ?? "-").padStart(3) + " " +
+        String(r).padStart(1) + "  " +
+        (e.name||"").padEnd(26).slice(0, 26) + " S" + String(e.season).padEnd(2) + " " + e.team);
+    });
+    // Quick stats on the top-40 cohort
+    const _avg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+    console.log("  " + "-".repeat(92));
+    console.log("  top-40 avg: " + _avg(qbSeasonTop40.map(e=>e.val)).toFixed(0) + " yds  ·  " +
+      "median: " + qbSeasonTop40[Math.floor(qbSeasonTop40.length/2)].val.toLocaleString() + " yds  ·  " +
+      "avg OVR: " + _avg(qbSeasonTop40.filter(e=>e.ovr).map(e=>e.ovr)).toFixed(1));
+    console.log("");
   }
   // ── RECORD QB OFFENSE SNAPSHOT — measurables + stats ─────────────────────
   // For the top single-season passing record, dump the FULL offense at that
