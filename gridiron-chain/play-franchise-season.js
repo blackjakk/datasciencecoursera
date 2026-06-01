@@ -2107,9 +2107,13 @@ const _CATASTROPHIC_VARIANTS = {
 // is ~7%. Lifts NFL career-ending injuries to ~3-5/season from 1.5.
 //
 // 2026-05 tuning: prior 0.12 produced ~2.6 career-ending/season —
-// below NFL's 5-10. Bumped to 0.20 to lift the rate by ~67% toward
-// the lower end of the NFL band (~4.3/season).
-const _CATASTROPHIC_UPGRADE_CHANCE = 0.20;
+// below NFL's 5-10. Bumped to 0.20 → lifted toward the lower band edge.
+// After the INJURY_RATE table was lifted 1.5x (total injuries 15.1 → 21.4 in
+// band), season-ending dropped to 3.3 vs band 4-14 because upgrade chance is
+// independent of base rate. Re-tuned to 0.27 to land season-ending at ~4.5/
+// team-season — lower band edge, matching NFL's ~5-10 IR placements per team
+// per season cadence.
+const _CATASTROPHIC_UPGRADE_CHANCE = 0.27;
 // Position-aware severity multiplier on the rehab OVR penalty. Speed-
 // dependent positions (CB/WR/RB) lose more from structural injuries; OL/K
 // lose less because they don't rely on explosiveness.
