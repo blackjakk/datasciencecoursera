@@ -316,6 +316,10 @@ const harness = `
   // cherry-picks if the underlying rosters are much larger than 53).
   const leagueOvr = [];
   const decadeOvr = [[], [], [], [], [], [], [], []];  // per-decade OVR pools (index = (year-1)/10)
+  // ── AUDIT CHECKLIST collector — sections push band-checks; printed as the
+  //    final consolidated verdict. Each: {group,label,val,lo,hi,fmt,tag}.
+  const CHK = [];
+  const chk = (group, label, val, lo, hi, fmt, tag) => CHK.push({ group, label, val, lo, hi, fmt: fmt || (v => "" + v), tag: tag || "" });
   const rcRoster = {};   // ROSTER CONSTRUCTION: round label → [ovr,...] (all 53 spots, final season)
   const rcStarter = {};  // round label → [ovr,...] (depth-chart starters, final season)
   let rcSynthCount = 0, rcInSimCount = 0;   // synthetic (pre-S1, OVR-backfilled round) vs in-sim-drafted survivors
@@ -951,6 +955,7 @@ const harness = `
       ["Repeat champions (2+ titles)", repeatChamps, 1, Math.max(2,Math.round(seasonStandings.length*0.25)), v=>v.toFixed(0)],
       ["Most titles by one team", maxTitles, 2, Math.max(3,Math.round(seasonStandings.length*0.15)), v=>v.toFixed(0)],
     ];
+    for (const [l, v, lo, hi, f] of FH) chk("Competitive balance", l, v, lo, hi, f, "NFL-ish");
     console.log(" "+"METRIC".padEnd(30)+" "+"SIM".padStart(7)+"   "+"NFL-ish BAND".padStart(13)+"  FLAG");
     console.log(" "+"-".repeat(64));
     let fhOk = 0;
@@ -1418,6 +1423,8 @@ const harness = `
     row("  non-contact (soft tissue)",    perTS(_inj.nonContact),   null, null, v => v.toFixed(1));
     row("Non-contact share %",            100 * _inj.nonContact / Math.max(1, _inj.total), 28, 45, v => v.toFixed(1));
     row("Season-ending (8+wk)/team-szn",  perTS(seasonEnding),      4, 14, v => v.toFixed(1));
+    chk("Injuries", "injuries / team-season", perTS(_inj.total), 18, 42, v => v.toFixed(1), "NFL data");
+    chk("Injuries", "season-ending / team-szn", perTS(seasonEnding), 4, 14, v => v.toFixed(1), "NFL data");
     row("Career-ending / team-season",    perTS(_inj.careerEnding), null, null, v => v.toFixed(2));
     row("Games missed / team-season",     perTS(_inj.gamesMissed),  null, null, v => v.toFixed(1));
     row("Median weeks out",               med,                      null);
@@ -1496,6 +1503,55 @@ const harness = `
     } else {
       console.log("   (no salary/cap data on roster players — cap system not populated in this build)");
     }
+  }
+  // ══ AUDIT CHECKLIST — consolidated verdict ══════════════════════════════
+  {
+    const _avg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+    // Roster integrity (gate — if these fail the rest is invalid)
+    chk("Roster integrity", "mean roster size", rosterSizeN?rosterSizeSum/rosterSizeN:0, 48, 56, v=>v.toFixed(0), "53 = full");
+    chk("Roster integrity", "synthetic survivors", rcSynthCount, 0, 8, v=>""+v, "~0 = clean labels");
+    // Talent (OVR is a design rating, not an NFL-measurable stat)
+    if (leagueOvr.length) {
+      chk("Talent", "elite 90+ share", leagueOvr.filter(o=>o>=90).length/leagueOvr.length*100, 2, 6, v=>v.toFixed(1)+"%", "[design]");
+      chk("Talent", "league mean OVR", _avg(leagueOvr), 74, 77, v=>v.toFixed(1), "[design]");
+      const dmeans = decadeOvr.filter(d=>d.length).map(_avg);
+      chk("Talent", "drift spread / decade", dmeans.length?Math.max(...dmeans)-Math.min(...dmeans):0, 0, 3, v=>v.toFixed(1), "[design] no decay");
+    }
+    // Draft
+    const _totStart = ["R1","R2","R3","R4","R5","R6","R7","UDFA"].reduce((s,r)=>s+((rcStarter[r]||[]).length),0)||1;
+    chk("Draft", "R1 starter share", (rcStarter.R1||[]).length/_totStart*100, 20, 35, v=>v.toFixed(0)+"%", "~NFL");
+    { let r1=0,r1b=0; for (const cp of careerPeak.values()) if (cp.round===1 && cp.firstSeen<=${SEASONS}-3) { r1++; if (cp.peakOvr<78) r1b++; }
+      if (r1) chk("Draft", "R1 bust rate", r1b/r1*100, 0, 8, v=>v.toFixed(1)+"%", "peak<78"); }
+    // Production (regular season only)
+    if (seasonRec.pass_yds) chk("Production", "top QB season yds", seasonRec.pass_yds.val, 4500, 5500, v=>v.toFixed(0), "NFL rec 5,477");
+    if (seasonRec.rec_yds)  chk("Production", "top WR/TE season yds", seasonRec.rec_yds.val, 1400, 2000, v=>v.toFixed(0), "NFL rec 1,964");
+    // Pipeline tails (design cadences, per 100yr)
+    chk("Pipeline", "legends / 100yr", legendEmergences/${SEASONS}*100, 1.3, 2.5, v=>v.toFixed(1), "[design] 1/75-40yr");
+    chk("Pipeline", "True Brady / 100yr", bradyQbEmergences/${SEASONS}*100, 1.0, 3.0, v=>v.toFixed(1), "[design] ~1/75yr");
+    // Cap
+    if (_cap.teams && _cap.util.length) chk("Cap", "cap utilization", _avg(_cap.util), 88, 100, v=>v.toFixed(0)+"%", "NFL ~88-100%");
+
+    const sev = c => { if (c.val>=c.lo && c.val<=c.hi) return "PASS"; const m=0.10*Math.max(1e-9,(c.hi-c.lo)); return (c.val>=c.lo-m && c.val<=c.hi+m)?"WARN":"FAIL"; };
+    const SYM = { PASS:"\\u2713", WARN:"\\u26a0", FAIL:"\\u2717" };
+    const GROUPS = ["Roster integrity","Talent","Draft","Production","Competitive balance","Injuries","Pipeline","Cap"];
+    let pass=0; const flags=[];
+    for (const c of CHK) { if (sev(c)==="PASS") pass++; else flags.push(c.label); }
+    console.log("");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" AUDIT CHECKLIST — "+pass+"/"+CHK.length+" pass · "+flags.length+" flag(s)   ["+${SEASONS}+"-season]");
+    console.log("══════════════════════════════════════════════════════════");
+    for (const g of GROUPS) {
+      const items = CHK.filter(c=>c.group===g); if (!items.length) continue;
+      console.log(" "+g.toUpperCase());
+      for (const c of items) {
+        const s = sev(c);
+        const band = "("+c.fmt(c.lo)+"-"+c.fmt(c.hi)+(c.tag?" · "+c.tag:"")+")";
+        console.log("   "+SYM[s]+" "+String(c.label).padEnd(26)+" "+String(c.fmt(c.val)).padStart(9)+"   "+band);
+      }
+    }
+    console.log(" "+"-".repeat(58));
+    console.log(" FLAGS: "+(flags.length?flags.join(" · "):"none — all green"));
+    console.log("");
   }
   if (typeof process !== "undefined" && process.exit) process.exit(0);
 })();
