@@ -2054,9 +2054,15 @@ function _careerColsFor(pos) {
 // hamstring/calf/groin/achilles + half of ACL tears) fire from a parallel
 // stress-driven path — see _rollNonContactInjuries. V11 audit showed
 // 9.8 contact + 1.9 non-contact = 11.7 total but split 84/16 vs NFL ~60/40.
-// Trimming contact ~20% so the total stays ~12 with a healthier mix.
-const INJURY_RATE = { QB:0.009, RB:0.017, WR:0.012, TE:0.014, OL:0.017,
-                     DL:0.017, LB:0.015, CB:0.012, S:0.010, K:0.002, P:0.002 };
+// Rates lifted ~50%: Brady audit showed injuries / team-season at 14.7 vs NFL
+// band 18-42, and elite QBs were playing 17/17 every season (stacking top-of-
+// distribution passing totals). This roller — not the in-play big-hit roller
+// — is what the audit measures and what drives franchise-level games-missed.
+// Lifting it lands the audit metric in band AND introduces the natural 1-2
+// missed-starts attrition that trims elite QB season totals (Brady/Manning/
+// Brees pattern).
+const INJURY_RATE = { QB:0.013, RB:0.025, WR:0.018, TE:0.021, OL:0.025,
+                     DL:0.025, LB:0.022, CB:0.018, S:0.015, K:0.003, P:0.003 };
 // Each injury type carries a baseline OVR penalty applied AFTER recovery
 // to model the "rehabbing back to full speed" arc. Soft-tissue stuff
 // heals clean (penalty 0); structural injuries leave lingering damage.
