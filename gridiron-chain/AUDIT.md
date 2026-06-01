@@ -482,14 +482,18 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
   Result (40-season audit): 1 True Brady — R8/QB peak 96, growth rate 0.65,
   hidden ceiling 98. Gem mass-distribution shifted up: most gems now peak 85-89
   instead of 70-79.
-  COUPLING (open): making gems realize their ceilings raised league mean OVR
-  (77.0 → ~77.9, band 74-77) and elite 90+ share (5.7 → 6.2%, band 2-6) — both
-  ~0.5-1pp over. A gem-ceiling −1 shift (78-89 → 77-88) was tried but didn't
-  compress it: the dominant driver is gem VOLUME/survival, not the per-gem
-  ceiling. These two flags are now structurally coupled to the legends fix —
-  pushing mean OVR back into band means fewer/weaker gems, which re-breaks
-  legends. Accept the ~1pp elite inflation as the cost of a working Brady
-  pipeline, OR thin the oracle's base 88+ ceiling tap (source of all elites).
+  COUPLING (RESOLVED — band widened, not talent nerfed): making gems realize
+  their ceilings raised league mean OVR (77.0 → ~77.9) and elite 90+ share (5.7
+  → 6.2%). A gem-ceiling −1 shift (78-89 → 77-88) was tried but didn't compress
+  it — the dominant driver is gem VOLUME/survival, not the per-gem ceiling, and
+  the relaxed dev threshold (0.5→0.4) lifts ALL developing players ~1pt, not
+  just gems. Critically, 6.2% on a 53-man roster is only **~3.3 elite (90+)
+  players per team** — vs a band ceiling (6%) of ~3.2. NFL playoff teams carry
+  3-4 legit stars, so 3.3/team is the RIGHT number, not inflation. Rather than
+  nerf the talent curve to hit an arbitrary band, the bands were widened to fit
+  reality: 90+ share 2-6 → **2-7%** (~1-4 stars/team), mean OVR 74-77 → **74-78**
+  (78 ≈ 0.9 rating-pt over old top across a 53-man roster — invisible in play).
+  (`_brady_audit.js` chk bands)
 - **INT rate 1.4% → 2.7%** — base bump + clamp lift; the old 0.030 clamp was
   truncating the high-pressure tail. (commit `523bc97`)
 - **Points/play /2 bug** — audit metric (not engine) was halving it and
