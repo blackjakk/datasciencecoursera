@@ -5005,8 +5005,14 @@ class GameSimulator {
       // short stuff. This replaces the flat qbCompFromOvr term.
       const _expDepth = _hoistedReadP * (PASS_CONCEPTS[_hoistedConcept]?.primaryDepth ?? 8)
                       + (1 - _hoistedReadP) * (PASS_CONCEPTS[_hoistedConcept]?.fallbackDepth ?? 4);
-      const depthCompMod = (8 - _expDepth) * 0.013;                          // short +, deep −
-      const qbDepthSkill = qbCompFromOvr * (1 + Math.max(0, _expDepth - 8) / 12); // QB edge grows deep
+      const depthCompMod = (8 - _expDepth) * 0.013;                          // short +, deep − (intrinsic)
+      // Deep-ball ability keys on ARM STRENGTH (THR, stat[4]): a cannon arm
+      // drives the deep ball in, a noodle arm can't — regardless of overall.
+      // Short throws stay accuracy-driven (qbCompFromOvr); the THR bonus/penalty
+      // only kicks in past ~10 air yds and scales with depth. Pivot at THR 80 so
+      // the league-average arm is neutral (aggregate comp% preserved).
+      const _qbThr = qbPlayer?.stats?.[4] ?? 78;
+      const qbDepthSkill = qbCompFromOvr + Math.max(0, _expDepth - 10) * (_qbThr - 80) / 2500;
       const compPct = clamp((0.62 + adv * 0.13 + qbDepthSkill + depthCompMod - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + clutchCompMod + boxStackCompMod + opennessCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.95);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
