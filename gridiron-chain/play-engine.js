@@ -5050,7 +5050,19 @@ class GameSimulator {
                        : rcvrArch === "BLOCKING"     ? -3.5  // blocking TE: short outlets only
                        : rcvrArch === "HYBRID"       ? -1.5  // hybrid TE: between receiving + blocking
                        : 0;
-      if (archAirMod) airYds = clamp(Math.round(airYds + archAirMod * 0.7), -2, 55);
+      // Intended-depth tilts that were declared-but-never-applied (dead) until the
+      // realized-airYds draw was hoisted here. From first principles each shifts the
+      // depth chart: RBs check down short (NFL RB aDOT ~0-1 vs WR ~9), aggressive QBs
+      // throw deeper (mean-neutral spread), Air-Attack OCs push downfield, and box
+      // count tilts shots (heavy personnel shortens, spread/obvious-pass deepens).
+      const posAirMod      = rcvrPlayer?.position === "RB" ? -3.0 : 0;
+      const qbAggAirMod    = (this._aggTilt(this._qbAggression()) - 1) * 3.0; // agg 80→+0.9, agg 20→−0.9
+      const ocAirAttackMod = _ocTrait === "Air Attack" ? 1.0 : 0;
+      const boxStackAirMod = this._boxStackAirMod || 0;
+      // One combined tilt at the same 0.7 scale as the archetype shift, so the
+      // concept model still drives the base depth and these only nudge it.
+      const _airTilt = archAirMod + posAirMod + qbAggAirMod + ocAirAttackMod + boxStackAirMod;
+      if (_airTilt) airYds = clamp(Math.round(airYds + _airTilt * 0.7), -2, 55);
       this._lastPassConcept = _hoistedConcept;
       this._lastPassCoverage = _hoistedCoverage;
       // Deeper throws complete LESS even when open — longer flight, tighter window.
@@ -5142,13 +5154,8 @@ class GameSimulator {
                        : wxPass.label === "SNOW"  ? passWindWith * 2.0 - 1.5
                        : wxPass.label === "RAIN"  ? -1.0
                        : 0;
-        // RBs catch short outlets; without this they inherit the WR air-yards mean.
-        const posAirMod = rcvrPlayer?.position === "RB" ? -3.0 : 0;
-        // Aggressive QBs call more deep shots — tilts target depth up/down.
-        const qbAggAirMod = (this._aggTilt(this._qbAggression()) - 1) * 3.0; // agg=80→+0.9yds, agg=20→-0.9yds
-        // OC Air Attack: +1.0 to air yards mean
-        const ocAirAttackMod = _ocTrait === "Air Attack" ? 1.0 : 0;
-        const boxStackAirMod = this._boxStackAirMod || 0;
+        // (posAirMod / qbAggAirMod / ocAirAttackMod / boxStackAirMod are now applied
+        // to the REALIZED airYds up in the hoisted draw — see the "_airTilt" combine.)
         // +0.8 -> +1.5: YAC trim cut offense too much (YPA fell to 0.91x).
         // Partial restore — passes back to ~7.0 yds avg without re-inflating
         // sacks or RZ.
