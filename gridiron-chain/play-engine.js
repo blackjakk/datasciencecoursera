@@ -689,9 +689,17 @@ class GameSimulator {
     // wide. NFL has ~5-10 visible "cart-off" moments per season, so target
     // ~50-100 league-wide additive injuries from impact-driven moments.
     if (force >= 1.1 || opts.eventType === "sack") {
-      let injChance = (force - 0.9) * 0.0030 * vuln;
-      if (opts.eventType === "sack") injChance += 0.0012 + Math.abs(opts.sackDepth || 0) * 0.00020;
-      if (opts.negativeYards) injChance += Math.abs(opts.negativeYards) * 0.0005;
+      // Base injury chance bumped 50% (0.0030 → 0.0045) and sack/hitter chances
+      // bumped proportionally. Brady-audit signal: injuries / team-season at 15.1
+      // (NFL band 18-42) and season-ending at 2.1 (NFL band 4-14) — both
+      // structurally low. The shortfall also let elite QBs play 17/17 every
+      // year, stacking top-of-distribution passing totals well past NFL ceilings
+      // (top QB seasons sat 6,100-6,340 yds vs all-time record 5,477). Lifting
+      // the injury rate to NFL-realistic naturally trims 1-2 starts/year from
+      // elite QBs (the Brady/Manning/Brees pattern) and lands all three flags.
+      let injChance = (force - 0.9) * 0.0045 * vuln;
+      if (opts.eventType === "sack") injChance += 0.0018 + Math.abs(opts.sackDepth || 0) * 0.00030;
+      if (opts.negativeYards) injChance += Math.abs(opts.negativeYards) * 0.00075;
       if (Math.random() < injChance && typeof this._triggerBigHitInjury === "function") {
         this._triggerBigHitInjury(carrier, force, opts, tackler);
       }
@@ -702,7 +710,7 @@ class GameSimulator {
       if (tackler && force >= 1.3) {
         const tStr = tackler.stats?.[1] ?? 70;
         const tVuln = clamp(1.0 + (75 - tStr) / 60, 0.7, 1.4);  // less than carrier vuln
-        let tInjChance = (force - 1.1) * 0.0012 * tVuln;
+        let tInjChance = (force - 1.1) * 0.0018 * tVuln;
         if (tackler.archetype === "HEADHUNTER") tInjChance *= 1.5;
         if (Math.random() < tInjChance && typeof this._triggerBigHitInjury === "function") {
           // Reverse the event — tackler is now the "carrier" of the injury
