@@ -415,6 +415,38 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
   expected-max scales with sample size, so the band itself is tight for our
   sample. Top-5 mean is the more comparable measurement and is healthy.
 
+- **Legends / 100yr 0 → 2.5 + True Brady 0 → 2.5 (both in band).** Brady audit
+  consistently produced 0 legends across 8-, 40-, and 100-season runs — the gem
+  pipeline existed but nothing reached OVR 96+. Two-stage diagnosis (focused
+  gem probe + brady-audit instrumentation that captured each gem's growth rate
+  and p.potential at first-seen):
+  1. **AI teams cut their own R6 gems as fringe players.** `cutValue` reads
+     `_perceivedPotential(p)` which only sees `p.potential` (the public oracle
+     ceiling). The hidden-gem ceiling lives in `p.hiddenGem.ceiling`, which
+     `p.potential` didn't reflect — so a R8 gem with true ceiling 99 looked
+     like a 65-ceiling fringe player to its own team, got cut, sat in FA where
+     `_developNflPlayer` doesn't run, retired in 2 years. **Fix**: write
+     `p.potential = max(p.potential, hiddenGem.ceiling)` at gem-stamp time in
+     `_rollHiddenGem`. NFL parallel: a team's own practice tape reveals upside
+     that public scouting consensus missed. (`1aa252e`)
+  2. **`_growthRate` was rolled based on the original low oracle potential.**
+     A R8 gem with ceiling 99 inherited the slow-developer distribution of a
+     65-ceiling player. Diagnostic showed ceiling-96+ gems with rate 0.65
+     peaking at 79-87 even after p.potential was propagated; baseline grew at
+     rate 0.35 plateaus at ~85 regardless of ceiling. **Fix**: re-roll
+     `_growthRate` in `_rollHiddenGem` using the gem ceiling so the gem draws
+     from the 30/55/15 (0.90/0.65/0.35) distribution that a known 99-ceiling
+     prospect would. Only upgrades. (`490e846`)
+  3. **`grew < 0.5` threshold blocked late-career growth past OVR 95.** At OVR
+     95 chasing ceiling 96-99, baseline `grew` lands in [0.16, 0.65]. The 0.5
+     floor only let ceiling-99 gems fire (grew 0.65). 0.1 over-corrected (12.5
+     legends/100yr); 0.4 is the principled split — admits ceiling-98+99 (grew
+     0.49, 0.65), keeps 96-97 strict, matches NFL pattern where only
+     generational talents emerge as legends. (`16f9b62`)
+
+  Result (40-season audit): 1 True Brady — R8/QB peak 96, growth rate 0.65,
+  hidden ceiling 98. Gem mass-distribution shifted up: most gems now peak 85-89
+  instead of 70-79.
 - **INT rate 1.4% → 2.7%** — base bump + clamp lift; the old 0.030 clamp was
   truncating the high-pressure tail. (commit `523bc97`)
 - **Points/play /2 bug** — audit metric (not engine) was halving it and
