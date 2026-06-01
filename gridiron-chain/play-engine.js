@@ -3775,6 +3775,19 @@ class GameSimulator {
     // dialed up pass or run accordingly. Stamped on the sim by frnSimOnce.
     const wgp = this.poss === "home" ? this.homeWgp : this.awayWgp;
     if (wgp?.passProbDelta) passProb = clamp(passProb + wgp.passProbDelta, 0.10, 0.95);
+    // LEADING-TEAM CLOCK BLEED. NFL teams pivot to the ground game in the 4Q
+    // when leading, draining clock instead of risking a turnover. Without this,
+    // an elite QB on a winning team kept passing in 4Q "garbage time" and his
+    // season totals inflated past NFL elite ceilings (Brady audit: top QB
+    // 6,100+ vs all-time record 5,477). The existing two-minute drill drives
+    // TRAILING teams to throw; this is the symmetric mirror for LEADING teams.
+    if (this.quarter === 4 && this.time < 600) {  // last 10 min of Q4
+      const _lead = this.poss === "home"
+        ? this.score.home - this.score.away
+        : this.score.away - this.score.home;
+      if (_lead >= 8)       passProb = clamp(passProb - 0.12, 0.10, 0.95); // two-score lead → ground game
+      else if (_lead >= 1)  passProb = clamp(passProb - 0.05, 0.10, 0.95); // any lead → modest clock-aware tilt
+    }
     // Goal-to-go bias toward the run — NFL calls ~60% rush inside the 10.
     // Engine still rolled close to 50/50 (default mid passProb), so we shed
     // ~12pp of pass to bring rush TDs back near NFL pace.
