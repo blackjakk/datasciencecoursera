@@ -8518,6 +8518,7 @@ function frnProceedToRosterChanges() {
   _runCoachingCarousel();
   franchise._offChanges = runFrnOffseason();
   enforceCapCompliance();   // AI teams restructure under the cap (skips user)
+  enforceCapFloor();        // ...and spend UP to the floor if they're sitting under it
   saveFranchise();
   renderFrnOffseason();
 }
@@ -22485,6 +22486,35 @@ function enforceCapCompliance(opts = {}) {
     for (const p of roster) {
       const c = p.contract; if (!c) continue;
       c.aav = Math.max(0.5, Math.round((c.aav || 0) * scale * 10) / 10);
+      if (typeof _signingBonusCalc === "function" && typeof _baseSalarySchedule === "function") {
+        const { signingBonus, bonusProration } = _signingBonusCalc(c.aav, c.years || 1, p.overall || 70);
+        c.signingBonus = signingBonus;
+        c.bonusProration = bonusProration;
+        c.baseSalaries = _baseSalarySchedule(c.aav, c.years || 1, c.structure || "BALANCED", bonusProration);
+      }
+      c.signedAav = c.aav;
+    }
+  }
+}
+// Mirror of enforceCapCompliance, but UPWARD. NFL teams must spend toward a
+// cash floor (~89% over rolling periods); without this, AI teams that don't
+// chase free agency sit well under the cap and league utilization reads low
+// (~84% in audit). Scale under-spending AI teams' AAVs up toward ~92% (bounded
+// so a near-empty payroll can't balloon). Run AFTER enforceCapCompliance so
+// teams settle into a realistic [~92%, 94%] band.
+function enforceCapFloor(opts = {}) {
+  const userId = opts.includeUser ? null : (typeof franchise !== "undefined" ? franchise.chosenTeamId : null);
+  const cap = (typeof franchise !== "undefined" && franchise.salaryCap) || SALARY_CAP_BASE;
+  const floor = cap * 0.92;
+  for (const t of TEAMS) {
+    if (userId != null && t.id === userId) continue;
+    const roster = (franchise.rosters && franchise.rosters[t.id]) || [];
+    const hit = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
+    if (hit >= floor || hit <= 0) continue;          // already spending to the floor
+    const scale = Math.min(1.5, floor / hit);        // bounded bump (no runaway)
+    for (const p of roster) {
+      const c = p.contract; if (!c) continue;
+      c.aav = Math.min(cap, Math.round((c.aav || 0) * scale * 10) / 10);
       if (typeof _signingBonusCalc === "function" && typeof _baseSalarySchedule === "function") {
         const { signingBonus, bonusProration } = _signingBonusCalc(c.aav, c.years || 1, p.overall || 70);
         c.signingBonus = signingBonus;
