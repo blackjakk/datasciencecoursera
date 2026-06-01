@@ -5026,6 +5026,35 @@ class GameSimulator {
       // the league-average arm is neutral (aggregate comp% preserved).
       const _qbThr = qbPlayer?.stats?.[4] ?? 78;
       const qbDepthSkill = qbCompFromOvr + Math.max(0, _expDepth - 10) * (_qbThr - 80) / 2500;
+      // ── UNDERTHROW (Phase 2) ────────────────────────────────────────────
+      // A below-average arm can't drive the deep ball there: it lands SHORT, the
+      // receiver decelerates to come back, and the beaten defender closes for a
+      // play. The INT outcome rides the arm-driven int rate upstream; here are
+      // the NON-pick outcomes — a pass breakup, or a contested catch well short
+      // of the target (lost separation → few yards). Deep throws, weak arms only.
+      if (_expDepth >= 16 && _qbThr < 80) {
+        const _utChance = clamp((_expDepth - 16) * 0.012 + (80 - _qbThr) * 0.015, 0, 0.45);
+        if (Math.random() < _utChance) {
+          const _utQB = this.offR.starters.qb;
+          if (Math.random() < 0.55) {
+            // PD — defender drives on the short ball and knocks it away
+            const _utDB = this._creditDBStat("pd", { CB: 0.5, S: 0.35, LB: 0.15 });
+            if (qbStats) qbStats.pass_att++;
+            off.team.pass_att++;
+            this._pushVisual({ kind: "incomplete", desc: `UNDERTHROWN — ${rcvr} has to come back, ${_utDB || "the DB"} closes and breaks it up`, startYard, endYard: startYard, passer: _utQB, defender: _utDB, isUnderthrown: true });
+            return { yards: 0, incomplete: true };
+          }
+          // Contested catch SHORT — receiver fights back to it, hauls it in well
+          // short of the intended marker.
+          const _utYds = Math.max(2, Math.round(_expDepth * (0.40 + Math.random() * 0.25)));
+          if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += _utYds; if (_utYds > qbStats.pass_long) qbStats.pass_long = _utYds; }
+          const _utRS = off.players[rcvr];
+          if (_utRS) { _utRS.rec_tgt++; _utRS.rec++; _utRS.rec_yds += _utYds; }
+          off.team.pass_att++; off.team.pass_comp++; off.team.passYds += _utYds; off.team.totalYds += _utYds;
+          this._pushVisual({ kind: "complete", desc: `${rcvr} comes back for the underthrown ball — short of the marker (+${_utYds})`, startYard, endYard: clamp(startYard + _utYds, 0, 100), receiver: rcvr, passer: _utQB, yards: _utYds, isUnderthrown: true });
+          return { yards: _utYds };
+        }
+      }
       const compPct = clamp((0.62 + adv * 0.13 + qbDepthSkill + depthCompMod - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + clutchCompMod + boxStackCompMod + opennessCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.95);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
