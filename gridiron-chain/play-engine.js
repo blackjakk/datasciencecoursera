@@ -5007,23 +5007,60 @@ class GameSimulator {
       // a 0.40-read matchup subtracts ~5pp. Open routes complete; covered
       // routes don't.
       const opennessCompMod = (_hoistedReadP - 0.55) * 0.35;
-      // ── DEPTH-TIERED COMPLETION (first principles) ──────────────────────
-      // Probability-weighted intended depth of this concept (primary if the
-      // read wins, fallback if not). Deeper throws complete LESS even when open
-      // — longer flight, tighter window — so a single depth-blind comp% let deep
-      // balls over-complete and fattened the explosive-play / season-yardage
-      // tail. Pivot at league aDOT (~8) so the AGGREGATE comp% is preserved while
-      // the SHAPE gets right: short ↑, deep ↓. And QB quality separates MORE with
-      // depth (arm + accuracy) — elites hit the deep ball, everyone completes the
-      // short stuff. This replaces the flat qbCompFromOvr term.
-      const _expDepth = _hoistedReadP * (PASS_CONCEPTS[_hoistedConcept]?.primaryDepth ?? 8)
-                      + (1 - _hoistedReadP) * (PASS_CONCEPTS[_hoistedConcept]?.fallbackDepth ?? 4);
-      const depthCompMod = (8 - _expDepth) * 0.013;                          // short +, deep − (intrinsic)
-      // AUDIT: tally dropback attempts by intended air depth (short <8 / mid
-      // 8-14 / deep ≥15 air yds). Completions are counted at each completion
+      // ── DEPTH-TIERED COMPLETION (first principles) ──────────────────────────
+      // Deeper throws complete LESS even when open — longer flight, tighter window
+      // — so a single depth-blind comp% let deep balls over-complete and fattened
+      // the explosive-play / season-yardage tail. We pivot at league aDOT (~8) so the
+      // AGGREGATE comp% is preserved while the SHAPE gets right: short ↑, deep ↓. And
+      // QB quality separates MORE with depth (arm + accuracy) — elites hit the deep
+      // ball, everyone completes the short stuff. This replaces a flat qbCompFromOvr.
+      // ── REALIZED AIR YARDS (hoisted above the comp roll) ────────────────────
+      // The QB commits to a target depth BEFORE the catch is resolved: read
+      // success → the concept's primary depth, read failure → its fallback. This
+      // draw used to live INSIDE the completion branch, so the depth-tiering
+      // below (depthCompMod, qbDepthSkill, the arm gate, the underthrow) keyed off
+      // _expDepth — a probability blend pinned near league aDOT (~8) with tiny
+      // variance — and was therefore nearly inert: deep balls never actually got
+      // the deep-ball penalty. Keying everything off the REALIZED per-throw depth
+      // gives the shape its teeth (short ↑, deep ↓, arm separates with depth) while
+      // the AGGREGATE comp% is preserved (mean airYds ≈ 8 = the pivot). It also lets
+      // the audit bucket attempts/completions by true air yards instead of the blend.
+      const _conceptDef = PASS_CONCEPTS[_hoistedConcept];
+      const _readBase = (_conceptDef?.readSuccessVs?.[_hoistedCoverage] ?? 0.50) + 0.04;
+      const _qbAwr = this._playerByName?.get?.(QB?.name)?.stats?.[3] ?? 70;
+      const _qbReadMod = (_qbAwr - 70) / 200;
+      const _pressReadCut = clamp(pressure * 0.10, 0, 0.20);
+      const defDeepBonus = (defPbCurrent.deepCovMul - 1) * 4.5;   // -2 for prevent, +0.7 for blitz_46
+      const _readMod = _qbReadMod - _pressReadCut + paAirMod * 0.02 - defDeepBonus * 0.015;
+      const _readSuccess = Math.random() < clamp(_readBase + _readMod, 0.15, 0.92);
+      let airYds = _readSuccess
+        ? clamp(Math.round((_conceptDef?.primaryDepth ?? 8) + normal(0, _conceptDef?.primarySd ?? 3)), -2, 55)
+        : clamp(Math.round((_conceptDef?.fallbackDepth ?? 4) + normal(0, _conceptDef?.fallbackSd ?? 2)), -2, 55);
+      // Stick-aim safety: 3rd-and-long fallback shouldn't dump for a lost FD.
+      const stickAim = (this.down >= 3 && this.ytg >= 8) ? Math.min(6, this.ytg - 8) : 0;
+      if (stickAim > 0 && !_readSuccess && airYds < this.ytg - 1) {
+        airYds = clamp(Math.round(airYds + stickAim * 0.6), -2, 55);
+      }
+      // Receiver-archetype aDOT shift (DEEP_THREAT deeper, SLOT/BLOCKING shorter).
+      const archAirMod = rcvrArch === "DEEP_THREAT"  ?  4.5
+                       : rcvrArch === "POSSESSION"   ? -1.5
+                       : rcvrArch === "SLOT"         ? -3.0
+                       : rcvrArch === "RED_ZONE"     ? -1.2
+                       : rcvrArch === "ROUTE_RUNNER" ? -0.5
+                       : rcvrArch === "BLOCKING"     ? -3.5  // blocking TE: short outlets only
+                       : rcvrArch === "HYBRID"       ? -1.5  // hybrid TE: between receiving + blocking
+                       : 0;
+      if (archAirMod) airYds = clamp(Math.round(airYds + archAirMod * 0.7), -2, 55);
+      this._lastPassConcept = _hoistedConcept;
+      this._lastPassCoverage = _hoistedCoverage;
+      // Deeper throws complete LESS even when open — longer flight, tighter window.
+      // Pivot at league aDOT (~8): short +, deep − (intrinsic), aggregate preserved.
+      const depthCompMod = (8 - airYds) * 0.013;
+      // AUDIT: tally dropback attempts by REALIZED intended air depth (short <8 /
+      // mid 8-14 / deep ≥15 air yds). Completions are counted at each completion
       // site below via this._curTb. Lets _sim_audit report deep-ball tried/
       // completed rates against NFL.
-      const _tb = _expDepth < 8 ? "short" : _expDepth < 15 ? "mid" : "deep";
+      const _tb = airYds < 8 ? "short" : airYds < 15 ? "mid" : "deep";
       off.team["pa_" + _tb] = (off.team["pa_" + _tb] || 0) + 1;
       this._curTb = _tb;
       // Deep-ball ability keys on ARM STRENGTH (THR, stat[4]): a cannon arm
@@ -5032,15 +5069,15 @@ class GameSimulator {
       // only kicks in past ~10 air yds and scales with depth. Pivot at THR 80 so
       // the league-average arm is neutral (aggregate comp% preserved).
       const _qbThr = qbPlayer?.stats?.[4] ?? 78;
-      const qbDepthSkill = qbCompFromOvr + Math.max(0, _expDepth - 10) * (_qbThr - 80) / 2500;
+      const qbDepthSkill = qbCompFromOvr + Math.max(0, airYds - 10) * (_qbThr - 80) / 2500;
       // ── UNDERTHROW (Phase 2) ────────────────────────────────────────────
       // A below-average arm can't drive the deep ball there: it lands SHORT, the
       // receiver decelerates to come back, and the beaten defender closes for a
       // play. The INT outcome rides the arm-driven int rate upstream; here are
       // the NON-pick outcomes — a pass breakup, or a contested catch well short
       // of the target (lost separation → few yards). Deep throws, weak arms only.
-      if (_expDepth >= 16 && _qbThr < 80) {
-        const _utChance = clamp((_expDepth - 16) * 0.012 + (80 - _qbThr) * 0.015, 0, 0.45);
+      if (airYds >= 16 && _qbThr < 80) {
+        const _utChance = clamp((airYds - 16) * 0.012 + (80 - _qbThr) * 0.015, 0, 0.45);
         if (Math.random() < _utChance) {
           const _utQB = this.offR.starters.qb;
           if (Math.random() < 0.55) {
@@ -5048,12 +5085,12 @@ class GameSimulator {
             const _utDB = this._creditDBStat("pd", { CB: 0.5, S: 0.35, LB: 0.15 });
             if (qbStats) qbStats.pass_att++;
             off.team.pass_att++;
-            this._pushVisual({ kind: "incomplete", desc: `UNDERTHROWN — ${rcvr} has to come back, ${_utDB || "the DB"} closes and breaks it up`, startYard, endYard: startYard, passer: _utQB, defender: _utDB, isUnderthrown: true });
+            this._pushVisual({ kind: "incomplete", incReason: "underthrown", desc: `UNDERTHROWN — ${rcvr} has to come back, ${_utDB || "the DB"} closes and breaks it up`, startYard, endYard: startYard, targetDepth: airYds, passer: _utQB, defender: _utDB, isUnderthrown: true });
             return { yards: 0, incomplete: true };
           }
           // Contested catch SHORT — receiver fights back to it, hauls it in well
           // short of the intended marker.
-          const _utYds = Math.max(2, Math.round(_expDepth * (0.40 + Math.random() * 0.25)));
+          const _utYds = Math.max(2, Math.round(airYds * (0.40 + Math.random() * 0.25)));
           if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += _utYds; if (_utYds > qbStats.pass_long) qbStats.pass_long = _utYds; }
           if (this._curTb) off.team["pc_" + this._curTb] = (off.team["pc_" + this._curTb] || 0) + 1;   // audit: contested-short still completes (deep)
           const _utRS = off.players[rcvr];
@@ -5100,28 +5137,6 @@ class GameSimulator {
                        : wxPass.label === "SNOW"  ? passWindWith * 2.0 - 1.5
                        : wxPass.label === "RAIN"  ? -1.0
                        : 0;
-        // Defensive scheme: prevent shells crush deep balls, blitz looks
-        // leave them open. deepCovMul > 1 means the offense gets MORE
-        // deep yards (defense gives them up).
-        const defDeepBonus = (defPbCurrent.deepCovMul - 1) * 4.5;   // -2 for prevent, +0.7 for blitz_46
-        // WR archetype tilts air yards. Deep threats push the ball
-        // downfield; possession / slot / RZ trade air for shorter, surer
-        // routes.
-        // Receiver-archetype air-yards (aDOT) shift. APPLIED to airYds below —
-        // it was previously orphaned (defined, never consumed), so WR depth
-        // never differentiated: SLOT's short-route penalty never landed (it
-        // threw at normal depth + piled on YAC, leading the team in Y/REC) and
-        // the DEEP_THREAT never actually ran deep. DEEP_THREAT pushed to +4.5 so
-        // it clearly leads aDOT/long (deeper throws also complete less → the
-        // lowest catch%, the correct trade).
-        const archAirMod = rcvrArch === "DEEP_THREAT"  ?  4.5
-                         : rcvrArch === "POSSESSION"   ? -1.5
-                         : rcvrArch === "SLOT"         ? -3.0
-                         : rcvrArch === "RED_ZONE"     ? -1.2
-                         : rcvrArch === "ROUTE_RUNNER" ? -0.5
-                         : rcvrArch === "BLOCKING"     ? -3.5  // blocking TE: short outlets only
-                         : rcvrArch === "HYBRID"       ? -1.5  // hybrid TE: between receiving + blocking
-                         : 0;
         // RBs catch short outlets; without this they inherit the WR air-yards mean.
         const posAirMod = rcvrPlayer?.position === "RB" ? -3.0 : 0;
         // Aggressive QBs call more deep shots — tilts target depth up/down.
@@ -5132,50 +5147,9 @@ class GameSimulator {
         // +0.8 -> +1.5: YAC trim cut offense too much (YPA fell to 0.91x).
         // Partial restore — passes back to ~7.0 yds avg without re-inflating
         // sacks or RZ.
-        // STICK-AWARE AIR YARDS on 3rd-and-long. NFL QBs target the chains
-        // on 3rd-and-long; ours were throwing 4-yard checkdowns on 3rd-and-12
-        // (audit showed 3rd-and-long pass YPA at 5.65 vs NFL ~7.5 — completed
-        // throws were landing well short of the sticks). Push airMean to at
-        // least target the sticks when ytg is ≥ 8; capped at +6 so 3rd-and-30
-        // doesn't become a moonball every snap.
-        const stickAim = (this.down >= 3 && this.ytg >= 8)
-          ? Math.min(6, this.ytg - 8)
-          : 0;
-        // ── LEVEL-4 CONCEPT × COVERAGE PASS RESOLUTION ──────────────────
-        // QB calls a concept, defense calls a coverage, lookup the matchup
-        // table for read success rate. Read success → throw to concept's
-        // primary depth. Read failure → throw to fallback (checkdown).
-        // Concept × coverage are now HOISTED before compPct so the openness
-        // expectation can modulate completion rate; reuse those values here.
-        const _concept = _hoistedConcept;
-        const _coverage = _hoistedCoverage;
-        const _conceptDef = PASS_CONCEPTS[_concept];
-        // Read success rates calibrated slightly upward from matchup
-        // baseline. +0.08 was too generous (scoring 26.0 vs NFL 22);
-        // +0.04 lands attempt-avg airYds near NFL 7.5-8.
-        const _readBase = (_conceptDef.readSuccessVs[_coverage] ?? 0.50) + 0.04;
-        const _qbAwr = this._playerByName?.get?.(QB?.name)?.stats?.[3] ?? 70;
-        const _qbReadMod = (_qbAwr - 70) / 200;             // ±0.075
-        const _pressReadCut = clamp(pressure * 0.10, 0, 0.20); // pressure cuts read time (less aggressive)
-        const _readMod = _qbReadMod - _pressReadCut + paAirMod * 0.02 - defDeepBonus * 0.015;
-        const _readSuccess = Math.random() < clamp(_readBase + _readMod, 0.15, 0.92);
-        let airYds;
-        if (_readSuccess) {
-          airYds = clamp(Math.round(_conceptDef.primaryDepth + normal(0, _conceptDef.primarySd)), -2, 55);
-        } else {
-          airYds = clamp(Math.round(_conceptDef.fallbackDepth + normal(0, _conceptDef.fallbackSd)), -2, 55);
-        }
-        // Stick-aim safety: 3rd-and-long fallback shouldn't dump for FD lost
-        if (stickAim > 0 && !_readSuccess && airYds < this.ytg - 1) {
-          airYds = clamp(Math.round(airYds + stickAim * 0.6), -2, 55);
-        }
-        // Apply the receiver-archetype aDOT shift (DEEP_THREAT deeper, SLOT/
-        // BLOCKING shorter). Scaled 0.7 so the concept model still drives the
-        // base depth and the archetype tilts it rather than dominating.
-        if (archAirMod) airYds = clamp(Math.round(airYds + archAirMod * 0.7), -2, 55);
-        // Stash for stat tracking / play-by-play surfacing
-        this._lastPassConcept = _concept;
-        this._lastPassCoverage = _coverage;
+        // Concept, coverage, read success and the REALIZED airYds were drawn and
+        // applied ABOVE the comp roll (the QB commits to a target depth before the
+        // catch resolves — see "REALIZED AIR YARDS"); airYds is in scope here.
         // YAC distribution — short catches / screens get more YAC potential.
         // Tuned to land NFL-average ~4.5 yds YAC per completion. The prior
         // "bumped YAC" (mean ~5.5) was a band-aid for the bimodal single-
@@ -5488,7 +5462,9 @@ class GameSimulator {
         });
         return { yards };
       }
-      const targetDepth = clamp(normal(13, 8), 3, 45);
+      // Incompletions land at the REALIZED intended depth (hoisted airYds) so a
+      // deep miss visibly sails deep and the batted/leap logic keys off true depth.
+      const targetDepth = clamp(Math.max(1, Math.round(airYds)), 1, 55);
       // (rcvr/rcvrStats/rcvrPlayer/rcvrCat already in scope from the outer pass block)
       if (qbStats) qbStats.pass_att++;
       if (rcvrStats) rcvrStats.rec_tgt++;
