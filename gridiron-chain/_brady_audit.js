@@ -555,7 +555,7 @@ const harness = `
         if (!cpSeen.has(p.name)) {
           cpSeen.add(p.name);
           const cp = careerPeak.get(p.name);
-          if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year });
+          if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year, pos: _normPos(p.position) });
           else if (o > cp.peakOvr) cp.peakOvr = o;
           // Career length — count distinct seasons on an active roster.
           const cl = careerLen.get(p.name);
@@ -571,7 +571,7 @@ const harness = `
       const o = p.overall || 0;
       const rb = _roundBucket(p);
       const cp = careerPeak.get(p.name);
-      if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year });
+      if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year, pos: _normPos(p.position) });
       else if (o > cp.peakOvr) cp.peakOvr = o;
     }
   }
@@ -1048,6 +1048,34 @@ const harness = `
                     (h85 + "%").padStart(13) +
                     m4.toLocaleString().padStart(8));
       }
+      console.log("");
+    }
+    // ── LATE-ROUND ELITE — R6+/UDFA players who reached 90+ peak OVR ─────────
+    // Distinct PLAYERS (career peak, not player-seasons) drafted R6, R7, or UDFA
+    // who ever hit 90+ OVR — the "diamonds in the rough" the scouts missed.
+    // Total + by position. (Round 8 = UDFA in _roundBucket.)
+    {
+      const lateElite = [];   // {pos, peakOvr, round}
+      for (const cp of careerPeak.values()) {
+        if (cp.firstSeen > finalYear - 2) continue;          // too-early rookies
+        if ((cp.round === 6 || cp.round === 7 || cp.round === 8) && cp.peakOvr >= 90) {
+          lateElite.push({ pos: cp.pos, peakOvr: cp.peakOvr, round: cp.round });
+        }
+      }
+      const byPos = {}; const byRnd = { 6:0, 7:0, 8:0 };
+      let n96 = 0;
+      for (const e of lateElite) {
+        byPos[e.pos] = (byPos[e.pos] || 0) + 1;
+        byRnd[e.round] = (byRnd[e.round] || 0) + 1;
+        if (e.peakOvr >= 96) n96++;
+      }
+      console.log(" LATE-ROUND ELITE — R6+/UDFA players who reached 90+ peak OVR (distinct players, " + finalYear + " seasons)");
+      console.log("   TOTAL: " + lateElite.length + "  (of which 96+ 'legend' tier: " + n96 + ")" +
+                  "   ·   by round: R6 " + (byRnd[6]||0) + "  R7 " + (byRnd[7]||0) + "  UDFA " + (byRnd[8]||0));
+      const POS_ORD = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+      console.log("   by position: " +
+        POS_ORD.filter(P => byPos[P]).map(P => P + " " + byPos[P]).join("  ") +
+        (Object.keys(byPos).some(P => !POS_ORD.includes(P)) ? "  (+other)" : ""));
       console.log("");
     }
   }
