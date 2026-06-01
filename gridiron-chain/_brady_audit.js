@@ -226,6 +226,13 @@ const harness = `
   // Also maintains a top-5 single-season leaderboard per stat (seasonTop5).
   const seasonTop5 = {};   // cat → [{val,name,season}, ...] sorted desc, len<=5
   const qbSeasonTop40 = []; // top-40 single-season QB passing years, all-time (richer entries)
+  // Top-50 single-season leaders per position (richer entries: yds, age, OVR, team, round).
+  // Marquee stat per position (yardage where it exists, else the headline counting stat):
+  //   QB pass_yds · RB rush_yds · WR/TE rec_yds · OL pancakes · DL sk · LB tkl ·
+  //   CB int_made · S tkl · K fg_made · P punt_yds
+  const POS_TOP_STAT = { QB:"pass_yds", RB:"rush_yds", WR:"rec_yds", TE:"rec_yds",
+    OL:"pancakes", DL:"sk", LB:"tkl", CB:"int_made", S:"tkl", K:"fg_made", P:"punt_yds" };
+  const posSeasonTop50 = {};   // pos → [{val, name, season, team, age, ovr, draftRound, line}, ...]
   function _foldSeasonRecords() {
     // name → normalized position, from this season's active rosters.
     const nameToPos = {};
@@ -289,6 +296,36 @@ const harness = `
           qbSeasonTop40.sort((a, b) => b.val - a.val);
           if (qbSeasonTop40.length > 40) qbSeasonTop40.length = 40;
         }
+      }
+      // Top-50 single-season leaders for EVERY position by its marquee stat.
+      // (Separate loop because POS_TOP_STAT keys may not be in CATS for all
+      // positions — pancakes, fg_made, punt_yds, etc. all live in r if recorded.)
+      const _pos = nameToPos[name];
+      const _marqK = _pos && POS_TOP_STAT[_pos];
+      const _marqV = _marqK ? (r[_marqK] || 0) : 0;
+      if (_marqK && _marqV > 0 && !_isPlaceholder(name)) {
+        const tid = playerTeamThisSeason.get(name);
+        const team = (typeof getTeam === "function" && tid != null) ? getTeam(tid) : null;
+        const pl = (franchise?.rosters?.[tid] || []).find(p => p.name === name);
+        // Optional supplemental stat line for color (TD, etc.)
+        const supp = _pos === "QB" ? ((r.pass_td || 0) + " TD / " + (r.pass_int || 0) + " INT")
+                   : _pos === "RB" ? ((r.rush_td || 0) + " TD · " + (r.rec_yds || 0) + " recY")
+                   : _pos === "WR" || _pos === "TE" ? ((r.rec || 0) + " rec · " + (r.rec_td || 0) + " TD")
+                   : _pos === "OL" ? ""
+                   : _pos === "DL" ? ((r.tkl || 0) + " tkl · " + (r.ff || 0) + " FF")
+                   : _pos === "LB" ? ((r.sk || 0) + " sk · " + (r.int_made || 0) + " INT")
+                   : _pos === "CB" ? ((r.pd || 0) + " PD · " + (r.tkl || 0) + " tkl")
+                   : _pos === "S"  ? ((r.int_made || 0) + " INT · " + (r.pd || 0) + " PD")
+                   : "";
+        const lb50 = (posSeasonTop50[_pos] = posSeasonTop50[_pos] || []);
+        lb50.push({
+          val: _marqV, name, season: franchise.season,
+          team: team ? (team.city + " " + team.name) : "?",
+          age: pl?.age ?? null, ovr: pl?.overall ?? null,
+          draftRound: pl?.draftRound ?? null, supp,
+        });
+        lb50.sort((a, b) => b.val - a.val);
+        if (lb50.length > 50) lb50.length = 50;
       }
       // Best season by position — real players only.
       if (_isPlaceholder(name)) continue;
@@ -1074,6 +1111,59 @@ const harness = `
     console.log(" "+fhOk+"/"+FH.length+" in range\\n");
   }
 
+  // ── TOP 10 DYNASTIES — longest streaks of consecutive winning seasons ─────
+  // Definition: a single team's longest run of seasons with win% >= .500. This
+  // captures the Belichick Patriots (19 straight 2001-2019), the Brady Bucs/Pats
+  // hybrid era, the Cowboys '90s wave, etc. — a clean "sustained excellence"
+  // metric that doesn't require playoff bracket data.
+  if (seasonStandings.length) {
+    const _streaks = [];   // [{teamId, length, startYr, endYr}]
+    for (const t of TEAMS) {
+      let cur = 0, curStart = null, bestForTeam = null;
+      for (const ss of seasonStandings) {
+        const wp = ss.winPct[t.id];
+        if (wp != null && wp >= 0.5) {
+          if (cur === 0) curStart = ss.year;
+          cur++;
+        } else {
+          if (cur > 0) {
+            const entry = { teamId: t.id, length: cur, startYr: curStart, endYr: ss.year - 1 };
+            if (!bestForTeam || entry.length > bestForTeam.length) bestForTeam = entry;
+            cur = 0; curStart = null;
+          }
+        }
+      }
+      // Tail — streak that ran to the final season
+      if (cur > 0) {
+        const entry = { teamId: t.id, length: cur, startYr: curStart, endYr: seasonStandings[seasonStandings.length - 1].year };
+        if (!bestForTeam || entry.length > bestForTeam.length) bestForTeam = entry;
+      }
+      if (bestForTeam) _streaks.push(bestForTeam);
+    }
+    _streaks.sort((a, b) => b.length - a.length);
+    const _top10dyn = _streaks.slice(0, 10);
+    if (_top10dyn.length) {
+      console.log("══════════════════════════════════════════════════════════");
+      console.log(" TOP 10 DYNASTIES — longest consecutive winning-season streaks");
+      console.log("══════════════════════════════════════════════════════════");
+      console.log("  # " + "Yrs".padStart(3) + "  " + "Span".padEnd(11) + "  Team");
+      console.log("  " + "-".repeat(54));
+      _top10dyn.forEach((d, i) => {
+        const t = TEAMS.find(x => x.id === d.teamId);
+        const teamName = t ? (t.city + " " + t.name) : "?";
+        console.log("  " + String(i + 1).padStart(2) + " " +
+          String(d.length).padStart(3) + "  S" +
+          String(d.startYr).padStart(2) + "-S" + String(d.endYr).padStart(2).padEnd(5) + "  " + teamName);
+      });
+      // Summary stats
+      const _avgL = _top10dyn.reduce((s, d) => s + d.length, 0) / _top10dyn.length;
+      const _maxL = _top10dyn[0].length;
+      console.log("  " + "-".repeat(54));
+      console.log("  longest: " + _maxL + " yrs  ·  top-10 avg: " + _avgL.toFixed(1) + " yrs");
+      console.log("");
+    }
+  }
+
   // ── POSITIONAL DEPTH (how many elite at one time + top-10 OVR range) ────
   if (posDepth.QB.t1.length) {
     const avg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
@@ -1324,6 +1414,41 @@ const harness = `
     console.log("  top-40 avg: " + _avg(qbSeasonTop40.map(e=>e.val)).toFixed(0) + " yds  ·  " +
       "median: " + qbSeasonTop40[Math.floor(qbSeasonTop40.length/2)].val.toLocaleString() + " yds  ·  " +
       "avg OVR: " + _avg(qbSeasonTop40.filter(e=>e.ovr).map(e=>e.ovr)).toFixed(1));
+    console.log("");
+  }
+  // ── TOP 50 SINGLE-SEASON LEADERS — every position by its marquee stat ─────
+  {
+    const POS_ORDER = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+    const POS_LABEL = { QB:"Passing yds", RB:"Rushing yds", WR:"Rec yds", TE:"Rec yds",
+      OL:"Pancakes", DL:"Sacks", LB:"Tackles", CB:"INTs", S:"Tackles",
+      K:"FG made", P:"Punt yds" };
+    const _avgArr = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" TOP 50 SINGLE-SEASON LEADERS BY POSITION — all-time (" + ${SEASONS} + " seasons)");
+    console.log("══════════════════════════════════════════════════════════");
+    for (const POS of POS_ORDER) {
+      const lb = posSeasonTop50[POS];
+      if (!lb || !lb.length) continue;
+      const n = lb.length;
+      const med = lb[Math.floor(n/2)].val;
+      const avgVal = _avgArr(lb.map(e=>e.val)).toFixed(0);
+      const avgOvr = _avgArr(lb.filter(e=>e.ovr).map(e=>e.ovr)).toFixed(1);
+      console.log("");
+      console.log(" ── " + POS + " · " + POS_LABEL[POS] + " — top " + n + " (max " + lb[0].val.toLocaleString() +
+                  ", med " + med.toLocaleString() + ", avg " + avgVal + ", avg OVR " + avgOvr + ") ──");
+      console.log("  # " + "Stat".padStart(6) + "  " + "Age".padStart(3) + " " + "OVR".padStart(3) + " R  " +
+                  "Player".padEnd(26) + " S#  Team");
+      console.log("  " + "-".repeat(85));
+      lb.forEach((e, i) => {
+        const rL = e.draftRound === 0 ? "U" : (e.draftRound ?? "-");
+        console.log("  " + String(i + 1).padStart(2) + " " +
+          _fmt(e.val).padStart(6) + "  " +
+          String(e.age ?? "-").padStart(3) + " " + String(e.ovr ?? "-").padStart(3) + " " +
+          String(rL).padStart(1) + "  " +
+          (e.name || "").padEnd(26).slice(0, 26) + " S" + String(e.season).padEnd(2) + " " + e.team +
+          (e.supp ? "   (" + e.supp + ")" : ""));
+      });
+    }
     console.log("");
   }
   // ── RECORD QB OFFENSE SNAPSHOT — measurables + stats ─────────────────────
