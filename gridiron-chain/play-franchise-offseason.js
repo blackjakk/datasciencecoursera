@@ -11292,6 +11292,13 @@ function runFrnOffseason() {
         // player getting more explosive. Slow + youth-gated + capped so physicals
         // don't inflate to 99 (the bug that made every developed QB a cannon).
         if (typeof _developPhysical === "function") _developPhysical(p);
+        // Sync the DISPLAYED weight to the (now stable, age-aware) gameplay model
+        // so a player's listed weight tracks his career: young functional-mass
+        // gain (STR dev → heavier) and decline-year bloat. Keeps the profile card
+        // honest with how he actually plays (effectiveSpeed reads the same model).
+        if (typeof combineMeasurables === "function") {
+          try { p.weight = combineMeasurables(p).weightLbs; } catch (_e) {}
+        }
       } else
       // _GEM_GRIND_NOTE — grind cap 28->31 DECOUPLES gem emergence from the rare
       // production breakout. From ~OVR 62 a gem grinds ~4-5/yr, so 6 yrs (to age

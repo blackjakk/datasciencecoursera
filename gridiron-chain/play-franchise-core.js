@@ -1562,7 +1562,19 @@ function _combineWeight(p) {
   // 12 lbs underweight. Use NORMAL body mod for K/P specifically.
   const bodyTypeForWeight = ["K", "P"].includes(pos) ? "NORMAL" : p.bodyType;
   const bodyMod = BODY_WEIGHT_MOD[bodyTypeForWeight] ?? 0;
-  return Math.round(meanLbs + strBump + bodyMod + (Math.random() - 0.5) * 30);
+  // Per-player weight spread (±15 lbs) — was Math.random(), which RE-ROLLED a
+  // player's effective weight on EVERY effectiveSpeed call (play-to-play noise,
+  // not the intended cross-player spread). Seed it by name so the spread is
+  // preserved across players but STABLE for a given player.
+  let _h = 0; const _nm = p.name || p.pid || pos;
+  for (let i = 0; i < _nm.length; i++) _h = (_h * 31 + _nm.charCodeAt(i)) | 0;
+  const stableSpread = (Math.abs(_h) % 31) - 15;          // -15..+15, stable per player
+  // AGE BLOAT — conditioning slips in the back third of a career; a few lbs creep
+  // on past 30 (capped +12 at ~40). Flows into effectiveSpeed as a small drag that
+  // REINFORCES the SPD/AGI decline already modeled. Zero for ≤30 so the base
+  // distribution / speed calibration is untouched — adds only the decline effect.
+  const ageBloat = Math.min(12, Math.max(0, (p.age || 25) - 30) * 1.2);
+  return Math.round(meanLbs + strBump + bodyMod + stableSpread + ageBloat);
 }
 // Per-position test relevance — used by combine event and UI to show only
 // drills that matter for the player's position. QBs don't bench at the
