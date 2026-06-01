@@ -4928,9 +4928,8 @@ class GameSimulator {
       // QB OVR matters a lot for completion %: a 60-OVR scrub completes far less than a 90-OVR star
       // (swing of ~0.20 across 30 OVR points, centered around 75 OVR baseline)
       // OVR completion boost compressed: was (OVR-75)/150 giving a 99
-      // OVR a +16pp swing — too extreme. Real NFL elite vs average is
-      // ~5pp gap. Halved to (OVR-75)/300 → 99-OVR = +8pp swing.
-      const qbCompFromOvr = (this.offR.qb - 75) / 300;
+      // (QB completion skill is now the DEPTH-WEIGHTED accuracy/arm blend computed
+      // in the hoisted air-yards block — qbDepthSkill — not a flat OVR term.)
       // ── COMPOSED-QB POCKET BONUS ──────────────────────────────────────
       // Smart, cool-headed QBs (high AWR) extend plays in the pocket — they
       // step up, slide, hold the ball longer, and wait for the deep route
@@ -5126,13 +5125,27 @@ class GameSimulator {
       const _tb = airYds < 8 ? "short" : airYds < 15 ? "mid" : "deep";
       off.team["pa_" + _tb] = (off.team["pa_" + _tb] || 0) + 1;
       this._curTb = _tb;
-      // Deep-ball ability keys on ARM STRENGTH (THR, stat[4]): a cannon arm
-      // drives the deep ball in, a noodle arm can't — regardless of overall.
-      // Short throws stay accuracy-driven (qbCompFromOvr); the THR bonus/penalty
-      // only kicks in past ~10 air yds and scales with depth. Pivot at THR 80 so
-      // the league-average arm is neutral (aggregate comp% preserved).
-      const _qbThr = qbPlayer?.stats?.[4] ?? 78;
-      const qbDepthSkill = qbCompFromOvr + Math.max(0, airYds - 10) * (_qbThr - 80) / 2500;
+      // ── DEPTH-WEIGHTED QB COMPLETION SKILL ──────────────────────────────────
+      // Completion is a DIFFERENT skill at different depths (first principles):
+      //   • short (≤5 yds): pure placement / timing / touch → ACCURACY (AWR) +
+      //     TECHNIQUE (TEC). Arm is irrelevant — anyone completes a 5-yd out.
+      //   • intermediate: accuracy still leads, velocity starts to matter.
+      //   • deep (≥19): ARM (THR) drives it in, with an accuracy floor for
+      //     placement; a noodle arm physically can't get there (→ underthrow).
+      // Blend the two skill axes by depth. armWeight ramps 0 → 0.80 from 4 to 26
+      // air yds (crossing 50/50 at the ~15-yd deep line); accWeight = 1-armWeight.
+      // Both axes are centered on the league-average QB (AWR 75 / TEC 68 / THR 80)
+      // so the average QB nets ZERO at every depth and the aggregate comp% is
+      // preserved — only the per-depth SPREAD changes. This replaces the old flat
+      // qbCompFromOvr + bolt-on arm bonus.
+      const _qbThr = qbPlayer?.stats?.[4] ?? 80;
+      const _qbAwrC = qbPlayer?.stats?.[3] ?? 75;
+      const _qbTecC = qbPlayer?.stats?.[11] ?? 68;
+      const _accSkill = (_qbAwrC - 75) * 0.62 + (_qbTecC - 68) * 0.38;   // accuracy composite, ~0 at avg
+      const _armSkill = _qbThr - 80;                                      // arm, ~0 at avg
+      const _armWeight = clamp((airYds - 4) / 22, 0, 0.80);               // short→0, deep→0.80
+      const _accWeight = 1 - _armWeight;
+      const qbDepthSkill = _accSkill * _accWeight * 0.0040 + _armSkill * _armWeight * 0.0048;
       // ── UNDERTHROW (Phase 2) ────────────────────────────────────────────
       // A below-average arm can't drive the deep ball there: it lands SHORT, the
       // receiver decelerates to come back, and the beaten defender closes for a

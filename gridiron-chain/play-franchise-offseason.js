@@ -10792,7 +10792,7 @@ function _runCoachingCarousel() {
 // coach speed onto a late-round flyer.
 function _gemDevStats(pos) {
   switch (pos) {
-    case "QB": return [4, 3, 11];     // THR, AWR, TEC
+    case "QB": return [3, 11];        // AWR, TEC — THR (arm) is FROZEN (physical, not coachable)
     case "RB": return [5, 11];        // CAT, TEC
     case "WR": return [5, 3, 11];     // CAT, AWR, TEC
     case "TE": return [5, 6, 11];     // CAT, BLK, TEC
@@ -10998,9 +10998,49 @@ function _developNflPlayer(p, mult) {
   if (p.hiddenGem && p.overall >= (p.hiddenGem.ceiling || 99)) delete p.hiddenGem;
 }
 
+// Slight physical development — arm strength, speed, explosiveness, power. These
+// are GENETIC traits (frozen out of the coachable gap-closing dev that drives
+// OVR), but real players DO improve them modestly young: a QB adds a few mph
+// (Josh Allen's arm, Stafford), a DB gets more explosive, a lineman adds
+// functional power. Slow, youth-gated, drive-scaled, and capped at 96 so physical
+// dev refines a player toward elite WITHOUT manufacturing a 99 freak (that's a
+// draft-day genetic gift) — and without the runaway inflation that put THR on
+// every developed QB at 90+. Prefers bumping the player's LOWEST relevant
+// physical (diminishing returns at the top — a noodle cranks up faster than a
+// cannon gets cannonier).
+const _POS_PHYS = {
+  QB: [4, 0],          // THR (arm), SPD (mobility)
+  RB: [0, 2, 1],       // SPD, AGI, STR
+  WR: [0, 2],          // SPD, AGI
+  TE: [1, 0],          // STR, SPD
+  OL: [1, 2],          // STR, AGI
+  DL: [1, 0],          // STR, SPD
+  LB: [0, 2, 1],       // SPD, AGI, STR
+  CB: [0, 2],          // SPD, AGI
+  S:  [0, 2, 1],       // SPD, AGI, STR
+};
+function _developPhysical(p) {
+  if (!p || !p.stats) return;
+  const age = p.age || 25;
+  const peak = p.peakAge ?? 27;
+  if (age > peak) return;                 // pre-peak only; post-peak → physical decline governs
+  const idxs = _POS_PHYS[p.position];
+  if (!idxs || !idxs.length) return;      // K/P leg handled by KPW dev elsewhere
+  const drive = p._drive ?? 60;
+  const driveMul = clamp(0.7 + (drive - 60) / 100, 0.4, 1.15);   // gym rats gain more
+  const youthMul = age <= 23 ? 1.0 : age <= 25 ? 0.7 : 0.4;       // tapers to peak
+  if (Math.random() >= 0.60 * driveMul * youthMul) return;
+  // Bump the LOWEST relevant physical (diminishing returns at the top).
+  const i = idxs.slice().sort((a, b) => (p.stats[a] ?? 60) - (p.stats[b] ?? 60))[0];
+  const cur = p.stats[i] ?? 60;
+  if (cur >= 96) return;                  // physical dev refines toward elite, never to 99
+  p.stats[i] = cur + 1;
+  if (typeof calcOverall === "function") p.overall = calcOverall(p.position, p.stats);
+}
+
 function _devStatPool(pos, age) {
   switch (pos) {
-    case "QB": return [4, 3];                                 // THR, AWR
+    case "QB": return [3, 11];                                // AWR, TEC — THR frozen (arm = physical)
     case "RB": return [5, age <= 26 ? 1 : 5];                // CAT, STR→CAT
     case "WR": return [5, 3];                                 // CAT, AWR
     case "TE": return [5, 6];                                 // CAT, BLK
@@ -11247,6 +11287,11 @@ function runFrnOffseason() {
       const _ORACLE_DEV = true;
       if (_ORACLE_DEV) {
         _developNflPlayer(p, coachBoost * tradeBoost);
+        // Slight, capped PHYSICAL improvement (arm/speed/explosiveness) on top of
+        // the coachable gap-closing dev — a pitcher cranking a few mph, a young
+        // player getting more explosive. Slow + youth-gated + capped so physicals
+        // don't inflate to 99 (the bug that made every developed QB a cannon).
+        if (typeof _developPhysical === "function") _developPhysical(p);
       } else
       // _GEM_GRIND_NOTE — grind cap 28->31 DECOUPLES gem emergence from the rare
       // production breakout. From ~OVR 62 a gem grinds ~4-5/yr, so 6 yrs (to age

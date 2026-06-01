@@ -852,15 +852,15 @@ function calcOverall(pos, s) {
   // For trench positions (OL/DL/LB/RB/TE), AWR is NOT in the OVR formula — it feeds
   // engine behavior (snap timing, gap reads, blitz pickup) instead.
   switch (pos) {
-    // QB: weight shifted from genetics (agi/spd) to the coachable core
-    // (thr/awr/tec). The old 22% on agi+spd — frozen at draft, ~80 for a
-    // non-athlete — capped even a thr-99/awr-99 QB at ~94, BELOW the 96 legend
-    // bar, so no QB (drafted high OR a late-round gem) ever became a legend
-    // (0 Bradys in 100 seasons). At 13% genetic weight a maxed pocket passer
-    // can reach 96, and the gem dev (grows thr/awr/tec) now carries to it.
-    // Mean QB ≈ unchanged; only the elite tail extends. (Tradeoff: pure
-    // mobility QBs valued slightly less, pocket passers more.)
-    case "QB": v = spd*5+agi*8+awr*24+thr*46+tec*17;  break;
+    // QB: ACCURACY-DRIVEN model. THR (arm) cut 46% → 24% and FROZEN out of the
+    // dev pools — arm strength is a physical/genetic trait (like SPD), not
+    // coachable. AWR (accuracy/processing) raised 24% → 38% and TEC (technique/
+    // footwork) 17% → 28% — these are the coachable core that drives development.
+    // Effect: an average-arm, elite-accuracy QB (Brady/Brees) can now reach
+    // top-5 OVR; a cannon with poor accuracy can't. Arm still matters (24%) and
+    // is decisive for the DEEP ball via the engine's depth-weighted completion +
+    // underthrow (raw THR), but it no longer inflates to 99 on every developed QB.
+    case "QB": v = spd*4+agi*6+awr*40+thr*18+tec*32;  break;
     case "RB": v = spd*30+str*17+agi*21+cat*17+tec*15; break;
     case "WR": v = spd*26+agi*21+cat*30+awr*8+tec*15;  break;
     case "TE": v = spd*17+cat*34+blk*25+str*9+tec*15;  break;
@@ -1600,6 +1600,22 @@ function _rollHiddenGem(player) {
     ceiling,
     growthRate: 4 + Math.floor(rng() * 5),
   };
+  // QB ARM-BASELINE. THR is now frozen (physical, out of the dev pools), so a
+  // high-ceiling QB gem with a weak drafted arm could never reach his ceiling
+  // OVR — and his deep ball would stay permanently poor. Real late-round legend
+  // QBs (Brady, Romo, Wilson) had GOOD arms; they slipped for combine/system/
+  // size reasons, not arm talent. So stamp a one-time THR floor matching the
+  // ceiling: a 96+ ceiling implies ~90+ arm, a 90-95 ceiling ~85+. Only raises
+  // a sub-floor arm (never lowers a cannon), and only for QBs. This is the
+  // "scouts missed the arm" revelation, not coachable growth.
+  if (player.position === "QB" && player.stats) {
+    const _armFloor = ceiling >= 96 ? 88 + Math.floor(rng() * 6)   // 88-93
+                    : ceiling >= 90 ? 84 + Math.floor(rng() * 5)   // 84-88
+                    : ceiling >= 82 ? 80 + Math.floor(rng() * 4)   // 80-83
+                    : 0;
+    if (_armFloor && (player.stats[4] ?? 0) < _armFloor) player.stats[4] = _armFloor;
+    if (typeof calcOverall === "function") player.overall = calcOverall("QB", player.stats);
+  }
   // Propagate the gem ceiling into p.potential so the drafting team's perceived
   // upside (via _perceivedPotential / cutValue) reflects the practice-insight
   // revelation. Without this, R6 gems with true ceiling 99 looked like 65-
