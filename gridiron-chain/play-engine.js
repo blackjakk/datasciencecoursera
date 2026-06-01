@@ -3737,6 +3737,11 @@ class GameSimulator {
     const isLong = this.ytg >= 8, isShort = this.ytg <= 2;
     const pb = this.offPlaybook;
     let passProb = isLong ? pb.passProb.long : isShort ? pb.passProb.short : pb.passProb.mid;
+    // League-wide run-bias (tuned vs _sim_audit): the engine ran a touch pass-
+    // happy, which left RB carries low (~14 vs NFL ~16, rush yds ~58 vs ~70)
+    // AND passing yards a touch high. Shedding ~4pp of pass shifts volume to the
+    // run — lifting carries/rush-yards toward NFL and trimming pass attempts.
+    passProb = Math.max(0.05, passProb - 0.04);
     if (inTwoMin) passProb = Math.min(0.96, passProb + 0.25);   // hurry-up = pass-heavy
     // OC personality bias — each OC trait pushes pass/run rate. Air
     // Attack throws everywhere; Trench General / Run Architect lean run;
