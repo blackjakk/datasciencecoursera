@@ -10984,7 +10984,16 @@ function _developNflPlayer(p, mult) {
   // permits the year-1 burst-intensity jump.
   const NFL_DEV_SCALE = 0.25;
   const grew = Math.min(gap * 0.6, gap * rate * intensity * NFL_DEV_SCALE * (mult || 1));
-  if (grew < 0.5) return;
+  // Threshold lowered 0.5 → 0.1. At OVR 95 chasing ceiling 96-98, grew lands in
+  // [0.16, 0.49] for baseline intensity — all of which the old 0.5 threshold
+  // SKIPPED, hard-capping these gems at OVR 95 (brady audit: R7/LB ceiling 96+
+  // peaked at exactly 95, one short of legend). Even baseline grew of 0.2 round-
+  // delivers a +1 OVR jump via applyGemDevelopment's while-loop (it bumps stats
+  // until calcOverall ≥ current + grew, and integer OVR snaps to current+1 for
+  // any grew ∈ (0, 1)). Lower threshold = high-OVR gems realize their ceiling.
+  // 0.1 keeps a tiny floor so genuinely-zero growth (e.g., a busted-rate player
+  // at gap 1) doesn't tick forever, but lets normal late-career fine-grain land.
+  if (grew < 0.1) return;
   _applyGemDevelopment(p, Math.min(ceiling, current + grew));
   if (p.hiddenGem && p.overall >= (p.hiddenGem.ceiling || 99)) delete p.hiddenGem;
 }
