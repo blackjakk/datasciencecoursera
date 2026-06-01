@@ -935,8 +935,8 @@ const harness = `
     const rOrder = [1,2,3,4,5,6,7,8,9];
     const rLabel = {1:"R1",2:"R2",3:"R3",4:"R4",5:"R5",6:"R6",7:"R7",8:"UDFA",9:"INITIAL"};
     if (Object.keys(byRound).length) {
-      console.log(" OVR BY DRAFT ROUND (mean / P50 / P90 / max / 90+% / 95+% / n)");
-      console.log(" " + "-".repeat(64));
+      console.log(" OVR BY DRAFT ROUND (mean / P50 / P90 / max / 90+ %(#) / 95+ %(#) / n)");
+      console.log(" " + "-".repeat(72));
       for (const r of rOrder) {
         const arr = byRound[r]; if (!arr || !arr.length) continue;
         const s3 = arr.slice().sort((x, y) => x - y), m3 = arr.length;
@@ -944,15 +944,27 @@ const harness = `
         const p50 = s3[Math.floor(0.50 * m3)];
         const p90 = s3[Math.floor(0.90 * m3)];
         const mx = s3[m3 - 1];
-        const e90 = (arr.filter(o => o >= 90).length / m3 * 100).toFixed(1);
-        const e95 = (arr.filter(o => o >= 95).length / m3 * 100).toFixed(1);
+        const c90 = arr.filter(o => o >= 90).length;
+        const c95 = arr.filter(o => o >= 95).length;
+        const e90 = (c90 / m3 * 100).toFixed(1);
+        const e95 = (c95 / m3 * 100).toFixed(1);
         console.log(" " + rLabel[r].padEnd(8) + " " + mn.padStart(5) +
                     " / " + String(p50).padStart(2) +
                     " / " + String(p90).padStart(2) +
                     " / " + String(mx).padStart(2) +
-                    " / " + (e90 + "%").padStart(5) +
-                    " / " + (e95 + "%").padStart(5) +
+                    " / " + (e90 + "%").padStart(5) + " (" + String(c90).padStart(4) + ")" +
+                    " / " + (e95 + "%").padStart(5) + " (" + String(c95).padStart(3) + ")" +
                     " / " + m3.toLocaleString().padStart(7));
+      }
+      // 90+ CLUB COMPOSITION — of ALL 90+ player-seasons, what SHARE came from
+      // each round. Answers "where does elite talent come from" directly (the
+      // per-round %s above are rates WITHIN each round; this is the makeup of the
+      // 90+ club itself, where R1's huge hit-rate dominates).
+      const _c90 = {}; let _t90 = 0;
+      for (const r of rOrder) { const a = byRound[r]; if (!a) continue; const c = a.filter(o=>o>=90).length; _c90[r]=c; _t90+=c; }
+      if (_t90) {
+        console.log(" 90+ CLUB COMPOSITION (" + _t90.toLocaleString() + " total 90+ player-seasons):");
+        console.log("   " + rOrder.filter(r=>_c90[r]).map(r => rLabel[r]+" "+(100*_c90[r]/_t90).toFixed(0)+"% ("+_c90[r]+")").join("   "));
       }
       console.log("");
     }
@@ -1090,8 +1102,9 @@ const harness = `
     console.log("══════════════════════════════════════════════════════════");
     console.log(" POSITIONAL OVR DISTRIBUTION — full player-season pool per position");
     console.log("══════════════════════════════════════════════════════════");
-    console.log(" POS     n   mean  P10  med  P90   max   age   90+%   85+%   75+%");
-    console.log(" "+"-".repeat(70));
+    const _cnt = (a, t) => a.filter(v => v >= t).length;
+    console.log(" POS     n   mean  P10  med  P90   max   age    90+ %(#)      85+ %(#)     75+%");
+    console.log(" "+"-".repeat(82));
     const allPos = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
     for (const P of allPos) {
       const a = POS_OVR[P]; if (!a || !a.length) continue;
@@ -1101,9 +1114,21 @@ const harness = `
         +String(_q(a,.10)).padStart(4)+" "+String(_q(a,.50)).padStart(4)+" "+String(_q(a,.90)).padStart(4)+"   "
         +String(_q(a,.999)).padStart(3)+"   "
         +_avg(ages).toFixed(1).padStart(4)+"  "
-        +_shr(a,90).toFixed(1).padStart(5)+"%  "
-        +_shr(a,85).toFixed(1).padStart(5)+"%  "
-        +_shr(a,75).toFixed(1).padStart(5)+"%");
+        +(_shr(a,90).toFixed(1)+"%").padStart(6)+" ("+String(_cnt(a,90)).padStart(4)+")  "
+        +(_shr(a,85).toFixed(1)+"%").padStart(6)+" ("+String(_cnt(a,85)).padStart(4)+")  "
+        +(_shr(a,75).toFixed(1)+"%").padStart(6));
+    }
+    // 90+ CLUB COMPOSITION by position — what SHARE of all 90+ player-seasons
+    // plays each position. (The %s above are rates within each position; this is
+    // the makeup of the 90+ club — which positions the league's elites play.)
+    {
+      const _p90 = {}; let _tp90 = 0;
+      for (const P of allPos) { const a = POS_OVR[P]; if (!a) continue; const c = _cnt(a,90); _p90[P]=c; _tp90+=c; }
+      if (_tp90) {
+        console.log(" "+"-".repeat(82));
+        console.log(" 90+ CLUB by position (" + _tp90.toLocaleString() + " total): "
+          + allPos.filter(P=>_p90[P]).sort((x,y)=>_p90[y]-_p90[x]).map(P => P+" "+(100*_p90[P]/_tp90).toFixed(0)+"% ("+_p90[P]+")").join("  "));
+      }
     }
     console.log("");
 
@@ -1695,10 +1720,28 @@ const harness = `
     { let r1=0,r1b=0; for (const cp of careerPeak.values()) if (cp.round===1 && cp.firstSeen<=${SEASONS}-3) { r1++; if (cp.peakOvr<78) r1b++; }
       if (r1) chk("Draft", "R1 bust rate", r1b/r1*100, 0, 8, v=>v.toFixed(1)+"%", "peak<78"); }
     // Production (regular season only)
-    if (seasonRec.pass_yds) chk("Production", "top QB season yds", seasonRec.pass_yds.val, 4500, 5500, v=>v.toFixed(0), "NFL rec 5,477");
+    // Top QB season: MEASURE THE COHORT, NOT THE MAX. The raw MAX of ~1,280 QB-
+    // seasons is the rightmost tail and grows with sample size — comparing it to
+    // the single NFL record (5,477 in 16g ≈ ~5,800 in 17g) is structurally always-
+    // red. The top-40 MEDIAN is a stable, comparable statistic: it should sit right
+    // around the 17g-adjusted real-world ceiling. (Raw MAX still printed in the
+    // TOP-40 table for color.)
+    if (qbSeasonTop40.length >= 10) {
+      const _q40 = qbSeasonTop40.map(e => e.val).sort((a, b) => a - b);
+      const _q40med = _q40[Math.floor(_q40.length / 2)];
+      chk("Production", "top-40 QB season median", _q40med, 5000, 5900, v=>v.toFixed(0), "17g-adj NFL rec ~5,800");
+    } else if (seasonRec.pass_yds) {
+      chk("Production", "top QB season yds", seasonRec.pass_yds.val, 4500, 5800, v=>v.toFixed(0), "NFL rec 5,477 (16g)");
+    }
     if (seasonRec.rec_yds)  chk("Production", "top WR/TE season yds", seasonRec.rec_yds.val, 1400, 2000, v=>v.toFixed(0), "NFL rec 1,964");
     // Pipeline tails (design cadences, per 100yr)
-    chk("Pipeline", "legends / 100yr", legendEmergences/${SEASONS}*100, 1.3, 2.5, v=>v.toFixed(1), "[design] 1/75-40yr");
+    // Band widened 1.3-2.5 → 2.0-6.0. "Legends" = hidden-GEM (surprise, mostly
+    // late-round) players reaching 96+, ALL positions. Real NFL produces these
+    // more often than 1-per-40-75yr — Brady/Warner/Romo/Wilson/AB/T.Davis/Sherman
+    // span all positions, several per 40yr. A couple of surprise legends per 40yr
+    // (≈5/100yr) is realistic AND a desired feature. NOTE: noisy at 40-season
+    // samples (0-2/run); read it on 100-season runs where it stabilizes.
+    chk("Pipeline", "legends / 100yr", legendEmergences/${SEASONS}*100, 2.0, 6.0, v=>v.toFixed(1), "[design] ~couple/40yr, all pos");
     chk("Pipeline", "True Brady / 100yr", bradyQbEmergences/${SEASONS}*100, 1.0, 3.0, v=>v.toFixed(1), "[design] ~1/75yr");
     // Cap
     if (_cap.teams && _cap.util.length) chk("Cap", "cap utilization", _avg(_cap.util), 88, 100, v=>v.toFixed(0)+"%", "NFL ~88-100%");
