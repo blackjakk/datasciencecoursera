@@ -19833,35 +19833,44 @@ const _COLLEGE_INJ_CAREER   = ["spinal stenosis","multiple knee reconstructions"
 const _COLLEGE_PHYS_IDX     = { QB:[0,2], RB:[0,2,1], WR:[0,2], TE:[0,1], OL:[1,2], DL:[0,1], LB:[0], CB:[0,2], S:[0] };
 function _rollCollegeInjury(p) {
   if (!p || !p.stats || p.position === "K" || p.position === "P") return null;
+  // SEEDED RNG — a prospect's injury fate is FIXED per (name, draftYear, college
+  // year), like the gem destiny. This makes it SAVE-SCUM PROOF: reloading and
+  // re-advancing the pipeline produces the identical outcome, so a user can't
+  // reload to dodge their prospects' injuries or re-roll a target into falling.
+  // Falls back to Math.random only for nameless/legacy objects.
+  const _seedOk = typeof _seededRand === "function" && p.name;
+  const _k = "cinj|" + (p.name || "") + "|" + (p.draftYear || 0) + "|" + (p.collegeYear || "x");
+  let _n = 0;
+  const rnd = _seedOk ? () => _seededRand(_k, _n++) : Math.random;
   const dur = p._durability ?? 65;
   const posMul = _COLLEGE_INJ_POSMUL[p.position] ?? 1.0;
   // Base ~3.3%/yr, durability-scaled (dur 40 → ~6%, dur 95 → ~1.5%). ~12% of
   // prospects get hurt over a 4-yr career; most are minor-to-moderate.
   const chance = 0.033 * posMul * clamp(1.4 - (dur - 50) / 90, 0.4, 2.2);
-  if (Math.random() >= chance) return null;
-  const r = Math.random();
+  if (rnd() >= chance) return null;
+  const r = rnd();
   const sev = r < 0.62 ? "moderate" : r < 0.95 ? "severe" : "career";
   let durHit = 25, stockHit = 0, type, permDing = 0, careerEnding = false, wks = 6;
   if (sev === "moderate") {
-    type = _COLLEGE_INJ_MODERATE[Math.floor(Math.random() * _COLLEGE_INJ_MODERATE.length)];
-    durHit = 4 + Math.floor(Math.random() * 6);     // -4..-9
-    stockHit = 2 + Math.floor(Math.random() * 4);   // perceived OVR -2..-5
+    type = _COLLEGE_INJ_MODERATE[Math.floor(rnd() * _COLLEGE_INJ_MODERATE.length)];
+    durHit = 4 + Math.floor(rnd() * 6);     // -4..-9
+    stockHit = 2 + Math.floor(rnd() * 4);   // perceived OVR -2..-5
   } else if (sev === "severe") {
-    type = _COLLEGE_INJ_SEVERE[Math.floor(Math.random() * _COLLEGE_INJ_SEVERE.length)];
-    durHit = 12 + Math.floor(Math.random() * 11);   // -12..-22
-    stockHit = 6 + Math.floor(Math.random() * 7);   // perceived OVR -6..-12 → slips 1-2 rounds
+    type = _COLLEGE_INJ_SEVERE[Math.floor(rnd() * _COLLEGE_INJ_SEVERE.length)];
+    durHit = 12 + Math.floor(rnd() * 11);   // -12..-22
+    stockHit = 6 + Math.floor(rnd() * 7);   // perceived OVR -6..-12 → slips 1-2 rounds
     wks = 16;
-    if (Math.random() < 0.45) permDing = 2 + Math.floor(Math.random() * 4); // 45%: lost a step (-2..-5)
+    if (rnd() < 0.45) permDing = 2 + Math.floor(rnd() * 4); // 45%: lost a step (-2..-5)
     // ~40% of severe injuries are RECENT (still rehabbing at the draft) → the
     // player is drafted-and-stashed and sits his rookie year on IR/PUP, then
     // returns Year 2. Extra slip (he's a known redshirt). The active injury is
     // applied when he becomes an NFL pick (_applyDraftRehab).
-    if (Math.random() < 0.40) {
+    if (rnd() < 0.40) {
       stockHit += 3;
-      p._draftRehab = { label: "rookie rehab (" + type + ")", weeks: 10 + Math.floor(Math.random() * 9) }; // 10-18 wks
+      p._draftRehab = { label: "rookie rehab (" + type + ")", weeks: 10 + Math.floor(rnd() * 9) }; // 10-18 wks
     }
   } else {
-    type = _COLLEGE_INJ_CAREER[Math.floor(Math.random() * _COLLEGE_INJ_CAREER.length)];
+    type = _COLLEGE_INJ_CAREER[Math.floor(rnd() * _COLLEGE_INJ_CAREER.length)];
     careerEnding = true; wks = 99;
   }
   p._durability = Math.max(20, dur - durHit);
@@ -19906,7 +19915,11 @@ function _rollMedicalRetirement(p) {
   if (dur > 45) return false;                      // only the genuinely fragile
   const nflSeasons = (p.careerHistory || []).length;
   if (nflSeasons > 2) return false;                // the early-career break-down window
-  if (Math.random() < 0.12) { p._medicallyRetired = true; return true; }
+  // Seeded per (player, season) — save-scum proof (reload can't dodge it).
+  const roll = (typeof _seededRand === "function" && p.name)
+    ? _seededRand("medret|" + p.name + "|" + (franchise?.season || 0))
+    : Math.random();
+  if (roll < 0.12) { p._medicallyRetired = true; return true; }
   return false;
 }
 
