@@ -750,7 +750,12 @@ const harness = `
           : (p.salary || (p.contract && p.contract.aav) || 0);
       }
       const cap = franchise.salaryCap || 0;
-      if (cap > 0) { _cap.teams++; _cap.util.push(100*payroll/cap); _cap.capTotal = cap; }
+      // DIAGNOSTIC: true cap utilization (capUsedByTeam) includes DEAD CAP
+      // (refunds) + PRACTICE SQUAD cost — which the active-roster currentYearCapHit
+      // sum above IGNORES. In-season cuts convert live salary → dead cap, so the
+      // active sum drops while true utilization holds. Compare to see if that's the gap.
+      const capUsedTrue = (typeof capUsedByTeam === "function") ? capUsedByTeam(t.id) : payroll;
+      if (cap > 0) { _cap.teams++; _cap.util.push(100*payroll/cap); _cap.utilTrue = _cap.utilTrue || []; _cap.utilTrue.push(100*capUsedTrue/cap); _cap.capTotal = cap; }
     }
   }
   for (let s = 0; s < ${SEASONS}; s++) {
@@ -1918,7 +1923,13 @@ const harness = `
       const u = _cap.util, mean = u.reduce((a,b)=>a+b,0)/u.length;
       const su = u.slice().sort((a,b)=>a-b);
       console.log("   Cap: " + _cap.capTotal.toLocaleString() + "   teams measured: " + _cap.teams);
-      console.log("   Payroll/cap utilization — mean " + mean.toFixed(1) + "%  P10 " + su[Math.floor(0.1*su.length)].toFixed(1) + "%  P90 " + su[Math.floor(0.9*su.length)].toFixed(1) + "%");
+      console.log("   Payroll/cap utilization (active-roster live salary only) — mean " + mean.toFixed(1) + "%  P10 " + su[Math.floor(0.1*su.length)].toFixed(1) + "%  P90 " + su[Math.floor(0.9*su.length)].toFixed(1) + "%");
+      if (_cap.utilTrue && _cap.utilTrue.length) {
+        const ut = _cap.utilTrue, meanT = ut.reduce((a,b)=>a+b,0)/ut.length;
+        const sut = ut.slice().sort((a,b)=>a-b);
+        console.log("   TRUE cap utilization (capUsedByTeam: + dead cap + practice squad) — mean " + meanT.toFixed(1) + "%  P10 " + sut[Math.floor(0.1*sut.length)].toFixed(1) + "%  P90 " + sut[Math.floor(0.9*sut.length)].toFixed(1) + "%");
+        console.log("   → gap (dead cap + PS the active-roster metric misses): " + (meanT - mean).toFixed(1) + "pp");
+      }
       console.log("   (NFL teams run ~88-100% of cap; over 100% = needs restructure/cuts)");
     } else {
       console.log("   (no salary/cap data on roster players — cap system not populated in this build)");
