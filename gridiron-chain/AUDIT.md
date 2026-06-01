@@ -381,6 +381,70 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
 > The audits *found* every one of these. Kept here so the reasoning isn't lost.
 
 **Game engine**
+- **COLLEGE INJURY SYSTEM — the medical-faller draft-slip pipeline.** College
+  players couldn't get hurt before (the pipeline only developed them). Real
+  college injuries are the #1 reason talented prospects slip — added as a genuine
+  source of late-round talent. `_rollCollegeInjury` (per prospect, per college
+  year, in `_advanceCollegePipeline`): chance ~3.3%/yr × position × hidden-
+  durability (~12-15% hurt over a 4-yr career); severity 62% moderate / 33% severe
+  / 5% career-ending. KEY DESIGN: the injury craters PERCEIVED stock (via
+  `_aiScoutBias` at grade time → slips 1-2 rounds) but leaves the TRUE hidden
+  ceiling intact — so a hurt-but-talented prospect falls to the late rounds with
+  upside preserved (a more believable gem source than "scouts randomly whiffed").
+  It dents hidden `_durability` (real elevated NFL injury risk + injury-prone via
+  `injuryHistory`); severe → 45% permanent athleticism ding; the scout knock is
+  now EARNED (forces the injury/medical knock). Three draft-slip stories now
+  coexist: (1) **scouts-missed** (the original hidden-gem system — high ceiling
+  invisible at draft, Brady — still the majority), (2) **medical faller** (slipped
+  on a real injury — the minority), (3) **clean pick**. (`a8ae7df`)
+- **Redshirt rookies + medical retirement + career-enders.** Three lifecycle
+  outcomes of the college injury: **career-ending** college injuries remove the
+  prospect from the pipeline pre-draft (never reaches the NFL — "what could have
+  been"); **~40% of severe injuries are recent** → `_draftRehab` → `_applyDraftRehab`
+  stamps an active rookie-year injury (10-18 wks) so the player is drafted-and-
+  stashed, sits his rookie year on IR, returns Year 2 (extra slip — a known
+  redshirt); **medical retirement** (`_rollMedicalRetirement`, ~12%/offseason for
+  the genuinely fragile — severe college injury + durability ≤45 — in their first
+  2 NFL seasons) is the Lattimore/Jaylon-Smith downside of the gamble, wired into
+  the season-end retirement pass. (`9cb5f56`)
+- **Anti-gaming: seeded the college-injury + medical-retirement rolls.** They used
+  `Math.random()`, making them save-scummable (reload before the offseason to
+  dodge your prospects' injuries or re-roll a target into falling). Now seeded per
+  (player, draftYear, collegeYear) / (player, season) — identical to gem-destiny
+  seeding — so the fate is FIXED at generation and reloading reproduces it exactly.
+  Verified the other vectors clean: a redshirt rookie still costs a roster spot +
+  rookie contract + cap (not a free stash); fog-of-war holds (a faller shows a low
+  grade + injury knock, true ceiling hidden; scouting-to-confirm is intended GM
+  skill, and even a confirmed faller carries real body-risk so he's never free
+  value). (`f066c63`)
+- **THE 99 WALL — generalized gem physical-floor-from-ceiling (all positions).** A
+  source probe proved why no 96-99 ceiling gem ever reached 99 (0% in probe AND
+  audit): a gem's single-number "ceiling" is inconsistent with the multi-stat OVR
+  — the FROZEN physical stats (out of the dev pools) cap the achievable OVR below
+  the ceiling. A spd72/agi76/thr93 QB gem maxing AWR+TEC to 99 hard-caps at OVR 95.
+  Replaced the QB-only arm-baseline hack with a general `_gemPhysicalFloor` (ceiling
+  ≥90, K/P excluded): solves off `calcOverall` directly — sets developable stats to
+  99 on a probe copy, raises the position's frozen physicals (lowest-first) until
+  OVR reaches the ceiling, applies as floors (only raises). Direct test: 99-ceiling
+  gems now reach OVR 98 with 3-37%/pos hitting exactly 99 (was hard-capped ~93-95).
+  The probe ALSO proved realization (not ceiling-supply) is the binding constraint
+  — a 96-99 ceiling gem averages a peak of ~80 — so chasing the 90+ COUNT with gem-
+  ceiling knobs is futile (it's franchise-dev-driven). (`5882ad6`, `17e5aa8`)
+- **Late-round elite pyramid — tuned + measured.** Audit `LATE-ROUND ELITE` now
+  prints the 90+/95+/99 pyramid (target ~60-100 / ~20 / handful), by round, by
+  position, and split by WHY they slipped (scouts-missed vs medical-faller).
+  Non-QB gem ceiling doubling (8%→16%) over-shot (~20 legends/100yr, 5×), reverted
+  to 8%; the real legends fix was the QB realization wall (the QB-only arm/
+  athleticism floors that let R6+/UDFA QB gems clear OVR 96 — True Brady 0 → ~6/
+  100yr). Mid (90-95) ceiling trimmed 14%→8% to thin the over-fat 90-94 band.
+  (`5882ad6`, `1b39848`, `b78bb2a`)
+- **Fixed the impossible unique-champions band.** Was `[seasons×0.45, seasons]` =
+  45-100 for a 100-yr run — but there are only 32 teams, so max unique champions is
+  `min(seasons, teams)` = 32. The band could NEVER be satisfied; the "dynasty
+  stickiness" it flagged for many runs was a phantom. 27 unique/100yr = 27 of 32
+  teams won a title, 5 perennial non-winners — NFL-realistic (12 of 32 teams have
+  never won a Super Bowl in 58 yrs). Rebound to `[min(seasons,teams)×0.6, min(
+  seasons,teams)]` = [19, 32]. (`7046218`)
 - **QB REALISM OVERHAUL — accuracy-driven OVR, arm as a persistent physical
   trait, depth-weighted completion.** A THR probe showed arm strength inflating
   through development: starter THR median 84 → 93 over 12 seasons, 59% of
@@ -462,6 +526,12 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
   most-appearances headliner — concentration vs spread). `3a5bcff`, `95a50be`.
 - **Top-10 dynasties** — longest consecutive winning-season (win% ≥ .500) streaks
   by team. `3a5bcff`.
+- **LATE-ROUND ELITE pyramid** — distinct R6+/UDFA players by peak-OVR tier
+  (90+ / 95+ / 99 vs target ~60-100 / ~20 / handful), by round, by position, and
+  split by WHY they slipped (scouts-missed vs medical-faller). `1b39848`, `9cb5f56`.
+- **COLLEGE INJURIES report** — severity split (moderate/severe/career-ending),
+  redshirt-rookie + medical-retirement counts, by position, medical-faller sample.
+  `a8ae7df`, `9cb5f56`.
 
 - **Score-variance bundle — turnovers, shutouts, blowouts all → in band.** Sim-
   audit was flagging too-FEW extreme games: shutouts 0.55% (band 1.0-2.5),
@@ -847,19 +917,27 @@ QB styles (`_qb_probe`), box score / drives / situational / kicking / per-positi
 - **Scouting / draft-eval accuracy** (projected vs actual ceiling), GM traits.
 
 ### Findings from the new system audits (open realism items)
-- **CURRENT OPEN FLAGS (100-season brady, as of the QB/K/gem overhaul):**
-  - *Cap utilization ~85%* (band 88-100) — STABLE across 100 years, so it's real,
-    not noise. The 0.99 floor target nets ~85% at end-of-regular-season after
-    in-season churn/dead-cap eats ~14pp. Candidate fix: lift the floor target
-    above nominal (e.g., 0.99 → ~1.03) so enforcement can pull the measured value
-    into band. Not yet done.
-  - *Unique champions ~29/100yr* (band 45-100) — persistent-dynasty signal; a
-    handful of teams hog titles. Note ~29/100yr is close to NFL reality (~22
-    unique champs in the 58-yr SB era), so the BAND may be too generous rather
-    than the sim being wrong. Competitive-balance question, not a clear bug.
-  - *True Brady* — pre-doubling it ran 0/100yr (R6+/UDFA QB→96+ is the rarest
-    single cell). The 96+ ceiling tier was doubled (`2ab189f`) targeting ~2/100yr;
-    re-validation pending.
+- **CURRENT OPEN FLAGS (latest 100-season brady, as of the college-injury build):**
+  - *Cap utilization ~85-88%* (band 88-100) — borderline; bounces around the floor.
+    The 0.99 floor target nets ~85-88% at end-of-regular-season after in-season
+    churn/dead-cap. Candidate fix: lift the floor target above nominal (0.99 →
+    ~1.03). Not yet done.
+  - *Unique champions* — RESOLVED as a band bug (was impossible 45-100 vs 32-team
+    ceiling; now [19,32], 27 passes). `7046218`.
+  - *Late-round elite pyramid* — 90+ ran ~139-146 (target 60-100); proved
+    franchise-dev-driven, NOT gem-ceiling-driven (ceiling knobs are futile — the
+    binding constraint is realization, ~80 avg peak for 96-99 ceiling gems). The
+    90+ count may just be accepted as realistic (~1.4 late-round stars/yr). 95+
+    on target (~20-27). **99 tier was 0** — the 99-wall fix (`17e5aa8`) makes 99
+    REACHABLE but realization (dev fully maturing) is the other half; whether a
+    handful actually reach 99 depends on franchise dev, validated by the running
+    100s.
+  - *True Brady* — the realization-wall fix (`5882ad6`) took it 0 → ~6/100yr (over
+    the old 1-3 band, but the band was stale — the user wanted more; ~6 = 1 per
+    17yr is NFL-realistic). Band re-widened with the legends band.
+  - *Legends band* — re-set to 10-28/100yr to match the higher appetite (~20 at
+    95+). The original 1.3-2.5 and intermediate 2-10 were too tight for the
+    working pipeline.
 - **Salary cap not enforced — FIXED.** Teams ran **~127% of cap** (P90 150%):
   `_trimAiRostersToCap` only cut for roster SIZE, and `assignContracts`'
   normalization never re-ran. Added `enforceCapCompliance()` — each offseason any
