@@ -1598,19 +1598,22 @@ function _rollHiddenGem(player) {
   const r = rng();
   const isQB = player.position === "QB";
   let ceiling;
+  // CEILING TIER WEIGHTS DOUBLED (96+ band 8%→16% non-QB, 25%→50% QB). Brady
+  // audit at 100yr showed 4 legends and 0 True Brady — at the conservative edge.
+  // NFL produces more across all positions (Brady/Warner/Romo/Wilson/AB/T.Davis/
+  // Sherman is several per 50yr). Doubling the 96+ tier preserves the common-gem
+  // tier (78-88, where most gems land) and the middle-distribution / mean-OVR
+  // calibration; only the elite tail grows. For QB specifically — the "wow
+  // moment" of a QB gem firing is HOF ceiling (per the original design comment),
+  // so when a QB gem rolls it SHOULD usually be elite, not a generic starter.
   if (isQB) {
-    if (r < 0.40)      ceiling = 77 + Math.floor(rng() * 12); // 77-88
-    else if (r < 0.75) ceiling = 90 + Math.floor(rng() * 6);  // 90-95
-    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 (25%)
+    if (r < 0.35)      ceiling = 77 + Math.floor(rng() * 12); // 77-88 common
+    else if (r < 0.50) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
+    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 HOF (50%)
   } else {
-    // 78-89 → 77-88 (-1 shift) on the common tier. Brady audit reported league
-    // mean OVR drift to 77.8 (band 74-77) after the legends fix made gems more
-    // likely to reach their ceiling. The drift is in the middle tier (75-89),
-    // not elite (90+% still in band at 5.8%). Shifting common gems down 1 OVR
-    // compresses the middle without touching the 90+/96+ tiers.
-    if (r < 0.78)      ceiling = 77 + Math.floor(rng() * 12); // 77-88 common
-    else if (r < 0.92) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
-    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 extreme (8%)
+    if (r < 0.70)      ceiling = 77 + Math.floor(rng() * 12); // 77-88 common
+    else if (r < 0.84) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
+    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 extreme (16%)
   }
   player.hiddenGem = {
     ceiling,
