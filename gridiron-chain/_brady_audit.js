@@ -501,7 +501,9 @@ const harness = `
           const round = (p.draftRound === 0 || p.udfa) ? 8 : (p.draftRound ?? 99);
           seenGems.set(p.name, { round, peakOvr: p.overall, emerged: false,
                                   gemCeiling: p.hiddenGem?.ceiling || 0,
-                                  position: p.position });
+                                  position: p.position,
+                                  growthRate: p._growthRate || 0,
+                                  potentialAtRoll: p.potential || 0 });
           totalGemsRolled++;
         }
         if (seenGems.has(p.name)) {
@@ -750,9 +752,13 @@ const harness = `
       const realization = elite.reduce((s,g) => s + (g.peakOvr / g.gemCeiling), 0) / elite.length;
       console.log("  GEM ceiling-96+ count: " + elite.length + "  peaks: " + peaksElite.join(",") +
         "  avg realization: " + (100*realization).toFixed(0) + "%");
-      // Round + position breakdown
-      const byRoundPos = elite.map(g => "R" + g.round + "/" + g.position + ":" + g.peakOvr).join("  ");
-      console.log("  GEM ceiling-96+ detail: " + byRoundPos);
+      // Round + position + growth rate + initial potential breakdown — diagnoses
+      // whether under-realization comes from (a) too-slow growth rate or (b) the
+      // initial p.potential not seeing the gem ceiling.
+      const detail = elite.map(g => "R" + g.round + "/" + g.position +
+        " peak=" + g.peakOvr + " rate=" + g.growthRate.toFixed(2) +
+        " pot@roll=" + g.potentialAtRoll).join("\n    ");
+      console.log("  GEM ceiling-96+ detail:\n    " + detail);
     } else {
       console.log("  GEM ceiling-96+ count: 0  (NO ceiling-96+ gems were even rolled this sim)");
     }
