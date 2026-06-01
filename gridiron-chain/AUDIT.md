@@ -656,9 +656,22 @@ QB styles (`_qb_probe`), box score / drives / situational / kicking / per-positi
   `_trimAiRostersToCap` only cut for roster SIZE, and `assignContracts`'
   normalization never re-ran. Added `enforceCapCompliance()` — each offseason any
   over-cap AI team restructures (proportional AAV scale-down + bonus re-proration)
-  to ~94% of cap; wired into `frnProceedToRosterChanges` (live + audit). Now 83.9%
-  mean / 91.7% P90, no team over. (Mean slightly conservative — rebuilders run
-  cheap; raising it is a separate FA-aggression lever.)
+  to ~94% of cap; wired into `frnProceedToRosterChanges` (live + audit).
+- **Cap floor stuck at ~83% — FIXED.** Mean util kept landing just below the
+  88-100% band. A focused cap-flow probe traced two compounding issues:
+  (1) `enforceCapFloor`'s scale cap was `min(1.5, floor/hit)` — a team whose hit
+  was 50% of cap had `floor/hit = 1.84`, so the 1.5 ceiling BLOCKED the lift and
+  the team stayed stuck under floor. Bumped to `min(2.5, floor/hit)`; individual
+  contracts are still clamped at cap, so no per-deal runaway.
+  (2) `_trimAiRostersToCap` was only ever called from the audit harness — the
+  LIVE game never trimmed AI rosters or re-ran the floor on the post-draft shape.
+  After `_draftFinalize` filled rosters with UDFAs, the floor pass only ever saw
+  the pre-draft skeleton, so under-spending teams stayed under-spent. Added a
+  `_trimAiRostersToCap(53)` call at the end of `_draftFinalize` (default skips
+  user team) so the live flow mirrors what the audit was doing manually.
+  Probe-verified: end-of-offseason util now 100%+ with no team below 99%; the
+  in-season churn (~10pp drift between offseason end and next end-of-season
+  snapshot) is a separate auto-cut-behavior lever, not a floor issue.
 - **quiet_pro longevity not showing** — its avg career (~4.0) ≈ normal; the
   "slower decline" trait doesn't translate to longer careers.
 - **Trainer effect weak** — Sports Sci isn't clearly the lowest-injury trainer.

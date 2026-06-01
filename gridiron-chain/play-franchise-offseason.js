@@ -22328,6 +22328,14 @@ function _draftFinalize() {
   const lastYear = (franchise.picks || []).reduce((m,p) => Math.max(m, p.year), draftYear);
   _ensurePicksForYear(lastYear + 1);
   franchise.draft = null;
+  // Live-flow final shape: cut AI rosters to 53 + re-run cap enforce on the
+  // post-draft shape, mirroring what the audit harness does manually. Without
+  // this, AI rosters bloated past 53 after _draftFinalize's UDFA fill and the
+  // cap floor only ever saw the pre-draft skeleton — so under-spending teams
+  // were never lifted to floor in live play. Default opts skip the user team.
+  if (typeof _trimAiRostersToCap === "function") {
+    try { _trimAiRostersToCap(53); } catch (e) { /* non-fatal */ }
+  }
   _flushSaveFranchise();
 }
 
@@ -22511,7 +22519,11 @@ function enforceCapFloor(opts = {}) {
     const roster = (franchise.rosters && franchise.rosters[t.id]) || [];
     const hit = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
     if (hit >= floor || hit <= 0) continue;          // already spending to the floor
-    const scale = Math.min(1.5, floor / hit);        // bounded bump (no runaway)
+    // 1.5x earlier — too tight. A team whose roster hit is 50% of cap has
+    // floor/hit = 1.84, so the 1.5 cap blocked the lift and the team stayed under
+    // floor. 2.5 catches teams up to 2.5x below floor (down to ~37% util) while
+    // still bounding any runaway. Individual contracts are still clamped at cap.
+    const scale = Math.min(2.5, floor / hit);
     for (const p of roster) {
       const c = p.contract; if (!c) continue;
       c.aav = Math.min(cap, Math.round((c.aav || 0) * scale * 10) / 10);
