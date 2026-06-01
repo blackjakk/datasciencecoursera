@@ -151,6 +151,8 @@ const harness = `
   ];
   const career = new Map();          // name → { games, <cat sums> }
   let   seasonAcc = new Map();       // name → season sums (reset each season)
+  const careerByName = new Map();    // name → { pos, seasons, st:{} } — career production accumulator (CAREER-BY-POSITION)
+  let   lastSeasonByPos = {};        // pos → [{name,m,r}] — rebuilt each fold; ends holding the FINAL season (TOP-10-BY-POSITION)
   const seasonRec = {};              // cat → { val, name, season }
   const gameRec   = {};              // cat → { val, name, season, opp }
   // BEST SINGLE SEASON BY POSITION — the best individual (real-named) season at
@@ -216,6 +218,7 @@ const harness = `
     const nameToPos = {};
     for (const roster of Object.values(franchise.rosters || {}))
       for (const p of roster) if (p.name) nameToPos[p.name] = _normPos(p.position);
+    lastSeasonByPos = {};   // rebuilt each season → ends holding the final season's lines
     // Placeholder aggregate? (no space + short all-caps = a slot/position label
     // like "QB", "WR1", "MLB" that the engine keyed nameless stats under).
     const _isPlaceholder = (n) => !/\s/.test(n) && /^[A-Z0-9]{1,4}$/.test(n);
@@ -234,6 +237,12 @@ const harness = `
       const pos = nameToPos[name];
       if (!pos) continue;
       const m = _posMetric(pos, r);
+      // accumulate career totals + capture this season's line (for the
+      // CAREER-BY-POSITION + TOP-10-BY-POSITION production tables).
+      let _cb = careerByName.get(name);
+      if (!_cb) { _cb = { pos, seasons: 0, st: {} }; careerByName.set(name, _cb); }
+      _cb.seasons++; for (const [k] of CATS) if (r[k]) _cb.st[k] = (_cb.st[k] || 0) + r[k];
+      (lastSeasonByPos[pos] = lastSeasonByPos[pos] || []).push({ name, m, r });
       if (m > 0 && (!bestSeasonByPos[pos] || m > bestSeasonByPos[pos].metric)) {
         bestSeasonByPos[pos] = { name, season: franchise.season, metric: m, line: { ...r } };
       }
@@ -1086,6 +1095,59 @@ const harness = `
       const mean = (arr.reduce((s,v)=>s+v,0)/arr.length).toFixed(1);
       const med = arr[Math.floor(arr.length/2)];
       console.log(" "+pos.padEnd(5)+mean.padStart(4)+"  "+String(med).padStart(6)+"  "+String(arr[arr.length-1]).padStart(3)+"  "+String(arr.length).padStart(5));
+    }
+    console.log("");
+  }
+
+  // ══ PRODUCTION BY POSITION — final-season top 10 + typical career ═══════
+  {
+    const _qp = (a, p) => { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+    const COLS = {
+      QB: [["pass_yds","yds"],["pass_td","TD"],["pass_int","INT"]],
+      RB: [["rush_yds","rush"],["rush_td","rTD"],["rec","rec"],["rec_yds","recYd"]],
+      WR: [["rec","rec"],["rec_yds","yds"],["rec_td","TD"]],
+      TE: [["rec","rec"],["rec_yds","yds"],["rec_td","TD"]],
+      OL: [["pancakes","pancakes"]],
+      DL: [["sk","sk"],["tkl","tkl"],["ff","FF"]],
+      LB: [["tkl","tkl"],["sk","sk"],["int_made","INT"]],
+      CB: [["int_made","INT"],["pd","PD"],["tkl","tkl"]],
+      S:  [["tkl","tkl"],["int_made","INT"],["pd","PD"]],
+      K:  [["fg_made","FG"]],
+      P:  [["punt_yds","yds"],["punts","punts"]],
+    };
+    const ORDER = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" TOP 10 BY POSITION — FINAL SEASON (ranked by position value)");
+    console.log("══════════════════════════════════════════════════════════");
+    for (const pos of ORDER) {
+      const arr = (lastSeasonByPos[pos] || []).slice().sort((a, b) => b.m - a.m).slice(0, 10);
+      if (!arr.length) continue;
+      const cols = COLS[pos] || [];
+      console.log(" " + pos + ":");
+      let rank = 1;
+      for (const x of arr) {
+        const line = cols.map(([k, lbl]) => (x.r[k] || 0) + " " + lbl).join(" · ");
+        console.log("   " + String(rank++).padStart(2) + ". " + String(x.name || "?").padEnd(24) + " " + line);
+      }
+    }
+    console.log("");
+    console.log("══════════════════════════════════════════════════════════");
+    console.log(" TYPICAL CAREER BY POSITION — median / P90 (careers >= 4 seasons)");
+    console.log("══════════════════════════════════════════════════════════");
+    const careersByPos = {};
+    for (const cb of careerByName.values()) {
+      if (cb.seasons < 4) continue;
+      (careersByPos[cb.pos] = careersByPos[cb.pos] || []).push(cb);
+    }
+    for (const pos of ORDER) {
+      const list = careersByPos[pos]; if (!list || !list.length) continue;
+      const cols = COLS[pos] || [];
+      const yrs = list.map(c => c.seasons);
+      const parts = cols.map(([k, lbl]) => {
+        const vals = list.map(c => c.st[k] || 0);
+        return lbl + " " + _qp(vals, .5) + "/" + _qp(vals, .9);
+      });
+      console.log(" " + pos.padEnd(4) + " n=" + String(list.length).padStart(4) + "  yrs " + _qp(yrs,.5) + "/" + _qp(yrs,.9) + "  |  " + parts.join("  ") + "   (med/P90)");
     }
     console.log("");
   }
