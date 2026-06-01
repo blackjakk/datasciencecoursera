@@ -757,8 +757,8 @@ const harness = `
       // initial p.potential not seeing the gem ceiling.
       const detail = elite.map(g => "R" + g.round + "/" + g.position +
         " peak=" + g.peakOvr + " rate=" + g.growthRate.toFixed(2) +
-        " pot@roll=" + g.potentialAtRoll).join("\n    ");
-      console.log("  GEM ceiling-96+ detail:\n    " + detail);
+        " pot=" + g.potentialAtRoll).join("  ");
+      console.log("  GEM ceiling-96+ detail: " + detail);
     } else {
       console.log("  GEM ceiling-96+ count: 0  (NO ceiling-96+ gems were even rolled this sim)");
     }

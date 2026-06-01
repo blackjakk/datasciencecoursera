@@ -1594,11 +1594,29 @@ function _rollHiddenGem(player) {
   // upside (via _perceivedPotential / cutValue) reflects the practice-insight
   // revelation. Without this, R6 gems with true ceiling 99 looked like 65-
   // ceiling fringe players to their own team and got cut before they could
-  // develop. Brady-audit went 0 legends / 40 seasons / 497 gems rolled because
-  // gems weren't surviving the post-draft trim. NFL parallel: a team's own
-  // practice tape reveals upside that public scouting consensus missed.
+  // develop. NFL parallel: a team's own practice tape reveals upside that
+  // public scouting consensus missed.
   if ((player.potential || 0) < ceiling) {
     player.potential = ceiling;
+  }
+  // ALSO re-roll p._growthRate to match the gem ceiling. The college pipeline
+  // sets _growthRate based on the ORIGINAL (low) oracle potential, so a R8 gem
+  // with HOF-tier ceiling inherits the slow-developer growth distribution of a
+  // 65-ceiling player. Diagnostic showed ceiling-96+ gems peaking at 71-87 even
+  // after p.potential propagation — the slow rate was the residual bottleneck.
+  // Re-roll using the new ceiling so a 99-ceiling gem gets 30%/55%/15% (0.90/
+  // 0.65/0.35), matching what a known 99-ceiling prospect would draw.
+  if (typeof _seededRand === "function") {
+    const growKey = `gem-grow|${player.name}|${player.draftYear || 0}`;
+    const growRoll = _seededRand(growKey);
+    let newRate;
+    if (ceiling >= 80) newRate = growRoll < 0.30 ? 0.90 : growRoll < 0.85 ? 0.65 : 0.35;
+    else if (ceiling >= 65) newRate = growRoll < 0.20 ? 0.90 : growRoll < 0.75 ? 0.65 : 0.35;
+    else newRate = growRoll < 0.08 ? 0.90 : growRoll < 0.45 ? 0.65 : 0.35;
+    // Only upgrade — never downgrade an already-fast rate.
+    if (!player._growthRate || newRate > player._growthRate) {
+      player._growthRate = newRate;
+    }
   }
 }
 // Fabricates a believable multi-season career for each player based on their
