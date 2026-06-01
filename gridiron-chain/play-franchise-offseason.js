@@ -19852,6 +19852,14 @@ function _rollCollegeInjury(p) {
     stockHit = 6 + Math.floor(Math.random() * 7);   // perceived OVR -6..-12 → slips 1-2 rounds
     wks = 16;
     if (Math.random() < 0.45) permDing = 2 + Math.floor(Math.random() * 4); // 45%: lost a step (-2..-5)
+    // ~40% of severe injuries are RECENT (still rehabbing at the draft) → the
+    // player is drafted-and-stashed and sits his rookie year on IR/PUP, then
+    // returns Year 2. Extra slip (he's a known redshirt). The active injury is
+    // applied when he becomes an NFL pick (_applyDraftRehab).
+    if (Math.random() < 0.40) {
+      stockHit += 3;
+      p._draftRehab = { label: "rookie rehab (" + type + ")", weeks: 10 + Math.floor(Math.random() * 9) }; // 10-18 wks
+    }
   } else {
     type = _COLLEGE_INJ_CAREER[Math.floor(Math.random() * _COLLEGE_INJ_CAREER.length)];
     careerEnding = true; wks = 99;
@@ -19870,6 +19878,36 @@ function _rollCollegeInjury(p) {
   // Stock penalty (perceived value only) — applied in _applyConsensusGrade.
   p._collegeInjury = { type, severity: sev, season: (typeof franchise !== "undefined" ? franchise.season : 0) || 0, stockHit, careerEnding };
   return p._collegeInjury;
+}
+// Convert a _draftRehab flag (recent severe college injury) into an ACTIVE
+// rookie-year injury when the prospect becomes an NFL pick — he sits/rehabs his
+// first season on IR, then returns. Called at every draft-finalize site.
+function _applyDraftRehab(p) {
+  if (!p || !p._draftRehab) return;
+  p.injury = {
+    label: p._draftRehab.label || "rookie rehab",
+    weeksRemaining: p._draftRehab.weeks || 14,
+    _ovrPenalty: 0, _catastrophic: false, _careerEnding: false, _rookieRedshirt: true,
+  };
+  if (_pushNews && p.name) _pushNews({ type: "injury", label: "🏥 " + (p.position || "") + " " + p.name + " drafted as a redshirt — " + (p._draftRehab.label || "rehab") + ", expected to miss his rookie year" });
+  delete p._draftRehab;
+}
+// MEDICAL RETIREMENT — the rare tragedy: a severely-damaged faller whose body
+// gives out. Gated to players who carried a severe college injury AND have very
+// low durability; small chance each of their first two offseasons that they're
+// medically advised to retire (Marcus Lattimore / Jaylon Smith downside arc).
+// Returns true if the player should retire. Called from the season-end retirement
+// pass alongside the normal age curve.
+function _rollMedicalRetirement(p) {
+  if (!p || p._medicallyRetired) return false;
+  const sevHist = (p.injuryHistory || []).some(h => h.cause === "college" && h.catastrophic);
+  if (!sevHist) return false;
+  const dur = p._durability ?? 65;
+  if (dur > 45) return false;                      // only the genuinely fragile
+  const nflSeasons = (p.careerHistory || []).length;
+  if (nflSeasons > 2) return false;                // the early-career break-down window
+  if (Math.random() < 0.12) { p._medicallyRetired = true; return true; }
+  return false;
 }
 
 // Age all remaining college players one year forward; drop anyone now in
@@ -22282,6 +22320,7 @@ function _aiAutoPick(slot, opts) {
   // rookieContract decay curve. Affects all comp picks every offseason.
   pick.draftPick = slot.pickInRound || ((franchise.draft.currentIdx % 32) + 1);
   _rollHiddenGem(pick);
+  _applyDraftRehab(pick);
   pick.contract = rookieContract(pick, franchise.salaryCap || SALARY_CAP_BASE);
   pick.careerEarnings = 0;
   delete pick.isProspect;
@@ -22346,6 +22385,7 @@ async function frnDraftPick(name) {
   prospect.draftRound = slot.round;
   prospect.draftPick  = slot.pickInRound || ((d.currentIdx % 32) + 1);
   _rollHiddenGem(prospect);
+  _applyDraftRehab(prospect);
   prospect.contract = rookieContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
   prospect.careerEarnings = 0;
   delete prospect.isProspect;
@@ -22436,6 +22476,7 @@ function _signUdfaTo(roster, prospect, rookieYear) {
   prospect.mvps = 0; prospect.opoys = 0; prospect.dpoys = 0;
   prospect.roys = 0; prospect.records = [];
   _rollHiddenGem(prospect);
+  _applyDraftRehab(prospect);
   prospect.contract = rookieContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
   // Defensive: prospects are generated fresh per draft and shouldn't
   // carry grudge flags, but cleaning ensures any future code path that

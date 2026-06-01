@@ -9089,6 +9089,13 @@ function _processSeasonEndRetirements() {
         // Set retProb=1 below by jumping adjAge sky-high
         p._forceRetire = true;
       }
+      // Medical retirement — rare: a severely-damaged college faller whose body
+      // gives out in his first couple NFL seasons (the Lattimore/Jaylon Smith
+      // downside of the medical-faller gamble).
+      if (typeof _rollMedicalRetirement === "function" && _rollMedicalRetirement(p)) {
+        p._forceRetire = true;
+        if (typeof _pushNews === "function") _pushNews({ type: "retirement", label: "🏥 " + (p.position || "") + " " + p.name + " medically retires — the body never recovered from his college injury" });
+      }
       // Position-aware retirement curve. QB / K / P play later than
       // contact positions; RBs retire earliest. Offset shifts the
       // effective age in the curve below.

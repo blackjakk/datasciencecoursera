@@ -555,7 +555,7 @@ const harness = `
         if (!cpSeen.has(p.name)) {
           cpSeen.add(p.name);
           const cp = careerPeak.get(p.name);
-          if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year, pos: _normPos(p.position) });
+          if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year, pos: _normPos(p.position), hadInjury: !!p._collegeInjury });
           else if (o > cp.peakOvr) cp.peakOvr = o;
           // Career length — count distinct seasons on an active roster.
           const cl = careerLen.get(p.name);
@@ -571,7 +571,7 @@ const harness = `
       const o = p.overall || 0;
       const rb = _roundBucket(p);
       const cp = careerPeak.get(p.name);
-      if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year, pos: _normPos(p.position) });
+      if (!cp) careerPeak.set(p.name, { round: rb, peakOvr: o, firstSeen: year, pos: _normPos(p.position), hadInjury: !!p._collegeInjury });
       else if (o > cp.peakOvr) cp.peakOvr = o;
     }
   }
@@ -708,7 +708,7 @@ const harness = `
   }
   // COLLEGE INJURY capture — wrap _rollCollegeInjury to tally severity + whether
   // it produced a medical faller (high-ceiling prospect slipping for medical reasons).
-  const _cInj = { moderate:0, severe:0, career:0, total:0, fallers:[], byPos:{} };
+  const _cInj = { moderate:0, severe:0, career:0, total:0, redshirts:0, medRetire:0, fallers:[], byPos:{} };
   if (typeof _rollCollegeInjury === "function") {
     const _origCI = _rollCollegeInjury;
     _rollCollegeInjury = function (p) {
@@ -716,6 +716,7 @@ const harness = `
       if (r) {
         _cInj.total++; _cInj[r.severity] = (_cInj[r.severity] || 0) + 1;
         _cInj.byPos[p.position] = (_cInj.byPos[p.position] || 0) + 1;
+        if (p._draftRehab) _cInj.redshirts++;        // recent severe → drafted-and-stashed rookie
         const ceil = p.potential || p.hiddenGem?.ceiling || 0;
         if (ceil >= 88 && r.stockHit >= 5 && _cInj.fallers.length < 12) {
           _cInj.fallers.push({ pos: p.position, ceil, sev: r.severity, type: r.type });
@@ -723,6 +724,10 @@ const harness = `
       }
       return r;
     };
+  }
+  if (typeof _rollMedicalRetirement === "function") {
+    const _origMR = _rollMedicalRetirement;
+    _rollMedicalRetirement = function (p) { const r = _origMR(p); if (r) _cInj.medRetire++; return r; };
   }
 
   // ── FRANCHISE SYSTEMS capture (stress / personality / salary cap) ──
@@ -1073,25 +1078,28 @@ const harness = `
     // who ever hit 90+ OVR — the "diamonds in the rough" the scouts missed.
     // Total + by position. (Round 8 = UDFA in _roundBucket.)
     {
-      const lateElite = [];   // {pos, peakOvr, round}
+      const lateElite = [];   // {pos, peakOvr, round, hadInjury}
       for (const cp of careerPeak.values()) {
         if (cp.firstSeen > finalYear - 2) continue;          // too-early rookies
         if ((cp.round === 6 || cp.round === 7 || cp.round === 8) && cp.peakOvr >= 90) {
-          lateElite.push({ pos: cp.pos, peakOvr: cp.peakOvr, round: cp.round });
+          lateElite.push({ pos: cp.pos, peakOvr: cp.peakOvr, round: cp.round, hadInjury: !!cp.hadInjury });
         }
       }
       const byPos = {}; const byRnd = { 6:0, 7:0, 8:0 };
-      let n95 = 0, n99 = 0;
+      let n95 = 0, n99 = 0, nMedical = 0, nScoutsMissed = 0;
       for (const e of lateElite) {
         byPos[e.pos] = (byPos[e.pos] || 0) + 1;
         byRnd[e.round] = (byRnd[e.round] || 0) + 1;
         if (e.peakOvr >= 95) n95++;
         if (e.peakOvr >= 99) n99++;
+        if (e.hadInjury) nMedical++; else nScoutsMissed++;
       }
       console.log(" LATE-ROUND ELITE — R6+/UDFA players by peak-OVR tier (distinct players, " + finalYear + " seasons)");
       console.log("   PYRAMID:  90+ : " + lateElite.length + "   ·   95+ : " + n95 + "   ·   99 : " + n99 +
                   "   (target ~60-100 / ~20 / handful)");
       console.log("   by round (90+):  R6 " + (byRnd[6]||0) + "   R7 " + (byRnd[7]||0) + "   UDFA " + (byRnd[8]||0));
+      console.log("   why they slipped:  scouts-missed " + nScoutsMissed + "   ·   medical-faller " + nMedical +
+                  "   (expect mostly scouts-missed)");
       const POS_ORD = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
       console.log("   by position (90+): " +
         POS_ORD.filter(P => byPos[P]).map(P => P + " " + byPos[P]).join("  ") +
@@ -1105,6 +1113,8 @@ const harness = `
     const POS_ORD2 = ["QB","RB","WR","TE","OL","DL","LB","CB","S"];
     console.log(" COLLEGE INJURIES — " + _cInj.total + " over " + ${SEASONS} + " seasons" +
       "   (moderate " + _cInj.moderate + "  ·  severe " + _cInj.severe + "  ·  career-ending " + _cInj.career + ")");
+    console.log("   draft-and-stash redshirts (sat rookie yr): " + _cInj.redshirts +
+                "   ·   medical retirements (body gave out): " + _cInj.medRetire);
     console.log("   by position: " + POS_ORD2.filter(P=>_cInj.byPos[P]).map(P => P+" "+_cInj.byPos[P]).join("  "));
     if (_cInj.fallers.length) {
       console.log("   MEDICAL FALLERS (88+ ceiling, slipped on a real injury) — sample:");
