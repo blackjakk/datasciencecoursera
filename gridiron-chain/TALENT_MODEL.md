@@ -20,10 +20,16 @@
 > - **R1 picks are healthy:** 18% of rosters, **29% of starters** (~7/team) —
 >   the "few round-1 picks" worry was purely the collapsed-roster artifact.
 >
-> So **no major retune needed.** Minor calibration notes for later: league mean
-> OVR ~78 runs a touch high, and cap utilization 84% is a touch conservative vs
-> NFL ~95%. 100-season run pending only for tail metrics (legends ~1/75 yr).
-> Branch: `claude/charming-brown-b18u2`.
+> So **no major retune needed.** **100-season run now COMPLETE** (169,597
+> player-seasons, synthetic survivors 0): stability holds over a full century —
+> DRIFT BY DECADE dead-flat across all 10 decades (mean ~78, 90+ 5.2–6.0%),
+> elite 90+ 5.7% / 95+ 1.6%. Legends 2 (1 S, 1 LB) = 1/50yr, on target.
+> **GAP — TRUE BRADY = 0 in 100 yrs:** a late-round/UDFA QB never reaches 96+
+> (target ~1/75yr). The general gem→legend pipeline works, but the *namesake*
+> QB pipeline doesn't fire — ties to the old "QB genetic drag" note; flagged for
+> a future fix (likely QB dev ceiling from late rounds is too weak). Minor
+> calibration notes: league mean OVR ~78 a touch high, cap util 84% a touch
+> conservative vs NFL ~95%. Branch: `claude/charming-brown-b18u2`.
 
 **Branch:** `claude/football-sim-blockchain-game-b3sdq` (push with `-u origin`, retry exponential backoff per session rules).
 
