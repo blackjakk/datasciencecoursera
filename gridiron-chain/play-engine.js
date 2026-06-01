@@ -4208,8 +4208,8 @@ class GameSimulator {
       // so it gets underthrown and undercut by the trailing defender. This
       // concentrates INTs on realistic arm/depth situations instead of uniform
       // random, and pulls the total down toward NFL.
-      const _weakArmIntRisk = Math.max(0, 78 - qbThr) * 0.0013;   // THR 60 → +2.3pp, THR 78+ → 0
-      const intPct = clamp((0.030 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod + _weakArmIntRisk - this._clutchMod(this.offR.starters.qb, 0.012)) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.05);
+      const _weakArmIntRisk = Math.max(0, 78 - qbThr) * 0.0010;   // THR 60 → +1.8pp, THR 78+ → 0
+      const intPct = clamp((0.018 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod + _weakArmIntRisk - this._clutchMod(this.offR.starters.qb, 0.012)) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.05);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         // Sample the defender who'd be in position to pick. CAT-based drop
