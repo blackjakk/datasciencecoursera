@@ -11185,13 +11185,22 @@ function runFrnOffseason() {
         if (yearsPast >= 2 && Math.random() < 0.5) {
           p.stats[1] = Math.max(30, p.stats[1] - 1); // STR
         }
-        // K/P decline their OWN OVR stats — leg (kpw) and accuracy (awr) — else
-        // their OVR never falls (the generic decline only touches STR, which
-        // isn't in the K/P formula) and the pool inflates without bound. Aging
-        // kickers lose leg power; this gives K/P a real post-peak fade.
+        // K/P decline — STEEPENED so elite kickers FADE (lose distance with age)
+        // rather than camping at peak for a decade. Aging kicker losing leg power
+        // is the NFL pattern — they get range-limited in their 30s, become field
+        // goal specialists, then retire. With the 99 cap removed for K/P, this is
+        // what keeps the 90+ player-season SHARE in line with other positions
+        // (was K share inflating because elite kickers never declined).
         if (p.position === "K" || p.position === "P") {
-          if (Math.random() < 0.6) p.stats[10] = Math.max(40, (p.stats[10] || 70) - 1); // kpw
-          if (yearsPast >= 1 && Math.random() < 0.4) p.stats[3] = Math.max(40, (p.stats[3] || 70) - 1); // awr
+          // KPW: 60% chance/yr at decline age → ramps to 95% at age 35+ (each year
+          // past decline adds 7%). Elite legs FADE first; weak legs already low.
+          const _kpwDeclP = Math.min(0.95, 0.60 + yearsPast * 0.07);
+          if (Math.random() < _kpwDeclP) p.stats[10] = Math.max(40, (p.stats[10] || 70) - 1);
+          // AWR: 50% chance/yr at decline age (accuracy degrades slower than leg).
+          if (yearsPast >= 1 && Math.random() < 0.50) p.stats[3] = Math.max(40, (p.stats[3] || 70) - 1);
+          // Past 35, occasional 2-point KPW drop (a vet's leg "just goes" some
+          // seasons — Vinatieri pattern).
+          if (yearsPast >= 3 && Math.random() < 0.25) p.stats[10] = Math.max(40, (p.stats[10] || 70) - 1);
         }
       }
       // Young progression: grow toward potential ceiling each offseason.
@@ -11338,8 +11347,9 @@ function runFrnOffseason() {
         if (p._peakMult == null) p._peakMult = 0.75 + Math.random() * 0.30;
         // K/P cap at 95 (parity with league elite ceiling): this dev path
         // writes p.overall DIRECTLY (not via calcOverall), so it bypasses the
-        // K/P output cap — without this a high-potential punter grows past it.
-        const _effCap = (p.position === "K" || p.position === "P") ? 95 : 99;
+        // K/P cap removed — calcOverall now caps everyone at 99; K/P reach it via
+        // the rare-genetic KPW/AWR gate + dev, same as other positions.
+        const _effCap = 99;
         const effPotential = Math.min(_effCap, Math.round(p.potential * p._peakMult));
         const gap = effPotential - p.overall;
         if (gap > 0 && p.age < (p.peakAge ?? 27) + 1) {
@@ -11728,8 +11738,9 @@ function runFrnOffseason() {
         if (p._peakMult == null) p._peakMult = 0.75 + Math.random() * 0.30;
         // K/P cap at 95 (parity with league elite ceiling): this dev path
         // writes p.overall DIRECTLY (not via calcOverall), so it bypasses the
-        // K/P output cap — without this a high-potential punter grows past it.
-        const _effCap = (p.position === "K" || p.position === "P") ? 95 : 99;
+        // K/P cap removed — calcOverall now caps everyone at 99; K/P reach it via
+        // the rare-genetic KPW/AWR gate + dev, same as other positions.
+        const _effCap = 99;
         const effPotential = Math.min(_effCap, Math.round(p.potential * p._peakMult));
         const gap = effPotential - p.overall;
         if (gap > 0 && p.age <= 27) {

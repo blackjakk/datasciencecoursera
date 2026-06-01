@@ -695,12 +695,16 @@ const POSITION_PHYSICAL_CAPS = {
   LB:  { 1:{min:70}, 2:{min:70}, 3:{min:72}, 8:{min:60}, 9:{min:75} },
   CB:  { 1:{max:78}, 2:{min:68}, 3:{min:65}, 6:{max:50}, 8:{min:60} },
   S:   { 1:{max:88, min:60}, 2:{min:72}, 3:{min:75}, 8:{min:70}, 9:{min:72} },
-  // K/P kpw floor lowered (was 75/72) so weak-legged specialists exist and
-  // pull the position mean down toward the rest of the league (audit had K
-  // mean 79.6, highest of any position — should be ~73). OVR-tail cap is
-  // enforced in calcOverall (kpw≤90, awr≤84).
-  K:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:60} },
-  P:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:56} },
+  // K/P: leg power (KPW=10) and accuracy (AWR=3) are the position's "arm" — they
+  // dominate OVR (43% + 42%), so they MUST be genetic-gated like SPD/THR at other
+  // positions. Floor preserved (weak-leg specialists exist); ceiling capped at 90
+  // so a generational leg (>90) is a rare draft-day gift, not the norm — matches
+  // how 90+ THR is rare at QB. Post-stamp _kpKickerGate (below) thins the upper
+  // tail further so 90+ KPW or AWR is genuinely scarce (≈1 in 8 kickers, not 1
+  // in 4). Effect: a 99 kicker now requires near-max KPW + near-max AWR + peak
+  // dev — same difficulty as 99 anywhere else.
+  K:   { 1:{max:60}, 3:{max:90}, 6:{max:30}, 9:{max:40}, 10:{min:60, max:90} },
+  P:   { 1:{max:60}, 3:{max:90}, 6:{max:30}, 9:{max:40}, 10:{min:56, max:90} },
 };
 function _applyPositionCaps(pos, stats) {
   // 1. Map SPD into position-realistic range
@@ -716,6 +720,24 @@ function _applyPositionCaps(pos, stats) {
       const idx = +idxStr;
       if (c.max != null && stats[idx] > c.max) stats[idx] = c.max;
       if (c.min != null && stats[idx] < c.min) stats[idx] = c.min;
+    }
+  }
+  // K/P upper-tail thinning on KPW (10) and AWR (3) — the two stats that drive
+  // K/P OVR (43% + 42%). Flat caps at 90 (above) created a pile; we want a
+  // continuous tail where 90+ is genuinely rare. Re-draw any 88+ value through
+  // a softening curve so the tail thins like other positions' THR/SPD elites:
+  // 88-92 zone keeps a bell shape, 93+ requires hitting a small probability gate.
+  if (pos === "K" || pos === "P") {
+    for (const i of [3, 10]) {
+      const v = stats[i] || 60;
+      if (v >= 88) {
+        // Two-stage gate: most "elite" rolls land 85-90; the true 93+ tail is rare.
+        const r = Math.random();
+        if      (r < 0.50) stats[i] = 84 + Math.floor(Math.random() * 5);     // 84-88
+        else if (r < 0.85) stats[i] = 88 + Math.floor(Math.random() * 4);     // 88-91
+        else if (r < 0.97) stats[i] = 92 + Math.floor(Math.random() * 3);     // 92-94
+        else               stats[i] = 95 + Math.floor(Math.random() * 5);     // 95-99 (rare)
+      }
     }
   }
   return stats;
@@ -869,20 +891,14 @@ function calcOverall(pos, s) {
     case "LB": v = prs*21+cov*22+tck*26+spd*16+tec*15; break;
     case "CB": v = spd*26+agi*21+cov*30+awr*8+tec*15;  break;
     case "S":  v = spd*21+cov*30+tck*26+awr*8+tec*15;  break;
-    // K/P: natural formula (uncapped inputs), output capped at 95 below — PARITY
-    // with the league's natural elite ceiling (other positions top ~95-96), so
-    // kickers aren't handicapped BELOW everyone, but a perfect specialist still
-    // can't be a 99 franchise piece. The 90+ RATE is held in band by K/P stat
-    // decline + the dev caps + the awrOvrWeight removal; cross-position VALUE
-    // (HoF/contracts/best-player) is handled by POSITION_VALUE/_hofPositionMul,
-    // NOT by suppressing the rating. Uncapping is rate-neutral vs the old 90
-    // clamp — would-be 90-95 kickers spread out instead of piling at 90.
+    // K/P: same OVR formula and cap as everyone else (99) — was capped at 95 to
+    // hide the inflation problem, which piled would-be 96-99 kickers at exactly
+    // 95. Now that KPW and AWR are properly gated (rare-high genetic leg + decline
+    // that fades veterans), a 99 kicker is possible but as rare as any other 99:
+    // it requires a generational leg, elite accuracy, and a peak career year.
     default:   v = kpw*43 + awr*42 + tec*15;
   }
-  // K/P cap at 95 (parity with the league's natural elite ceiling); everyone
-  // else at the global 99. See the K/P note in the switch default above.
-  const _ovrMax = (pos === "K" || pos === "P") ? 95 : 99;
-  return Math.min(_ovrMax, Math.max(40, Math.round(v / 100)));
+  return Math.min(99, Math.max(40, Math.round(v / 100)));
 }
 // ─── Trench archetypes & rock-paper-scissors matchup matrix ─────────────
 // Each DL has a fighting style with signature pass-rush moves. Each OL has
