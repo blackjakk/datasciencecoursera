@@ -1619,20 +1619,23 @@ function _rollHiddenGem(player) {
     ceiling,
     growthRate: 4 + Math.floor(rng() * 5),
   };
-  // QB ARM-BASELINE. THR is now frozen (physical, out of the dev pools), so a
-  // high-ceiling QB gem with a weak drafted arm could never reach his ceiling
-  // OVR — and his deep ball would stay permanently poor. Real late-round legend
-  // QBs (Brady, Romo, Wilson) had GOOD arms; they slipped for combine/system/
-  // size reasons, not arm talent. So stamp a one-time THR floor matching the
-  // ceiling: a 96+ ceiling implies ~90+ arm, a 90-95 ceiling ~85+. Only raises
-  // a sub-floor arm (never lowers a cannon), and only for QBs. This is the
-  // "scouts missed the arm" revelation, not coachable growth.
+  // QB GEM PHYSICAL BASELINE. THR is frozen (out of dev pools) AND only 18% of
+  // QB OVR, while spd/agi are 10% — so a high-ceiling QB gem with pedestrian
+  // physicals can't REACH his ceiling OVR no matter how much accuracy he
+  // develops. Math: a spd72/agi76/thr93 gem maxing AWR+TEC to 99 caps at OVR 95,
+  // below the 96 legend bar → True Brady was structurally 0/100yr. A HOF-ceiling
+  // late-round gem is the "scouts missed a COMPLETE player" case (Brady/Wilson/
+  // Romo had good arms AND were solid athletes; they slipped for size/system/
+  // combine reasons). So stamp arm + athleticism floors high enough that maxing
+  // the coachable core realizes the ceiling. Only RAISES sub-floor stats; QB only.
   if (player.position === "QB" && player.stats) {
-    const _armFloor = ceiling >= 96 ? 88 + Math.floor(rng() * 6)   // 88-93
-                    : ceiling >= 90 ? 84 + Math.floor(rng() * 5)   // 84-88
-                    : ceiling >= 82 ? 80 + Math.floor(rng() * 4)   // 80-83
-                    : 0;
-    if (_armFloor && (player.stats[4] ?? 0) < _armFloor) player.stats[4] = _armFloor;
+    let armFloor = 0, spdFloor = 0, agiFloor = 0;
+    if (ceiling >= 96)      { armFloor = 93 + Math.floor(rng() * 6); spdFloor = 76 + Math.floor(rng() * 6); agiFloor = 78 + Math.floor(rng() * 6); } // 93-98 / 76-81 / 78-83
+    else if (ceiling >= 90) { armFloor = 86 + Math.floor(rng() * 6); spdFloor = 70 + Math.floor(rng() * 6); agiFloor = 72 + Math.floor(rng() * 6); }
+    else if (ceiling >= 82) { armFloor = 80 + Math.floor(rng() * 5); }
+    if (armFloor && (player.stats[4] ?? 0) < armFloor) player.stats[4] = armFloor;
+    if (spdFloor && (player.stats[0] ?? 0) < spdFloor) player.stats[0] = spdFloor;
+    if (agiFloor && (player.stats[2] ?? 0) < agiFloor) player.stats[2] = agiFloor;
     if (typeof calcOverall === "function") player.overall = calcOverall("QB", player.stats);
   }
   // Propagate the gem ceiling into p.potential so the drafting team's perceived
