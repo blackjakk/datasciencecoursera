@@ -499,7 +499,9 @@ const harness = `
           // round 0 = UDFA in _rollHiddenGem's rate table; tag it as 8 here so
           // the R6+ "Brady-tier" bucket (round >= 6) includes undrafted gems.
           const round = (p.draftRound === 0 || p.udfa) ? 8 : (p.draftRound ?? 99);
-          seenGems.set(p.name, { round, peakOvr: p.overall, emerged: false });
+          seenGems.set(p.name, { round, peakOvr: p.overall, emerged: false,
+                                  gemCeiling: p.hiddenGem?.ceiling || 0,
+                                  position: p.position });
           totalGemsRolled++;
         }
         if (seenGems.has(p.name)) {
@@ -741,6 +743,19 @@ const harness = `
       "  80-84=" + dist["80-84"] + "  85-89=" + dist["85-89"] +
       "  90-92=" + dist["90-92"] + "  93-95=" + dist["93-95"] + "  96+=" + dist["96+"]);
     console.log("  GEM top-10 peakOvrs: " + top.join(", "));
+    // Ceiling-vs-peak: of the gems with TRUE ceiling 96+, what did they peak at?
+    const elite = [...seenGems.values()].filter(g => g.gemCeiling >= 96);
+    if (elite.length) {
+      const peaksElite = elite.map(g => g.peakOvr).sort((a,b)=>b-a);
+      const realization = elite.reduce((s,g) => s + (g.peakOvr / g.gemCeiling), 0) / elite.length;
+      console.log("  GEM ceiling-96+ count: " + elite.length + "  peaks: " + peaksElite.join(",") +
+        "  avg realization: " + (100*realization).toFixed(0) + "%");
+      // Round + position breakdown
+      const byRoundPos = elite.map(g => "R" + g.round + "/" + g.position + ":" + g.peakOvr).join("  ");
+      console.log("  GEM ceiling-96+ detail: " + byRoundPos);
+    } else {
+      console.log("  GEM ceiling-96+ count: 0  (NO ceiling-96+ gems were even rolled this sim)");
+    }
   }
   console.log("");
   // Two distinct cadences (these were conflated before): the QB-specific Brady
