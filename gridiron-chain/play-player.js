@@ -1590,6 +1590,16 @@ function _rollHiddenGem(player) {
     ceiling,
     growthRate: 4 + Math.floor(rng() * 5),
   };
+  // Propagate the gem ceiling into p.potential so the drafting team's perceived
+  // upside (via _perceivedPotential / cutValue) reflects the practice-insight
+  // revelation. Without this, R6 gems with true ceiling 99 looked like 65-
+  // ceiling fringe players to their own team and got cut before they could
+  // develop. Brady-audit went 0 legends / 40 seasons / 497 gems rolled because
+  // gems weren't surviving the post-draft trim. NFL parallel: a team's own
+  // practice tape reveals upside that public scouting consensus missed.
+  if ((player.potential || 0) < ceiling) {
+    player.potential = ceiling;
+  }
 }
 // Fabricates a believable multi-season career for each player based on their
 // age + overall rating + position. Used to populate the profile-page hover.
