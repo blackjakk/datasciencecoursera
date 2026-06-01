@@ -220,6 +220,7 @@ const audit = `
           lb.pass_comp += tm.pass_comp; lb.pass_att += tm.pass_att; lb.rush_att += tm.rush_att;
           lb.penalties += (tm.penalties||0); lb.penaltyYds += (tm.penaltyYds||0);
           lb.intThrown += teamInt;
+          for (const _b of ["short","mid","deep"]) { lb["pa_"+_b]=(lb["pa_"+_b]||0)+(tm["pa_"+_b]||0); lb["pc_"+_b]=(lb["pc_"+_b]||0)+(tm["pc_"+_b]||0); }
           // ── Per-playbook (offense) + per-weather accumulation ──
           const _offTeam = side==="home" ? h : a;
           const _pb = _pbInit(_offTeam.playbook || "BALANCED");
@@ -545,6 +546,17 @@ const audit = `
   console.log("   "+distLine("Pass TD", QB, l=>l.pass_td||0, v=>v.toFixed(1))+"   (~1.5)");
   console.log("   "+distLine("INT", QB, l=>l.pass_int||0, v=>v.toFixed(1))+"   (~0.7)");
   console.log("   "+freq("300+yd game",QB,l=>(l.pass_yds||0)>=300)+"   "+freq("3+TD",QB,l=>(l.pass_td||0)>=3)+"   "+freq("multi-INT",QB,l=>(l.pass_int||0)>=2));
+  // ── PASSING BY AIR DEPTH — dropback attempts by INTENDED depth ──
+  (function(){
+    const g = (lb.games||1) * 2;   // team-games (both offenses per game)
+    const _r = b => { const a=lb["pa_"+b]||0, c=lb["pc_"+b]||0; return { a, c, pct: a? c/a*100 : 0 }; };
+    const S=_r("short"), M=_r("mid"), D=_r("deep"), tot=(S.a+M.a+D.a)||1;
+    console.log(" PASSING BY AIR DEPTH (dropback att, intended depth; comp% = comp/att at depth)");
+    console.log("   depth        att/g   att%   comp%    (NFL ~)");
+    console.log("   short (<8) "+(S.a/g).toFixed(1).padStart(6)+(S.a/tot*100).toFixed(0).padStart(6)+"% "+S.pct.toFixed(0).padStart(6)+"%   (~58% / ~74%)");
+    console.log("   mid (8-14) "+(M.a/g).toFixed(1).padStart(6)+(M.a/tot*100).toFixed(0).padStart(6)+"% "+M.pct.toFixed(0).padStart(6)+"%   (~27% / ~58%)");
+    console.log("   deep (15+) "+(D.a/g).toFixed(1).padStart(6)+(D.a/tot*100).toFixed(0).padStart(6)+"% "+D.pct.toFixed(0).padStart(6)+"%   (~15% / ~45%)");
+  })();
   console.log(" RB  (n="+RB.length+")");
   console.log("   "+distLine("Carries", RB, l=>l.rush_att||0, v=>v.toFixed(0))+"   (~16)");
   console.log("   "+distLine("Rush yds", RB, l=>l.rush_yds||0, v=>v.toFixed(0))+"   (~70)");

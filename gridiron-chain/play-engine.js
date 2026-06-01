@@ -5019,6 +5019,13 @@ class GameSimulator {
       const _expDepth = _hoistedReadP * (PASS_CONCEPTS[_hoistedConcept]?.primaryDepth ?? 8)
                       + (1 - _hoistedReadP) * (PASS_CONCEPTS[_hoistedConcept]?.fallbackDepth ?? 4);
       const depthCompMod = (8 - _expDepth) * 0.013;                          // short +, deep − (intrinsic)
+      // AUDIT: tally dropback attempts by intended air depth (short <8 / mid
+      // 8-14 / deep ≥15 air yds). Completions are counted at each completion
+      // site below via this._curTb. Lets _sim_audit report deep-ball tried/
+      // completed rates against NFL.
+      const _tb = _expDepth < 8 ? "short" : _expDepth < 15 ? "mid" : "deep";
+      off.team["pa_" + _tb] = (off.team["pa_" + _tb] || 0) + 1;
+      this._curTb = _tb;
       // Deep-ball ability keys on ARM STRENGTH (THR, stat[4]): a cannon arm
       // drives the deep ball in, a noodle arm can't — regardless of overall.
       // Short throws stay accuracy-driven (qbCompFromOvr); the THR bonus/penalty
@@ -5048,6 +5055,7 @@ class GameSimulator {
           // short of the intended marker.
           const _utYds = Math.max(2, Math.round(_expDepth * (0.40 + Math.random() * 0.25)));
           if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += _utYds; if (_utYds > qbStats.pass_long) qbStats.pass_long = _utYds; }
+          if (this._curTb) off.team["pc_" + this._curTb] = (off.team["pc_" + this._curTb] || 0) + 1;   // audit: contested-short still completes (deep)
           const _utRS = off.players[rcvr];
           if (_utRS) { _utRS.rec_tgt++; _utRS.rec++; _utRS.rec_yds += _utYds; }
           off.team.pass_att++; off.team.pass_comp++; off.team.passYds += _utYds; off.team.totalYds += _utYds;
@@ -5349,6 +5357,7 @@ class GameSimulator {
           }
         }
         if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
+        if (this._curTb) off.team["pc_" + this._curTb] = (off.team["pc_" + this._curTb] || 0) + 1;   // audit: completion by intended air depth
         if (rcvrStats) {
           rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards;
           if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards;
