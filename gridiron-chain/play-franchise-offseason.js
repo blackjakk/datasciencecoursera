@@ -10939,6 +10939,19 @@ function _developNflPlayer(p, mult) {
   // Only pre-peak players grow (post-peak plateau + decline handled below).
   if ((p.age || 25) >= (p.peakAge ?? 27) + 1) return;
   const ceiling = Math.max(p.potential || 0, p.hiddenGem?.ceiling || 0) || 70;
+  // Propagate hidden-gem ceiling into p.potential so the team's perceived view
+  // tracks the player's true upside. Without this, AI teams see only the public
+  // oracle potential (e.g., 65 for a R6 pick) — even though hiddenGem.ceiling
+  // might be 99 — and cut their own R6 gems as fringe players via cutValue's
+  // perceived-ceiling formula. The old grind path did this propagation; the
+  // oracle path lost it, and the brady audit went 0 legends / 40 seasons / 497
+  // gems rolled. NFL parallel: a team's own practice tape reveals upside that
+  // public scouting consensus missed (Belichick kept Brady out of camp because
+  // he saw him every day). Other teams still see public consensus until the
+  // player's production reveals the ceiling.
+  if (p.hiddenGem?.ceiling && (p.potential || 0) < p.hiddenGem.ceiling) {
+    p.potential = p.hiddenGem.ceiling;
+  }
   const current = p.overall || 60;
   const rate = p._growthRate || 0.65;
   const yr = "nfl|" + (franchise.season || 0);
