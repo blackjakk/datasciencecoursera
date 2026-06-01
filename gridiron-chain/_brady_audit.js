@@ -720,6 +720,28 @@ const harness = `
   console.log("  Legend-tier emergences (gem hit 96+ OVR):     " + legendEmergences);
   console.log("  Late-round legends (R5+ or UDFA):             " + lateRoundLegends);
   console.log("  Late-round legends — R6+/UDFA, ALL positions: " + bradyEmergences);
+  // GEM DIAGNOSTIC: dump top peakOvrs across all tracked gems to see how close
+  // they're getting to legend tier (96+). If most peak at ~85-90, dev is too
+  // slow. If many peak at 91-95, the threshold or growth-curve at high OVR is
+  // the bottleneck.
+  {
+    const peaks = [...seenGems.values()].map(g => g.peakOvr).sort((a,b) => b - a);
+    const top = peaks.slice(0, 10);
+    const dist = { "<70":0, "70-79":0, "80-84":0, "85-89":0, "90-92":0, "93-95":0, "96+":0 };
+    for (const v of peaks) {
+      if      (v < 70) dist["<70"]++;
+      else if (v < 80) dist["70-79"]++;
+      else if (v < 85) dist["80-84"]++;
+      else if (v < 90) dist["85-89"]++;
+      else if (v < 93) dist["90-92"]++;
+      else if (v < 96) dist["93-95"]++;
+      else             dist["96+"]++;
+    }
+    console.log("  GEM peakOvr distribution: <70=" + dist["<70"] + "  70-79=" + dist["70-79"] +
+      "  80-84=" + dist["80-84"] + "  85-89=" + dist["85-89"] +
+      "  90-92=" + dist["90-92"] + "  93-95=" + dist["93-95"] + "  96+=" + dist["96+"]);
+    console.log("  GEM top-10 peakOvrs: " + top.join(", "));
+  }
   console.log("");
   // Two distinct cadences (these were conflated before): the QB-specific Brady
   // is once-a-generation; late-round legends across ALL positions (Terrell Davis
