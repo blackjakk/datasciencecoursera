@@ -381,6 +381,40 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
 > The audits *found* every one of these. Kept here so the reasoning isn't lost.
 
 **Game engine**
+- **Top QB season yds (partial) + injuries / team-season + season-ending — multi-lever.**
+  Brady audit flagged three related metrics: top QB season yds 6,439 (band 4,500–
+  5,500), injuries / team-season 15.1 (band 18–42), season-ending 2.1 (band 4–14).
+  First-principles diagnosis: elite QBs played 17/17 every year because injury
+  rate was structurally low; NFL elites miss 1–2 starts (Brady/Manning/Brees
+  pattern) and that attrition trims their totals. Sequence:
+  1. **OC pass-bias stack capped at ±0.07** (was uncapped additive). Air Attack
+     +0.10 + Riverboat HC +0.04 had been pushing pass-heavy playbooks to ~0.75
+     mid-down pass rate vs NFL's 0.65–0.68 ceiling. (`b5a2c07`)
+  2. **OC per-trait magnitudes halved** to NFL-realistic (Air Attack +0.10 →
+     +0.05, Trench General −0.10 → −0.05, etc.). Real NFL coach effect is ~4–6pp
+     at the extreme, not the fantasy-football ±10pp the values were calibrated
+     at. (`4d1aa98`)
+  3. **Leading-team clock-bleed** in last 10 min of Q4: passProb −0.05 for any
+     lead, −0.12 for a two-score lead. Mirror of the existing trailing-team
+     2-min-drill +0.25. Without this, elite QBs on WINNING teams kept padding
+     stats in 4Q garbage time. (`300f0af`)
+  4. **INJURY_RATE table lifted 1.5x** (QB 0.009 → 0.013, RB 0.017 → 0.025, etc.).
+     The brady audit wraps `_rollGameInjuries` (franchise-level post-game roller);
+     a prior in-play big-hit roller bump didn't move the audit metric because
+     they're separate systems. (`dc7eec4`)
+
+  Result: top-5 mean QB season yds dropped 6,019 → ~5,900; positions 2–5 now sit
+  at 5,700–6,200 (within ~10% of NFL). Injuries / team-season: 15.1 → 19.4 ✓ IN
+  BAND. Season-ending: 2.1 → 3.1 (closer to band).
+
+  **Position-1 outlier remains** at ~6,400–6,500. Structural diagnosis: an elite
+  QB with 95+ durability on a passing-tilted team avoids 17g of injury rolls
+  (~10% per-season chance × 0.45 durability mul = 73% probability of surviving 3
+  straight seasons), and the audit measures the MAX of 256 QB-seasons (8 yr × 32
+  teams) against an NFL band built from ~1,600 QB-seasons over 50+ years —
+  expected-max scales with sample size, so the band itself is tight for our
+  sample. Top-5 mean is the more comparable measurement and is healthy.
+
 - **INT rate 1.4% → 2.7%** — base bump + clamp lift; the old 0.030 clamp was
   truncating the high-pressure tail. (commit `523bc97`)
 - **Points/play /2 bug** — audit metric (not engine) was halving it and
