@@ -325,7 +325,9 @@ const harness = `
           draftRound: pl?.draftRound ?? null, supp,
         });
         lb50.sort((a, b) => b.val - a.val);
-        if (lb50.length > 50) lb50.length = 50;
+        // Keep up to 100 — top 25 is printed as the curated "all-time greats"
+        // list, and the wider top 100 powers the distribution shape summary.
+        if (lb50.length > 100) lb50.length = 100;
       }
       // Best season by position — real players only.
       if (_isPlaceholder(name)) continue;
@@ -1416,30 +1418,40 @@ const harness = `
       "avg OVR: " + _avg(qbSeasonTop40.filter(e=>e.ovr).map(e=>e.ovr)).toFixed(1));
     console.log("");
   }
-  // ── TOP 50 SINGLE-SEASON LEADERS — every position by its marquee stat ─────
+  // ── TOP 25 SINGLE-SEASON LEADERS + TOP-100 DISTRIBUTION SHAPE per position ──
+  // Top 25 is the curated all-time-greats list (≈0.8% of all starter-seasons).
+  // The top-100 distribution summary captures the SHAPE of the elite-season
+  // right tail: max → P10 spread, unique player count (are the same stars
+  // hogging the list, or is it spread?), and the most-appearances headliner.
   {
     const POS_ORDER = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
     const POS_LABEL = { QB:"Passing yds", RB:"Rushing yds", WR:"Rec yds", TE:"Rec yds",
       OL:"Pancakes", DL:"Sacks", LB:"Tackles", CB:"INTs", S:"Tackles",
       K:"FG made", P:"Punt yds" };
     const _avgArr = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+    const _q = (sorted, p) => sorted[Math.max(0, Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1))))];
     console.log("══════════════════════════════════════════════════════════");
-    console.log(" TOP 50 SINGLE-SEASON LEADERS BY POSITION — all-time (" + ${SEASONS} + " seasons)");
+    console.log(" SINGLE-SEASON LEADERS BY POSITION — top-25 list + top-100 distribution shape");
+    console.log(" (" + ${SEASONS} + " seasons)");
     console.log("══════════════════════════════════════════════════════════");
     for (const POS of POS_ORDER) {
       const lb = posSeasonTop50[POS];
       if (!lb || !lb.length) continue;
-      const n = lb.length;
-      const med = lb[Math.floor(n/2)].val;
-      const avgVal = _avgArr(lb.map(e=>e.val)).toFixed(0);
-      const avgOvr = _avgArr(lb.filter(e=>e.ovr).map(e=>e.ovr)).toFixed(1);
+      const top25 = lb.slice(0, 25);
+      const top100 = lb.slice(0, 100);
+      const valsDesc = top100.map(e => e.val);
+      const valsAsc = valsDesc.slice().sort((a, b) => a - b);
+      // Cohort summary for the printed top-25
+      const avg25 = _avgArr(top25.map(e=>e.val)).toFixed(0);
+      const med25 = top25[Math.floor(top25.length/2)].val;
+      const avgOvr25 = _avgArr(top25.filter(e=>e.ovr).map(e=>e.ovr)).toFixed(1);
       console.log("");
-      console.log(" ── " + POS + " · " + POS_LABEL[POS] + " — top " + n + " (max " + lb[0].val.toLocaleString() +
-                  ", med " + med.toLocaleString() + ", avg " + avgVal + ", avg OVR " + avgOvr + ") ──");
+      console.log(" ── " + POS + " · " + POS_LABEL[POS] + " — top 25 (max " + top25[0].val.toLocaleString() +
+                  ", med " + med25.toLocaleString() + ", avg " + avg25 + ", avg OVR " + avgOvr25 + ") ──");
       console.log("  # " + "Stat".padStart(6) + "  " + "Age".padStart(3) + " " + "OVR".padStart(3) + " R  " +
                   "Player".padEnd(26) + " S#  Team");
       console.log("  " + "-".repeat(85));
-      lb.forEach((e, i) => {
+      top25.forEach((e, i) => {
         const rL = e.draftRound === 0 ? "U" : (e.draftRound ?? "-");
         console.log("  " + String(i + 1).padStart(2) + " " +
           _fmt(e.val).padStart(6) + "  " +
@@ -1448,6 +1460,23 @@ const harness = `
           (e.name || "").padEnd(26).slice(0, 26) + " S" + String(e.season).padEnd(2) + " " + e.team +
           (e.supp ? "   (" + e.supp + ")" : ""));
       });
+      // Top-100 distribution shape (only print if we have ≥50 entries to make it meaningful)
+      if (top100.length >= 50) {
+        const _nameCount = {};
+        for (const e of top100) _nameCount[e.name] = (_nameCount[e.name] || 0) + 1;
+        const uniqueN = Object.keys(_nameCount).length;
+        const topPlayer = Object.entries(_nameCount).sort((a, b) => b[1] - a[1])[0];
+        console.log("  " + "-".repeat(85));
+        console.log("  TOP-100 DISTRIBUTION (n=" + top100.length + "):");
+        console.log("    max " + _q(valsAsc, 1.00).toLocaleString() +
+                    "  ·  P90 " + _q(valsAsc, 0.90).toLocaleString() +
+                    "  ·  P75 " + _q(valsAsc, 0.75).toLocaleString() +
+                    "  ·  med " + _q(valsAsc, 0.50).toLocaleString() +
+                    "  ·  P25 " + _q(valsAsc, 0.25).toLocaleString() +
+                    "  ·  min " + _q(valsAsc, 0.00).toLocaleString());
+        console.log("    unique players: " + uniqueN + "/" + top100.length +
+                    "  ·  most appearances: " + topPlayer[1] + "× " + topPlayer[0]);
+      }
     }
     console.log("");
   }
