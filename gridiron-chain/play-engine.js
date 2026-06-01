@@ -5055,12 +5055,12 @@ class GameSimulator {
       this._lastPassCoverage = _hoistedCoverage;
       // Deeper throws complete LESS even when open — longer flight, tighter window.
       // Pivot at league aDOT (~8): short +, deep − (intrinsic), aggregate preserved.
-      // Not a single slope: completion plateaus short (can't beat ~75% — drops,
-      // throwaways, coverage) and declines FASTER than linear downfield (flight
-      // time + tighter window). Kink at the pivot — gentle short side (0.013/yd),
-      // steeper deep side (0.017/yd ≈ NFL's ~1.7pp/air-yard) — so deep balls stop
-      // over-completing without lifting the short game off its ceiling.
-      const depthCompMod = (8 - airYds) * (airYds > 8 ? 0.017 : 0.013);
+      // Two regimes: a gentle base slope (0.013/air-yard — short throws plateau near
+      // their ceiling, intermediate declines moderately), PLUS an extra penalty that
+      // bites only past 15 air yards. Completion falls off faster the deeper you go,
+      // but the short AND intermediate game keep their (correct) completion rates —
+      // an earlier kink-at-the-pivot version over-taxed the healthy 8-14 bucket.
+      const depthCompMod = (8 - airYds) * 0.013 - Math.max(0, airYds - 15) * 0.010;
       // AUDIT: tally dropback attempts by REALIZED intended air depth (short <8 /
       // mid 8-14 / deep ≥15 air yds). Completions are counted at each completion
       // site below via this._curTb. Lets _sim_audit report deep-ball tried/
