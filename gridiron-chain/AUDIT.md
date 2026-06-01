@@ -385,6 +385,33 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
   truncating the high-pressure tail. (commit `523bc97`)
 - **Points/play /2 bug** — audit metric (not engine) was halving it and
   false-flagging; fixed. (`e656a16`)
+- **Depth-tiering keyed off the wrong variable (the big one).** The depth-tiered
+  completion penalty, the arm-strength deep gate, AND the underthrow mechanic all
+  gated on `_expDepth` — a *probability-weighted blend* of a concept's primary/
+  fallback depth that sits pinned near league aDOT (~8) with almost no variance.
+  So a 25-yard bomb was scored as if it were an 8-yard throw: **all three were
+  nearly inert.** The *realized* per-throw air-yards draw (read success → primary
+  depth, else fallback) lived INSIDE the completion branch, drawn only AFTER the
+  catch was already decided. Fix: **hoist the airYds draw above the comp roll** —
+  the QB commits to a target depth first, then we resolve the catch against THAT
+  depth. The air-depth shape snapped to NFL on its own (att 41/54/4 → 53/32/16 vs
+  ~58/27/15; deep comp 59% → 50%), aggregate comp preserved (mean airYds ≈ the
+  pivot of 8). The deep-ball audit also now buckets on true air-yards instead of
+  the blend, so it's comparable to NFL charting. (`c0d7f62`)
+- **Deep balls still 50% vs NFL ~45%.** Completion-vs-air-yards isn't one slope:
+  it plateaus short (~75% ceiling) and falls off FASTER than linear deep. A
+  kink-at-the-pivot steepen fixed deep but over-taxed the healthy 8-14 bucket
+  (comp 64→63, yds/att under band) — wrong lever placement. Replaced with a term
+  that bites only past 15 air-yards: `depthCompMod = (8−airYds)*0.013 −
+  max(0,airYds−15)*0.010`. Deep → 45% (NFL), short/intermediate untouched.
+  (`d6d786b` superseded by `066b9a5`)
+- **Four intended-depth modifiers were dead** (`posAirMod`/`qbAggAirMod`/
+  `ocAirAttackMod`/`boxStackAirMod`) — declared but never applied; they predated
+  the air-yards draw and sat orphaned in the completion branch. Folded into one
+  `_airTilt` in the hoisted draw (RBs check down short, aggressive QBs throw
+  deeper, Air-Attack OCs push downfield, box count tilts shots). Scheme/personnel/
+  QB temperament now move a team's depth chart; aggregate held. `wxAirMod`
+  (weather → depth) is still dead — left out deliberately. (`9c4c9ef`)
 
 **Hidden-gem → legend ("Brady") pipeline** — this was badly broken; the audit
 was the only way to see it:
