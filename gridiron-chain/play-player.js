@@ -1662,24 +1662,23 @@ function _rollHiddenGem(player) {
   // — they had transformative ceilings when they emerged. Same gem
   // RATE as other positions; the QB "wow moment" comes from ceiling.
   //
-  // QB:    40% 78-89  /  35% 90-95  /  25% 96-99 (HOF tier)
-  // Other: 78% 78-89  /  14% 90-95  /  8%  96-99
+  // QB:    35% 77-88 (common) / 30% 90-95 (mid) / 35% 96-99 (HOF)
+  // Other: 84% 77-88 (common) /  8% 90-95 (mid) /  8% 96-99 (HOF)
   const r = rng();
   const isQB = player.position === "QB";
   let ceiling;
-  // QB 96+ ceiling tier DOUBLED (25%→50%); non-QB LEFT AT ORIGINAL 8%. 100-season
-  // audit showed 4 legends / 0 True Brady. The fix for "too few legends/Brady"
-  // turned out to be the QB REALIZATION WALL (see gem physical baseline below) +
-  // a richer QB ceiling tier — NOT inflating non-QB gems. A trial non-QB doubling
-  // (8%→16%) over-shot to ~20 legends/100yr (5x, not the 2x intended), so it was
-  // reverted: non-QB legends were already fine at ~4/100yr; the user's "too few"
-  // was really the 0 True Brady. With QB gems now reaching 96+ (wall fixed), total
-  // legends land ~8-10 and True Brady ~2 — the intended double. QB stays top-heavy
-  // because a QB gem firing should be HOF-ceiling (the original design intent).
+  // QB 96+ tier history: original 25% → doubled to 50% to fix the "too few True
+  // Brady" complaint (paired with the gem REALIZATION WALL fix). At 50% the
+  // 100-season audit ran rich (True Brady 6/100yr then 13/100yr — band 2-12,
+  // mean ~10 vs band midpoint 7). Trimmed to 35% — a measured ~30% HOF cut that
+  // preserves the design intent (a QB gem firing SHOULD usually be HOF-ceiling,
+  // hence still well above the 8% non-QB rate and the original 25%), but pulls
+  // the expected True Brady cadence back toward ~6-7/100yr (band midpoint). The
+  // 90-95 mid tier picks up the slack (15%→30%) so total QB gem volume holds.
   if (isQB) {
     if (r < 0.35)      ceiling = 77 + Math.floor(rng() * 12); // 77-88 common
-    else if (r < 0.50) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
-    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 HOF (50%)
+    else if (r < 0.65) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid (30%)
+    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 HOF (35%)
   } else {
     // Mid (90-95) tier trimmed 14%→8%: a 100-season audit showed 146 R6+/UDFA
     // players reaching 90+ (target ~60-100) — bottom-heavy, the 90-94 band ~6× the
