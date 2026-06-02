@@ -368,11 +368,20 @@ franchise award/record code calls) + the four `play-franchise-*.js` files.
 | Median weeks out | ~2–3 | most injuries are short soft-tissue |
 
 ### Brady-gem cadence (`_brady_audit.js`)
-Target ~**1 Brady-tier (R6+/UDFA → OVR 96+) emergence per 75 years**.
-**This metric is Poisson-noisy** — at 40 seasons you'll see anywhere from 0 to
-4 and it spans the whole target range. Only judge cadence on **100+ season
-runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
-(`_rerollPotentialForBreakouts`).
+Design band **2-12 True Brady/100yr** (R6+/UDFA QB → OVR 96+ — richer than NFL
+by intent, see calibration history). Current measured mean ≈ **8-9/100yr** post
+the 30/40/30 ceiling-shape fix (was 11.4 at 50% HOF); 95% CI from 800
+season-equiv audit. **This metric is Poisson-noisy** (SD ≈ √μ): at 40 seasons
+you'll see anywhere from 0 to 4 and it spans the whole band; even 100 seasons
+gives ±~3 around the mean. Only judge cadence on **100+ season runs**, and
+**never tune on a single audit** — at the band's mean, a +2σ draw lands above
+the band ~1 audit in 20 and is *expected*, not a regression. Levers: HOF-tier
+share in `_rollHiddenGem` (`play-player.js`, scales linearly with Brady rate)
+and `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
+(`_rerollPotentialForBreakouts`). For real measurement use the parallel pattern
+in the calibration history below (`for i in 1 2 3 4; do node _brady_audit.js
+200 > /tmp/run_$i.log & done; wait`) — the metric is unseeded so each run is
+one independent draw, and 4×200 fits in 4 cores at ~90 min wall-clock.
 
 ---
 
@@ -500,6 +509,32 @@ documented Poisson-noisy rare event, so 6 vs 13 across two 100-yr runs points to
 design band to ~2-15 (matches the real pipeline rate, consistent with the owner's
 "richer Brady pipeline" intent), confirm with another 100-yr run, or trim the QB
 gem 96+ ceiling tier if fewer are wanted. Not reflexively widened — left for a call.
+
+**RESOLVED — QB gem ceiling distribution reshape (`_rollHiddenGem` in
+`play-player.js`).** Two methodological lessons, then a numeric+shape fix.
+*Lesson 1 — don't tune a rare-event tail on n=1.* A first attempt trimmed the
+QB 96+ tier 50%→35% on the strength of the single 13/100yr reading. True Brady
+is a 4-stage conjunction (QB gem × R6+/UDFA × 96+ ceiling × realizes 96+); at
+**any** non-trivial mean its 100-season SD is ≈ √μ, so a lone +2σ draw is
+expected ~one audit in twenty and must never move a parameter on its own. Reverted.
+*Lesson 2 — measure first, then tune.* Ran 4×200-season audits in parallel (800
+season-equiv, the metric is unseeded → each `node _brady_audit.js` is one
+independent draw; runs were 11.5 / 10.5 / 10.0 / 13.5). Aggregate: **True Brady
+11.38/100yr, 95% CI [9.04, 13.71]** — a stable, real mean, not noise. *Inside*
+the 2-12 band but on its ceiling, so ~44% of 100-season audits would flag it (a
+guardrail that trips half the time isn't a guardrail). The stale "~7/100yr"
+comment in this doc was wrong; the metric had drifted upward since the original
+25→50% HOF doubling. *Lesson 3 — pick a SHAPE, then solve for the rate.* A
+rate-only trim to 40/20/40 (common/mid/HOF) hit the target but read out loud as
+*"a QB gem is most likely either a backup OR a HOF, less likely to be a Pro
+Bowler"* — bimodal, not a story the design can tell. Final: **30% common
+(77-88) / 40% mid (90-95) / 30% HOF (96-99)** — unimodal, Pro Bowl tier as the
+mode, symmetric ceiling uncertainty. Deliberately distinct from the
+monotone-decreasing non-QB shape 78/14/8 because QB outcome variance genuinely
+*is* wider in real football. Projected Brady mean ~8-9/100yr (flag rate ~16%,
+comfortably mid-band). Standing rule recorded in the code comment: **tune
+`_rollHiddenGem` only against an aggregated multi-run μ, never a single
+100-season audit.** (revert `8f6e9f6`, calibrated trim `793a818`, shape fix `08ca74e`)
 
 **Game engine**
 - **COLLEGE INJURY SYSTEM — the medical-faller draft-slip pipeline.** College
