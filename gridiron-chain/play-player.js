@@ -1662,31 +1662,27 @@ function _rollHiddenGem(player) {
   // — they had transformative ceilings when they emerged. Same gem
   // RATE as other positions; the QB "wow moment" comes from ceiling.
   //
-  // QB:    40% 78-89  /  35% 90-95  /  25% 96-99 (HOF tier)
-  // Other: 78% 78-89  /  14% 90-95  /  8%  96-99
+  // QB:    40% 77-88 (common) / 20% 90-95 (mid) / 40% 96-99 (HOF tier)
+  // Other: 78% 78-89        /  14% 90-95       /  8% 96-99
   const r = rng();
   const isQB = player.position === "QB";
   let ceiling;
-  // QB 96+ ceiling tier DOUBLED (25%→50%); non-QB LEFT AT ORIGINAL 8%. 100-season
-  // audit showed 4 legends / 0 True Brady. The fix for "too few legends/Brady"
-  // turned out to be the QB REALIZATION WALL (see gem physical baseline below) +
-  // a richer QB ceiling tier — NOT inflating non-QB gems. A trial non-QB doubling
-  // (8%→16%) over-shot to ~20 legends/100yr (5x, not the 2x intended), so it was
-  // reverted: non-QB legends were already fine at ~4/100yr; the user's "too few"
-  // was really the 0 True Brady. With QB gems now reaching 96+ (wall fixed), total
-  // legends land ~8-10 and True Brady ~2 — the intended double. QB stays top-heavy
-  // because a QB gem firing should be HOF-ceiling (the original design intent).
-  //
-  // NOTE: a 50→35 trim was attempted after one 100-season audit read True Brady=13
-  // (band 2-12), then reverted — that was noise-fitting on n=1. True Brady is a
-  // deep-tail conjunction (QB gem × R6+/UDFA × 96+ ceiling × realizes 96+); at the
-  // documented μ≈7/100yr its Poisson SD≈2.6, so a single 13 is a ~2σ draw, not a
-  // mean shift. Tune this only against an aggregated multi-run μ (the metric is
-  // unseeded: each run is one independent draw), not a single audit.
+  // QB 96+ ceiling tier history: original 25% → doubled to 50% to fix "0 True
+  // Brady" complaint (paired with the gem REALIZATION WALL fix). A 4x200-season
+  // audit (800 season-equiv) then measured True Brady at 11.38/100yr with 95% CI
+  // [9.04, 13.71] — technically inside the 2-12 design band but sitting on its
+  // ceiling, so ~44% of 100-season audits would trip the guardrail. Trimmed to
+  // 40% (a ~20% HOF cut, scaling Brady mean linearly to ~9/100yr) to pull off
+  // the ceiling without "fixing downward" past the richer-than-NFL design intent;
+  // flag rate drops to ~16%. Non-QB rates UNTOUCHED — a prior trial doubling
+  // (8%→16%) over-shot to ~20 legends/100yr, and the current ~34/100yr legend
+  // rate is comfortably mid-band. Tune this only against an aggregated multi-run
+  // mean (the audit metric is unseeded → each run is one independent draw);
+  // never noise-fit on a single 100-season audit.
   if (isQB) {
-    if (r < 0.35)      ceiling = 77 + Math.floor(rng() * 12); // 77-88 common
-    else if (r < 0.50) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
-    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 HOF (50%)
+    if (r < 0.40)      ceiling = 77 + Math.floor(rng() * 12); // 77-88 common (40%)
+    else if (r < 0.60) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid    (20%)
+    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 HOF    (40%)
   } else {
     // Mid (90-95) tier trimmed 14%→8%: a 100-season audit showed 146 R6+/UDFA
     // players reaching 90+ (target ~60-100) — bottom-heavy, the 90-94 band ~6× the
