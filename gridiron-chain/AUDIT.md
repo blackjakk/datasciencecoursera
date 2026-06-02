@@ -486,9 +486,20 @@ bundle/DOM-stub technique as the audits; reassign render fns to no-ops by barewo
 **Open (minor realism, not correctness):** (a) season-IR'd players retire a year
 late — the end-of-season retirement pass runs while they're off the active roster;
 (b) practice-squad depth erodes — `_psPromote` permanently moves a PS player up as
-a replacement with no mid-season refill. Both work; neither breaks anything. A
-100-season IR regression (`C`) was running at session end to confirm the floor
-change + IR didn't disturb the talent / competitive-balance / legend bands.
+a replacement with no mid-season refill. Both work; neither breaks anything.
+
+**100-season regression (`C`) result: 22/23 pass.** Cap utilization (true,
+season-start) **97% — flag CLEARED**; IR placements **7.1/team-season** (in band,
+validated at scale); roster size 53; talent (90+ 6.7%, mean OVR 78.7) and all
+competitive-balance bands clean; the two prior WARNs (season-ending 4.4, top
+WR/TE 1919) both cleared too. **Only flag: True Brady 13/100yr** (band 2-12, over
+by 1). The prior post-gem-fix run was 6/100yr; True Brady (R6+/UDFA QB → 96+) is a
+documented Poisson-noisy rare event, so 6 vs 13 across two 100-yr runs points to
+**upper-tail variance on a deliberately-rich design band** rather than a regression
+(IR/floor changes don't touch QB development). OPEN DECISION: accept + widen the
+design band to ~2-15 (matches the real pipeline rate, consistent with the owner's
+"richer Brady pipeline" intent), confirm with another 100-yr run, or trim the QB
+gem 96+ ceiling tier if fewer are wanted. Not reflexively widened — left for a call.
 
 **Game engine**
 - **COLLEGE INJURY SYSTEM — the medical-faller draft-slip pipeline.** College
