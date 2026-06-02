@@ -442,6 +442,11 @@ function deadCapOnRelease(player) {
 function capUsedByTeam(teamId) {
   const roster = (franchise?.rosters || {})[teamId] || [];
   let used = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
+  // Injured Reserve: IR'd players are off the active roster but STILL PAID, so
+  // their cap hit counts in full (exactly like the real NFL — IR is roster-spot
+  // relief, never cap relief). This is what makes IR a real decision and keeps
+  // in-season cap honest.
+  used += ((franchise?.ir || {})[teamId] || []).reduce((s, p) => s + currentYearCapHit(p), 0);
   // Practice squad: each PS spot costs PS_COST_PER_SLOT, charged to cap.
   used += psCostForTeam(teamId);
   // Salary refunds: outgoing refunds count against the sender's cap
@@ -469,6 +474,114 @@ function refundsForTeam(teamId) {
 
 function currentCap() {
   return franchise?.salaryCap || SALARY_CAP_BASE;
+}
+
+// ── Injured Reserve (IR) system ──────────────────────────────────────────────
+// Real-NFL roster mechanic. The active roster is hard-capped at 53; an injured
+// player occupies a spot he can't play in. IR moves him OFF the active 53 (so a
+// healthy replacement can be signed) while his cap hit stays (see capUsedByTeam).
+//   · "return"  — designated to return: out a MINIMUM of IR_RETURN_MIN_WEEKS even
+//                 if he heals sooner, and each team has only IR_RETURN_SLOTS_PER_SEASON
+//                 of these per year. A real commitment, not a free stash.
+//   · "season"  — out for the year; returns (healed) next season.
+const ACTIVE_ROSTER_LIMIT       = 53;
+const IR_RETURN_MIN_WEEKS       = 4;   // designated-to-return players miss >= this many weeks
+const IR_RETURN_SLOTS_PER_SEASON = 8;  // designated-to-return activations allowed per team / season
+// Long-injury threshold: only injuries projected this many weeks or longer are
+// worth an IR slot (shorter dings just ride next-man-up for a week or two).
+const IR_WORTHY_WEEKS           = 4;
+
+function irListForTeam(teamId) {
+  if (!franchise) return [];
+  if (!franchise.ir) franchise.ir = {};
+  if (!franchise.ir[teamId]) franchise.ir[teamId] = [];
+  return franchise.ir[teamId];
+}
+function activeRosterCount(teamId) {
+  return ((franchise?.rosters || {})[teamId] || []).length;
+}
+function rosterSpotsOpen(teamId) {
+  return Math.max(0, ACTIVE_ROSTER_LIMIT - activeRosterCount(teamId));
+}
+function _irReturnsUsed(teamId) {
+  return ((franchise && franchise._irReturnsUsed) || {})[teamId] || 0;
+}
+function irReturnSlotsLeft(teamId) {
+  return Math.max(0, IR_RETURN_SLOTS_PER_SEASON - _irReturnsUsed(teamId));
+}
+// Can this player be placed on IR right now, and with which designation?
+// Returns { ok, designation, reason }.
+function irEligibility(teamId, player) {
+  const inj = player && player.injury;
+  if (!inj || !(inj.weeksRemaining > 0)) return { ok: false, reason: "not injured" };
+  const careerEnding = !!inj._careerEnding;
+  // Career- or season-ending (very long) → season IR (no slot needed).
+  if (careerEnding || inj.weeksRemaining >= FRANCHISE_WEEKS) {
+    return { ok: true, designation: "season" };
+  }
+  // Multi-week but returnable → needs a return slot.
+  if (inj.weeksRemaining >= IR_WORTHY_WEEKS) {
+    if (irReturnSlotsLeft(teamId) <= 0) return { ok: false, reason: "no return slots left" };
+    return { ok: true, designation: "return" };
+  }
+  return { ok: false, reason: "injury too short for IR" };
+}
+// Move a player from the active roster to IR. Returns true on success.
+function placeOnIr(teamId, player, designation) {
+  const roster = (franchise?.rosters || {})[teamId];
+  if (!roster) return false;
+  const idx = roster.indexOf(player);
+  if (idx === -1) return false;
+  roster.splice(idx, 1);
+  irListForTeam(teamId).push(player);
+  player._ir = {
+    designation: designation || "season",
+    placedSeason: franchise.season,
+    placedWeek: franchise.week,
+    minReturnWeek: (franchise.week || 1) + IR_RETURN_MIN_WEEKS,
+  };
+  if (designation === "return") {
+    if (!franchise._irReturnsUsed) franchise._irReturnsUsed = {};
+    franchise._irReturnsUsed[teamId] = (franchise._irReturnsUsed[teamId] || 0) + 1;
+  }
+  return true;
+}
+// Is an IR'd player eligible to be activated THIS season?
+function irActivationEligible(player) {
+  const m = player && player._ir;
+  if (!m || m.designation !== "return") return false;          // season-IR returns next year only
+  const healed = !player.injury || !(player.injury.weeksRemaining > 0);
+  return healed && (franchise.week || 1) >= m.minReturnWeek;
+}
+// Move an IR'd player back to the active roster (caller ensures a spot is open).
+function activateFromIr(teamId, player) {
+  const list = irListForTeam(teamId);
+  const idx = list.indexOf(player);
+  if (idx === -1) return false;
+  if (rosterSpotsOpen(teamId) <= 0) return false;
+  list.splice(idx, 1);
+  delete player._ir;
+  ((franchise.rosters || {})[teamId] || []).push(player);
+  return true;
+}
+// Season rollover: at the new league year, IR players heal and rejoin the active
+// roster (the offseason re-sign/trim flow then sorts out the 53). Career-ending
+// guys keep their flag so the existing retirement pass still retires them.
+function _rolloverIrForNewSeason() {
+  if (!franchise || !franchise.ir) return;
+  for (const teamId of Object.keys(franchise.ir)) {
+    const list = franchise.ir[teamId] || [];
+    const roster = (franchise.rosters || {})[teamId];
+    if (!roster) { franchise.ir[teamId] = []; continue; }
+    for (const p of list) {
+      const careerEnding = p.injury && p.injury._careerEnding;
+      if (!careerEnding) p.injury = null;   // healed over the offseason
+      delete p._ir;
+      roster.push(p);
+    }
+    franchise.ir[teamId] = [];
+  }
+  franchise._irReturnsUsed = {};
 }
 
 // ── Incentive clause system ─────────────────────────────────────────────────
@@ -4518,6 +4631,8 @@ function startFranchise(teamId) {
     seasonStats:    {},
     seasonHighlights: [],
     superBowlGame:  null,
+    ir:             {},   // teamId -> [injured-reserve players] (off the active 53, still paid)
+    _irReturnsUsed: {},   // teamId -> designated-to-return activations used this season
   };
   franchiseDraft = null;
   _initFranchisePicks();

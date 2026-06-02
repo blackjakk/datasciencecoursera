@@ -14333,6 +14333,11 @@ function frnNewSeason() {
       }
     }
   }
+  // Injured Reserve rollover: IR'd players heal over the offseason and rejoin
+  // the active roster (the re-sign/trim flow below sorts out the 53). Career-
+  // ending guys keep their flag so the retirement pass still retires them.
+  // Runs before retirement-dependent logic so returners are on the roster.
+  if (typeof _rolloverIrForNewSeason === "function") _rolloverIrForNewSeason();
   // Age the college pipeline AFTER the season counter bumps so aged
   // players and new freshmen compute their draftSeason against the
   // NEW season number — keeps each prospect's draftSeason invariant
