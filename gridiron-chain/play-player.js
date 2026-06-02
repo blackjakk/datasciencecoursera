@@ -1565,6 +1565,27 @@ const _GEM_DEV_IDX = {
   QB:[3,11], RB:[5,11], WR:[5,3,11], TE:[5,6,11], OL:[6,11],
   DL:[7,11], LB:[9,8,7,11], CB:[8,3,11], S:[8,9,3,11],
 };
+// Marginal OVR weight (≈0-40) of a stat for a position, derived from calcOverall
+// by finite difference so it stays in sync if the weight tables ever change.
+function _statWeightPct(pos, idx) {
+  if (typeof calcOverall !== "function") return 0;
+  const base = new Array(12).fill(50);
+  const bumped = base.slice(); bumped[idx] = 90;            // +40 to beat rounding
+  return (calcOverall(pos, bumped) - calcOverall(pos, base)) * 2.5;
+}
+// Realistic (not perfect) development target for a coachable stat. Real growth
+// chases overall, so it prioritizes high-weight stats toward max while neglecting
+// low-weight dev stats (e.g. a WR's 8%-weight awareness) which realistically lag
+// several points short. The physical floor is solved against THIS outcome instead
+// of a fictional all-99 dev, giving high-frozen-weight skill positions (WR/TE) the
+// measurable headroom to actually reach their ceiling under imperfect growth —
+// without over-provisioning QB/OL/DL whose dev is high-weight or few-stat.
+function _realisticDevTarget(pos, idx) {
+  const w = _statWeightPct(pos, idx);
+  if (w >= 25) return 97;   // prioritized core stat → near-max
+  if (w >= 15) return 95;   // secondary dev stat → strong
+  return 93;                // low-weight, development-neglected → lags
+}
 function _gemPhysicalFloor(player, ceiling, rng) {
   const pos = player.position;
   const frozen = _GEM_FROZEN_PHYS[pos], dev = _GEM_DEV_IDX[pos];
@@ -1572,10 +1593,10 @@ function _gemPhysicalFloor(player, ceiling, rng) {
   // Target ceiling minus a small slack so 96-ceiling gems don't ALL need 99
   // physicals (slack lets the rare ones land 96-97 with strong-but-not-max gifts).
   const target = ceiling;
-  // Probe: developable stats maxed to 99; raise frozen (lowest-first) until OVR
-  // reaches the ceiling or frozen caps at 99.
+  // Probe: developable stats set to their REALISTIC (not all-99) outcome; raise
+  // frozen (lowest-first) until OVR reaches the ceiling or frozen caps at 99.
   const probe = player.stats.slice();
-  for (const i of dev) probe[i] = 99;
+  for (const i of dev) probe[i] = _realisticDevTarget(pos, i);
   let guard = 0;
   while (calcOverall(pos, probe) < target && guard++ < 200) {
     const order = frozen.slice().sort((a, b) => probe[a] - probe[b]);
