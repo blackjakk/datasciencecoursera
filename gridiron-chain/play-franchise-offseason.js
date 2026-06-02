@@ -11684,8 +11684,11 @@ function runFrnOffseason() {
           if (Math.random() < stayProb) {
             p.contract = generateContract(p, franchise.salaryCap || SALARY_CAP_BASE);
           } else {
-            // Declined — give a minimum deal so they don't disappear
-            p.contract = { years: 1, remaining: 1, aav: 0.5, signedAav: 0.5 };
+            // Declined — give a minimum deal so they don't disappear (cap-relative
+            // so it doesn't decay to a rounding error as the cap inflates).
+            const minAav = (typeof leagueMinSalary === "function")
+              ? leagueMinSalary(franchise.salaryCap) : 0.5;
+            p.contract = { years: 1, remaining: 1, aav: minAav, signedAav: minAav };
           }
         }
       }

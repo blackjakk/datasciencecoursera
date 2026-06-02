@@ -54,6 +54,34 @@ const CAP_POS_RATE = {
   DL: 0.065, LB: 0.065, CB: 0.09, S: 0.055, K: 0.025, P: 0.022,
 };
 
+// ── Cap-RELATIVE salary floors ────────────────────────────────────────────────
+// Every meaningful contract value is a fraction of the current cap, so the
+// FLOORS must be too. A flat $X minimum (the old code) shrinks to nothing as the
+// cap inflates ~7%/yr; since floor-paid players occupy real roster slots, their
+// decaying cap-share leaks league cap utilization the longer a franchise runs
+// (8-season ~88%, 100-season ~84% — the drift signature of mixed units). These
+// fractions reproduce the historical dollar values EXACTLY at the $200M base cap,
+// then scale with the cap thereafter. Real NFL min ≈ 0.3% of cap.
+const _MIN_SALARY_FRAC    = 0.004;   // 0.4% of cap  → $0.8M at base
+const _MIN_SALARY_SPREAD  = 0.0035;  // up to +0.35% → reproduces the old $0.8–1.5M at base
+const _ABS_SALARY_FLOOR_FRAC = 0.0025; // hard backstop → $0.5M at base
+const _PS_SLOT_FRAC       = 0.0025;  // practice-squad slot → $0.5M at base
+function _capRef(cap) {
+  return cap
+    || (typeof franchise !== "undefined" && franchise && franchise.salaryCap)
+    || SALARY_CAP_BASE;
+}
+// League-minimum veteran salary for the given cap, with a small random spread.
+// At the $200M base this returns $0.8–1.5M, identical to the old flat minimum.
+function leagueMinSalary(cap) {
+  const c = _capRef(cap);
+  return Math.round((c * _MIN_SALARY_FRAC + Math.random() * c * _MIN_SALARY_SPREAD) * 10) / 10;
+}
+// Absolute salary backstop (no contract rounds below this). $0.5M at base.
+function absSalaryFloor(cap) {
+  return Math.round(_capRef(cap) * _ABS_SALARY_FLOOR_FRAC * 10) / 10;
+}
+
 // Render the inner HTML for an "AAV vs current market" cell. A clear
 // signal — overpaid is red, bargain is green, within $1M is "≈ Market".
 // Caller wraps the result in <td>.
@@ -163,7 +191,7 @@ function generateContract(player, cap, structureOverride) {
   // Fix 1: Minimum salary for low-OVR players — 1yr, no signing bonus, zero dead cap.
   // These are the easy "camp cut" candidates that give GMs roster flexibility.
   if (ovr < 70) {
-    const minAav = Math.max(0.8, Math.round((0.8 + Math.random() * 0.7) * 10) / 10);
+    const minAav = leagueMinSalary(cap);
     return {
       years: 1, remaining: 1, aav: minAav, structure: "BALANCED",
       baseSalaries: [minAav], signingBonus: 0, bonusProration: 0,
@@ -287,7 +315,7 @@ function assignContracts(rosters, cap) {
           if (totalHit <= capTarget) break;
           if ((p.overall || 70) < 75 && p.contract && p.contract.bonusProration > 0) {
             const oldHit = currentYearCapHit(p);
-            const minAav = Math.max(0.8, Math.round((0.8 + Math.random() * 0.5) * 10) / 10);
+            const minAav = leagueMinSalary(cap);
             p.contract = { years:1, remaining:1, aav:minAav, structure:"BALANCED",
               baseSalaries:[minAav], signingBonus:0, bonusProration:0,
               guaranteedYears:0, guaranteedAAV:minAav, incentives:[], signedAav:minAav };
@@ -2577,7 +2605,10 @@ function _psEligible(p) {
 // PS cap cost (separate from active roster AAVs).
 function psCostForTeam(teamId) {
   const ps = franchise?.practiceSquads?.[teamId] || [];
-  return Math.round(ps.length * PS_COST_PER_SLOT * 10) / 10;
+  // Cap-relative slot cost (≈$0.5M at the $200M base) so PS load doesn't decay
+  // to a rounding error as the cap inflates over a long franchise.
+  const slot = _capRef() * _PS_SLOT_FRAC;
+  return Math.round(ps.length * slot * 10) / 10;
 }
 // Build initial PS rosters from each team's bench (low-OVR young
 // players who aren't starters). Called at franchise creation; gives
