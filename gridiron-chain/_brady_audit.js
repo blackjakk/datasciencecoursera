@@ -734,28 +734,34 @@ const harness = `
   const _stress = { QB:[], RB:[], WR:[], TE:[], OL:[], DL:[], LB:[], CB:[], S:[], K:[], P:[] };
   const _pers = {};                          // personality → count (final-season rosters)
   const _persLen = {};                       // personality → { n, seasonsSum } from careerLen
-  const _cap = { teams:0, util:[], capTotal:0 };
+  const _cap = { teams:0, util:[], capTotal:0, irPlace:0, irActivate:0, irOn:[] };
+  // IR usage counters — wrap the core ops so we can report placements/activations.
+  if (typeof placeOnIr === "function") { const _o = placeOnIr; placeOnIr = function(){ const r=_o.apply(this,arguments); if(r)_cap.irPlace++; return r; }; }
+  if (typeof activateFromIr === "function") { const _o = activateFromIr; activateFromIr = function(){ const r=_o.apply(this,arguments); if(r)_cap.irActivate++; return r; }; }
   function snapshotSystems(year, isFinal) {
     // Per-season team-seasons by HC culture + trainer (injury-rate denominators).
     for (const t of TEAMS) { _cultTS[_hcCulture(t.id)] = (_cultTS[_hcCulture(t.id)]||0)+1; _trnTS[_trainerTrait(t.id)] = (_trnTS[_trainerTrait(t.id)]||0)+1; }
     if (!isFinal) return;
     for (const t of TEAMS) {
-      const roster = franchise.rosters[t.id] || [];
-      let payroll = 0;
-      for (const p of roster) {
+      for (const p of (franchise.rosters[t.id] || [])) {
         if (_stress[p.position]) _stress[p.position].push(p._stress || 0);
         const pk = p.personality || "normal"; _pers[pk] = (_pers[pk]||0)+1;
-        payroll += (typeof currentYearCapHit === "function")
-          ? currentYearCapHit(p)
-          : (p.salary || (p.contract && p.contract.aav) || 0);
       }
-      const cap = franchise.salaryCap || 0;
-      // DIAGNOSTIC: true cap utilization (capUsedByTeam) includes DEAD CAP
-      // (refunds) + PRACTICE SQUAD cost — which the active-roster currentYearCapHit
-      // sum above IGNORES. In-season cuts convert live salary → dead cap, so the
-      // active sum drops while true utilization holds. Compare to see if that's the gap.
-      const capUsedTrue = (typeof capUsedByTeam === "function") ? capUsedByTeam(t.id) : payroll;
-      if (cap > 0) { _cap.teams++; _cap.util.push(100*payroll/cap); _cap.utilTrue = _cap.utilTrue || []; _cap.utilTrue.push(100*capUsedTrue/cap); _cap.capTotal = cap; }
+    }
+  }
+  // Cap utilization measured at SEASON START (post-offseason), using capUsedByTeam
+  // — the TRUE commitment a team carries into the year (active + IR + practice
+  // squad + dead cap), ~97-100%. The OLD metric summed only the ACTIVE roster at
+  // the post-retirement dead-zone (rosters temporarily depleted, IR'd players
+  // excluded), which read a misleading ~85%. Accumulates every season.
+  function measureCapStart() {
+    const cap = franchise.salaryCap || 0;
+    if (cap <= 0) return;
+    for (const t of TEAMS) {
+      const used = (typeof capUsedByTeam === "function") ? capUsedByTeam(t.id)
+                 : (franchise.rosters[t.id]||[]).reduce((s,p)=> s + (typeof currentYearCapHit==="function"?currentYearCapHit(p):0), 0);
+      _cap.teams++; _cap.util.push(100*used/cap); _cap.capTotal = cap;
+      _cap.irOn.push(((franchise.ir||{})[t.id]||[]).length);
     }
   }
   for (let s = 0; s < ${SEASONS}; s++) {
@@ -811,6 +817,7 @@ const harness = `
     step(typeof frnNewSeason !== "undefined" && frnNewSeason, "newSeason", s);
     scanGems();
     snapshotLeagueOvr(s + 1);   // record this season's active-roster OVR spread
+    measureCapStart();          // post-offseason TRUE cap (incl. IR) — every season
     // ── REGRESSION GUARD — draft-class cycling ────────────────────────────
     // The async offseason/draft chain (frnAutoDraftRemaining/Scramble +
     // _frnConfirm) MUST be awaited or the draft stops minting picks and rosters
@@ -1917,23 +1924,23 @@ const harness = `
   {
     console.log("");
     console.log("══════════════════════════════════════════════════════════");
-    console.log(" SALARY CAP — final-season payroll utilization");
+    console.log(" SALARY CAP — season-start true utilization (capUsedByTeam, incl. IR)");
     console.log("══════════════════════════════════════════════════════════");
     if (_cap.teams && _cap.util.length) {
       const u = _cap.util, mean = u.reduce((a,b)=>a+b,0)/u.length;
       const su = u.slice().sort((a,b)=>a-b);
-      console.log("   Cap: " + _cap.capTotal.toLocaleString() + "   teams measured: " + _cap.teams);
-      console.log("   Payroll/cap utilization (active-roster live salary only) — mean " + mean.toFixed(1) + "%  P10 " + su[Math.floor(0.1*su.length)].toFixed(1) + "%  P90 " + su[Math.floor(0.9*su.length)].toFixed(1) + "%");
-      if (_cap.utilTrue && _cap.utilTrue.length) {
-        const ut = _cap.utilTrue, meanT = ut.reduce((a,b)=>a+b,0)/ut.length;
-        const sut = ut.slice().sort((a,b)=>a-b);
-        console.log("   TRUE cap utilization (capUsedByTeam: + dead cap + practice squad) — mean " + meanT.toFixed(1) + "%  P10 " + sut[Math.floor(0.1*sut.length)].toFixed(1) + "%  P90 " + sut[Math.floor(0.9*sut.length)].toFixed(1) + "%");
-        console.log("   → gap (dead cap + PS the active-roster metric misses): " + (meanT - mean).toFixed(1) + "pp");
-      }
-      console.log("   (NFL teams run ~88-100% of cap; over 100% = needs restructure/cuts)");
+      console.log("   Cap: " + _cap.capTotal.toLocaleString() + "   team-seasons measured: " + _cap.teams);
+      console.log("   True cap utilization (active + IR + practice squad + dead cap) — mean " + mean.toFixed(1) + "%  P10 " + su[Math.floor(0.1*su.length)].toFixed(1) + "%  P90 " + su[Math.floor(0.9*su.length)].toFixed(1) + "%");
+      console.log("   (measured post-offseason at season start; NFL teams run ~88-100% of cap)");
     } else {
       console.log("   (no salary/cap data on roster players — cap system not populated in this build)");
     }
+    // ── INJURED RESERVE usage ──────────────────────────────────────────────
+    const _ts = _cap.teams || 1;
+    const _irMean = _cap.irOn.length ? _cap.irOn.reduce((a,b)=>a+b,0)/_cap.irOn.length : 0;
+    console.log("");
+    console.log("   IR: " + (_cap.irPlace/_ts).toFixed(1) + " placements + " + (_cap.irActivate/_ts).toFixed(1) +
+      " activations per team-season   (" + _cap.irPlace + " / " + _cap.irActivate + " total · ~" + _irMean.toFixed(1) + " on IR at season start)");
   }
   // ══ AUDIT CHECKLIST — consolidated verdict ══════════════════════════════
   {
@@ -1997,8 +2004,11 @@ const harness = `
     // band reflects the intended design, not strict realism. Do NOT "fix" downward.
     chk("Pipeline", "legends / 100yr", legendEmergences/${SEASONS}*100, 15.0, 50.0, v=>v.toFixed(1), "[design] rich pipeline, all pos");
     chk("Pipeline", "True Brady / 100yr", bradyQbEmergences/${SEASONS}*100, 2.0, 12.0, v=>v.toFixed(1), "[design] richer than NFL, by choice");
-    // Cap
-    if (_cap.teams && _cap.util.length) chk("Cap", "cap utilization", _avg(_cap.util), 88, 100, v=>v.toFixed(0)+"%", "NFL ~88-100%");
+    // Cap — TRUE utilization (capUsedByTeam, incl. IR) measured at SEASON START
+    // (post-offseason), not active-roster spend at the post-retirement dead-zone.
+    if (_cap.teams && _cap.util.length) chk("Cap", "cap utilization (true, season-start)", _avg(_cap.util), 88, 100, v=>v.toFixed(0)+"%", "NFL ~88-100%");
+    // IR placements — design cadence; flag only if the system is dead (0) or runaway.
+    if (_cap.teams) chk("Cap", "IR placements / team-season", _cap.irPlace/_cap.teams, 2.0, 12.0, v=>v.toFixed(1), "NFL-ish in-season churn");
 
     const sev = c => { if (c.val>=c.lo && c.val<=c.hi) return "PASS"; const m=0.10*Math.max(1e-9,(c.hi-c.lo)); return (c.val>=c.lo-m && c.val<=c.hi+m)?"WARN":"FAIL"; };
     const SYM = { PASS:"\\u2713", WARN:"\\u26a0", FAIL:"\\u2717" };

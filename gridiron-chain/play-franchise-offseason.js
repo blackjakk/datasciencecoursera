@@ -5354,8 +5354,12 @@ function renderFrnAnalytics(defaultTab) {
     const roster = (rosters[chosenTeamId] || [])
       .filter(p => p.contract)
       .sort((a, b) => currentYearCapHit(b) - currentYearCapHit(a));
-    const totalUsed = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
+    const activeUsed = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
+    // Show the TRUE cap commitment (active + IR + practice squad + dead cap) so the
+    // sheet reconciles with the league cap figure — IR'd players still count in full.
+    const totalUsed = (typeof capUsedByTeam === "function") ? capUsedByTeam(chosenTeamId) : activeUsed;
     const capLeft   = cap - totalUsed;
+    const irRoster  = (typeof irListForTeam === "function") ? irListForTeam(chosenTeamId) : [];
     const rows = roster.map(p => {
       const c = p.contract;
       const expiring = c.remaining <= 1;
@@ -5517,6 +5521,21 @@ function renderFrnAnalytics(defaultTab) {
         </td>
       </tr>`;
     }).join("");
+    // Injured Reserve section — off the active 53 but still on the cap, so the
+    // per-player table reconciles with the true total shown above.
+    const irRows = irRoster.filter(p => p.contract).map(p => {
+      const capHit = currentYearCapHit(p);
+      const kind = (p._ir && p._ir.designation) === "season" ? "Season" : "Return";
+      const lbl = p.injury ? (typeof _bspnEsc === "function" ? _bspnEsc(p.injury.label||"") : (p.injury.label||"")) : "";
+      return `<tr style="background:rgba(190,80,80,.08)">
+        <td style="font-weight:700">🚑 ${p.name}</td>
+        <td style="color:var(--gray)">${p.position}</td>
+        <td colspan="3" style="color:#ff9090;font-size:.62rem">Injured Reserve · ${kind}${lbl?` · ${lbl}`:""}</td>
+        <td style="color:${aavColor(capHit)};font-weight:700">$${capHit.toFixed(1)}M</td>
+        <td colspan="4" style="color:var(--gray);font-size:.6rem">counts vs cap — off the active 53</td>
+      </tr>`;
+    }).join("");
+    const irHeader = irRows ? `<tr><td colspan="10" style="padding:.3rem .5rem;font-size:.6rem;letter-spacing:.5px;color:#ff9090;background:rgba(190,80,80,.12);font-weight:700">INJURED RESERVE — ${irRoster.length} player${irRoster.length===1?"":"s"}, still on the cap</td></tr>` : "";
     return `
       <div class="frn-ana-capbar">
         <div class="frn-ana-capbar-fill" style="width:${Math.min(100,totalUsed/cap*100).toFixed(1)}%;background:${totalUsed/cap>=0.95?"var(--red)":totalUsed/cap>=0.85?"#e8a000":"var(--green)"}"></div>
@@ -5529,7 +5548,7 @@ function renderFrnAnalytics(defaultTab) {
       <p style="font-size:.62rem;color:var(--gray);margin-bottom:.5rem">Cap Hit = this year's base salary + annual bonus proration. Dead Cap = prorated bonus remaining if player is cut. ↺ Restructure converts base salary to bonus — frees cap now, increases dead cap later.</p>
       <table class="frn-ana-table"><thead>
         <tr><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Draft</th><th>Cap Hit</th><th>vs Market</th><th>Dead Cap</th><th>Length</th><th></th></tr>
-      </thead><tbody>${rows}</tbody></table>`;
+      </thead><tbody>${rows}${irHeader}${irRows}</tbody></table>`;
   }
 
   // ── Cap Health Dashboard ────────────────────────────────────────────────
