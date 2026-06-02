@@ -514,12 +514,14 @@ function irReturnSlotsLeft(teamId) {
 function irEligibility(teamId, player) {
   const inj = player && player.injury;
   if (!inj || !(inj.weeksRemaining > 0)) return { ok: false, reason: "not injured" };
-  const careerEnding = !!inj._careerEnding;
-  // Career- or season-ending (very long) → season IR (no slot needed).
-  if (careerEnding || inj.weeksRemaining >= FRANCHISE_WEEKS) {
+  // Career-ending injuries stay on the active roster so the existing end-of-season
+  // retirement pass handles them normally (keeps that pipeline untouched).
+  if (inj._careerEnding) return { ok: false, reason: "career-ending — retires off roster" };
+  // Out the rest of the year (but recoverable) → season IR (no return slot needed).
+  if (inj.weeksRemaining >= FRANCHISE_WEEKS) {
     return { ok: true, designation: "season" };
   }
-  // Multi-week but returnable → needs a return slot.
+  // Multi-week but returnable → designated to return (consumes a return slot).
   if (inj.weeksRemaining >= IR_WORTHY_WEEKS) {
     if (irReturnSlotsLeft(teamId) <= 0) return { ok: false, reason: "no return slots left" };
     return { ok: true, designation: "return" };

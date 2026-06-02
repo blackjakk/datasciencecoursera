@@ -2746,6 +2746,90 @@ function _processWeeklyDiscipline(weekNum) {
 // Split out from the old advanceWeekIfDone: end-of-week resolution.
 // Runs FA bid resolution + AI counter-bid round + injury tick. Does NOT
 // bump the week counter.
+// ── IR: AI roster management (the loop that gives IR its purpose) ────────────
+// Each week the AI teams (the user manages their own IR via the roster UI)
+// (1) activate healed designated-to-return players, and (2) place freshly long-
+// term-injured players on IR and sign a replacement. This only matters because
+// the active roster is hard-capped at 53 — an injured body genuinely blocks a
+// healthy one, so IR is a real decision, not a free stash.
+function _aiManageInjuredReserve() {
+  if (!franchise || !franchise.rosters || typeof irEligibility !== "function") return;
+  const userId = franchise.chosenTeamId;
+  for (const t of TEAMS) {
+    if (t.id === userId) continue;            // user manages their own IR (UI)
+    try { _aiActivateFromIr(t.id); } catch (e) {}
+    try { _aiPlaceInjuredOnIr(t.id); } catch (e) {}
+  }
+}
+function _aiActivateFromIr(teamId) {
+  for (const p of irListForTeam(teamId).slice()) {
+    if (!irActivationEligible(p)) continue;
+    if (rosterSpotsOpen(teamId) <= 0) _cutWorstToOpenSpot(teamId);  // make room
+    if (rosterSpotsOpen(teamId) <= 0) break;
+    if (activateFromIr(teamId, p)) {
+      const team = getTeam(teamId);
+      _pushNews({ type: "ir", label: `🔄 ${team?.abbr || ""} activated ${p.position} ${p.name} off IR` });
+    }
+  }
+}
+function _aiPlaceInjuredOnIr(teamId) {
+  const roster = (franchise.rosters[teamId] || []);
+  for (const p of roster.slice()) {                // snapshot — placeOnIr mutates
+    if (p._ir) continue;
+    const elig = irEligibility(teamId, p);
+    if (!elig.ok) continue;
+    // IR only when it actually matters: season-IR a player who's out for the
+    // year (no point holding the spot), or designated-to-return when the roster
+    // is full (the injured body is blocking a healthy one). Short-roster +
+    // multi-week → just ride next-man-up.
+    if (elig.designation !== "season" && rosterSpotsOpen(teamId) > 0) continue;
+    if (placeOnIr(teamId, p, elig.designation)) {
+      _signReplacementForInjury(teamId, p.position);
+      const team = getTeam(teamId);
+      const tag = elig.designation === "season" ? "(season)" : "(designated to return)";
+      _pushNews({ type: "ir", label: `🚑 ${team?.abbr || ""} placed ${p.position} ${p.name} on IR ${tag}` });
+    }
+  }
+}
+// Cut the lowest-value healthy depth player to open a roster spot.
+function _cutWorstToOpenSpot(teamId) {
+  const roster = franchise.rosters[teamId] || [];
+  let worst = null;
+  for (const p of roster) {
+    if (p.injury && p.injury.weeksRemaining > 0) continue;   // don't cut injured
+    if ((p.overall || 60) >= 78) continue;                   // keep real contributors
+    if (!worst || (p.overall || 60) < (worst.overall || 60)) worst = p;
+  }
+  if (!worst) return false;
+  const idx = roster.indexOf(worst);
+  if (idx === -1) return false;
+  roster.splice(idx, 1);
+  worst._cutSeason = franchise.season;
+  if (!franchise.freeAgents) franchise.freeAgents = [];
+  franchise.freeAgents.push(worst);
+  return true;
+}
+// Refill an opened spot with a cheap depth body — PS elevation first, else the
+// cheapest viable FA at the position. Kept deliberately cheap so mid-season
+// replacements don't blow the cap (enforceCapFloor only reconciles in-offseason).
+function _signReplacementForInjury(teamId, pos) {
+  if (rosterSpotsOpen(teamId) <= 0) return false;
+  const ps = (franchise.practiceSquads && franchise.practiceSquads[teamId]) || [];
+  const psCand = ps.find(p => p.position === pos) || ps[0];
+  if (psCand) { _psPromote(teamId, psCand, { silent: true }); return true; }
+  const pool = franchise.freeAgents || [];
+  const opts = pool.filter(p => p.position === pos);
+  if (!opts.length) return false;
+  opts.sort((a, b) => (a.overall || 50) - (b.overall || 50));   // cheapest depth body
+  const fa = opts[0];
+  const idx = pool.indexOf(fa);
+  if (idx !== -1) pool.splice(idx, 1);
+  fa.contract = generateContract(fa, franchise.salaryCap || SALARY_CAP_BASE);
+  fa.contract.signedAav = fa.contract.aav;
+  (franchise.rosters[teamId] || []).push(fa);
+  return true;
+}
+
 function _runWeekEndResolution() {
   const w = franchise.week;
   if (franchise.faNegotiations && Object.keys(franchise.faNegotiations).length) {
@@ -2754,6 +2838,10 @@ function _runWeekEndResolution() {
     if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
   }
   _tickInjuriesForWeek();
+  // IR management for AI teams: activate healed return-designees, IR new long-
+  // term injuries + sign replacements. Runs after the injury tick so it acts on
+  // current week's injuries and freshly-healed players.
+  if (typeof _aiManageInjuredReserve === "function") _aiManageInjuredReserve();
   // Stress + Wear: accumulate AND decay this week (in that order so a player
   // who played gets the stress bump, then the small starter-decay applies).
   if (typeof _accumulateWeeklyStress === "function") _accumulateWeeklyStress(w);
