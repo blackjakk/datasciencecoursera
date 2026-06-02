@@ -2920,17 +2920,22 @@ function _tickYipsForWeek() {
 }
 
 function _tickInjuriesForWeek() {
-  for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
-    for (const p of roster) {
-      if (!p.injury || p.injury.weeksRemaining <= 0) continue;
-      p.injury.weeksRemaining -= 1;
-      if (p.injury.weeksRemaining <= 0) {
-        // Apply post-recovery rehab penalty BEFORE clearing the injury,
-        // so we still have access to severity metadata.
-        if (!p.injury._careerEnding) {
-          _applyRehabPenalty(p, Number(tid), !!p.injury._catastrophic);
+  // Active rosters AND injured reserve — IR'd players must heal on schedule too,
+  // otherwise designated-to-return players never become activation-eligible.
+  const groups = [franchise.rosters || {}, franchise.ir || {}];
+  for (const group of groups) {
+    for (const [tid, roster] of Object.entries(group)) {
+      for (const p of roster) {
+        if (!p.injury || p.injury.weeksRemaining <= 0) continue;
+        p.injury.weeksRemaining -= 1;
+        if (p.injury.weeksRemaining <= 0) {
+          // Apply post-recovery rehab penalty BEFORE clearing the injury,
+          // so we still have access to severity metadata.
+          if (!p.injury._careerEnding) {
+            _applyRehabPenalty(p, Number(tid), !!p.injury._catastrophic);
+          }
+          p.injury = null;
         }
-        p.injury = null;
       }
     }
   }

@@ -2824,8 +2824,17 @@ function _signReplacementForInjury(teamId, pos) {
   const fa = opts[0];
   const idx = pool.indexOf(fa);
   if (idx !== -1) pool.splice(idx, 1);
-  fa.contract = generateContract(fa, franchise.salaryCap || SALARY_CAP_BASE);
-  fa.contract.signedAav = fa.contract.aav;
+  // In-season injury replacements sign for the VETERAN MINIMUM, not market — a
+  // street FA filling a hole gets a 1-yr min deal (no bonus, no dead cap), so the
+  // signing barely moves the cap. Signing at market would balloon it.
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const minAav = (typeof leagueMinSalary === "function") ? leagueMinSalary(cap) : 1.0;
+  fa.contract = {
+    years: 1, remaining: 1, aav: minAav, structure: "BALANCED",
+    baseSalaries: [minAav], signingBonus: 0, bonusProration: 0,
+    guaranteedYears: 0, guaranteedAAV: minAav, incentives: [], signedAav: minAav,
+    signedOvr: fa.overall || 65, startSeason: franchise.season || 1, _demandCycles: 0,
+  };
   (franchise.rosters[teamId] || []).push(fa);
   return true;
 }
@@ -8603,6 +8612,10 @@ function frnConfirmResignings() {
 }
 
 function frnProceedToRosterChanges() {
+  // IR rollover FIRST: injured-reserve players heal over the offseason and rejoin
+  // the active roster, so they flow through the normal re-sign / cut / trim-to-53
+  // pipeline below (otherwise they'd be re-added after the trim and bloat past 53).
+  if (typeof _rolloverIrForNewSeason === "function") _rolloverIrForNewSeason();
   _runCoachingCarousel();
   franchise._offChanges = runFrnOffseason();
   enforceCapCompliance();   // AI teams restructure under the cap (skips user)
@@ -14421,11 +14434,6 @@ function frnNewSeason() {
       }
     }
   }
-  // Injured Reserve rollover: IR'd players heal over the offseason and rejoin
-  // the active roster (the re-sign/trim flow below sorts out the 53). Career-
-  // ending guys keep their flag so the retirement pass still retires them.
-  // Runs before retirement-dependent logic so returners are on the roster.
-  if (typeof _rolloverIrForNewSeason === "function") _rolloverIrForNewSeason();
   // Age the college pipeline AFTER the season counter bumps so aged
   // players and new freshmen compute their draftSeason against the
   // NEW season number — keeps each prospect's draftSeason invariant
@@ -22828,7 +22836,12 @@ function enforceCapCompliance(opts = {}) {
 function enforceCapFloor(opts = {}) {
   const userId = opts.includeUser ? null : (typeof franchise !== "undefined" ? franchise.chosenTeamId : null);
   const cap = (typeof franchise !== "undefined" && franchise.salaryCap) || SALARY_CAP_BASE;
-  const floor = cap * 0.99;
+  // Spend up to 97% (not 99%), leaving a ~3% in-season INJURY RESERVE. Real teams
+  // hold cap room precisely to sign IR replacements; with the IR system, pumping
+  // all the way to 99% left no room and IR replacements pushed total cap (incl.
+  // IR'd players, who keep counting) just over 100%. 97% base + replacements lands
+  // realistically at/under the cap.
+  const floor = cap * 0.97;
   for (const t of TEAMS) {
     if (userId != null && t.id === userId) continue;
     const roster = (franchise.rosters && franchise.rosters[t.id]) || [];
