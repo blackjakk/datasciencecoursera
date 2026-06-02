@@ -91,11 +91,21 @@ const harness = `
     s.indexOf("indexedDB") >= 0 || s.indexOf("Dashboard render") >= 0 || s.indexOf("[save]") >= 0);
   console.warn  = function(...a) { if (!_mute(a[0])) _origWarn.apply(console, a); };
   console.error = function(...a) { if (!_mute(a[0])) _origErr.apply(console, a); };
-  for (const fn of ["showFranchiseDashboard","renderFrnPreseason","renderFrnDashboard",
-    "renderFrnSeasonRecap","renderFrnOffseason","renderFrnDraft","renderFrnAwards",
-    "_startDraftFloorAnim","_flushSaveFranchise","saveFranchise"]) {
-    if (typeof globalThis[fn] === "function") globalThis[fn] = function(){};
-  }
+  // No-op the render functions. In the new Function() scope these are LOCAL
+  // bindings (not globalThis properties), so reassign each directly — otherwise
+  // the real renders run and throw on undefined team.city/.name, and (worse)
+  // showFrnAwards / the offseason chain call them INTERNALLY.
+  if (typeof showFranchiseDashboard === "function") showFranchiseDashboard = function(){};
+  if (typeof renderFrnPreseason === "function")     renderFrnPreseason = function(){};
+  if (typeof renderFrnDashboard === "function")     renderFrnDashboard = function(){};
+  if (typeof renderFrnSeasonRecap === "function")   renderFrnSeasonRecap = function(){};
+  if (typeof renderFrnOffseason === "function")     renderFrnOffseason = function(){};
+  if (typeof renderFrnDraft === "function")         renderFrnDraft = function(){};
+  if (typeof renderFrnAwards === "function")        renderFrnAwards = function(){};
+  if (typeof renderFrnResignings === "function")    renderFrnResignings = function(){};
+  if (typeof _startDraftFloorAnim === "function")   _startDraftFloorAnim = function(){};
+  if (typeof _flushSaveFranchise === "function")    _flushSaveFranchise = function(){};
+  if (typeof saveFranchise === "function")          saveFranchise = function(){};
   try { startFranchise(0); } catch (e) { console.error("startFranchise threw:", e.message); process.exit(1); }
   if (!franchise) { console.error("franchise global not populated"); process.exit(1); }
 
