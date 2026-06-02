@@ -380,6 +380,116 @@ runs**. The lever is `GEM_DEV_BREAKOUT_P` in `play-franchise-stats.js`
 
 > The audits *found* every one of these. Kept here so the reasoning isn't lost.
 
+### Injured Reserve system + cap-reporting truth (2026-06 session)
+
+> A full NFL-style IR system, plus the first-principles diagnosis that the
+> long-standing "cap utilization low" flag was **two different things** — a real
+> bug (units mismatch) and a measurement artifact (the audit photographing teams
+> mid-roster-turnover). Recorded in depth because the *reasoning* here matters
+> more than the diffs.
+
+**1. Gem physical floor → REALISTIC dev target (WR/TE late-round legends).**
+The `_gemPhysicalFloor` (the 99-wall fix) solved each gem's frozen physicals
+assuming **perfect, all-99 development**. But real development chases overall, so
+a position's low-weight dev stats (e.g. a WR's 8%-weight AWR) get neglected and
+land several points short. Net effect: high-frozen-weight skill positions (WR/TE,
+47% frozen) realized ~2 OVR below their ceiling *every time* and never converted
+— audit showed **WR 0 / TE 0** late-round legends while trench (OL) converted.
+Diagnosis was clinched by noticing WR and CB are structurally **identical** in
+`calcOverall` (swap CAT↔COV) yet diverged 0 vs 4 — so it wasn't supply, it was the
+dev gap. Fix: solve the floor against a **realistic** dev outcome — derive each dev
+stat's OVR weight by finite-difference on `calcOverall`, then assume high-weight
+stats reach ~97, low-weight ones lag to ~93. This concentrates frozen headroom on
+WR/TE/CB/S (low-weight dev stats) and barely touches QB/OL/DL (high-weight or
+few-stat). 100-season result: **WR 2 / TE 5** late-round legends (target ~2-4),
+legends 34/100yr, True Brady 6/100yr — all in band, no QB overshoot. (`c565c5e`)
+
+**2. Cap-relative salary FLOORS (the real drift bug — units mismatch).** The cap
+system mixed units: contracts (`computeMarketValue`, `rookieContract`) are
+fractions of the cap, but the salary *floors* were **flat dollars** — ~$1M minimum
+deals, $0.5M practice-squad slots, $0.5M backstops. As the cap inflates ~7%/yr,
+floor-paid players (who occupy real roster slots) shrink as a share of cap, so
+league utilization **drifts down the longer a franchise runs** (8-season ~88% →
+100-season ~84% — the signature of mixed units). Fix: `leagueMinSalary(cap)` /
+`absSalaryFloor(cap)` express floors as cap fractions that **reproduce the exact
+old dollar values at the $200M base** (so season-1 calibration is untouched) and
+scale thereafter. Converted the 4 load-bearing sites (both min-contract paths,
+`psCostForTeam`, declined-resign deal). `_cap_trace.js` (30-season) confirmed the
+drift **flattened to −0.9pp** while the cap 7×'d, min-tier share holding ~7%
+instead of decaying. (`cf6c804`, harness fix `baa8ef6`)
+
+**3. The in-season "12pp cap drop" is a RETIREMENT DEAD-ZONE artifact, NOT a leak.**
+The trace showed teams pump to ~99% in the offseason, then "drop" to ~86% by the
+audit's season-end snapshot. I almost "fixed" this with dead-cap retention (an
+invasive change) — but `_cap_diag.js` (week-by-week) proved the season runs **dead
+flat** (87.2% every week, sheds nothing). Stepping through the boundary events: the
+entire drop is **`showFrnAwards` running retirements** (roster ~47 → ~39, −12pp),
+which **recovers to 99% one offseason step later at `enforceCapFloor`**. So the
+audit was snapshotting cap in the single transient window per cycle when retirees
+have left but the offseason hasn't refilled — a *measurement-timing* artifact.
+During actual play, teams sit at ~99%. **Lesson: measure before tuning — I was
+treating a snapshot-timing artifact as a gameplay flaw.** Fixed in item 6 below.
+
+**4. Full NFL-style INJURED RESERVE system (phases 1-3).** Built so the roster
+constraints actually *bind* — IR is meaningless without scarcity. The need is
+real: active roster hard-capped at 53, injured players occupy spots.
+- **Foundation** (`a285db2`): `franchise.ir[teamId]` (off the active 53, **still
+  paid** — `capUsedByTeam` counts them in full, exactly like the NFL: IR is
+  roster-spot relief, never cap relief). Constants `ACTIVE_ROSTER_LIMIT 53`,
+  `IR_RETURN_MIN_WEEKS 4`, `IR_RETURN_SLOTS_PER_SEASON 8`, `IR_WORTHY_WEEKS 4`.
+  Helpers `placeOnIr` / `activateFromIr` / `irEligibility` (season vs designated-
+  to-return; career-ending stays on roster so the existing retirement pass is
+  untouched) / `_rolloverIrForNewSeason` (IR heals + rejoins at the start of the
+  offseason, BEFORE trim-to-53).
+- **AI loop + 3 bugs the probe caught** (`7c45777` WIP → `1af384c`):
+  `_aiManageInjuredReserve` (weekly) IRs long injuries, signs replacements, and
+  activates healed return-designees. `_ir_probe.js` surfaced: (a) active roster
+  bloated >53 because rollover ran AFTER the trim → moved it to the start of
+  `frnProceedToRosterChanges`; (b) 0 activations because `_tickInjuriesForWeek`
+  only ticked the active roster → now ticks IR too so designees heal; (c) cap
+  ballooned because replacements signed at MARKET → now veteran-minimum 1-yr deals.
+- **Injury reserve floor** (`1af384c`): `enforceCapFloor` target 0.99 → **0.97**,
+  leaving ~3% room for IR replacements (IR'd players keep counting, so 99% left no
+  room and total pushed >100%). First-principles: this is *why* real teams hold
+  in-season cap room. Probe (6-season) lands true cap ~99.7%, active ~93%,
+  **6.2 placements + 2.8 activations / team-season**, rosters held at 53.
+- **User UI** (`54106b4`): "Injured Reserve" roster sub-tab (`renderFrnInjuredReserve`)
+  + per-player "Place on IR" on the Injury Report + handlers `frnPlaceOnIr` /
+  `frnActivateFromIr` / `frnSignIrReplacement`. `_ir_ui_test.js` smoke-tests the
+  full place → sign replacement → heal → activate flow.
+
+**5. Injury supply is sufficient for IR — no rate change.** 100-season audit:
+21.9 injuries/team-season, **median 3 wk, P90 14 wk**, 4.0 season-ending. Median 3
+means ~half are multi-week → ~8-11 IR-worthy + 4 season-ending per team-season,
+a realistic-to-rich IR cadence. Cranking the global rate would just flood 1-week
+dings (which never touch IR). The lever, if ever needed, is the multi-week supply
+(catastrophic-upgrade chance) + the IR threshold — NOT the global rate.
+
+**6. Cap reporting made truthful** (`f803a56`):
+- **Audit** cap metric now measures `capUsedByTeam` (true commitment incl. IR) at
+  **season start** (post-offseason), every season — not active-roster spend at the
+  retirement dead-zone. Reads **~97%, in band, flag cleared.** IR usage is now a
+  first-class audit metric (placements/activations per team-season + a checklist
+  item + the cap report).
+- **User cap sheet** (`renderFrnAnalytics 'mysheet'`): total uses `capUsedByTeam`
+  so it reconciles with the league figure, and an INJURED RESERVE section lists
+  IR players' cap hits (previously the sheet summed only the active roster and
+  silently dropped IR salaries).
+
+**New diagnostic harnesses (this session):** `_cap_trace.js` (per-season cap util
+at offseason-high vs season-end-low + franchise-length drift), `_cap_diag.js`
+(week-by-week salary trajectory + boundary-event stepper — *the* tool that proved
+the retirement dead-zone), `_ir_probe.js` (IR usage + active-vs-true cap at steady
+state), `_ir_ui_test.js` (user IR-handler smoke test). All use the same
+bundle/DOM-stub technique as the audits; reassign render fns to no-ops by bareword.
+
+**Open (minor realism, not correctness):** (a) season-IR'd players retire a year
+late — the end-of-season retirement pass runs while they're off the active roster;
+(b) practice-squad depth erodes — `_psPromote` permanently moves a PS player up as
+a replacement with no mid-season refill. Both work; neither breaks anything. A
+100-season IR regression (`C`) was running at session end to confirm the floor
+change + IR didn't disturb the talent / competitive-balance / legend bands.
+
 **Game engine**
 - **COLLEGE INJURY SYSTEM — the medical-faller draft-slip pipeline.** College
   players couldn't get hurt before (the pipeline only developed them). Real
@@ -918,10 +1028,13 @@ QB styles (`_qb_probe`), box score / drives / situational / kicking / per-positi
 
 ### Findings from the new system audits (open realism items)
 - **CURRENT OPEN FLAGS (latest 100-season brady, as of the college-injury build):**
-  - *Cap utilization ~85-88%* (band 88-100) — borderline; bounces around the floor.
-    The 0.99 floor target nets ~85-88% at end-of-regular-season after in-season
-    churn/dead-cap. Candidate fix: lift the floor target above nominal (0.99 →
-    ~1.03). Not yet done.
+  - *Cap utilization ~85-88%* — **RESOLVED (2026-06).** Two separate things: a
+    real franchise-length DRIFT (flat-dollar floors → fixed by cap-relative floors,
+    `cf6c804`) and a MEASUREMENT ARTIFACT (the audit snapshotted active-roster cap
+    at the post-retirement dead-zone). Both fixed: the audit now measures
+    `capUsedByTeam` (incl. IR) at season start → ~97%, in band. The old "lift the
+    floor to ~1.03" idea was wrong — teams run ~99% in-season; the number only
+    looked low because of WHEN it was measured. See the 2026-06 session block above.
   - *Unique champions* — RESOLVED as a band bug (was impossible 45-100 vs 32-team
     ceiling; now [19,32], 27 passes). `7046218`.
   - *Late-round elite pyramid* — 90+ ran ~139-146 (target 60-100); proved
