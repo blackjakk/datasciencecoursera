@@ -726,6 +726,23 @@ function renderFrnInjuryReport() {
     .filter(t => t.id !== myId)
     .map(t => ({ team: t, injured: collect(t.id) }))
     .filter(x => x.injured.length);
+  // IR action cell for the user's own injured players (manual IR management).
+  const irActionCell = (p) => {
+    if (typeof irEligibility !== "function") return "<td></td>";
+    const elig = irEligibility(myId, p);
+    if (!elig.ok) {
+      const why = elig.reason === "career-ending — retires off roster" ? "career-ending"
+                : elig.reason === "no return slots left" ? "no IR slots"
+                : "too short for IR";
+      return `<td style="color:var(--gray);font-size:.6rem;font-style:italic">${why}</td>`;
+    }
+    const label = elig.designation === "season" ? "IR · Season" : "IR · Return";
+    const tip = elig.designation === "season"
+      ? "Out for the year — frees the roster spot, keeps the cap hit"
+      : `Designated to return — out a minimum of ${IR_RETURN_MIN_WEEKS} weeks, uses 1 of your ${irReturnSlotsLeft(myId)} return slots`;
+    return `<td><button class="btn btn-outline" style="font-size:.6rem;padding:.18rem .5rem" title="${tip}"
+      onclick="frnPlaceOnIr('${_bspnEsc(p.name).replace(/'/g,"\\'")}','${elig.designation}')">🚑 ${label}</button></td>`;
+  };
   const rowHtml = (p, opp) => `
     <tr>
       <td style="font-weight:700">${playerLink(p)}</td>
@@ -733,11 +750,11 @@ function renderFrnInjuryReport() {
       <td style="color:var(--gray)">${p.age||"?"}</td>
       <td style="color:#ff9090">🩹 ${_bspnEsc(p.injury.label||"Injury")}</td>
       <td style="color:#ff9090;font-weight:700">${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"}</td>
-      ${opp ? `<td style="color:var(--gray);font-size:.62rem">${opp.city} ${opp.name}</td>` : ""}
+      ${opp ? `<td style="color:var(--gray);font-size:.62rem">${opp.city} ${opp.name}</td>` : irActionCell(p)}
     </tr>`;
   const mineHtml = mine.length ? `
     <table class="frn-pre-roster-table" style="width:100%">
-      <thead><tr><th>Player</th><th>Pos</th><th>Age</th><th>Injury</th><th>Weeks Out</th></tr></thead>
+      <thead><tr><th>Player</th><th>Pos</th><th>Age</th><th>Injury</th><th>Weeks Out</th><th>IR</th></tr></thead>
       <tbody>${mine.map(p => rowHtml(p, null)).join("")}</tbody>
     </table>` : `<div style="color:var(--green-lt);padding:.8rem;text-align:center">No injuries on the active roster.</div>`;
   const leagueHtml = acrossLeague.length ? `
@@ -756,6 +773,115 @@ function renderFrnInjuryReport() {
     ${mineHtml}
     <div class="frn-card-title" style="margin-top:1rem;margin-bottom:.4rem">LEAGUE-WIDE</div>
     ${leagueHtml}`;
+}
+
+// ── Injured Reserve management (user's own team) ────────────────────────────
+function renderFrnInjuredReserve() {
+  const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const list = (typeof irListForTeam === "function") ? irListForTeam(myId) : [];
+  const open = (typeof rosterSpotsOpen === "function") ? rosterSpotsOpen(myId) : 0;
+  const slots = (typeof irReturnSlotsLeft === "function") ? irReturnSlotsLeft(myId) : 0;
+  const active = (typeof activeRosterCount === "function") ? activeRosterCount(myId) : 0;
+
+  const statusCell = (p) => {
+    const m = p._ir || {};
+    if (m.designation === "season") return `<span style="color:var(--gray)">Out for the year</span>`;
+    const healed = !p.injury || !(p.injury.weeksRemaining > 0);
+    if (typeof irActivationEligible === "function" && irActivationEligible(p)) {
+      const dis = open <= 0 ? "disabled" : "";
+      const tip = open <= 0 ? "No open roster spot — cut or IR a player first" : "Activate to the 53-man roster";
+      return `<button class="btn btn-gold" style="font-size:.6rem;padding:.18rem .55rem" ${dis} title="${tip}"
+        onclick="frnActivateFromIr('${_bspnEsc(p.name).replace(/'/g,"\\'")}')">↩︎ Activate</button>`;
+    }
+    if (!healed) return `<span style="color:#ff9090">🩹 ${p.injury.weeksRemaining} wk left</span>`;
+    const wait = Math.max(0, (m.minReturnWeek || 0) - (franchise.week || 1));
+    return `<span style="color:var(--gray)">Eligible wk ${m.minReturnWeek||"?"} (${wait} to go)</span>`;
+  };
+  const rows = list.map(p => `
+    <tr>
+      <td style="font-weight:700">${playerLink(p)}</td>
+      <td style="color:var(--gray)">${p.position}</td>
+      <td style="color:var(--gray)">${(p._ir&&p._ir.designation)==="season"?"Season":"Return"}</td>
+      <td style="color:#ff9090">${p.injury?_bspnEsc(p.injury.label||"Injury"):"—"}</td>
+      <td>${statusCell(p)}</td>
+    </tr>`).join("");
+  const listHtml = list.length ? `
+    <table class="frn-pre-roster-table" style="width:100%">
+      <thead><tr><th>Player</th><th>Pos</th><th>Type</th><th>Injury</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>` : `<div style="color:var(--gray);padding:.8rem;text-align:center;font-style:italic">No players on Injured Reserve.</div>`;
+
+  // Open-spot helper: sign a veteran-minimum replacement at a chosen position.
+  const POS = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const fillHtml = open > 0 ? `
+    <div style="margin-top:.7rem;padding:.5rem .6rem;background:rgba(255,255,255,.03);border-radius:4px">
+      <div style="font-size:.7rem;color:var(--gold-lt);font-weight:700;margin-bottom:.3rem">${open} open roster spot${open===1?"":"s"} — sign a veteran-minimum replacement:</div>
+      <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+        ${POS.map(pos => `<button class="btn btn-outline" style="font-size:.6rem;padding:.18rem .45rem"
+          onclick="frnSignIrReplacement('${pos}')">+ ${pos}</button>`).join("")}
+      </div>
+      <div style="font-size:.58rem;color:var(--gray);margin-top:.3rem;font-style:italic">Or use Free Agency / Practice Squad to sign a better player.</div>
+    </div>` : "";
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🚑 INJURED RESERVE</div>
+      <div style="color:var(--gray);font-size:.7rem">Active ${active}/${ACTIVE_ROSTER_LIMIT} · ${list.length} on IR · ${slots} return slot${slots===1?"":"s"} left</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+    <div style="font-size:.64rem;color:var(--gray);margin-bottom:.5rem;line-height:1.4">
+      IR opens a roster spot for a healthy replacement while the injured player still counts against the cap.
+      <b>Season</b> = out for the year (returns next season). <b>Return</b> = designated to return, out a minimum of ${IR_RETURN_MIN_WEEKS} weeks (limited slots).
+      Place players on IR from the <b>Injury Report</b> tab.
+    </div>
+    <div class="frn-card-title" style="margin-bottom:.4rem">${myTeam.city.toUpperCase()} ${myTeam.name.toUpperCase()}</div>
+    ${listHtml}
+    ${fillHtml}`;
+}
+
+// Find a player by name on the user's active roster / IR list.
+function _frnFindOnRoster(name) {
+  return ((franchise.rosters||{})[franchise.chosenTeamId]||[]).find(p => p.name === name);
+}
+function _frnFindOnIr(name) {
+  return (typeof irListForTeam==="function" ? irListForTeam(franchise.chosenTeamId) : []).find(p => p.name === name);
+}
+function frnPlaceOnIr(name, designation) {
+  const myId = franchise.chosenTeamId;
+  const p = _frnFindOnRoster(name);
+  if (!p || typeof placeOnIr !== "function") return;
+  const elig = irEligibility(myId, p);
+  if (!elig.ok) { if (typeof toast === "function") toast("Can't place on IR: " + elig.reason); return; }
+  placeOnIr(myId, p, designation || elig.designation);
+  if (typeof _pushNews === "function") {
+    const tag = (designation||elig.designation) === "season" ? "(season)" : "(designated to return)";
+    _pushNews({ type:"ir", label:`🚑 You placed ${p.position} ${p.name} on IR ${tag}` });
+  }
+  if (typeof saveFranchise === "function") saveFranchise();
+  // Move the user to the IR tab so they can sign a replacement into the open spot.
+  if (typeof frnSetRosterSubTab === "function") frnSetRosterSubTab("ir");
+  else renderFrnInjuredReserve();
+}
+function frnActivateFromIr(name) {
+  const myId = franchise.chosenTeamId;
+  const p = _frnFindOnIr(name);
+  if (!p || typeof activateFromIr !== "function") return;
+  if (!irActivationEligible(p)) { if (typeof toast==="function") toast("Not eligible to activate yet."); return; }
+  if (rosterSpotsOpen(myId) <= 0) { if (typeof toast==="function") toast("No open roster spot — cut or IR a player first."); return; }
+  activateFromIr(myId, p);
+  if (typeof _pushNews === "function") _pushNews({ type:"ir", label:`↩︎ You activated ${p.position} ${p.name} off IR` });
+  if (typeof saveFranchise === "function") saveFranchise();
+  renderFrnRosterHome();
+}
+function frnSignIrReplacement(pos) {
+  const myId = franchise.chosenTeamId;
+  if (typeof _signReplacementForInjury !== "function") return;
+  if (rosterSpotsOpen(myId) <= 0) { if (typeof toast==="function") toast("Roster is full."); return; }
+  const ok = _signReplacementForInjury(myId, pos);
+  if (!ok) { if (typeof toast==="function") toast("No "+pos+" available on the practice squad or FA pool."); return; }
+  if (typeof saveFranchise === "function") saveFranchise();
+  renderFrnInjuredReserve();
 }
 
 function renderFrnChat() {
@@ -6323,6 +6449,7 @@ const _FRN_ROSTER_TABS = [
   { id: "depth",     label: "Depth Chart",    fn: () => typeof renderFrnDepthChart    === "function" && renderFrnDepthChart() },
   { id: "snaps",     label: "Snap Shares",    fn: () => typeof renderFrnSnapShares    === "function" && renderFrnSnapShares() },
   { id: "injuries",  label: "Injury Report",  fn: () => typeof renderFrnInjuryReport  === "function" && renderFrnInjuryReport() },
+  { id: "ir",        label: "Injured Reserve",fn: () => typeof renderFrnInjuredReserve === "function" && renderFrnInjuredReserve() },
   { id: "ps",        label: "Practice Squad", fn: () => typeof renderFrnPracticeSquad === "function" && renderFrnPracticeSquad() },
 ];
 function frnSetRosterSubTab(id) {
