@@ -1725,6 +1725,16 @@ const harness = `
       console.log(" Career: " + careerYrs +
                   (p.age != null ? "  ·  Final age " + p.age : "") +
                   (p._retired ? " (retired)" : ""));
+      // Archetype + key OVR-driver stats — for QB builds especially, this is the
+      // diff between "diverse pipeline" and "five identical pocket passers."
+      // Stat indices: 0=SPD 1=STR 2=AGI 3=AWR 4=THR 11=TEC.
+      if (p.position === "QB" && p.stats) {
+        const s = p.stats;
+        const arch = (typeof QB_ARCHETYPES !== "undefined" && QB_ARCHETYPES[p.archetype])
+          ? QB_ARCHETYPES[p.archetype].label : (p.archetype || "?");
+        console.log(" Build:  " + arch + "  ·  SPD " + (s[0]||0) + "  AGI " + (s[2]||0) +
+                    "  AWR " + (s[3]||0) + "  THR " + (s[4]||0) + "  TEC " + (s[11]||0));
+      }
       console.log(" Honors: " + _accoladeTally(p));
       // Per-season table
       const cols = _statCols(p.position);
@@ -1789,6 +1799,16 @@ const harness = `
       console.log(" Career: " + careerYrs +
                   (p.age != null ? "  ·  Final age " + p.age : "") +
                   (p._retired ? " (retired)" : ""));
+      // Archetype + key OVR-driver stats — for QB builds especially, this is the
+      // diff between "diverse pipeline" and "five identical pocket passers."
+      // Stat indices: 0=SPD 1=STR 2=AGI 3=AWR 4=THR 11=TEC.
+      if (p.position === "QB" && p.stats) {
+        const s = p.stats;
+        const arch = (typeof QB_ARCHETYPES !== "undefined" && QB_ARCHETYPES[p.archetype])
+          ? QB_ARCHETYPES[p.archetype].label : (p.archetype || "?");
+        console.log(" Build:  " + arch + "  ·  SPD " + (s[0]||0) + "  AGI " + (s[2]||0) +
+                    "  AWR " + (s[3]||0) + "  THR " + (s[4]||0) + "  TEC " + (s[11]||0));
+      }
       console.log(" Honors: " + _accoladeTally(p));
       const cols = _statCols(p.position);
       // For long careers, window to 8 seasons centered on the peak.
