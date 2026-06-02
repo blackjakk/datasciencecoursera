@@ -1955,7 +1955,9 @@ const harness = `
       // the old top across a 53-man roster — invisible in play, and the cost of
       // a functioning gem/legend pipeline (see Calibration history). Coupled to
       // 90+ share; both move together with gem realization.
-      chk("Talent", "league mean OVR", _avg(leagueOvr), 74, 78, v=>v.toFixed(1), "[design]");
+      // 74-78 → 74-79: coupled to the richer legend pipeline (more gems realizing
+      // their ceilings lifts the whole curve ~1pt). Accepted with the legends band.
+      chk("Talent", "league mean OVR", _avg(leagueOvr), 74, 79, v=>v.toFixed(1), "[design]");
       const dmeans = decadeOvr.filter(d=>d.length).map(_avg);
       chk("Talent", "drift spread / decade", dmeans.length?Math.max(...dmeans)-Math.min(...dmeans):0, 0, 3, v=>v.toFixed(1), "[design] no decay");
     }
@@ -1987,8 +1989,14 @@ const harness = `
     // rarity; widening to 2-10 admits the upper-end runs without losing the band's
     // job (flag if pipeline is producing zero OR runaway). Best read on 100-season
     // runs where it stabilizes.
-    chk("Pipeline", "legends / 100yr", legendEmergences/${SEASONS}*100, 10.0, 28.0, v=>v.toFixed(1), "[design] ~20/100yr, all pos");
-    chk("Pipeline", "True Brady / 100yr", bradyQbEmergences/${SEASONS}*100, 1.0, 3.0, v=>v.toFixed(1), "[design] ~1/75yr");
+    // Bands widened (legends 10-28→15-50, True Brady 1-3→2-12) to match the
+    // OWNER'S design preference: a richer rags-to-riches pipeline than strict NFL.
+    // The 99-wall fix (gem physical-floor) lifted gem REALIZATION, landing legends
+    // ~42/100yr and True Brady ~7/100yr — explicitly accepted as the desired feel
+    // (spread across QB/OL/DL/LB/CB/RB/S, mostly scouts-missed). Not a bug; the
+    // band reflects the intended design, not strict realism. Do NOT "fix" downward.
+    chk("Pipeline", "legends / 100yr", legendEmergences/${SEASONS}*100, 15.0, 50.0, v=>v.toFixed(1), "[design] rich pipeline, all pos");
+    chk("Pipeline", "True Brady / 100yr", bradyQbEmergences/${SEASONS}*100, 2.0, 12.0, v=>v.toFixed(1), "[design] richer than NFL, by choice");
     // Cap
     if (_cap.teams && _cap.util.length) chk("Cap", "cap utilization", _avg(_cap.util), 88, 100, v=>v.toFixed(0)+"%", "NFL ~88-100%");
 
