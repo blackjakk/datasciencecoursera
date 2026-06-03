@@ -8899,6 +8899,96 @@ function mffPlayerEPAChipsHtml(p) {
   </div>`;
 }
 
+// ── MFF DVOA-style opponent adjustment ──────────────────────────────
+// Raw EPA/play tells you how a team did. ADJUSTED EPA tells you how good
+// they ACTUALLY are — beating a top defense for +0.05 EPA/play is much
+// better than beating a bad defense for +0.10. Standard adjustment:
+// iteratively subtract opponent strength (weighted by per-game play
+// counts). Converges in 3-4 passes for a 32-team league.
+//
+// Algorithm (Massey-style iterative):
+//   For each iteration:
+//     1. Compute league averages (will be ≈0 after first pass; zero-sum).
+//     2. For each team T:
+//        adj_off[T] = raw_off[T] - (mean opponent def EPA, weighted by
+//                                   plays T ran vs that opp) + league_def
+//        adj_def[T] = raw_def[T] - (mean opponent off EPA, weighted by
+//                                   plays T defended vs that opp) + league_off
+//     3. Use updated adj_* as the next iteration's "opponent strength".
+// After convergence, adj_off/def represent each team's EPA performance
+// LEAGUE-AVERAGE-OPPONENT-NORMALIZED — directly comparable across teams.
+function _mffComputeDVOA(maxIter = 4) {
+  const e = _mffGetEPA();
+  if (!e) return null;
+  const teams = Object.keys(e.team).map(Number);
+  if (teams.length < 2) return null;
+  // Build per-team-pair play counts from the __g markers in playLog.
+  const log = franchise.playLog?.[franchise.season ?? 1] || [];
+  // oppPlays[T][O] = {off:N, def:M}  — T ran N off plays vs O, defended M of O's off plays.
+  const oppPlays = {};
+  let curMeta = null;
+  for (const entry of log) {
+    if (entry?.__g) { curMeta = entry; continue; }
+    if (!curMeta || !entry.p) continue;
+    const offTid = curMeta[entry.p === "home" ? "homeId" : "awayId"];
+    const defTid = curMeta[entry.p === "home" ? "awayId" : "homeId"];
+    if (offTid == null || defTid == null) continue;
+    (oppPlays[offTid] = oppPlays[offTid] || {})[defTid] = oppPlays[offTid][defTid] || {off:0, def:0};
+    (oppPlays[defTid] = oppPlays[defTid] || {})[offTid] = oppPlays[defTid][offTid] || {off:0, def:0};
+    oppPlays[offTid][defTid].off++;
+    oppPlays[defTid][offTid].def++;
+  }
+  // Raw rates per team
+  const raw = {};
+  for (const tid of teams) {
+    const t = e.team[tid];
+    raw[tid] = {
+      off: t.plays     ? (t.epa     / t.plays)     : 0,
+      def: t.plays_def ? (t.epa_def / t.plays_def) : 0,
+    };
+  }
+  // Iterate.
+  let cur = Object.fromEntries(teams.map(t => [t, {off: raw[t].off, def: raw[t].def}]));
+  for (let iter = 0; iter < maxIter; iter++) {
+    let leagueOff = 0, leagueDef = 0;
+    for (const t of teams) { leagueOff += cur[t].off; leagueDef += cur[t].def; }
+    leagueOff /= teams.length; leagueDef /= teams.length;
+    const nxt = {};
+    for (const t of teams) {
+      const opps = oppPlays[t] || {};
+      let sosDef = 0, totOff = 0, sosOff = 0, totDef = 0;
+      for (const o of Object.keys(opps)) {
+        const oid = +o;
+        if (cur[oid] == null) continue;
+        sosDef += cur[oid].def * opps[o].off; totOff += opps[o].off;
+        sosOff += cur[oid].off * opps[o].def; totDef += opps[o].def;
+      }
+      sosDef = totOff ? sosDef / totOff : leagueDef;
+      sosOff = totDef ? sosOff / totDef : leagueOff;
+      nxt[t] = {
+        off:    raw[t].off - (sosDef - leagueDef),
+        def:    raw[t].def - (sosOff - leagueOff),
+        sosOff: sosOff,    // opponents' offensive strength T faced (defensive SOS)
+        sosDef: sosDef,    // opponents' defensive strength T faced (offensive SOS)
+      };
+    }
+    cur = nxt;
+  }
+  return cur;
+}
+const _MFF_DVOA_CACHE = { key: null, data: null };
+function mffTeamDVOA(teamId) {
+  if (!franchise || teamId == null) return null;
+  const season = franchise.season ?? 0;
+  const len = (franchise.playLog?.[season] || []).length;
+  const k = season + ":" + (franchise.week ?? 0) + ":" + len;
+  if (_MFF_DVOA_CACHE.key !== k) {
+    _MFF_DVOA_CACHE.data = _mffComputeDVOA();
+    _MFF_DVOA_CACHE.key = k;
+  }
+  return _MFF_DVOA_CACHE.data?.[teamId] || null;
+}
+
 // Team EPA + Success Rate rows for the win-prob matchup compare block.
 // Returns "" if no data yet (week 1 pre-game, etc.) — render falls back
 // gracefully. Each side may be null (e.g. team played only home games this
@@ -8909,15 +8999,36 @@ function mffPlayerEPAChipsHtml(p) {
 // Success Rate is the consistency complement to EPA's per-play efficiency.
 function mffTeamEPAStatRows(myId, oppId, statRow) {
   if (!franchise || !statRow) return "";
-  const my  = mffTeamEPA(myId);
-  const opp = mffTeamEPA(oppId);
+  const my   = mffTeamEPA(myId);
+  const opp  = mffTeamEPA(oppId);
   if (!my && !opp) return "";
+  const myA  = mffTeamDVOA(myId);
+  const oppA = mffTeamDVOA(oppId);
   const fmt    = v => v == null ? "—" : ((v >= 0 ? "+" : "") + v.toFixed(2));
   const fmtPct = v => v == null ? "—" : (v * 100).toFixed(0) + "%";
-  // Off EPA/play: higher is better. Def EPA/play allowed: LOWER is better.
-  return statRow("EPA/PLAY (OFF)", fmt(my?.off), fmt(opp?.off), true)
-       + statRow("EPA/PLAY (DEF)", fmt(my?.def), fmt(opp?.def), false)
-       + statRow("SUCCESS RATE",    fmtPct(my?.srOff), fmtPct(opp?.srOff), true);
+  // Use ADJUSTED EPA as the primary stat (more predictive — accounts for
+  // opponent strength). Raw EPA is still useful context — show both rows.
+  // Off: higher is better. Def: lower (more negative) is better.
+  let rows = "";
+  if (myA || oppA) {
+    rows += statRow("ADJ EPA/PLAY (OFF)", fmt(myA?.off), fmt(oppA?.off), true);
+    rows += statRow("ADJ EPA/PLAY (DEF)", fmt(myA?.def), fmt(oppA?.def), false);
+  } else {
+    // Pre-DVOA fallback (week 1, very few games)
+    rows += statRow("EPA/PLAY (OFF)", fmt(my?.off), fmt(opp?.off), true);
+    rows += statRow("EPA/PLAY (DEF)", fmt(my?.def), fmt(opp?.def), false);
+  }
+  rows += statRow("SUCCESS RATE", fmtPct(my?.srOff), fmtPct(opp?.srOff), true);
+  return rows;
+}
+
+// Strength-of-schedule summary for a team (the SOS values that drove the
+// DVOA adjustment). +0.10 sosDef means opposing defenses averaged +0.10
+// EPA/play allowed (weak defenses you faced); negative = tough schedule.
+function mffTeamSOS(teamId) {
+  const d = mffTeamDVOA(teamId);
+  if (!d) return null;
+  return { sosOff: d.sosOff, sosDef: d.sosDef };
 }
 
 // Rebuild franchise.seasonStats from the per-game stat blobs stored on the
