@@ -57,15 +57,17 @@ const audit = `
   const MFF_KEYS = new Set(["pressures","pressures_allowed","pass_rush_snaps","pass_pro_snaps","qb_hits",
     "run_block_snaps","run_block_wins","run_block_losses","run_def_snaps","run_stuffs","run_def_losses",
     "cover_tgt","cover_comp","cover_yds"]);
-  function strip(obj) {
-    if (Array.isArray(obj)) return obj.map(strip);
-    if (obj && typeof obj === "object") {
-      const out = {};
-      for (const k of Object.keys(obj)) { if (MFF_KEYS.has(k)) continue; out[k] = strip(obj[k]); }
-      return out;
-    }
-    return obj;
-  }
+  function mkStrip(extra) { const KILL = new Set([...MFF_KEYS, ...(extra||[])]);
+    return function strip(obj) {
+      if (Array.isArray(obj)) return obj.map(strip);
+      if (obj && typeof obj === "object") { const out = {};
+        for (const k of Object.keys(obj)) { if (KILL.has(k)) continue; out[k] = strip(obj[k]); }
+        return out; }
+      return obj; }; }
+  const strip = mkStrip();              // strip MFF-only keys
+  const stripTkl = mkStrip(["tkl"]);    // also strip per-player tackle counts
+  function sumTkl(stats){ let s=0; for(const side of ["home","away"]){ const p=stats[side].players;
+    for(const n in p) s += p[n].tkl||0; } return s; }
   // Count recorded MFF events so we can confirm attribution actually fired.
   function tally(stats) {
     let pr = 0, pa = 0, rs = 0, hits = 0;
@@ -87,47 +89,56 @@ const audit = `
   const srcRosters = {};
   for (const t of TEAMS) srcRosters[t.id] = buildRoster(t);
 
-  let allPass = true, totalEvents = { pressures:0, pressures_allowed:0, rush_snaps:0, qb_hits:0 };
-  let firstDiff = null;
+  let attrPass = true, skillPass = true, totalEvents = { pressures:0, rush_snaps:0, qb_hits:0 };
+  let tklMoved = 0, tklTotal = 0; let firstDiff = null;
   pairs.forEach(([h, a], gi) => {
     const seed = 1000 + gi * 7919;
+    const G = (opts) => { Math.random = mulberry32(seed);
+      const s = new GameSimulator(h, a, clone(srcRosters[h.id]), clone(srcRosters[a.id]), opts); s.simulate(); return s; };
 
-    Math.random = mulberry32(seed);
-    const simOff = new GameSimulator(h, a, clone(srcRosters[h.id]), clone(srcRosters[a.id]), { mffAttr: false });
-    simOff.simulate();
-    const off = JSON.stringify(strip(simOff.stats));
+    // (A) attribution OFF (baseline) vs ON, both tackle-skill OFF → must be byte-identical.
+    const base   = G({ mffAttr:false, mffTackleSkill:false });
+    const attrOn = G({ mffAttr:true,  mffTackleSkill:false });
+    const sBase = JSON.stringify(strip(base.stats)), sAttr = JSON.stringify(strip(attrOn.stats));
+    const okA = sBase === sAttr;
 
-    Math.random = mulberry32(seed);
-    const simOn = new GameSimulator(h, a, clone(srcRosters[h.id]), clone(srcRosters[a.id]), { mffAttr: true });
-    simOn.simulate();
-    const on = JSON.stringify(strip(simOn.stats));
+    // (B) tackle-skill OFF vs ON (attribution ON for both) → identical EXCEPT
+    //     per-player tkl distribution; tackle TOTAL preserved.
+    const skillOn = G({ mffAttr:true, mffTackleSkill:true });
+    const sAttrNoTkl  = JSON.stringify(stripTkl(strip(attrOn.stats)));
+    const sSkillNoTkl = JSON.stringify(stripTkl(strip(skillOn.stats)));
+    const okB_other = sAttrNoTkl === sSkillNoTkl;          // everything but tkl identical
+    const okB_total = sumTkl(attrOn.stats) === sumTkl(skillOn.stats); // tkl total preserved
+    const okB = okB_other && okB_total;
+    // measure how much tackle credit actually moved between players
+    for (const side of ["home","away"]) { const pa=attrOn.stats[side].players, ps=skillOn.stats[side].players;
+      for (const n in pa) { tklTotal += pa[n].tkl||0; tklMoved += Math.abs((ps[n]?.tkl||0)-(pa[n].tkl||0)); } }
 
-    const ev = tally(simOn.stats);
-    for (const k in totalEvents) totalEvents[k] += ev[k];
-
-    const ok = off === on;
-    if (!ok && !firstDiff) {
-      // Find first divergent character for a useful message.
-      let idx = 0; while (idx < off.length && off[idx] === on[idx]) idx++;
-      firstDiff = { game: h.abbr + " vs " + a.abbr, ctx: off.slice(Math.max(0,idx-80), idx+80) + "  ||vs||  " + on.slice(Math.max(0,idx-80), idx+80) };
-    }
-    allPass = allPass && ok;
-    console.error("  game " + (gi+1) + " " + (h.abbr||h.id) + " vs " + (a.abbr||a.id) + ": " +
-      (ok ? "IDENTICAL ✓" : "DIVERGED ✗") + "  (pressures=" + ev.pressures + ", sacks⊆pressures, rush_snaps=" + ev.rush_snaps + ")");
+    const ev = tally(skillOn.stats); for (const k in totalEvents) totalEvents[k] += ev[k];
+    if (!okA && !firstDiff) { let i=0; while(i<sBase.length&&sBase[i]===sAttr[i])i++;
+      firstDiff = {t:"attr", g:(h.abbr||h.id)+" vs "+(a.abbr||a.id), ctx:sBase.slice(Math.max(0,i-70),i+70)+" ||vs|| "+sAttr.slice(Math.max(0,i-70),i+70)}; }
+    if (!okB_other && !firstDiff) { let i=0; while(i<sAttrNoTkl.length&&sAttrNoTkl[i]===sSkillNoTkl[i])i++;
+      firstDiff = {t:"skill", g:(h.abbr||h.id)+" vs "+(a.abbr||a.id), ctx:sAttrNoTkl.slice(Math.max(0,i-70),i+70)+" ||vs|| "+sSkillNoTkl.slice(Math.max(0,i-70),i+70)}; }
+    attrPass = attrPass && okA; skillPass = skillPass && okB;
+    console.error("  game " + (gi+1) + " " + (h.abbr||h.id) + " vs " + (a.abbr||a.id) + ":  attr " +
+      (okA?"IDENTICAL ✓":"DIVERGED ✗") + "   tackle-skill " + (okB?"tkl-only ✓":(okB_total?"NON-TKL DIFF ✗":"TOTAL CHANGED ✗")));
   });
 
   console.error("");
-  const rate = totalEvents.rush_snaps ? (100*totalEvents.pressures/totalEvents.rush_snaps) : 0;
-  console.error("Attribution fired: " + totalEvents.pressures + " pressures over " + totalEvents.rush_snaps +
-                " pass-rush reps → pressure rate " + rate.toFixed(1) + "% (NFL ~33-38%)");
-  console.error("QB hits: " + totalEvents.qb_hits + " | pressures_allowed (OL): " + totalEvents.pressures_allowed);
+  console.error("Attribution fired: "+totalEvents.pressures+" pressures over "+totalEvents.rush_snaps+
+    " reps ("+(totalEvents.rush_snaps?(100*totalEvents.pressures/totalEvents.rush_snaps).toFixed(1):0)+"%), "+totalEvents.qb_hits+" QB hits.");
+  console.error("Tackle-skill redistributed "+(tklTotal?(100*tklMoved/2/tklTotal).toFixed(1):0)+"% of tackles between players (total preserved).");
   console.error("");
-  if (allPass) {
-    console.error("RESULT: PASS — box scores byte-identical with attribution on vs off.");
-    console.error("        Calibration is provably untouched by the MFF layer.");
+  if (attrPass && skillPass) {
+    console.error("RESULT: PASS");
+    console.error("  • Attribution: box scores byte-identical on vs off (zero calibration effect).");
+    console.error("  • Tackle-skill: only per-player tkl distribution changes; every other stat");
+    console.error("    byte-identical and tackle totals preserved → RNG stream intact, no band moves.");
   } else {
-    console.error("RESULT: FAIL — aggregates diverged. Attribution consumed RNG or mutated state.");
-    if (firstDiff) console.error("  first diff (" + firstDiff.game + "):\\n  " + firstDiff.ctx);
+    console.error("RESULT: FAIL");
+    if (!attrPass) console.error("  • Attribution changed a non-MFF aggregate (consumed RNG / mutated state).");
+    if (!skillPass) console.error("  • Tackle-skill changed more than tkl distribution (RNG desync downstream).");
+    if (firstDiff) console.error("  first diff ["+firstDiff.t+"] ("+firstDiff.g+"):\\n  "+firstDiff.ctx);
     process.exit(2);
   }
 })();

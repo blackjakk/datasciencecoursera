@@ -173,19 +173,34 @@ const audit=`;(function(){
   // WHO tackles by a positional context weight + a final RANDOM draw — it is NOT
   // weighted by the individual defender's rating within his position group. So an
   // LB's run-stop counts mostly reflect snaps-on-field + randomness, not skill.
+  // With MFF tackle-skill on, the better run-defender is credited the stop, so
+  // the SIGNAL lives in stop VOLUME (a skilled LB makes more stops), not stop RATE
+  // (which is ~flat across LBs — set by the run-outcome mix they're assigned, not
+  // by skill). Grade on stop volume + TFL, standardized within the LB pool.
   const lbs=[...tklAcc.entries()].map(([nm,r])=>({nm,...r})).filter(r=>r.pos==="LB"&&r.run_tkl>=25*SEASONS);
   const stopRate=r=>r.run_stop/Math.max(1,r.run_tkl);
-  const sm=mean(lbs.map(stopRate)),ssd=Math.sqrt(mean(lbs.map(r=>(stopRate(r)-sm)**2)))||1;
-  for(const r of lbs) r.grade=Math.max(20,Math.min(99,Math.round(60+14*((stopRate(r)-sm)/ssd))));
+  const zof=(arr,f)=>{const m=mean(arr.map(f)),sd=Math.sqrt(mean(arr.map(x=>(f(x)-m)**2)))||1;return x=>(f(x)-m)/sd;};
+  const zStop=zof(lbs,r=>r.run_stop), zTfl=zof(lbs,r=>r.run_tfl);
+  for(const r of lbs) r.grade=Math.max(20,Math.min(99,Math.round(60+12*zStop(r)+4*zTfl(r))));
   const gs=g=>{const T=g>=82?"A":g>=68?"B":g>=52?"C":g>=44?"D":"F";return String(g).padStart(2)+" "+T;};
-  L("  ── LB RUN-DEFENSE grade (⚠ KNOWN-WEAK: tackle credit is RNG, see below) ────");
+  L("  ── LB RUN-DEFENSE grade (MFF tackle-skill ON → graded on stop VOLUME) ──────");
   L("    "+"player".padEnd(22)+"pos OVR  runTkl  stops  TFL  stop%  GRADE");
   lbs.sort((a,b)=>b.grade-a.grade).slice(0,8).forEach(r=>L(
     "    "+r.nm.padEnd(22)+r.pos.padEnd(4)+String(r.ovr).padEnd(5)+String(r.run_tkl).padEnd(8)+String(r.run_stop).padEnd(7)+String(r.run_tfl).padEnd(5)+(100*stopRate(r)).toFixed(0).padStart(4)+"   "+gs(r.grade)));
   const rLB=corr(lbs.map(r=>r.grade),lbs.map(r=>r.ovr));
-  L("    LB run-D grade ↔ OVR:  r = "+rLB.toFixed(2)+"   "+(Math.abs(rLB)<0.25?"⚠ ≈ NOISE — confirms tackle credit is rating-blind":(Math.abs(rLB)<0.4?"weak":"unexpectedly informative")));
-  L("    → Verdict: a defensible LB run-D grade needs Arch-B (assign the run tackle");
-  L("      to the LB who actually filled the gap by AWR-vs-context). Out of scope here.");
+  const band=v=>(Math.abs(v)>=0.4&&Math.abs(v)<=0.85)?"✓ defensible":(Math.abs(v)>0.85?"⚠ high (circular?)":"⚠ low (noisy?)");
+  L("    diagnostics:  run-tackle vol ↔ OVR r="+corr(lbs.map(r=>r.run_tkl),lbs.map(r=>r.ovr)).toFixed(2)+
+    "   stop vol ↔ OVR r="+corr(lbs.map(r=>r.run_stop),lbs.map(r=>r.ovr)).toFixed(2)+
+    "   stop RATE ↔ OVR r="+corr(lbs.map(stopRate),lbs.map(r=>r.ovr)).toFixed(2));
+  L("    LB run-D grade ↔ OVR:  r = "+rLB.toFixed(2)+"   "+band(rLB));
+  L("    → VERDICT: still NOT a defensible cross-league grade. The MFF tackle-skill");
+  L("      fix DID make within-team tackle credit rating-based (the stud LB gets the");
+  L("      stop, not a random one — a box-score realism win, proven safe). But run");
+  L("      defense is a TEAM-FRONT outcome the engine never resolves to an individual");
+  L("      LB (LBs aren't in the trench `reps`): a team's LB tackles are ~fixed and");
+  L("      split by within-unit skill, so absolute volume is role/opportunity-driven");
+  L("      and the cross-league OVR signal washes out. LB run-D is EXCLUDED from the");
+  L("      grade set; DL run-stuff (from the trench reps) remains the real run-D grade.");
   L("");
 })();`;
 let code=shim+"\n"; for(const f of files){let c=fs.readFileSync(path.join(__dirname,f),"utf8");c=stripUiInit(c,f);code+="\n"+c+"\n";}
