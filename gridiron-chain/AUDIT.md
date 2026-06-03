@@ -536,6 +536,37 @@ comfortably mid-band). Standing rule recorded in the code comment: **tune
 `_rollHiddenGem` only against an aggregated multi-run μ, never a single
 100-season audit.** (revert `8f6e9f6`, calibrated trim `793a818`, shape fix `08ca74e`)
 
+**RESOLVED — Decoupled QB archetype from stat shape (`pickQBArchetype` in
+`play-player.js`).** Post-reshape archetype dump revealed the legend pool was
+**72% POCKET / 21% GAME_MANAGER / 7% DUAL_THREAT / 0% GUNSLINGER / 0%
+FIELD_GENERAL** — two of five labels were *structurally* unreachable. Root
+cause was a definitional contradiction, not a stat-tuning miss: the label
+overloaded two things — (a) stat-shape descriptor (Gunslinger = low AWR via
+`AWR<75 → +5 bonus`; Game_Manager = low THR via `THR<80 → +4 bonus`) AND
+(b) play-style driver (the 3 engine sites switch on the same label for
++aggression, force-feed, deep-PI, matchup reads). Because OVR weights AWR
+at 40%, any label whose definition included low/non-elite AWR was
+mathematically locked out of the 96+ tier — anti-correlated with the very
+ceiling the audit measures. Fix decouples the two meanings: the label is
+now strictly a **play-style** axis, set by a mostly-random roll with mild
+stat tiebreakers and ±25 jitter (was ±6), so any skill level can be any
+style. POCKET keeps a slight base-weight lean (15 vs 10) to stay modal
+(~45% population), matching real NFL pocket-passer share. DUAL_THREAT
+keeps a hard SPD/AGI gate — "scrambler" requires actual legs, can't be
+a label-only tag. Removed both anti-correlation bonuses. Engine sites,
+OVR formula, dev system, save layer, and UI cards unchanged — same 5
+string labels, same behavior; only the *assignment* changed. **200-season
+audit (post-change): all 5 labels present at 96+ tier** (Pocket 65% /
+Field General 18% / Gunslinger / Game Manager / Dual Threat 6% each),
+True Brady 6.5/100yr (in band), 22/23 checks pass. The one flag — top-40
+QB season median 6173 (band 5000-5900, +4.6% over) — is partly a side-
+effect (Gunslingers in the legend pool fire +20 aggression and deep-PI,
+pushing top-end yardage up) and partly outlier-driven (3 of top 40 are
+one anomalous player at sub-80 OVR). Decoupling blurbs: updated to
+describe play tendency only ("Aggressive shot-taker", "Patient dropback")
+since stat-shape claims like "Big arm" / "immobile" no longer hold.
+(`f4ddf10`)
+
 **Game engine**
 - **COLLEGE INJURY SYSTEM — the medical-faller draft-slip pipeline.** College
   players couldn't get hurt before (the pipeline only developed them). Real
