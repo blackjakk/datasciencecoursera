@@ -4974,6 +4974,10 @@ class GameSimulator {
           const avgSafCov = safPlayers.reduce((s,p) => s + (p.stats?.[8] || 65), 0) / safPlayers.length;
           cbCoverMod -= (avgSafCov - 65) / 480;       // up to ~-0.063 from elite safety duo
         }
+        // MFF coverage attribution: credit a coverage TARGET to the deterministic
+        // cover man (denominator for completion-allowed rate). Additive, no RNG.
+        if (this._MFF_ATTR && def.players[_coverName])
+          def.players[_coverName].cover_tgt = (def.players[_coverName].cover_tgt || 0) + 1;
       }
       // QB OVR matters a lot for completion %: a 60-OVR scrub completes far less than a 90-OVR star
       // (swing of ~0.20 across 30 OVR points, centered around 75 OVR baseline)
@@ -5341,6 +5345,12 @@ class GameSimulator {
         const targetDepth = Math.max(1, Math.round(airYds));
         // Cap at distance to end zone so a 3-yd goal-line catch doesn't get reported as a 25-yd TD
         const yards = Math.min(clamp(targetDepth + yac, -2, 95), 100 - startYard);
+        // MFF coverage attribution: a completion was allowed against the cover man.
+        // Credit completion + yards-allowed (through-the-air gain). Additive, no RNG.
+        if (this._MFF_ATTR && _coverName && def.players[_coverName]) {
+          def.players[_coverName].cover_comp = (def.players[_coverName].cover_comp || 0) + 1;
+          def.players[_coverName].cover_yds  = (def.players[_coverName].cover_yds  || 0) + yards;
+        }
         // (receiver was picked above, before the comp roll)
         // Throw type — QB picks based on situation + archetype:
         //  CHECKDOWN (≤4 yds): low arc, fast — short outlet

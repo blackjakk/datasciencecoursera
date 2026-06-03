@@ -55,7 +55,8 @@ const audit = `
   // MFF-only keys to strip before comparing (these legitimately only exist when
   // attribution is ON).
   const MFF_KEYS = new Set(["pressures","pressures_allowed","pass_rush_snaps","pass_pro_snaps","qb_hits",
-    "run_block_snaps","run_block_wins","run_block_losses","run_def_snaps","run_stuffs","run_def_losses"]);
+    "run_block_snaps","run_block_wins","run_block_losses","run_def_snaps","run_stuffs","run_def_losses",
+    "cover_tgt","cover_comp","cover_yds"]);
   function strip(obj) {
     if (Array.isArray(obj)) return obj.map(strip);
     if (obj && typeof obj === "object") {

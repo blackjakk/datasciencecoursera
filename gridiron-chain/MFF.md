@@ -1,8 +1,8 @@
 # MFF — advanced-analytics layer (EPA + PFF-style player grades)
 
-> Status: **slices #1 + #2 shipped** — all four trench grades (pass-rush,
-> pass-protection, run-stuff, run-block) + combined DL/OL grades. Coverage,
-> EPA layer, and LB run-D are planned, not yet built.
+> Status: **slices #1-#3 shipped** — four trench grades (pass-rush, pass-pro,
+> run-stuff, run-block) + combined DL/OL grades, and coverage grades (CB +
+> cover-LB). EPA layer and LB run-D tackling are planned, not yet built.
 > This doc is the resume point for a future session.
 
 ## Goal
@@ -144,6 +144,37 @@ League run-block-win rate 48.2%; pressure rate 38.0%. A/B still byte-identical
 (`_mff_ab_check.js` strips the six new run fields). Face validity strong: combined
 OL leaders OVR 89-95, worst all OVR 72-76; combined DL leaders OVR 82-92.
 
+## Slice #3 — coverage (CB / cover-LB) (SHIPPED)
+
+### What the engine now records (gated by `_MFF_ATTR`)
+Every targeted dropback already maps the target receiver → a deterministic cover
+defender (`_coverName`, `play-engine.js:4954-4964`: wr1→cb1, wr2→cb2, slot→cb3,
+TE→lb2, RB→lb1, …) whose COV rating modulates the completion (`cbCoverMod` →
+`compPct`, `:5229`). Now that defender is credited:
+- `cover_tgt` — every target in his coverage (denominator), at `:4965`.
+- `cover_comp` + `cover_yds` — on a completion, after `yards` is finalized (`:5347`).
+
+PD/INT come from the engine's existing `_creditDBStat` credit (`pd`/`int_made`).
+Purely additive, no `Math.random()`, no outcome change.
+
+### Grade (`_mff_audit.js`) — standardized WITHIN position group
+`60 − 11·z(completion-allowed rate) − 6·z(yds/target) + 7·z((PD+2·INT)/target)`,
+standardized within {CB, LB} separately (LBs cover worse by design via the larger
+`_coverScale`, so pooling them with CBs would be unfair).
+
+### Validation (round-robin) — validate against COV, not OVR
+Coverage is driven by the **COV** rating (`stats[8]`), which is only one component
+of a DB's OVR — so the correct yardstick is grade↔COV:
+| grade | r ↔ COV | (r ↔ OVR) | verdict |
+|---|---|---|---|
+| cover-CB | **0.75** | 0.27 | ✓ defensible — tracks coverage skill |
+| cover-LB | **0.43** | 0.33 | ✓ defensible |
+
+League completion-allowed rate **64.2%** — matches NFL comp% ~64% (a strong
+sanity check that the attribution captures the real outcome). A/B still byte-
+identical. Face validity: worst CBs are all **COV 60** (despite OVR ~76); top CBs
+are COV 86-95.
+
 ## Findings surfaced by the slices
 1. **The engine's `pressure` is team-level** — it never incorporates the picked
    rusher's individual rating, only team d-line avg + archetype matchup + pick
@@ -159,7 +190,18 @@ OL leaders OVR 89-95, worst all OVR 72-76; combined DL leaders OVR 82-92.
    the (noisier) tackle/TFL attribution in a later slice. Net: pass-rush is too
    NOISY and run-stuff too DETERMINISTIC — opposite failure modes, both inherent
    to how the engine models each phase, and both fixed by combining signals.
-3. **Latent bug (left untouched, out of scope):** `this._currentPressure` is set
+3. **Coverage validates against COV, not OVR; safeties aren't directly targeted.**
+   A DB's coverage grade tracks the COV rating (the actual `compPct` driver), not
+   his blended OVR — so grade↔OVR looks "noisy" (CB 0.27) while grade↔COV is
+   defensible (CB 0.75). Always validate a skill grade against the rating the
+   engine actually uses. Separately, the `_coverName` map never assigns a SAFETY
+   as the primary cover man (safeties only contribute via the team safety-help
+   term), so safeties accrue zero `cover_tgt` and cannot be coverage-graded from
+   this signal — a safety grade needs the run-support / deep-help attribution of a
+   later slice. Same pattern as findings #1/#2: pass-completion is a many-factor
+   aggregate (CB is a small term → noisy individual signal), so the CB grade is
+   only defensible once judged on the right axis.
+4. **Latent bug (left untouched, out of scope):** `this._currentPressure` is set
    to the real value at `:3044` then **reset to 0 at `:3088`** ("set below" — but
    nothing below re-sets it). So the play-log / visual trench animation always
    sees `pressure=0`. Game logic is unaffected (only `_pushVisual` reads it). The
@@ -175,9 +217,8 @@ OL leaders OVR 89-95, worst all OVR 72-76; combined DL leaders OVR 82-92.
 ## Next steps (planned, not built)
 Order = cheapest/most-defensible first, each behind the same flag + A/B gate:
 1. ~~**Run-block / run-stuff**~~ — ✅ DONE (slice #2).
-2. **Coverage (CB / S / cover-LB)** — reuse `_coverName` + completion outcome
-   (`:4904`, `:5179`); add `cover_snaps`, `targets_allowed`, `completions_allowed`,
-   `cover_yds_allowed`. Medium effort, high payoff (strongest defensive grade).
+2. ~~**Coverage (CB / cover-LB)**~~ — ✅ DONE (slice #3). Safeties excluded
+   (not directly targeted — see finding #3).
 3. **EPA layer** — empirical EP(down,dist,field) table from sim data, EPA per
    play, team/QB/skill roll-ups, success rate. Pure post-processing over the
    play log (self-contained per entry: pre-state `{down,ytg,startYard}`,
