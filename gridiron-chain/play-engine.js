@@ -351,16 +351,6 @@ class GameSimulator {
     // aggregate byte-identical (proven by _mff_ab_check.js). Default on; the
     // A/B harness sets `_MFF_ATTR = false` to verify calibration is untouched.
     this._MFF_ATTR = this.opts.mffAttr !== false;
-    // MFF tackle-skill weighting. When on, tackle credit (_creditDefStat, field
-    // "tkl") is weighted within each position by the defender's run-defense rating
-    // (TCK stats[9] + AWR stats[3]) instead of being rating-blind — so the player
-    // who'd actually make the stop is credited. This consumes NO extra
-    // Math.random() (the weighted draw is a single call regardless of weights), so
-    // the RNG stream is unchanged: every non-tackle stat stays byte-identical and
-    // team tackle TOTALS are preserved — only the per-player tackle DISTRIBUTION
-    // shifts. It moves no AUDIT calibration band (tackles aren't a band). Verified
-    // by _mff_ab_check.js. Toggle with opts.mffTackleSkill:false.
-    this._MFF_TACKLE_SKILL = this.opts.mffTackleSkill !== false;
     this.isRivalry = !!this.opts.isRivalry;
     this.isPlayoff = !!this.opts.isPlayoff;   // amplifies the clutch swing in big games
     this.homeFieldAdv = this.opts.homeFieldAdv !== false; // default on
@@ -1977,23 +1967,13 @@ class GameSimulator {
       return 1.0;
     };
     const pool = [];
-    // MFF tackle-skill weight: bias the WITHIN-position pick toward the better
-    // run-defender (TCK + AWR) for tackles. Only for field "tkl" and only when
-    // enabled. A single weighted draw still happens below, so the RNG stream is
-    // unchanged — only WHICH defender is credited shifts.
-    const skillMul = (name) => {
-      if (!this._MFF_TACKLE_SKILL || field !== "tkl") return 1;
-      const ply = this._playerByName?.get?.(name);
-      const tck = ply?.stats?.[9] ?? 70, awr = ply?.stats?.[3] ?? 70;
-      return Math.max(0.55, Math.min(1.55, 1 + ((tck + awr) / 2 - 70) / 60));
-    };
     const addCandidate = (name, w, slot) => {
       if (!name) return;
       if (excludeName && name === excludeName) return;
       // Skip ejected players — they're out of the game
       const ply = this._playerByName?.get?.(name);
       if (ply && ply._ejectedThisGame) return;
-      pool.push({ name, w: w * sideBoost(slot) * skillMul(name) });
+      pool.push({ name, w: w * sideBoost(slot) });
     };
     if (weights.LB) {
       // NFL LB tackle distribution skews MLB-heavy. Bobby Wagner / Roquan

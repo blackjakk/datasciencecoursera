@@ -1,11 +1,12 @@
 # MFF — advanced-analytics layer (EPA + PFF-style player grades)
 
-> Status: **slices #1-#3 + EPA + tackle-skill fix + pressure-bug fix shipped.**
+> Status: **slices #1-#3 + EPA + pressure-log fix shipped.**
 > Built: four trench grades (pass-rush, pass-pro, run-stuff, run-block) + combined
 > DL/OL grades, coverage grades (CB + cover-LB), EPA (team / QB / WR / RB), and
-> two engine fixes — proven safe by a dual-flag A/B gate. The LB run-D grade was
-> deliberately attempted and remains undefensible; the audit prints the verdict
-> (with diagnostics) rather than show a misleading grade. The **franchise-UI
+> one safe engine fix (the visual pressure-log bug) — attribution proven calibration-
+> neutral by the A/B gate. The LB run-D grade is excluded as a structural limit (the
+> audit prints the verdict). A tackle-skill engine tweak was attempted, found NOT
+> calibration-neutral, and reverted — see "Engine fixes" below. The **franchise-UI
 > surface** is the main remaining step. This doc is the resume point.
 
 ## Goal
@@ -224,40 +225,49 @@ affect a simulation it only reads).
   needs Arch-B (assign the run tackle to the LB who actually filled the gap by
   AWR-vs-context) — out of scope, but the audit prints the verdict explicitly.
 
-## Engine fixes shipped (post slice #3)
+## Engine fixes (post slice #3)
 
-Both proven safe by the dual-flag `_mff_ab_check.js`: attribution flag must leave
-every aggregate byte-identical; tackle-skill flag must change ONLY per-player
-`tkl` distribution while leaving every other stat byte-identical AND preserving
-team tackle totals. Verified empirically across 8 games.
-
-### Fix 1 — latent pressure bug (`_currentPressure = 0` reset removed)
+### Fix 1 — latent pressure-log bug (SHIPPED, safe) — `_currentPressure = 0` reset removed
 A stray `this._currentPressure = 0` at the start of `_playInner` clobbered the
-real pressure value (set above when the trench matchup is picked) before the
-visual layer could read it — every logged play had `pressure: 0`. The reset
-appears to be a leftover from a refactor where the trench computation moved
-above this point. Removed. `_sim_audit` bands all hold (verified).
+real pressure value (set above at `:3070` when the trench matchup is picked)
+before the visual layer could read it — every logged play had `pressure: 0`. The
+reset is a leftover from a refactor where the trench computation moved above this
+point. Removed. **Provably safe:** `_currentPressure` is read in exactly ONE place
+— `_pushVisual` (`:2592`) — which builds the play-log/animation object. It never
+feeds game logic or any `Math.random()`, so it cannot move a calibration band; it
+only restores the real per-snap pressure to the trench animation + play log.
 
-### Fix 2 — tackle-skill weighting (`_MFF_TACKLE_SKILL`)
-`_creditDefStat`'s candidate pool now multiplies each defender's position weight
-by a TCK+AWR-derived skill multiplier (0.55–1.55). The single weighted draw is
-unchanged, so the RNG stream is preserved — empirically: 7.3% of tackles
-redistribute toward the better defender within each team, every other stat byte-
-identical, team tackle totals preserved.
+### Fix 2 — tackle-skill weighting (ATTEMPTED, then REVERTED — not calibration-neutral)
+The attempt: weight `_creditDefStat`'s within-position tackle pick by the
+defender's TCK+AWR so the better run-defender gets the box-score credit. It was
+committed (10a8fa2) with a claim of "byte-identical, RNG-stream preserved." **That
+claim was wrong, and the change is reverted.**
 
-**Why this is right to keep — and why it does NOT enable the LB run-D grade.**
-The change moves tackle credit from RNG-within-position to skill-weighted-within-
-position: stud LBs now reliably top their unit in tackles instead of a random LB,
-which matches how players read box scores. But the structural fact is that **a
-team's total LB tackles are ~fixed by play volume and context distribution, not
-by LB quality** — every team's LB unit collects ~similar absolute tackles whether
-its LBs are elite or replacement. Within-team weighting redistributes that fixed
-total; it cannot manufacture cross-league variance. This is the same reason real
-NFL analytics (PFF) doesn't grade LBs from box scores — tackle leaders are often
-mid-tier LBs on bad defenses playing more snaps. **LB run-D is a category error
-from box-score data, not a tuning miss; it stays excluded from the grade set.**
-The LB grade in the UI will be coverage-only (the cover-LB grade from slice #3,
-which is real — graded against the COV rating that actually drives it).
+Why it broke: the chosen tackler name flows into `_bumpHitWear` (`:6291`), whose
+`force` is computed from THAT tackler's STR/SPD/archetype and then gates several
+`Math.random()` rolls — the big-hit injury roll (`:737`, gated `force≥1.1`), the
+tackler-injury roll (`:749`, `force≥1.3`), the UR-penalty roll (`:759`, `force≥1.4`),
+and `_pickHitMechanism` (`:701`, `force≥1.45`). Picking a different tackler changes
+`force`, flips which RNG-gated branches fire, and **desyncs the whole RNG stream** —
+the A/B gate showed 5/8 games diverging completely (different play counts, yardage,
+scores). Worse, that injury surface is a *deliberately tuned* calibration knob (see
+the comment at `:721-736`: it was set to land QB-availability and passing-yield
+ceilings in their NFL bands). So the tweak silently re-opened the exact calibration
+the MFF layer promised never to touch.
+
+Why reverting costs nothing: **no grade reads `tkl`.** DL run-stuff (the real
+run-defense grade) comes from the trench `reps` (slice #2), not tackle counts; LB
+run-D is excluded as a structural category error regardless (a team's LB tackles
+are ~fixed by play volume + context, so within-team reshuffling can't manufacture
+cross-league signal — the same reason PFF doesn't grade LBs from box scores). The
+tweak's only benefit was cosmetic (which LB tops his unit in tackles), which does
+not justify re-opening calibration. The LB UI grade is coverage-only (cover-LB from
+slice #3, graded against the COV rating that drives it).
+
+**Lesson:** "one weighted draw, same RNG count" is necessary but NOT sufficient for
+calibration-neutrality — the *return value* of an attribution pick can still steer
+downstream RNG. The A/B byte-identical gate is what caught it; always run it, and
+never trust a "looks count-neutral" argument over the gate's verdict.
 
 
 1. **The engine's `pressure` is team-level** — it never incorporates the picked
@@ -285,12 +295,13 @@ which is real — graded against the COV rating that actually drives it).
    later slice. Same pattern as findings #1/#2: pass-completion is a many-factor
    aggregate (CB is a small term → noisy individual signal), so the CB grade is
    only defensible once judged on the right axis.
-4. **Latent bug (left untouched, out of scope):** `this._currentPressure` is set
-   to the real value at `:3044` then **reset to 0 at `:3088`** ("set below" — but
-   nothing below re-sets it). So the play-log / visual trench animation always
-   sees `pressure=0`. Game logic is unaffected (only `_pushVisual` reads it). The
-   MFF layer correctly uses the local `pressure` const, not the logged value.
-   Worth fixing separately if the trench animation is meant to react to pressure.
+4. **Latent pressure-log bug — NOW FIXED (Fix 1 above).** `this._currentPressure`
+   was set to the real value when the trench matchup is picked, then immediately
+   **reset to 0** at the top of the per-snap block, so the play-log / visual trench
+   animation always saw `pressure=0`. Game logic was unaffected (only `_pushVisual`
+   reads it — confirmed the single reader), so removing the reset is calibration-
+   safe. The MFF attribution layer always used the local `pressure` const, not the
+   logged value, so it was already correct.
 
 ## Tooling
 - `_mff_audit.js [seasons]` — grades + leaderboards + validation (the deliverable).
@@ -305,13 +316,15 @@ Order = cheapest/most-defensible first, each behind the same flag + A/B gate:
    (not directly targeted — see finding #3).
 3. ~~**EPA layer (team / QB / WR / RB)**~~ — ✅ DONE (`_mff_epa.js`). Possible
    follow-ups: WPA (win-probability added), DVOA-style opponent adjustment.
-4. ~~**LB run-defense tackling**~~ — ✅ ASSESSED + Arch-B tweak SHIPPED: tackle-skill
-   weighting now routes credit to the better run-defender within a team (proven safe,
-   7.3% of tackles redistribute). But this does NOT yield a defensible cross-league
-   grade — team totals are structurally fixed by play volume and context, not LB
-   skill (same reason real NFL analytics doesn't grade LBs from box scores). LB
-   run-D is permanently excluded from the grade set as a structural limit, not a
-   tuning issue. The LB UI grade is coverage-only (cover-LB from slice #3).
+4. ~~**LB run-defense tackling**~~ — ✅ ASSESSED: noise under Arch-A (r≈0.00). A
+   tackle-skill engine tweak was attempted to route credit to the better run-defender
+   within a team, but it was NOT calibration-neutral (the credited tackler steers
+   `_bumpHitWear` injury/penalty RNG → full desync + perturbed injury bands) and was
+   reverted — see "Engine fixes → Fix 2." Even if it had been safe, LB run-D stays
+   EXCLUDED as a structural category error: a team's LB tackles are ~fixed by play
+   volume + context, so within-team reshuffling can't create cross-league signal
+   (same reason PFF doesn't grade LBs from box scores). The LB UI grade is coverage-
+   only (cover-LB from slice #3).
 5. **Franchise UI surface** — show grades near `scoutGrade`
    (`play-franchise-core.js:1082`) and team EPA near the win-prob block
    (`play-franchise-stats.js:~5554`). UI-only, medium risk (save-state).
