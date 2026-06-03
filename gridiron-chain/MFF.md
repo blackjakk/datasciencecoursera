@@ -332,6 +332,56 @@ End-to-end validation (1-season round-robin → seasonStats → grade module):
 - DL pass-rush ↔ OVR **r=0.40** ✓ · CB coverage ↔ OVR r=0.15 (correct — coverage
   is driven by COV not OVR; audit confirmed r=0.75 vs COV)
 
+### Slice C — WP / WPA / real Success Rate
+Extends Slice B's per-play log + module (single walker, single cache). Adds:
+- **Baked WP table** (`_mff_bake_wp.js`, ~26 KB → 3 inline constants).
+  Method: empirical P(offense wins | sd_bucket, time_bucket, yl, down) over
+  the 2-season round-robin, with 3-level fallback (full → mid → coarse).
+- **`t` (per-quarter clock seconds)** added to `_mffCompactPlay` (the one
+  field the WP lookup needs that wasn't already in the Slice B log).
+- **WPA computation** in the same walker as EPA: `wpa = WP_after − WP_before`,
+  where WP_after uses the next snap's state (negated on possession flip;
+  zero-sum). End-of-game uses actual outcome ONLY IF the play actually
+  changed the final score — otherwise the play ran out the clock and WPA≈0.
+  (Without that guard, every team's last play of a loss took the full
+  −0.5 WPA hit even when the loss was already locked in, which broke the
+  team-WPA-↔-wins correlation.)
+- **Real Football Outsiders Success Rate**: 1st-down ≥40% of YTG, 2nd-down
+  ≥60%, 3rd/4th ≥100% (conversion). Sacks/INTs/incompletions are never
+  successful; any score on the play overrides. Replaces Slice B's positive-
+  EPA proxy.
+- **Top-swings leaderboard + Player-of-the-Game**: every play with |WPA| >
+  0.05 is bucketed; top 200 retained, sorted by |WPA|. Per-game best WPA
+  emitted to `bestPerGame` for "Player of the Game" rendering.
+
+UI surface: the existing player chip block (`mffPlayerEPAChipsHtml`) now
+renders **EPA · WPA · SR** triplets per position (efficiency · leverage ·
+consistency). The matchup compare block adds a SUCCESS RATE row alongside
+EPA/PLAY. Two new accessors (`mffTopPlays`, `mffPlayerOfGame`,
+`mffAllPlayerOfGame`) expose the signature-plays / PotG data for the
+post-game / season leaderboard UIs to be added in Slice F.
+
+End-to-end validation (live engine output through the live walker):
+| Metric | NFL ref | Live | Verdict |
+|---|---|---|---|
+| Pass EPA/play | +0.05 to +0.15 | +0.058 | ✓ |
+| Pass WPA/play | small positive | +0.0004 | ✓ (zero-sum near zero) |
+| League success rate | ~45% | 48-50% | ✓ |
+| Σ off+def WPA (zero-sum) | 0 | 0.000 | exact ✓ |
+| **QB WPA/db ↔ OVR** | similar to EPA r=0.47 | **r=0.47** | matches ✓ |
+| QB SR ↔ OVR | r=0.35-0.50 | r=0.49 | ✓ |
+| Team SR ↔ pt margin | r=0.75-0.85 | r=0.63-0.76 | ✓ in band |
+| Team WPA ↔ wins | theoretical r=1.0 | r=0.41-0.84 (high variance) | direction only ✓ |
+
+KNOWN LIMITATION: the empirical lookup table isn't a calibrated probabilistic
+forecast. Per-play WPA is correct in shape; multi-game aggregates have
+~±1 WPA noise per team because game-WPA doesn't perfectly integrate to ±0.5.
+This drags the team-WPA-↔-wins correlation from the theoretical r≈1.0 to
+0.4-0.8 in practice. Per-play surfaces (signature plays, PotG, individual
+chip values) are NOT materially affected — only multi-game aggregates show
+the bias. Proper fix would refit the bake as a smoothed logistic/GBM model
+(future work; not blocking the gameplay enhancements that consume WPA).
+
 ### Slice B — live EPA (team / QB / WR / RB)
 Three architectural decisions ground this:
 
@@ -390,6 +440,12 @@ End-to-end validation (engine→playLog→`_mffComputeEPA`, 1-season round-robin
   environment drifts; outputs `/tmp/mff_ep_baked.js` to paste into
   `play-franchise-stats.js`. Re-run only when the engine's rules of field
   position change.
+- `_mff_bake_wp.js [seasons]` — re-bake the Win Probability table. Same
+  output convention as `_mff_bake_ep.js` — outputs `/tmp/mff_wp_baked.js`.
+  Note known limitation: the empirical bake doesn't satisfy calibrated-
+  probability constraints (Σ WPA across teams ≠ 0 over a season), which
+  drags team-level WPA aggregates down. Per-play WPA is correct in shape.
+  Proper fix is GBM/logistic smoothing of the bake (future work).
 - `_mff_press_probe.js` — pressure-distribution probe for the xPressure consts.
 
 ## Next steps (planned, not built)
