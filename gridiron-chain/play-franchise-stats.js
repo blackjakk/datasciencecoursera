@@ -8436,6 +8436,11 @@ function _mffCompactPlay(p) {
   if (p.receiver) r.rc = p.receiver;
   if (p.rusher)   r.ru = p.rusher;
   if (p.tackler)  r.tk = p.tackler;
+  // For CPOE: targetDepth (air yards) is set on complete + incomplete only;
+  // pressure is set on every play but only meaningful on dropbacks. Sparse —
+  // only record when present + nonzero.
+  if (typeof p.targetDepth === "number") r.td = p.targetDepth;
+  if (typeof p.pressure === "number" && Math.abs(p.pressure) > 0.01) r.pr = +p.pressure.toFixed(2);
   return r;
 }
 
@@ -8526,10 +8531,38 @@ function _mffIsSuccess(c, scoredOnThisPlay) {
   return (c.yd || 0) >= need;
 }
 
+// ── MFF CPOE — Completion Percentage Over Expected ───────────────────
+// CPOE = actual_completion - expected_completion, where the expected
+// model is SKILL-FREE BY CONSTRUCTION (depends only on throw difficulty:
+// targetDepth + pressure, NOT on the QB). This is the whole point —
+// CPOE measures what the QB beats expectation by. If we let QB skill
+// into the expected model, CPOE would collapse to ~0 for everyone.
+//
+// Baked from a 2-season round-robin (_mff_bake_xcomp.js). 6 cells.
+//
+// ENGINE NOTE: in this engine, pressure barely affects completion rate
+// (short clean 75.2% vs short pressured 76.7% — opposite of NFL where
+// pressure drops completion ~15pts). So CPOE here primarily reflects
+// QB DEPTH-SELECTION + accuracy, not pressure-handling. Documented in
+// MFF.md as a candidate for future xPressure recalibration (engine fix,
+// would need its own A/B gate).
+const _MFF_XCOMP_TABLE = {"0|0":0.7517,"0|1":0.767,"1|0":0.6283,"1|1":0.6354,"2|0":0.4041,"2|1":0.4155};
+function _mffDepthBucket(td)  { if (td <= 5) return 0; if (td <= 15) return 1; return 2; }
+function _mffPressBucket(pr)  { const a = Math.abs(pr || 0); if (a < 0.3) return 0; if (a < 1.0) return 1; return 2; }
+function _mffXComp(td, pr) {
+  if (typeof td !== "number") return null;
+  const k = _mffDepthBucket(td) + "|" + _mffPressBucket(pr);
+  // Heavy-pressure cells (pressB=2) weren't sampled in the bake; fall back
+  // to the matching depth's pressured-bucket value.
+  if (_MFF_XCOMP_TABLE[k] != null) return _MFF_XCOMP_TABLE[k];
+  const fb = _mffDepthBucket(td) + "|1";
+  return _MFF_XCOMP_TABLE[fb] ?? null;
+}
+
 // EPA aggregator. Walks the current season's playLog, builds team and
 // per-player tallies. Returns { team:{tid:{epa,wpa,plays,...,sr,srP,srR}},
-// qb:Map(name → {epa,wpa,db,suc}),  rec:Map(name → {epa,wpa,rec,suc}),
-// rb:Map(name → {epa,wpa,att,suc}),
+// qb:Map(name → {epa,wpa,db,suc,xComp,actComp,attComp}),
+// rec:Map(name → {epa,wpa,rec,suc}),  rb:Map(name → {epa,wpa,att,suc}),
 // totals:{pPass,pRun,ePass,eRun,wPass,wRun,succP,succR,topPlays} }.
 //
 // EPA(play) = EP_after - EP_before. Score attribution follows _mff_epa.js
@@ -8679,7 +8712,21 @@ function _mffComputeEPA() {
         if (_MFF_EPA_PASS_KIND.has(c.k)) {
           out.totals.pPass++; out.totals.ePass += epa; out.totals.wPass += wpa;
           if (success) out.totals.succP++;
-          if (c.qb) { const q = bump(out.qb, c.qb, () => ({epa:0, wpa:0, db:0, suc:0})); q.epa += epa; q.wpa += wpa; q.db++; if (success) q.suc++; }
+          if (c.qb) {
+            const q = bump(out.qb, c.qb, () => ({epa:0, wpa:0, db:0, suc:0, xComp:0, actComp:0, attComp:0}));
+            q.epa += epa; q.wpa += wpa; q.db++; if (success) q.suc++;
+            // CPOE: only counted on actual completion attempts (complete or
+            // incomplete with a measurable targetDepth). Sacks and INTs are
+            // not accuracy events — exclude. Underthrown incompletes ARE.
+            if ((c.k === "complete" || c.k === "incomplete") && typeof c.td === "number") {
+              const xc = _mffXComp(c.td, c.pr || 0);
+              if (xc != null) {
+                q.xComp   += xc;
+                q.actComp += (c.k === "complete" ? 1 : 0);
+                q.attComp += 1;
+              }
+            }
+          }
           if (c.k === "complete" && c.rc) {
             const r = bump(out.rec, c.rc, () => ({epa:0, wpa:0, rec:0, suc:0}));
             r.epa += epa; r.wpa += wpa; r.rec++; if (success) r.suc++;
@@ -8817,6 +8864,15 @@ function mffPlayerEPAChipsHtml(p) {
       `Win-probability added (clutch index) · ${(wpaPerDb*100).toFixed(2)}% per dropback`));
     chips.push(chip("SR " + fmtPct(srRate), tierFromSR(srRate),
       `Success rate (Football Outsiders): 1st-down 40% of YTG, 2nd-down 60%, 3rd/4th 100%. NFL avg ~45%.`));
+    // CPOE chip — only if we have enough completion attempts to be stable.
+    // Threshold matches QB attempts in our engine (~30 attempts/game * 5 games ≈ 150).
+    if (r.attComp >= 30) {
+      const cpoe = (r.actComp - r.xComp) / r.attComp;
+      const tierFromCPOE = v => v >= 0.04 ? "a" : v >= 0.01 ? "b" : v >= -0.01 ? "c" : v >= -0.04 ? "d" : "f";
+      const sign = cpoe >= 0 ? "+" : "";
+      chips.push(chip("CPOE " + sign + (cpoe * 100).toFixed(1) + "%", tierFromCPOE(cpoe),
+        `Completion % Over Expected · skill-free baseline accounts for throw depth + pressure · ${r.attComp} attempts`));
+    }
   } else if (r.kind === "rec" && r.rec >= 5) {
     const perRec = r.epa / r.rec;
     const srRate = r.suc / r.rec;

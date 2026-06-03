@@ -332,6 +332,40 @@ End-to-end validation (1-season round-robin → seasonStats → grade module):
 - DL pass-rush ↔ OVR **r=0.40** ✓ · CB coverage ↔ OVR r=0.15 (correct — coverage
   is driven by COV not OVR; audit confirmed r=0.75 vs COV)
 
+### Slice D — CPOE (Completion Percentage Over Expected)
+The QB accuracy metric. Built on the same per-play log + walker as B/C.
+- **Baked xComp table** (`_mff_bake_xcomp.js`, 6 cells, ~0.5 KB inline).
+  Method: empirical completion rate per (targetDepth_bucket ×
+  pressure_bucket) over the 2-season round-robin. **SKILL-FREE BY
+  CONSTRUCTION** — depends on throw difficulty only, never on the QB.
+  Otherwise CPOE collapses to ~0 for everyone (you'd subtract QB's own
+  expected from his actual).
+- **`td` (targetDepth) + `pr` (pressure)** added to `_mffCompactPlay`
+  (sparse — only set when present).
+- **CPOE per QB** folded into the existing walker as `(actComp - xComp)
+  / attComp`, only counted on complete/incomplete attempts with a
+  measurable depth (sacks/INTs aren't accuracy events). Threshold 30
+  attempts for the chip.
+- **QB chip block** now shows EPA/DB · WPA · SR · **CPOE** (4 chips).
+
+ENGINE INSIGHT from the bake: in this engine, **pressure barely affects
+completion rate** (short clean 75.2% vs short pressured 76.7% — opposite
+of NFL where pressure drops completion ~15pts). So CPOE here primarily
+reflects QB depth-selection accuracy, not pressure-handling. Candidate
+for a future xPressure recalibration (engine fix, its own A/B gate).
+
+End-to-end validation (live engine output through the live walker):
+| Metric | NFL ref | Live | Verdict |
+|---|---|---|---|
+| League mean CPOE | ~0% (skill-free) | −0.54% | ✓ baseline holds |
+| **QB CPOE ↔ OVR** | **~0.50** | **r=0.56** | matches ✓ |
+| QB raw comp% ↔ OVR | ~0.45 | r=0.52 | ✓ |
+| Top-5 CPOE all OVR 79+ | yes | yes (79-94) | ✓ |
+| Bottom-5 mostly OVR <85 | yes | yes (72-84) | ✓ |
+
+CPOE adds **independent signal beyond raw completion %** (r=0.56 vs 0.52)
+— the metric is doing real work, not just renaming completion percentage.
+
 ### Slice C — WP / WPA / real Success Rate
 Extends Slice B's per-play log + module (single walker, single cache). Adds:
 - **Baked WP table** (`_mff_bake_wp.js`, ~26 KB → 3 inline constants).
