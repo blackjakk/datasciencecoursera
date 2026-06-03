@@ -6124,6 +6124,10 @@ function _buildPostGameHeadline(teamId) {
   const isPlayoffGame = g.week > FRANCHISE_WEEKS;
   const weekLabel = isPlayoffGame ? "PLAYOFF" : `WEEK ${g.week}`;
 
+  // Slice F: live WP curve + Player of the Game (graceful no-op if there's
+  // no playLog for this game — e.g. legacy save, or a playoff game that
+  // Slice B skips).
+  const wpBlock = (typeof mffPostGameWPBlock === "function") ? mffPostGameWPBlock(teamId) : "";
   return `
     <div class="frn-postgame-headline" style="border-color:${wlBorder};background:${wlBg}">
       <div class="frn-postgame-eyebrow">
@@ -6132,6 +6136,7 @@ function _buildPostGameHeadline(teamId) {
       </div>
       <div class="frn-postgame-hed">${headline}</div>
       <div class="frn-postgame-blurb">${blurb}</div>
+      ${wpBlock}
     </div>`;
 }
 
@@ -9029,6 +9034,186 @@ function mffTeamSOS(teamId) {
   const d = mffTeamDVOA(teamId);
   if (!d) return null;
   return { sosOff: d.sosOff, sosDef: d.sosDef };
+}
+
+// ─── Slice F: live WP curve + Player-of-the-Game + signature plays ──
+// All read-only — consume the per-play log + the WPA buffers Slice C
+// already populates. UI helpers return ready-to-insert HTML (or null if
+// no data); composition into the post-game / season-stats blocks happens
+// in the existing render functions.
+
+// Find a game's playLog slice + per-snap WP from the user's perspective.
+// Returns null if the game isn't in the log (legacy game pre-Slice-B,
+// or playoff game which Slice B skips capturing).
+function mffGameWPCurve(homeId, awayId, week, userTeamId) {
+  if (!franchise) return null;
+  const log = franchise.playLog?.[franchise.season ?? 1];
+  if (!Array.isArray(log) || !log.length) return null;
+  // Find the __g marker matching this game.
+  let i = 0, found = null;
+  while (i < log.length) {
+    const m = log[i];
+    if (m?.__g && m.homeId === homeId && m.awayId === awayId
+        && (week == null || m.week === week)) {
+      found = { meta: m, start: i + 1 };
+      break;
+    }
+    i++;
+  }
+  if (!found) return null;
+  // Slice until next __g or end of log.
+  let end = found.start;
+  while (end < log.length && !log[end].__g) end++;
+  const game = log.slice(found.start, end);
+  if (!game.length) return null;
+  // Build the WP curve from the user's team's perspective. WP per snap is
+  // computed from the offense's side; if user IS the offense, that's
+  // user's WP; otherwise mirror via 1 - wp.
+  const isUserHome = found.meta.homeId === userTeamId;
+  const isUserAway = found.meta.awayId === userTeamId;
+  if (!isUserHome && !isUserAway) return null;
+  const userSide = isUserHome ? "home" : "away";
+  const curve = [];
+  // Kickoff baseline — start at 0.5.
+  curve.push({ x: 0, wp: 0.5, label: "Kickoff" });
+  for (let j = 0; j < game.length; j++) {
+    const c = game[j];
+    const sl = _mffSecondsLeft(c.q, c.t);
+    const x = 3600 - sl;   // elapsed regulation seconds
+    // sd from CURRENT offense's perspective.
+    const offSd = c.p === "home" ? ((c.hs|0) - (c.as|0)) : ((c.as|0) - (c.hs|0));
+    const offWp = _mffWP(offSd, sl, c.yl, c.d);
+    const userWp = c.p === userSide ? offWp : (1 - offWp);
+    curve.push({ x, wp: userWp });
+  }
+  // Endpoint — actual outcome.
+  if (found.meta.hf != null && found.meta.af != null) {
+    const userScore = isUserHome ? found.meta.hf : found.meta.af;
+    const oppScore  = isUserHome ? found.meta.af : found.meta.hf;
+    const endWp = userScore > oppScore ? 1 : userScore < oppScore ? 0 : 0.5;
+    curve.push({ x: 3600, wp: endWp, label: "Final" });
+  }
+  return curve;
+}
+
+// Render the WP curve as a compact SVG sparkline. ~320×60 by default.
+// Userline drawn on top; quarter dividers + 50% baseline for reference.
+function mffWPCurveSvg(curve, opts = {}) {
+  if (!Array.isArray(curve) || curve.length < 2) return "";
+  const w = opts.width || 320, h = opts.height || 60, pad = opts.pad || 4;
+  const userColor = opts.color || "var(--green-lt)";
+  const innerW = w - 2 * pad, innerH = h - 2 * pad;
+  // Points
+  const pts = curve.map(p => ({
+    px: pad + (p.x / 3600) * innerW,
+    py: pad + (1 - p.wp) * innerH,
+  }));
+  const path = pts.map((p, i) => (i === 0 ? `M${p.px.toFixed(1)} ${p.py.toFixed(1)}` : `L${p.px.toFixed(1)} ${p.py.toFixed(1)}`)).join(" ");
+  // Fill below the curve, semi-transparent green where above 50%, red where below.
+  // For simplicity render two overlaid filled regions clipped at midline.
+  const mid = pad + 0.5 * innerH;
+  // Quarter dividers
+  const qx1 = pad + 0.25 * innerW;
+  const qx2 = pad + 0.50 * innerW;
+  const qx3 = pad + 0.75 * innerW;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block">
+    <rect x="0" y="0" width="${w}" height="${h}" fill="rgba(0,0,0,0.10)" rx="3"/>
+    <line x1="${pad}" y1="${mid}" x2="${w-pad}" y2="${mid}" stroke="rgba(255,255,255,0.15)" stroke-dasharray="2 3"/>
+    <line x1="${qx1}" y1="${pad}" x2="${qx1}" y2="${h-pad}" stroke="rgba(255,255,255,0.08)"/>
+    <line x1="${qx2}" y1="${pad}" x2="${qx2}" y2="${h-pad}" stroke="rgba(255,255,255,0.15)"/>
+    <line x1="${qx3}" y1="${pad}" x2="${qx3}" y2="${h-pad}" stroke="rgba(255,255,255,0.08)"/>
+    <path d="${path}" fill="none" stroke="${userColor}" stroke-width="1.8" stroke-linejoin="round"/>
+    <text x="${qx1}" y="${h-1}" font-size="6" fill="rgba(255,255,255,0.35)" text-anchor="middle">Q2</text>
+    <text x="${qx2}" y="${h-1}" font-size="6" fill="rgba(255,255,255,0.35)" text-anchor="middle">HALF</text>
+    <text x="${qx3}" y="${h-1}" font-size="6" fill="rgba(255,255,255,0.35)" text-anchor="middle">Q4</text>
+  </svg>`;
+}
+
+// Player-of-the-Game callout for a specific game. Pulls from the WPA
+// walker's bestPerGame array. Returns "" if no data (e.g. playoff game).
+function mffPlayerOfGameFor(homeId, awayId, week) {
+  const all = mffAllPlayerOfGame();
+  if (!all || !all.length) return "";
+  // Match on homeId/awayId/week — gameIdx isn't stable across loads.
+  const potg = all.find(g =>
+    g.homeId === homeId && g.awayId === awayId &&
+    (week == null || g.week === week));
+  if (!potg) return "";
+  const kindBlurb = potg.k === "complete" ? `${potg.yd}-yd reception`
+                  : potg.k === "run"      ? `${potg.yd}-yd run`
+                  : potg.k === "sack"     ? "sack"
+                  : potg.k === "int"      ? "interception"
+                  : potg.k;
+  const sign = potg.wpa >= 0 ? "+" : "";
+  const wpaPct = (potg.wpa * 100).toFixed(1);
+  return `<div style="margin-top:.4rem;padding:.45rem .6rem;border:1px dashed var(--border);border-radius:6px;background:rgba(245,197,66,0.04)">
+    <div style="font-size:.6rem;letter-spacing:.6px;color:var(--gold);font-weight:700">⭐ PLAYER OF THE GAME (BIGGEST WPA SWING)</div>
+    <div style="margin-top:.15rem">
+      <span style="font-weight:700">${potg.name}</span>
+      <span style="opacity:.7"> · ${kindBlurb} · WPA ${sign}${wpaPct}%</span>
+    </div>
+  </div>`;
+}
+
+// Season "biggest swings" leaderboard. Default 10 entries.
+function mffSeasonTopSwingsHtml(limit = 10) {
+  const top = mffTopPlays(limit);
+  if (!top || !top.length) return "";
+  const rows = top.map((p, i) => {
+    const name = (p.qb || p.rc || p.ru || "?");
+    const clock = `Q${p.q} ${Math.floor(p.t/60)}:${String(p.t%60).padStart(2,"0")}`;
+    const kindBlurb = p.k === "complete" ? "completion"
+                    : p.k === "run"      ? "run"
+                    : p.k === "sack"     ? "sack"
+                    : p.k === "int"      ? "interception"
+                    : p.k === "incomplete" ? "incomplete"
+                    : p.k;
+    const sign = p.wpa >= 0 ? "+" : "";
+    const wpaPct = (p.wpa * 100).toFixed(1);
+    const wpaColor = p.wpa >= 0 ? "var(--green-lt)" : "var(--red)";
+    return `<div style="display:flex;align-items:center;gap:.5rem;padding:.25rem .35rem;border-bottom:1px solid rgba(255,255,255,0.04);font-size:.7rem">
+      <span style="color:var(--gray);width:1.5rem;text-align:right">${i+1}.</span>
+      <span style="color:var(--gray);width:3.5rem;font-variant-numeric:tabular-nums">${clock}</span>
+      <span style="flex:1;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+      <span style="opacity:.7;width:5rem">${kindBlurb} ${p.yd>=0?"+":""}${p.yd}yd</span>
+      <span style="font-weight:700;color:${wpaColor};width:4rem;text-align:right;font-variant-numeric:tabular-nums">WPA ${sign}${wpaPct}%</span>
+    </div>`;
+  }).join("");
+  return `<div style="margin-top:.5rem;padding:.4rem .5rem;border:1px solid var(--border);border-radius:6px">
+    <div style="font-size:.62rem;letter-spacing:.6px;color:var(--gray);font-weight:700;margin-bottom:.25rem">
+      ⚡ BIGGEST SWINGS · TOP ${top.length} PLAYS OF THE SEASON
+    </div>
+    ${rows}
+  </div>`;
+}
+
+// Compact WP-chart block for the post-game recap. Builds the curve for
+// the user's just-played game (most recent played game where chosenTeamId
+// was on either side) and pairs it with the PotG callout. Returns "" if
+// no playable data (legacy save, playoff game pre-rollover, etc.).
+function mffPostGameWPBlock(userTeamId) {
+  if (!franchise) return "";
+  // Find the most recent played game for this team (max week, played=true).
+  const schedule = franchise.schedule || [];
+  let g = null;
+  for (const x of schedule) {
+    if (!x.played) continue;
+    if (x.homeId !== userTeamId && x.awayId !== userTeamId) continue;
+    if (!g || x.week > g.week) g = x;
+  }
+  if (!g) return "";
+  const curve = mffGameWPCurve(g.homeId, g.awayId, g.week, userTeamId);
+  if (!curve) return "";
+  const teamColor = (typeof getTeam === "function") ? (getTeam(userTeamId)?.primary || "var(--green-lt)") : "var(--green-lt)";
+  const potg = mffPlayerOfGameFor(g.homeId, g.awayId, g.week);
+  return `<div style="margin-top:.5rem;padding:.5rem .6rem;border:1px solid var(--border);border-radius:6px;background:rgba(0,0,0,0.06)">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.25rem">
+      <span style="font-size:.62rem;letter-spacing:.6px;color:var(--gray);font-weight:700">WIN PROBABILITY · YOUR PERSPECTIVE</span>
+      <span style="font-size:.55rem;opacity:.6">Q1 · Q2 · HALF · Q3 · Q4</span>
+    </div>
+    ${mffWPCurveSvg(curve, { color: teamColor, width: 320, height: 60 })}
+    ${potg}
+  </div>`;
 }
 
 // Rebuild franchise.seasonStats from the per-game stat blobs stored on the

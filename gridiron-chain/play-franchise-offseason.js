@@ -9013,6 +9013,16 @@ function renderFrnAwards() {
       </button>
     </div>` : "";
 
+  // Slice F: signature plays of the season (top WPA swings). Sourced from
+  // the WPA walker's topPlays buffer — captures the biggest "moves the
+  // win-probability needle" plays regardless of whether they made the
+  // highlight reel (which selects on EPA + clutch heuristics).
+  const swingsSection = (typeof mffSeasonTopSwingsHtml === "function")
+    ? mffSeasonTopSwingsHtml(10) : "";
+  const swingsBlock = swingsSection ? `
+    <div class="bspnlive-section-title">⚡ BIGGEST WIN-PROBABILITY SWINGS</div>
+    ${swingsSection}` : "";
+
   // Records broken this season (single-game + single-season).
   const broken = _recordsBrokenThisSeason();
   const recordsBrokenSection = broken.length ? `
@@ -9087,6 +9097,7 @@ function renderFrnAwards() {
         ${recordsBrokenSection}
         ${retirementSection}
         ${hlSection}
+        ${swingsBlock}
         ${histSection}
         ${actionFooter}
       </div>

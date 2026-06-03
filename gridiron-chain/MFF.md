@@ -332,6 +332,45 @@ End-to-end validation (1-season round-robin → seasonStats → grade module):
 - DL pass-rush ↔ OVR **r=0.40** ✓ · CB coverage ↔ OVR r=0.15 (correct — coverage
   is driven by COV not OVR; audit confirmed r=0.75 vs COV)
 
+### Slice F — Live WP curve + Player of the Game + signature plays UI
+Pure UI on top of Slice C's data. Three new visible surfaces:
+- **Live WP curve** on every post-game recap: compact SVG sparkline of
+  the game's win-probability from the user's perspective. Quarter
+  dividers + 50% baseline for reference.
+- **Player of the Game** callout right below the WP curve: pulls the
+  biggest |WPA| play of the game from the `bestPerGame` array Slice C
+  populates.
+- **Biggest WP swings of the season** leaderboard in the season-highlights
+  yearbook: top 10 plays by |WPA|, sourced from the `topPlays` buffer.
+  Captures signature plays that the existing highlight reel (selects on
+  EPA + clutch heuristics) might miss.
+
+New API:
+- `mffGameWPCurve(homeId, awayId, week, userTeamId)` — per-snap curve
+  from the user's perspective; null if game not in log.
+- `mffWPCurveSvg(curve, opts)` — SVG sparkline (default 320×60).
+- `mffPlayerOfGameFor(homeId, awayId, week)` — HTML callout.
+- `mffSeasonTopSwingsHtml(limit)` — leaderboard HTML.
+- `mffPostGameWPBlock(userTeamId)` — composite (curve + PotG) for the
+  user's most-recently-played game.
+
+Wired in at:
+- `_buildPostGameHeadline` (`play-franchise-stats.js:6135`) — appends
+  `mffPostGameWPBlock(teamId)` after the existing headline + blurb.
+- `frnGoToOffseason` season-highlights section
+  (`play-franchise-offseason.js:9100`) — adds the swings leaderboard
+  between the highlight reel and the historical section.
+
+VALIDATION (smoke test, 5 sections):
+- WP curve is zero-sum (home WP + away WP ≈ 1 at every snap) ✓
+- Curve ends at WP=1 for winner, WP=0 for loser ✓
+- Curve x-axis monotonic in time ✓
+- SVG renders with quarter dividers + path element ✓
+- PotG callout pulls from `bestPerGame` correctly ✓
+- Top-swings leaderboard renders rows ✓
+
+ENGINE UNCHANGED. No save-state changes (consumes existing playLog).
+
 ### Slice E — DVOA-style opponent adjustment
 Iteratively adjusts each team's EPA by the strength of opponents they
 faced. Massey-style algorithm: each pass subtracts opponent strength
