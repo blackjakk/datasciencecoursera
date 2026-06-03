@@ -37,11 +37,13 @@ const audit=`;(function(){
   const keyYard=(yl)=>"||"+yardB(yl);
 
   // ── Pass 1: simulate, capture per-game scrimmage snaps + score events ──
-  const games=[]; // {snaps:[{gi,d,y,yl,poss,half,kind,passer,off}], scores:[{gi,team,pts,half}], teamPts:{home,away}, qbOf:{home,away}}
+  const games=[]; // {snaps:[...], scores:[...], offId, qbName, qbOvr}
   const teamPF={}, teamPA={}, teamPlays={}, teamEPA={}; // by team id
+  const META=new Map(); // player name -> {pos,ovr}
   const t0=Date.now();
   for(let s=0;s<SEASONS;s++){
     const ros={}, qb={}; for(const t of TEAMS){ ros[t.id]=buildRoster(t);
+      for(const p of ros[t.id]) META.set(p.name,{pos:p.position,ovr:p.overall});
       // starting QB = highest-OVR QB on the roster
       const qbs=ros[t.id].filter(p=>p.position==="QB").sort((a,b)=>b.overall-a.overall); qb[t.id]=qbs[0]; }
     for(let i=0;i<TEAMS.length;i++)for(let j=i+1;j<TEAMS.length;j++){
@@ -53,7 +55,9 @@ const audit=`;(function(){
         if(nh!==h||na!==a){ const team=nh>h?"home":"away", pts=Math.abs((nh-h)||(na-a)); const half=(p.quarter<=2)?1:2;
           scores.push({gi,team,pts,half}); h=nh;a=na; }
         if(SNAP.has(p.kind)&&p.down>=1&&p.down<=4&&typeof p.yardLine==="number"){
-          snaps.push({gi,d:p.down,y:p.ytg||10,yl:p.yardLine,poss:p.poss,half:(p.quarter<=2)?1:2,kind:p.kind,passer:p.passer||null}); }
+          snaps.push({gi,d:p.down,y:p.ytg||10,yl:p.yardLine,poss:p.poss,half:(p.quarter<=2)?1:2,kind:p.kind,
+            passer:p.passer||null,receiver:p.receiver||null,rusher:p.rusher||null,tackler:p.tackler||null,
+            gain:(typeof p.yards==="number"?p.yards:0)}); }
       }
       const offId={home:H.id,away:A.id};
       games.push({snaps,scores,offId,qbName:{home:qb[H.id]?.name,away:qb[A.id]?.name},qbOvr:{home:qb[H.id]?.overall,away:qb[A.id]?.overall}});
@@ -76,7 +80,11 @@ const audit=`;(function(){
 
   // ── Pass 2: EPA per play ──
   let nPass=0,nRun=0,sumPassEPA=0,sumRunEPA=0,succP=0,succR=0;
-  const qbAcc=new Map(); // name -> {ovr,epa,db,team}
+  const qbAcc=new Map();  // QB name -> {ovr,epa,db}
+  const recAcc=new Map(); // receiver -> {ovr,pos,epa,rec}
+  const rbAcc=new Map();  // rusher -> {ovr,pos,epa,att}
+  const tklAcc=new Map(); // tackler -> {ovr,pos,run_tkl,run_stop,run_tfl}
+  const bump=(map,nm,init)=>{ let r=map.get(nm); if(!r){r=init();map.set(nm,r);} return r; };
   for(const g of games){ const sn=g.snaps;
     for(let i=0;i<sn.length;i++){ const c=sn[i];
       const epB=EP(c.d,c.y,c.yl);
@@ -91,8 +99,15 @@ const audit=`;(function(){
       const off=g.offId[c.poss];
       teamEPA[off]=(teamEPA[off]||0)+epa; teamPlays[off]=(teamPlays[off]||0)+1;
       if(PASS.has(c.kind)){ nPass++; sumPassEPA+=epa; if(epa>0)succP++;
-        const nm=g.qbName[c.poss]; if(nm){ let q=qbAcc.get(nm); if(!q){q={ovr:g.qbOvr[c.poss],epa:0,db:0};qbAcc.set(nm,q);} q.epa+=epa; q.db++; } }
-      else { nRun++; sumRunEPA+=epa; if(epa>0)succR++; }
+        const nm=g.qbName[c.poss]; if(nm){ let q=qbAcc.get(nm); if(!q){q={ovr:g.qbOvr[c.poss],epa:0,db:0};qbAcc.set(nm,q);} q.epa+=epa; q.db++; }
+        if(c.kind==="complete"&&c.receiver){ const m=META.get(c.receiver)||{ovr:70,pos:"WR"};
+          const r=bump(recAcc,c.receiver,()=>({ovr:m.ovr,pos:m.pos,epa:0,rec:0})); r.epa+=epa; r.rec++; } }
+      else { nRun++; sumRunEPA+=epa; if(epa>0)succR++;
+        if(c.rusher){ const m=META.get(c.rusher)||{ovr:70,pos:"RB"};
+          const r=bump(rbAcc,c.rusher,()=>({ovr:m.ovr,pos:m.pos,epa:0,att:0})); r.epa+=epa; r.att++; }
+        if(c.tackler){ const m=META.get(c.tackler)||{ovr:70,pos:"LB"};
+          const r=bump(tklAcc,c.tackler,()=>({ovr:m.ovr,pos:m.pos,run_tkl:0,run_stop:0,run_tfl:0}));
+          r.run_tkl++; if(c.gain<=2)r.run_stop++; if(c.gain<0)r.run_tfl++; } }
     }
   }
   const secs=((Date.now()-t0)/1000).toFixed(0);
@@ -135,6 +150,42 @@ const audit=`;(function(){
   qbs.slice(0,12).forEach(q=>L("    "+q.nm.padEnd(22)+String(q.ovr).padEnd(5)+String(q.db).padEnd(11)+q.epa.toFixed(1).padStart(7)+"   "+(q.epa/q.db).toFixed(3).padStart(7)));
   L("");
   L("    QB EPA/db ↔ OVR:  r = "+corr(qbs.map(q=>q.epa/q.db),qbs.map(q=>q.ovr)).toFixed(2)+"   (should be positive, < ~0.9)");
+  L("");
+
+  // ── Skill-player EPA (receiving + rushing) ──
+  const recs=[...recAcc.entries()].map(([nm,r])=>({nm,...r})).filter(r=>r.rec>=20*SEASONS&&(r.pos==="WR"||r.pos==="TE"));
+  L("  ── TOP 12 RECEIVERS by TOTAL receiving EPA (min "+(20*SEASONS)+" rec) ─────────────────");
+  L("    "+"player".padEnd(22)+"pos OVR  rec   totEPA   EPA/rec");
+  recs.sort((a,b)=>b.epa-a.epa).slice(0,12).forEach(r=>L(
+    "    "+r.nm.padEnd(22)+r.pos.padEnd(4)+String(r.ovr).padEnd(5)+String(r.rec).padEnd(6)+r.epa.toFixed(1).padStart(7)+"   "+(r.epa/r.rec).toFixed(3).padStart(6)));
+  L("    total EPA ↔ OVR: r = "+corr(recs.map(r=>r.epa),recs.map(r=>r.ovr)).toFixed(2)+"   |   EPA/rec ↔ OVR: r = "+corr(recs.map(r=>r.epa/r.rec),recs.map(r=>r.ovr)).toFixed(2)+"  (efficiency is QB/scheme-driven, not WR skill)");
+  L("");
+  const rbs=[...rbAcc.entries()].map(([nm,r])=>({nm,...r})).filter(r=>r.att>=40*SEASONS&&r.pos==="RB");
+  L("  ── TOP 12 RUSHERS by TOTAL rushing EPA (min "+(40*SEASONS)+" att) ──────────────────────");
+  L("    "+"player".padEnd(22)+"pos OVR  att   totEPA   EPA/att");
+  rbs.sort((a,b)=>b.epa-a.epa).slice(0,12).forEach(r=>L(
+    "    "+r.nm.padEnd(22)+r.pos.padEnd(4)+String(r.ovr).padEnd(5)+String(r.att).padEnd(6)+r.epa.toFixed(1).padStart(7)+"   "+(r.epa/r.att).toFixed(3).padStart(6)));
+  L("    total EPA ↔ OVR: r = "+corr(rbs.map(r=>r.epa),rbs.map(r=>r.ovr)).toFixed(2)+"   |   EPA/att ↔ OVR: r = "+corr(rbs.map(r=>r.epa/r.att),rbs.map(r=>r.ovr)).toFixed(2));
+  L("");
+
+  // ── LB run-defense grade (HONEST CAVEAT: weak signal) ──
+  // The play log's tackler comes from the engine's _creditDefStat, which picks
+  // WHO tackles by a positional context weight + a final RANDOM draw — it is NOT
+  // weighted by the individual defender's rating within his position group. So an
+  // LB's run-stop counts mostly reflect snaps-on-field + randomness, not skill.
+  const lbs=[...tklAcc.entries()].map(([nm,r])=>({nm,...r})).filter(r=>r.pos==="LB"&&r.run_tkl>=25*SEASONS);
+  const stopRate=r=>r.run_stop/Math.max(1,r.run_tkl);
+  const sm=mean(lbs.map(stopRate)),ssd=Math.sqrt(mean(lbs.map(r=>(stopRate(r)-sm)**2)))||1;
+  for(const r of lbs) r.grade=Math.max(20,Math.min(99,Math.round(60+14*((stopRate(r)-sm)/ssd))));
+  const gs=g=>{const T=g>=82?"A":g>=68?"B":g>=52?"C":g>=44?"D":"F";return String(g).padStart(2)+" "+T;};
+  L("  ── LB RUN-DEFENSE grade (⚠ KNOWN-WEAK: tackle credit is RNG, see below) ────");
+  L("    "+"player".padEnd(22)+"pos OVR  runTkl  stops  TFL  stop%  GRADE");
+  lbs.sort((a,b)=>b.grade-a.grade).slice(0,8).forEach(r=>L(
+    "    "+r.nm.padEnd(22)+r.pos.padEnd(4)+String(r.ovr).padEnd(5)+String(r.run_tkl).padEnd(8)+String(r.run_stop).padEnd(7)+String(r.run_tfl).padEnd(5)+(100*stopRate(r)).toFixed(0).padStart(4)+"   "+gs(r.grade)));
+  const rLB=corr(lbs.map(r=>r.grade),lbs.map(r=>r.ovr));
+  L("    LB run-D grade ↔ OVR:  r = "+rLB.toFixed(2)+"   "+(Math.abs(rLB)<0.25?"⚠ ≈ NOISE — confirms tackle credit is rating-blind":(Math.abs(rLB)<0.4?"weak":"unexpectedly informative")));
+  L("    → Verdict: a defensible LB run-D grade needs Arch-B (assign the run tackle");
+  L("      to the LB who actually filled the gap by AWR-vs-context). Out of scope here.");
   L("");
 })();`;
 let code=shim+"\n"; for(const f of files){let c=fs.readFileSync(path.join(__dirname,f),"utf8");c=stripUiInit(c,f);code+="\n"+c+"\n";}

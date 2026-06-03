@@ -1,9 +1,11 @@
 # MFF — advanced-analytics layer (EPA + PFF-style player grades)
 
-> Status: **slices #1-#3 + EPA layer shipped** — four trench grades (pass-rush,
-> pass-pro, run-stuff, run-block) + combined DL/OL grades, coverage grades (CB +
-> cover-LB), and a team/QB **EPA** layer. LB run-D tackling and the franchise-UI
-> surface are planned, not yet built. This doc is the resume point.
+> Status: **slices #1-#3 + EPA layer (team/QB/skill) shipped**, and the LB run-D
+> grade assessed (came out as noise — documented). Built: four trench grades
+> (pass-rush, pass-pro, run-stuff, run-block) + combined DL/OL grades, coverage
+> grades (CB + cover-LB), EPA (team / QB / WR / RB), and an honest LB run-D
+> read. The **franchise-UI surface** is the main remaining (user-facing) step.
+> This doc is the resume point.
 
 ## Goal
 
@@ -205,6 +207,22 @@ affect a simulation it only reads).
 - QB leaderboard: the OVR-97 QB tops EPA/dropback; QB EPA/db ↔ OVR **r=0.45**
   (talent shows through without being a circular OVR restatement).
 
+### Skill-player EPA (WR / RB) and LB run-D (added to `_mff_epa.js`)
+- **Receiving EPA** (attributed via the log's `receiver`): top-12 by TOTAL EPA are
+  OVR 78-95 (mostly 90+); total EPA ↔ OVR **r=0.51** ✓. But EPA **per reception**
+  ↔ OVR **r=−0.04** — per-catch efficiency is QB/scheme/situation-driven, not WR
+  skill, so volume (total EPA) is the WR signal, not efficiency.
+- **Rushing EPA** (via `rusher`): top-12 by TOTAL EPA are OVR 90-92; total EPA ↔ OVR
+  **r=0.16**, EPA/att ↔ OVR **r=0.21** — weak, matching the analytics consensus that
+  RB production is less individually determinative.
+- **LB run-defense grade** (built from the log's `tackler` + run yardage): stop-rate
+  grade ↔ OVR **r=0.00 — pure noise.** This is the predicted Arch-A failure: the
+  engine's tackle credit (`_creditDefStat`, `:1922`) picks WHO tackles by a
+  positional context weight + a final RANDOM draw, NOT by the individual defender's
+  rating, so an LB's run-stop counts are rating-blind. A defensible LB run-D grade
+  needs Arch-B (assign the run tackle to the LB who actually filled the gap by
+  AWR-vs-context) — out of scope, but the audit prints the verdict explicitly.
+
 ## Findings surfaced by the slices
 1. **The engine's `pressure` is team-level** — it never incorporates the picked
    rusher's individual rating, only team d-line avg + archetype matchup + pick
@@ -249,13 +267,12 @@ Order = cheapest/most-defensible first, each behind the same flag + A/B gate:
 1. ~~**Run-block / run-stuff**~~ — ✅ DONE (slice #2).
 2. ~~**Coverage (CB / cover-LB)**~~ — ✅ DONE (slice #3). Safeties excluded
    (not directly targeted — see finding #3).
-3. ~~**EPA layer**~~ — ✅ DONE (`_mff_epa.js`). Possible follow-ups: per-skill-player
-   EPA (RB/WR via `receiver`/carrier fields), WPA (win-probability added), DVOA-style
-   opponent adjustment.
-4. **LB run-defense tackling** — the one grade still weak under Arch A (tackle credit
-   is RNG via `_creditDefStat`). Consider an isolated, targeted Arch-B tweak ONLY
-   here if face validity is poor; it has no pressure/comp/ypc coupling so any
-   re-calibration stays local to LB tackle distribution.
+3. ~~**EPA layer (team / QB / WR / RB)**~~ — ✅ DONE (`_mff_epa.js`). Possible
+   follow-ups: WPA (win-probability added), DVOA-style opponent adjustment.
+4. ~~**LB run-defense tackling**~~ — ✅ ASSESSED: noise under Arch-A (r=0.00), as
+   predicted. A real grade needs an isolated Arch-B tackle-attribution tweak (assign
+   the run tackle by AWR-vs-gap); no pressure/comp/ypc coupling, so any re-calibration
+   stays local to LB tackle distribution. Deferred as a deliberate scope decision.
 5. **Franchise UI surface** — show grades near `scoutGrade`
    (`play-franchise-core.js:1082`) and team EPA near the win-prob block
    (`play-franchise-stats.js:~5554`). UI-only, medium risk (save-state).
