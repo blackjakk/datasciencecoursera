@@ -8494,11 +8494,15 @@ function computeSuperBowlMVP() {
 
 // Merge orphan seasonStats entries — left over from the pre-fix
 // nickname-rename bug that split a single player's stats across two
-// name keys mid-season. For each team, find entries whose key doesn't
-// match any current roster name and try to attribute them to the right
-// live player (same team, same position, ideally currently nicknamed
-// or has a partial entry under their real name). Sum-merges stat
-// fields, max-merges "long" fields, then deletes the orphan.
+// name keys mid-season (real-name half + nickname half on the same
+// roster). The match is ONLY by nickname → real-name: the orphan's
+// key must equal a current roster player's nickname. Looser fallbacks
+// (same-pos single-candidate, or same-pos with existing stats) were
+// stripped because they re-attributed stats from cycled-out players
+// (cut/traded/retired QBs, etc.) onto the team's current starter,
+// producing 9000-yard ghost seasons at sub-80 OVR. Cycled-player
+// orphans now stay orphan — those stats belong to a player who's no
+// longer on the roster and shouldn't be merged into anyone else.
 function _reconcileOrphanSeasonStats() {
   if (!franchise?.seasonStats || !franchise?.rosters) return;
   const MAX_STATS = new Set(["pass_long","rush_long","rec_long","fg_long","int_long","punt_long","kr_long","pr_long"]);
@@ -8510,23 +8514,10 @@ function _reconcileOrphanSeasonStats() {
     const rosterByNick = new Map(roster.filter(p => p.nickname).map(p => [p.nickname, p]));
     for (const orphanName of Object.keys(players)) {
       if (rosterByName.has(orphanName)) continue; // matches a live player
+      const target = rosterByNick.get(orphanName); // ONLY the nickname-rename case
+      if (!target) continue;
       const orphan = players[orphanName];
       if (!orphan) continue;
-      // Best-effort match: same team, same position, single candidate.
-      let target = rosterByNick.get(orphanName);
-      if (!target) {
-        const samePos = roster.filter(p => p.position === orphan.pos);
-        if (samePos.length === 1) {
-          target = samePos[0];
-        } else {
-          // Prefer a position match that ALSO already has a partial
-          // entry in seasonStats (likely the renamed player whose
-          // current-name half is here too).
-          const split = samePos.find(p => players[p.name]);
-          if (split) target = split;
-        }
-      }
-      if (!target) continue;
       const dest = players[target.name] || (players[target.name] = { name: target.name, pos: target.position, gp: 0 });
       for (const [k, v] of Object.entries(orphan)) {
         if (k === "name" || k === "pos") continue;
