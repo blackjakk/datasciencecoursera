@@ -1,9 +1,9 @@
 # MFF — advanced-analytics layer (EPA + PFF-style player grades)
 
-> Status: **slices #1-#3 shipped** — four trench grades (pass-rush, pass-pro,
-> run-stuff, run-block) + combined DL/OL grades, and coverage grades (CB +
-> cover-LB). EPA layer and LB run-D tackling are planned, not yet built.
-> This doc is the resume point for a future session.
+> Status: **slices #1-#3 + EPA layer shipped** — four trench grades (pass-rush,
+> pass-pro, run-stuff, run-block) + combined DL/OL grades, coverage grades (CB +
+> cover-LB), and a team/QB **EPA** layer. LB run-D tackling and the franchise-UI
+> surface are planned, not yet built. This doc is the resume point.
 
 ## Goal
 
@@ -175,6 +175,36 @@ sanity check that the attribution captures the real outcome). A/B still byte-
 identical. Face validity: worst CBs are all **COV 60** (despite OVR ~76); top CBs
 are COV 86-95.
 
+## EPA layer (SHIPPED — no engine change, pure post-processing)
+
+`_mff_epa.js` builds an empirical Expected-Points model and EPA per play entirely
+from the play log — **no engine edit, so no A/B gate is even needed** (it can't
+affect a simulation it only reads).
+
+### Method (nflfastR-style, simplified)
+1. **EP model:** `EP(down, ytg-bucket, yardline-bucket)` = mean signed points of the
+   NEXT score within the same half, over all plays (with coarser down/yardline and
+   yardline-only fallbacks when a bucket has < 30 samples). Scores are detected from
+   the play log's `homeScore`/`awayScore` tuple changes.
+2. **EPA(play)** = `EP_after − EP_before`, where `EP_after` is the actual points if
+   the drive scored before the next snap, else the next snap's EP (negated if
+   possession flipped), else 0 at end of half.
+3. **Roll-ups:** team offense/defense EPA/play, pass vs run EPA, success rate
+   (% plays with EPA > 0), and per-QB EPA (attributed via the log's `passer` field).
+
+### Validation (2-season round-robin)
+- **EP gradient is textbook:** own-25 +0.66, midfield +2.57, 1st&goal-5 +5.75,
+  3rd&8-own-10 −1.02, backed-up-own-1 −0.18. Monotonic in field position, negative
+  on long downs deep in own territory. Absolute values run slightly above NFL refs
+  (the sim's next-score-within-half is a touch scoring-rich) but the shape and
+  relative ordering — what EPA actually uses — are correct.
+- pass EPA/play **+0.042** > run **−0.055** (passing more efficient, as in the NFL);
+  overall success rate **48%** (NFL ~45%).
+- **Construct validity:** team offensive EPA/play ↔ points/game **r=0.94** — EPA
+  explains scoring, the key check for an EPA model.
+- QB leaderboard: the OVR-97 QB tops EPA/dropback; QB EPA/db ↔ OVR **r=0.45**
+  (talent shows through without being a circular OVR restatement).
+
 ## Findings surfaced by the slices
 1. **The engine's `pressure` is team-level** — it never incorporates the picked
    rusher's individual rating, only team d-line avg + archetype matchup + pick
@@ -219,12 +249,13 @@ Order = cheapest/most-defensible first, each behind the same flag + A/B gate:
 1. ~~**Run-block / run-stuff**~~ — ✅ DONE (slice #2).
 2. ~~**Coverage (CB / cover-LB)**~~ — ✅ DONE (slice #3). Safeties excluded
    (not directly targeted — see finding #3).
-3. **EPA layer** — empirical EP(down,dist,field) table from sim data, EPA per
-   play, team/QB/skill roll-ups, success rate. Pure post-processing over the
-   play log (self-contained per entry: pre-state `{down,ytg,startYard}`,
-   post-state from `endYard`). See the EPA plan in session history.
-4. **LB run-defense tackling** — last; stays weak under Arch A. Consider an
-   isolated, targeted Arch-B tweak ONLY here if face validity is poor.
+3. ~~**EPA layer**~~ — ✅ DONE (`_mff_epa.js`). Possible follow-ups: per-skill-player
+   EPA (RB/WR via `receiver`/carrier fields), WPA (win-probability added), DVOA-style
+   opponent adjustment.
+4. **LB run-defense tackling** — the one grade still weak under Arch A (tackle credit
+   is RNG via `_creditDefStat`). Consider an isolated, targeted Arch-B tweak ONLY
+   here if face validity is poor; it has no pressure/comp/ypc coupling so any
+   re-calibration stays local to LB tackle distribution.
 5. **Franchise UI surface** — show grades near `scoutGrade`
    (`play-franchise-core.js:1082`) and team EPA near the win-prob block
    (`play-franchise-stats.js:~5554`). UI-only, medium risk (save-state).
