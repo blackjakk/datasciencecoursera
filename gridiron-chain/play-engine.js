@@ -68,6 +68,22 @@ const POSITION_WEIGHT_FALLBACK = {
   QB:220, RB:215, WR:200, TE:250, OL:315, DL:280, LB:240, CB:195, S:205, K:200, P:215,
 };
 
+// ── MFF (advanced-analytics) per-snap attribution ──────────────────────────
+// EXPECTED-PRESSURE (xPressure) credit for MFF per-snap attribution. The engine's
+// `pressure` scalar = clamp(basePressure*passMul, -1.5, 1.9) is a *team* trench
+// quantity; measured over ~23k dropbacks it is centered at median -0.12 (OL wins
+// most reps — completions ~62%), range ~[-0.57, +0.24] (probe: _mff_press_probe.js).
+// A hard threshold on it saturates (a dominant line clears it ~every rep → 90%+
+// "rate"), so instead each rep is credited a SMOOTH, DETERMINISTIC 0..1 expected
+// pressure: BASE at the median, sloped by how far this matchup favors the rush,
+// clamped to avoid saturation. BASE≈league pressure rate so the league mean lands
+// near NFL ~35%. A sack tops the rep's credit up to a full 1.0 (a sack is a
+// pressure). These constants are read ONLY inside `_MFF_ATTR`-gated, RNG-free,
+// outcome-neutral writes; changing them cannot move any game-calibration band.
+const MFF_PRESS_MED   = -0.12;  // measured median of the pressure scalar
+const MFF_PRESS_BASE  = 0.34;   // xPressure credited at a median (even) matchup
+const MFF_PRESS_SLOPE = 0.55;   // how fast xPressure rises as the rush wins
+
 // Break-tackle tackler-pool weights and gang-tackle distributions per contact
 // context. Yardage bucket "short" = at/near LOS, "mid" = 2nd level, "long" =
 // open field. Each row's values sum to 1.0 (probabilities).
@@ -327,6 +343,14 @@ class GameSimulator {
     // Weather still auto-rolls in the constructor below; opts.weather
     // can override post-construction if a caller wants to force it.
     this.opts = opts || {};
+    // MFF advanced-analytics attribution. When on, the engine records per-snap
+    // per-player rep outcomes (currently: pass-rush pressures / pass-pro
+    // pressures-allowed) onto the box-score stat lines. The writes are purely
+    // additive (new keys via the `||0` idiom), consume NO Math.random(), and
+    // never alter a play outcome — so toggling this flag leaves every existing
+    // aggregate byte-identical (proven by _mff_ab_check.js). Default on; the
+    // A/B harness sets `_MFF_ATTR = false` to verify calibration is untouched.
+    this._MFF_ATTR = this.opts.mffAttr !== false;
     this.isRivalry = !!this.opts.isRivalry;
     this.isPlayoff = !!this.opts.isPlayoff;   // amplifies the clutch swing in big games
     this.homeFieldAdv = this.opts.homeFieldAdv !== false; // default on
@@ -4419,6 +4443,22 @@ class GameSimulator {
       // walk). Reset back to 0.075 — trench-driven run distribution adds
       // its own per-snap variance that produces enough "pressure feel".
       const sackPct = clamp((0.075 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.20);
+      // ── MFF trench attribution (additive, no RNG, no outcome change) ──
+      // This dropback is one resolved DL-vs-OL rep (the `reps` pair picked at
+      // snap top). Credit the pass-rush / pass-pro snap to that pair, and a
+      // smooth expected-pressure (xPressure, 0..1) from the matchup. A sack
+      // (resolved below) tops this rep's credit up to a full 1.0. Writes only
+      // new stat keys via the `||0` idiom — no RNG, no outcome mutation.
+      let _mffXp = 0;
+      if (this._MFF_ATTR) {
+        const _mDl = reps.dl?.name && def.players[reps.dl.name];
+        const _mOl = reps.ol?.name && off.players[reps.ol.name];
+        if (_mDl) _mDl.pass_rush_snaps = (_mDl.pass_rush_snaps || 0) + 1;
+        if (_mOl) _mOl.pass_pro_snaps  = (_mOl.pass_pro_snaps  || 0) + 1;
+        _mffXp = clamp(MFF_PRESS_BASE + (pressure - MFF_PRESS_MED) * MFF_PRESS_SLOPE, 0.02, 0.85);
+        if (_mDl) _mDl.pressures         = (_mDl.pressures         || 0) + _mffXp;
+        if (_mOl) _mOl.pressures_allowed = (_mOl.pressures_allowed || 0) + _mffXp;
+      }
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -4583,6 +4623,16 @@ class GameSimulator {
         // Charge the sack to the OL who lost the rep
         if (reps.ol?.name && off.players[reps.ol.name])
           off.players[reps.ol.name].sacks_allowed = (off.players[reps.ol.name].sacks_allowed || 0) + 1;
+        // MFF: a sack is the strongest pressure outcome — credit the DL a
+        // QB-hit, and top this rep's xPressure up to a full 1.0 (sack ⇒ pressure).
+        // (Additive, no RNG.)
+        if (this._MFF_ATTR) {
+          const _mDl2 = reps.dl?.name && def.players[reps.dl.name];
+          const _mOl2 = reps.ol?.name && off.players[reps.ol.name];
+          const _top = Math.max(0, 1 - _mffXp);
+          if (_mDl2) { _mDl2.qb_hits = (_mDl2.qb_hits || 0) + 1; _mDl2.pressures = (_mDl2.pressures || 0) + _top; }
+          if (_mOl2) _mOl2.pressures_allowed = (_mOl2.pressures_allowed || 0) + _top;
+        }
         // Strip-sack — NFL ~10% of sacks force a fumble. Low-AWR QBs (poor
         // ball security) are more vulnerable; high-AWR feel the rush and
         // tuck the ball.
