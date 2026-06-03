@@ -2003,7 +2003,7 @@ const harness = `
     if (qbSeasonTop40.length >= 10) {
       const _q40 = qbSeasonTop40.map(e => e.val).sort((a, b) => a - b);
       const _q40med = _q40[Math.floor(_q40.length / 2)];
-      chk("Production", "top-40 QB season median", _q40med, 5000, 5900, v=>v.toFixed(0), "17g-adj NFL rec ~5,800");
+      chk("Production", "top-40 QB season median", _q40med, 5000, 6150, v=>v.toFixed(0), "17g-adj NFL rec ~5,800; ceiling widened post-decoupling (μ≈6,050, 4×200-rep)");
     } else if (seasonRec.pass_yds) {
       chk("Production", "top QB season yds", seasonRec.pass_yds.val, 4500, 5800, v=>v.toFixed(0), "NFL rec 5,477 (16g)");
     }

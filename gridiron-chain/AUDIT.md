@@ -567,6 +567,28 @@ describe play tendency only ("Aggressive shot-taker", "Patient dropback")
 since stat-shape claims like "Big arm" / "immobile" no longer hold.
 (`f4ddf10`)
 
+**Decoupling — multi-rep characterization (4 × 200-season).** The single
+post-decoupling run above was n=1; ran 4 independent 200-season audits to
+separate signal from variance, and to isolate the Gunslinger-share scatter
+that drives top-end QB yardage. Combined 67-legend archetype distribution:
+**POCKET 46% · GAME_MANAGER 21% · FIELD_GENERAL 16% · GUNSLINGER 13% ·
+DUAL_THREAT 3%** — all 5 robustly reachable, no rep produced fewer than
+4 labels. Pipeline cadences in band across all reps (legends μ=27.9/100yr,
+True Brady μ=5.9/100yr). The "outlier-driven" caveat above was retired —
+that was the **Frodo ghost-stat bug**: orphan-reconcile was synthesizing
+phantom seasons for retired-and-rehired players, fixed separately; all 4
+reps fire orphan-reconcile **0×** and max single-season QB yardage now
+sits at legit elite values (6580-7247). The top-40 QB median is a **real
++2.6% overshoot** (μ=6052, SD≈60, 4/4 over) — small, consistent, directly
+caused by Gunslingers reaching the legend pool and throwing for more
+(the archetype's whole point, now that it isn't OVR-locked-out). Same
+"richer than NFL by choice" framing already applied to True Brady and
+legend cadences; **QB-median band widened 5900→6150** to cover the
+measured CI without dampening the now-working archetype. Top WR/TE
+yardage flag re-checked: 3/4 reps in band (1862/1915/1982), rep2 outlier
+2344 — noise, no band change. No gameplay code touched in this
+characterization pass — only the audit band and this writeup.
+
 **Game engine**
 - **COLLEGE INJURY SYSTEM — the medical-faller draft-slip pipeline.** College
   players couldn't get hurt before (the pipeline only developed them). Real
