@@ -1889,6 +1889,32 @@ function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats, plays, 
     if (gameStats) g.stats = _stripGameStatsForStorage(gameStats);
     if (plays)     g.scoring = _extractScoringTimeline(plays, homeScore, awayScore);
     if (plays)     g.momentumLog = _extractMomentumLog(plays);
+    // MFF EPA: append a compact per-play log for this game so EPA can be
+    // computed live. Each game starts with a header marker {__g:1,homeId,awayId}
+    // so the EPA walker knows where games begin/end (and which team is
+    // home/away for possession attribution). Regular-season only — the
+    // playoff bracket has its own stat surface and EPA would need separate
+    // retention. Skips playoff games (ctx.isPlayoff). Captures NO new data;
+    // it's a projection of sim.plays via _mffCompactPlay (sparse keys, ~10
+    // bytes/field, ~120 bytes/play). At ~130 plays/game × 17 games × 32 teams
+    // ÷ 2 (each game has one log entry, not two) ≈ 35k plays/season ≈ 4MB —
+    // well within IndexedDB capacity (saveFranchise.IDB has no size limit).
+    if (plays && !ctx?.isPlayoff && typeof _mffCompactPlay === "function") {
+      try {
+        const season = franchise.season ?? 1;
+        if (!franchise.playLog) franchise.playLog = {};
+        if (!franchise.playLog[season]) franchise.playLog[season] = [];
+        const buf = franchise.playLog[season];
+        // Marker carries the game's FINAL score (hf/af) so the EPA walker
+        // can detect end-of-game TDs/FGs — without this, a walk-off TD
+        // gets no EP_after credit because there's no "next snap" to compare.
+        buf.push({ __g: 1, homeId, awayId, week: g.week ?? franchise.week ?? 0, hf: homeScore, af: awayScore });
+        for (const p of plays) {
+          const c = _mffCompactPlay(p);
+          if (c) buf.push(c);
+        }
+      } catch (e) { console.warn("[mff playLog]", e); }
+    }
     // Highlights: scan plays for big moments (TD, pick-six, big hits,
     // long FGs, 4th-down calls). Keeps top 7 per game.
     if (plays) {
@@ -14425,6 +14451,46 @@ function frnNewSeason() {
   // were already merged into draftScoutReveals at frnGoToDraft, so
   // wiping seasonScoutReveals here just starts the next cycle clean.
   if (typeof _initSeasonScout === "function") _initSeasonScout(true);
+  // MFF EPA: before incrementing the season, freeze the just-completed
+  // season's EPA summary into franchise.epaSummary[oldSeason] (tiny — team
+  // totals + top players), then drop the raw playLog. Per-season summaries
+  // survive indefinitely; the raw per-play log is current-season-only.
+  if (typeof _mffComputeEPA === "function") {
+    try {
+      const oldSeason = franchise.season ?? 1;
+      const epa = _mffComputeEPA();
+      if (epa && (epa.team || epa.qb)) {
+        const top = (map, kind, key, n) =>
+          [...map.entries()]
+            .filter(([_,v]) => (v[key]||0) >= 5)
+            .map(([name, v]) => ({ name, epa: +v.epa.toFixed(2), [key]: v[key], rate: +(v.epa/v[key]).toFixed(3) }))
+            .sort((a,b) => b.epa - a.epa)
+            .slice(0, n);
+        const summary = {
+          team: {},
+          qb:  top(epa.qb,  "qb",  "db",  20),
+          rec: top(epa.rec, "rec", "rec", 30),
+          rb:  top(epa.rb,  "rb",  "att", 20),
+        };
+        for (const [tid, t] of Object.entries(epa.team)) {
+          summary.team[tid] = {
+            off: t.plays ? +(t.epa/t.plays).toFixed(3) : 0,
+            def: t.plays_def ? +(t.epa_def/t.plays_def).toFixed(3) : 0,
+            plays: t.plays, plays_def: t.plays_def,
+          };
+        }
+        franchise.epaSummary = franchise.epaSummary || {};
+        franchise.epaSummary[oldSeason] = summary;
+      }
+      if (franchise.playLog) {
+        delete franchise.playLog[oldSeason];
+        // Also clean any stragglers from prior seasons (legacy / repair).
+        for (const k of Object.keys(franchise.playLog)) {
+          if (Number(k) <= oldSeason) delete franchise.playLog[k];
+        }
+      }
+    } catch (e) { console.warn("[mff epaSummary]", e); }
+  }
   franchise.season       += 1;
   franchise.week          = 1;
   // Wear resets in the offseason — 6 months off lets bodies heal. We

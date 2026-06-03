@@ -4238,13 +4238,18 @@ function _buildStatScopeBlock(p, stat, title, perGame) {
   // MFF grade chips — render only on the regular-season scope (grades are
   // standardized against the regular-season league pool, so showing them on
   // the playoff scope panel would be misleading).
-  const mffHtml = (typeof mffGradeChipsHtml === "function"
-    && /REGULAR SEASON|SEASON TOTALS/.test(title))
+  const isRegScope = /REGULAR SEASON|SEASON TOTALS/.test(title);
+  const mffHtml = (typeof mffGradeChipsHtml === "function" && isRegScope)
     ? mffGradeChipsHtml(p) : "";
+  // EPA chips — also regular-season only (the playLog is regular-season
+  // only; playoff EPA would need separate retention).
+  const epaHtml = (typeof mffPlayerEPAChipsHtml === "function" && isRegScope)
+    ? mffPlayerEPAChipsHtml(p) : "";
   return `<div class="frn-pcard-section">
     <div class="frn-card-title">${title}</div>
     <div class="frn-pcard-seasonstats">${cells}</div>
     ${mffHtml}
+    ${epaHtml}
     ${fantasyHtml}
   </div>`;
 }

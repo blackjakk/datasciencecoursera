@@ -1,13 +1,14 @@
 # MFF — advanced-analytics layer (EPA + PFF-style player grades)
 
-> Status: **slices #1-#3 + EPA + pressure-log fix shipped.**
-> Built: four trench grades (pass-rush, pass-pro, run-stuff, run-block) + combined
-> DL/OL grades, coverage grades (CB + cover-LB), EPA (team / QB / WR / RB), and
-> one safe engine fix (the visual pressure-log bug) — attribution proven calibration-
-> neutral by the A/B gate. The LB run-D grade is excluded as a structural limit (the
-> audit prints the verdict). A tackle-skill engine tweak was attempted, found NOT
-> calibration-neutral, and reverted — see "Engine fixes" below. The **franchise-UI
-> surface** is the main remaining step. This doc is the resume point.
+> Status: **slices #1-#3 + EPA audit + pressure-log fix + franchise-UI (Slice A
+> grades + Slice B EPA) all shipped.** Built: four trench grades (pass-rush,
+> pass-pro, run-stuff, run-block) + combined DL/OL grades, coverage grades
+> (CB + cover-LB), EPA (team / QB / WR / RB), one safe engine fix (the visual
+> pressure-log bug) — attribution proven calibration-neutral by the A/B gate —
+> and the LIVE FRANCHISE UI surface (grade + EPA chips in the player stats
+> panel; team EPA in the win-prob block). The LB run-D grade is excluded as a
+> structural limit. A tackle-skill engine tweak was attempted, found NOT
+> calibration-neutral, and reverted — see "Engine fixes" below.
 
 ## Goal
 
@@ -303,11 +304,93 @@ never trust a "looks count-neutral" argument over the gate's verdict.
    safe. The MFF attribution layer always used the local `pressure` const, not the
    logged value, so it was already correct.
 
+## Franchise UI — Slice A (grades) + Slice B (EPA), SHIPPED
+
+The audit scripts (`_mff_audit.js`, `_mff_epa.js`) compute the analytics offline
+against a clean round-robin. The live franchise needs the same numbers shown to
+the player in their player-detail panel + matchup compare. Two slices were
+shipped — each tested with synthetic + end-to-end (engine→merge→module) checks.
+
+### Slice A — live PFF-style grades (no engine change, no save-state change)
+`mergeSeasonStats` (`play-franchise-stats.js:8146`) already persists every MFF
+attribution field via generic `+=` iteration — so the rate stats are already in
+`franchise.seasonStats`. New module in `play-franchise-stats.js`:
+`_mffComputeLeagueGrades` iterates the league pool, builds qualified subpools
+per position group, z-scores rates exactly matching `_mff_audit.js`'s formulas,
+and returns 0-99 grades; `mffGradeChipsHtml(p)` renders the chip block; wired
+into `_buildStatScopeBlock` (`play-franchise-season.js`) on the regular-season
+scope only. Pool thresholds tuned for live display (≥100 pass-rush snaps, ≥80
+run snaps, ≥25 coverage targets, pool min ≥6) so chips surface by ~week 5.
+
+Position rollup handles BOTH the engine's slot strings (DE/DT/LT/LG/C/RG/RT
+on per-game stat lines) AND the live player object's group strings (DL/OL/CB/LB).
+This dual lookup was the bug that field-realism testing caught — without it the
+feature would have rendered nothing in the real UI.
+
+End-to-end validation (1-season round-robin → seasonStats → grade module):
+- DL combined ↔ OVR **r=0.74** ✓  · OL combined ↔ OVR **r=0.54** ✓
+- DL pass-rush ↔ OVR **r=0.40** ✓ · CB coverage ↔ OVR r=0.15 (correct — coverage
+  is driven by COV not OVR; audit confirmed r=0.75 vs COV)
+
+### Slice B — live EPA (team / QB / WR / RB)
+Three architectural decisions ground this:
+
+1. **Bake the EP model, don't compute it live.** EP(state) is a property of
+   the engine's RULES (yards-per-drive, scoring odds from a state); talent
+   shifts HOW OFTEN a state is reached, not its points-value. A baked table
+   from a 2-season round-robin is the correct estimate. A "live" franchise
+   model is strictly noisier mid-season (~12k plays vs 64k+ baked) for zero
+   fidelity gain. Baked table lives in `play-franchise-stats.js` as three
+   constants (~173 entries, ~2.8 KB).
+2. **Retain a compact per-play log per season** (`franchise.playLog[season]`).
+   EPA itself doesn't strictly need retention — could be tallied at game-end —
+   but the same log enables WPA, "signature plays" leaderboards, and replay
+   navigation without a later additive save-state change. ~120 bytes/snap ×
+   ~34k snaps/17-game-season ≈ **3.9 MB**. IndexedDB has no size limit
+   (canonical save) so this fits trivially; localStorage may trim under
+   pressure, which `_trimFranchiseForStorage` handles gracefully.
+3. **Score attribution follows the audit's "credit the play that got you
+   here" convention** — a TD play has the BEFORE-score on its record (engine
+   convention) and the next drive's snap has the AFTER-score; the EPA walker
+   detects the score change at the FIRST snap with a higher running score and
+   credits the previous snap (which IS the TD play). End-of-game scores are
+   captured via the `__g` marker's `hf`/`af` (final scores), so walk-off TDs
+   don't lose EP_after credit.
+
+Capture point: `markGamePlayed` (`play-franchise-offseason.js:1883`) walks
+`sim.plays` before discard and pushes compact records via `_mffCompactPlay`
+(13 essential fields, sparse — only present when meaningful). Season rollover
+(`frnNewSeason`, `:14410`) freezes the season's EPA summary into
+`franchise.epaSummary[oldSeason]` (team totals + top-20 QB / top-30 WR / top-20
+RB) and drops the raw log; `_trimFranchiseForStorage` (`play-franchise-core.js`)
+is a safety net for any orphaned old-season logs.
+
+UI surface: `mffPlayerEPAChipsHtml(p)` renders alongside the grade chips in
+`_buildStatScopeBlock`; `mffTeamEPAStatRows` adds **EPA/PLAY (OFF)** and
+**EPA/PLAY (DEF)** rows to the win-prob matchup compare block
+(`play-franchise-stats.js:5566`). Chip thresholds: QB ≥10 dropbacks, WR ≥5
+catches, RB ≥10 attempts — to suppress noisy single-game readings.
+
+End-to-end validation (engine→playLog→`_mffComputeEPA`, 1-season round-robin):
+| Metric | Audit reference | Live | Verdict |
+|---|---|---|---|
+| Pass EPA/play | +0.042 | +0.058 | ✓ in NFL band |
+| Run EPA/play | -0.055 | +0.003 | ✓ in NFL band |
+| Success rate | 48% | 48% | exact ✓ |
+| Team EPA ↔ PPG | r=0.94 | r=0.86 | ✓ strong |
+| **QB EPA/db ↔ OVR** | **r=0.45** | **r=0.47** | matches ✓ |
+| WR total EPA ↔ OVR | r=0.51 | r=0.61 | ✓ matches |
+| RB total EPA ↔ OVR | r=0.16 (weak) | r=0.27 (weak) | ✓ matches weakness |
+
 ## Tooling
-- `_mff_audit.js [seasons]` — grades + leaderboards + validation (the deliverable).
-- `_mff_ab_check.js` — byte-identical safety gate (run after ANY MFF change).
-- `_mff_press_probe.js` — pressure-distribution probe for re-calibrating the
-  xPressure constants (throwaway; neutralise the `:3088` reset to use it).
+- `_mff_audit.js [seasons]` — grades + leaderboards + validation.
+- `_mff_epa.js [seasons]` — EPA leaderboards + validation.
+- `_mff_ab_check.js` — byte-identical safety gate (run after ANY engine change).
+- `_mff_bake_ep.js [seasons]` — re-bake the EP table if the engine's scoring
+  environment drifts; outputs `/tmp/mff_ep_baked.js` to paste into
+  `play-franchise-stats.js`. Re-run only when the engine's rules of field
+  position change.
+- `_mff_press_probe.js` — pressure-distribution probe for the xPressure consts.
 
 ## Next steps (planned, not built)
 Order = cheapest/most-defensible first, each behind the same flag + A/B gate:
@@ -325,6 +408,17 @@ Order = cheapest/most-defensible first, each behind the same flag + A/B gate:
    volume + context, so within-team reshuffling can't create cross-league signal
    (same reason PFF doesn't grade LBs from box scores). The LB UI grade is coverage-
    only (cover-LB from slice #3).
-5. **Franchise UI surface** — show grades near `scoutGrade`
-   (`play-franchise-core.js:1082`) and team EPA near the win-prob block
-   (`play-franchise-stats.js:~5554`). UI-only, medium risk (save-state).
+5. ~~**Franchise UI surface — Slice A grades + Slice B EPA**~~ — ✅ DONE. Player
+   chips in `_buildStatScopeBlock`; team EPA in the win-prob matchup compare;
+   per-season EPA summaries frozen at rollover. See the "Franchise UI" section
+   above for architecture + validation.
+
+## Future work (not built)
+- **WPA (win-probability added)** — uses the same retained `playLog`; needs an
+  empirical WP model (could be baked via the same approach as the EP table).
+- **Signature plays of the season** — top-N biggest-EPA plays per team/player,
+  reusing the retained log; pairs naturally with the existing replay highlights.
+- **DVOA-style opponent adjustment** — adjusts EPA for the strength of the
+  opposing defense / offense.
+- **Safety run-support grade** — would need engine work to attribute
+  run-support snaps to safeties; currently they have no defensible grade.

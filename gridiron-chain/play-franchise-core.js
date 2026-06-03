@@ -3820,6 +3820,17 @@ function _trimFranchiseForStorage() {
     }
   });
 
+  // MFF EPA playLog: drop any seasons earlier than the current one (their
+  // frozen epaSummary is what survives). Defensive safety net — the season
+  // rollover already does this, but if a save is loaded mid-trim or a legacy
+  // save predates the rollover hook, this cleans it up. IDB has no size cap
+  // so this is purely a localStorage-mirror trim.
+  if (franchise.playLog && franchise.season != null) {
+    for (const k of Object.keys(franchise.playLog)) {
+      if (Number(k) < franchise.season) delete franchise.playLog[k];
+    }
+  }
+
   // Trim news/highlights/chat — bumped from 30 → 150 so multi-season
   // playthroughs keep enough news to scroll back through a full season
   // of context. The hard cap in _pushNews is 500; this storage-pressure
