@@ -967,22 +967,26 @@ function pickOLArchetype(stats) {
 
 // ─── Skill-position archetypes ─────────────────────────────────────────
 const QB_ARCHETYPES = {
-  POCKET:      { label: "Pocket Passer", blurb: "Classic dropback — accurate, immobile" },
-  GUNSLINGER:  { label: "Gunslinger",    blurb: "Big arm, high risk — chunk plays + INTs" },
-  GAME_MANAGER:{ label: "Game Manager",  blurb: "Efficient short throws — protects the ball" },
+  POCKET:      { label: "Pocket Passer", blurb: "Patient dropback — picks his spots" },
+  GUNSLINGER:  { label: "Gunslinger",    blurb: "Aggressive shot-taker — chunk plays + INTs" },
+  GAME_MANAGER:{ label: "Game Manager",  blurb: "Conservative — checks down, protects the ball" },
   DUAL_THREAT: { label: "Dual Threat",   blurb: "Mobile — scrambles when pressured" },
-  FIELD_GENERAL:{label: "Field General", blurb: "Smart play-caller — balanced, low INTs" },
+  FIELD_GENERAL:{label: "Field General", blurb: "Reads matchups — patient, lowest INTs" },
 };
+// Archetype is the PLAY-STYLE axis (drives engine aggression, targeting,
+// deep-shot rate) — decoupled from stat shape. Any skill level can be any
+// style, so all five labels are reachable at the legend tier. Exception:
+// DUAL_THREAT keeps a hard SPD/AGI gate, since "scrambler" requires legs.
 function pickQBArchetype(stats) {
   const [spd, _str, agi, awr, thr] = stats;
   const w = {
-    POCKET:        Math.max(0, thr - 65) * 1.3 + (spd < 65 ? 5 : 0),
-    GUNSLINGER:    Math.max(0, thr - 70) * 1.5 + (awr < 75 ? 5 : 0),
-    GAME_MANAGER:  Math.max(0, awr - 65) * 1.3 + (thr < 80 ? 4 : 0),
-    DUAL_THREAT:   Math.max(0, spd - 65) * 1.5 + Math.max(0, agi - 60) * 0.5,
-    FIELD_GENERAL: Math.max(0, awr - 70) * 1.5,
+    POCKET:        15 + Math.max(0, thr - 75) * 0.3,
+    GUNSLINGER:    10 + Math.max(0, thr - 80) * 0.4,
+    GAME_MANAGER:  10 + Math.max(0, awr - 75) * 0.3,
+    DUAL_THREAT:    0 + Math.max(0, spd - 75) * 1.2 + Math.max(0, agi - 75) * 0.4,
+    FIELD_GENERAL: 10 + Math.max(0, awr - 80) * 0.4,
   };
-  for (const k in w) w[k] += Math.random() * 6;
+  for (const k in w) w[k] += Math.random() * 25;
   return Object.keys(w).reduce((a, b) => w[a] >= w[b] ? a : b);
 }
 
