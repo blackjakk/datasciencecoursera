@@ -4235,9 +4235,16 @@ function _buildStatScopeBlock(p, stat, title, perGame) {
   const cells = fmtTuples.map(([k, v]) =>
     `<div class="k">${k}</div><div class="v">${v}</div>`
   ).join("");
+  // MFF grade chips — render only on the regular-season scope (grades are
+  // standardized against the regular-season league pool, so showing them on
+  // the playoff scope panel would be misleading).
+  const mffHtml = (typeof mffGradeChipsHtml === "function"
+    && /REGULAR SEASON|SEASON TOTALS/.test(title))
+    ? mffGradeChipsHtml(p) : "";
   return `<div class="frn-pcard-section">
     <div class="frn-card-title">${title}</div>
     <div class="frn-pcard-seasonstats">${cells}</div>
+    ${mffHtml}
     ${fantasyHtml}
   </div>`;
 }

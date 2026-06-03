@@ -8197,6 +8197,183 @@ function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// MFF GRADES — PFF-style 0-99 player grades computed live from the season
+// stat blob. Architecture-A "attribution-only": the engine writes per-snap
+// rep outcomes (pressures, run_stuffs, cover_comp, …) gated by _MFF_ATTR
+// and proven byte-identical by _mff_ab_check.js. mergeSeasonStats persists
+// every numeric field generically, so the rate stats are already here.
+//
+// Honest grade set (positions intentionally omitted are structural limits,
+// not tuning misses — see MFF.md "Engine fixes" + finding #3):
+//   DL : g_prsh (pass-rush) + g_rstf (run-stuff) → g_dl combined
+//   OL : g_ppro (pass-pro)  + g_rblk (run-block) → g_ol combined
+//   CB : g_cov (cover-CB),  standardized within CBs
+//   LB : g_cov (cover-LB),  standardized within LBs (coverage only — LB
+//        run-D is a structural box-score category error; not graded)
+//   S  : not graded (engine never assigns a safety as primary cover man;
+//        run-support attribution is opportunity-driven, not skill)
+//
+// EPA (team/QB/WR/RB) is Slice B (needs per-play log retention).
+
+// Two position notions live in this codebase:
+//   - per-game stat line  → fine-grained slots (DE/DT, LT/LG/C/RG/RT, FS/SS)
+//   - live player object  → group strings     (DL,   OL,                S)
+// mergeSeasonStats persists the slot string, but the chip renderer is called
+// with the live player object. Accept either form and roll up to group.
+const _MFF_DL_POS = new Set(["DE","DT","DL","EDGE","IDL"]);
+const _MFF_OL_POS = new Set(["LT","LG","C","RG","RT","OL","T","G"]);
+const _MFF_CB_POS = new Set(["CB","NB","DB"]);
+const _MFF_LB_POS = new Set(["LB","MLB","OLB","SLB","WLB","ILB"]);
+function _mffGroupOf(pos) {
+  if (_MFF_DL_POS.has(pos)) return "DL";
+  if (_MFF_OL_POS.has(pos)) return "OL";
+  if (_MFF_CB_POS.has(pos)) return "CB";
+  if (_MFF_LB_POS.has(pos)) return "LB";
+  return null;
+}
+
+const _MFF_GRADE_CACHE = { key: null, byName: null };
+
+function _mffMean(xs) { return xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0; }
+function _mffSd(xs, m) {
+  if (!xs.length) return 1;
+  return Math.sqrt(xs.reduce((a,b)=>a+(b-m)*(b-m),0)/xs.length) || 1;
+}
+function _mffClampGrade(g) { return Math.max(20, Math.min(99, Math.round(g))); }
+
+// Standardize a pool: writes `key` on each row from rate fns + weights.
+// terms: [{fn, w}] — positive w means higher value is better.
+function _mffZGrade(rows, key, terms) {
+  const stats = terms.map(t => {
+    const xs = rows.map(t.fn);
+    const m = _mffMean(xs);
+    return { m, s: _mffSd(xs, m), fn: t.fn, w: t.w };
+  });
+  for (const r of rows) {
+    let g = 60;
+    for (const t of stats) g += t.w * ((t.fn(r) - t.m) / t.s);
+    r[key] = _mffClampGrade(g);
+  }
+}
+
+// Build league-wide grades over franchise.seasonStats (regular season only).
+// Pool thresholds are lighter than _mff_audit.js (which used a 31-game
+// round-robin) so grades start surfacing by ~week 4-5 of a 17-game season.
+function _mffComputeLeagueGrades() {
+  if (!franchise?.seasonStats) return new Map();
+  const rows = [];
+  for (const players of Object.values(franchise.seasonStats)) {
+    for (const stat of Object.values(players)) {
+      if (!stat || !stat.name) continue;
+      rows.push({ name: stat.name, pos: stat.pos, group: _mffGroupOf(stat.pos), stat });
+    }
+  }
+  // Rate helpers — formulas exactly match _mff_audit.js.
+  const prRate    = r => (r.stat.pressures||0)         / Math.max(1, r.stat.pass_rush_snaps||0);
+  const skRate    = r => (r.stat.sk||0)                / Math.max(1, r.stat.pass_rush_snaps||0);
+  const rdNet     = r => ((r.stat.run_stuffs||0) - (r.stat.run_def_losses||0))
+                                                       / Math.max(1, r.stat.run_def_snaps||0);
+  const paRate    = r => (r.stat.pressures_allowed||0) / Math.max(1, r.stat.pass_pro_snaps||0);
+  const saRate    = r => (r.stat.sacks_allowed||0)     / Math.max(1, r.stat.pass_pro_snaps||0);
+  const rbNet     = r => ((r.stat.run_block_wins||0) - (r.stat.run_block_losses||0))
+                                                       / Math.max(1, r.stat.run_block_snaps||0);
+  const compAllow = r => (r.stat.cover_comp||0)        / Math.max(1, r.stat.cover_tgt||0);
+  const ydsPerTgt = r => (r.stat.cover_yds||0)         / Math.max(1, r.stat.cover_tgt||0);
+  const playmkRt  = r => ((r.stat.pd||0) + 2*(r.stat.int_made||0))
+                                                       / Math.max(1, r.stat.cover_tgt||0);
+
+  // Qualified pools. Pool size must hit 6 to standardize (else z-scores are
+  // noise). Sub-grade weights match _mff_audit.js; see slice #1-3 validation.
+  const rushers  = rows.filter(r => (r.stat.pass_rush_snaps||0) >= 100);
+  const runDef   = rows.filter(r => (r.stat.run_def_snaps||0)   >= 80);
+  const blockers = rows.filter(r => (r.stat.pass_pro_snaps||0)  >= 100);
+  const runBlk   = rows.filter(r => (r.stat.run_block_snaps||0) >= 80);
+  const coverers = rows.filter(r => (r.stat.cover_tgt||0)       >= 25);
+
+  if (rushers.length  >= 6) _mffZGrade(rushers,  "g_prsh", [{fn:prRate,w:7},{fn:skRate,w:11},{fn:r=>r.stat.pass_rush_snaps||0,w:3}]);
+  if (runDef.length   >= 6) _mffZGrade(runDef,   "g_rstf", [{fn:rdNet,w:14}]);
+  if (blockers.length >= 6) _mffZGrade(blockers, "g_ppro", [{fn:paRate,w:-13},{fn:saRate,w:-6}]);
+  if (runBlk.length   >= 6) _mffZGrade(runBlk,   "g_rblk", [{fn:rbNet,w:14}]);
+  for (const grpName of ["CB","LB"]) {
+    const grp = coverers.filter(r => r.group === grpName);
+    if (grp.length >= 6) _mffZGrade(grp, "g_cov", [{fn:compAllow,w:-11},{fn:ydsPerTgt,w:-6},{fn:playmkRt,w:7}]);
+  }
+  // Combined DL / OL — average available sub-grades.
+  for (const r of rows) {
+    const dl = [r.g_prsh, r.g_rstf].filter(g => g != null);
+    const ol = [r.g_ppro, r.g_rblk].filter(g => g != null);
+    if (dl.length) r.g_dl = _mffClampGrade(_mffMean(dl));
+    if (ol.length) r.g_ol = _mffClampGrade(_mffMean(ol));
+  }
+  // Index by name. Generated rosters don't repeat names across teams in
+  // practice; if collisions ever appear, switch to a teamId:name key.
+  const byName = new Map();
+  for (const r of rows) {
+    if (r.g_prsh != null || r.g_rstf != null || r.g_ppro != null
+        || r.g_rblk != null || r.g_cov != null) {
+      byName.set(r.name, {
+        g_prsh: r.g_prsh, g_rstf: r.g_rstf, g_ppro: r.g_ppro, g_rblk: r.g_rblk,
+        g_cov:  r.g_cov,  g_dl:   r.g_dl,   g_ol:   r.g_ol,
+        // attribution counts surface in chip tooltips ("X targets" / "Y snaps").
+        prs_snaps: r.stat.pass_rush_snaps||0, pp_snaps: r.stat.pass_pro_snaps||0,
+        rd_snaps:  r.stat.run_def_snaps||0,   rb_snaps: r.stat.run_block_snaps||0,
+        cov_tgt:   r.stat.cover_tgt||0,
+      });
+    }
+  }
+  return byName;
+}
+
+// Memoize by (season, week, total merged games) — invalidates the moment
+// any new game lands in seasonStats.
+function mffGradeFor(name) {
+  if (!franchise || !name) return null;
+  const k = `${franchise.season ?? 0}:${franchise.week ?? 0}:${Object.keys(franchise._mergedGameKeys||{}).length}`;
+  if (_MFF_GRADE_CACHE.key !== k) {
+    _MFF_GRADE_CACHE.byName = _mffComputeLeagueGrades();
+    _MFF_GRADE_CACHE.key = k;
+  }
+  return _MFF_GRADE_CACHE.byName?.get(name) || null;
+}
+
+// HTML chip block for a player's MFF grades — empty string if the player
+// has no qualifying grade in the current season (wrong position, not
+// enough snaps yet, or pool too small to standardize). Visual idiom
+// matches gradeBadge (tt-ovr tier-N) for consistency. Designed to slot
+// into _buildStatScopeBlock's regular-season scope only.
+function mffGradeChipsHtml(p) {
+  if (!p) return "";
+  const group = _mffGroupOf(p.position);
+  if (!group) return "";
+  const g = mffGradeFor(p.name);
+  if (!g) return "";
+  const cls = (typeof gradeClass === "function") ? gradeClass : ()=>"c";
+  const lab = (typeof gradeLabel === "function") ? gradeLabel : (n)=>n;
+  const chip = (grade, label, tip) => grade == null ? "" :
+    `<span class="tt-ovr tier-${cls(grade)}" title="${tip}" style="margin-right:.35rem">${label} ${lab(grade)}</span>`;
+  const chips = [];
+  if (group === "DL") {
+    chips.push(chip(g.g_prsh, "PASS-RUSH", `pass-rush · ${g.prs_snaps} pass-rush snaps`));
+    chips.push(chip(g.g_rstf, "RUN-STUF",  `run-stuff · ${g.rd_snaps} run-def snaps`));
+    chips.push(chip(g.g_dl,   "DL",        `combined DL grade (pass-rush + run-stuff)`));
+  } else if (group === "OL") {
+    chips.push(chip(g.g_ppro, "PASS-PRO", `pass-protect · ${g.pp_snaps} pass-pro snaps`));
+    chips.push(chip(g.g_rblk, "RUN-BLK",  `run-block · ${g.rb_snaps} run-block snaps`));
+    chips.push(chip(g.g_ol,   "OL",       `combined OL grade (pass-pro + run-block)`));
+  } else if (group === "CB" || group === "LB") {
+    chips.push(chip(g.g_cov, "COVERAGE",
+      `${group === "CB" ? "cornerback coverage" : "cover-LB"} · ${g.cov_tgt} targets faced`));
+  }
+  const html = chips.filter(Boolean).join("");
+  if (!html) return "";
+  return `<div style="margin-top:.5rem;padding-top:.4rem;border-top:1px dashed var(--border)">
+    <div class="frn-card-title" style="margin-bottom:.25rem">MFF GRADES <span style="opacity:.6;font-weight:normal">(0-99, league-standardized)</span></div>
+    <div style="display:flex;flex-wrap:wrap">${html}</div>
+  </div>`;
+}
+
+
 // Rebuild franchise.seasonStats from the per-game stat blobs stored on the
 // schedule (and playoff bracket). Used as a one-time repair for saves
 // created before mergeSeasonStats became idempotent — older saves could
