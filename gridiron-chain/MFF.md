@@ -1,7 +1,8 @@
 # MFF — advanced-analytics layer (EPA + PFF-style player grades)
 
-> Status: **vertical slice #1 shipped** (pass-rush / pass-protection grades).
-> EPA layer and the remaining position groups are planned, not yet built.
+> Status: **slices #1 + #2 shipped** — all four trench grades (pass-rush,
+> pass-protection, run-stuff, run-block) + combined DL/OL grades. Coverage,
+> EPA layer, and LB run-D are planned, not yet built.
 > This doc is the resume point for a future session.
 
 ## Goal
@@ -103,13 +104,62 @@ NFL ~15%).
 - Face validity: top rushers are OVR 86-90, best blockers OVR 90-94, worst
   blockers all OVR 74-76, with realistic mid-OVR outliers having good/bad seasons.
 
-## Findings surfaced by the slice
+## Slice #2 — run-block / run-stuff (SHIPPED)
+
+### What the engine now records (gated by `_MFF_ATTR`)
+On every run, the resolved `reps` pair is credited from the **already-computed**
+per-snap run battle `_trench` (`play-engine.js:6079-6084`), which is derived from
+`_battleScore = (reps.ol.overall − reps.dl.overall)/8 + (runMul−1)·5 + …` plus
+`normal(0,1.5)` noise. Unlike pass pressure, this uses the **individual** lineman
+ratings, so it's a genuine individual signal.
+- OL: `run_block_snaps`, `run_block_wins` (`_trench` win/dominant_win),
+  `run_block_losses` (loss/dominant_loss).
+- DL: `run_def_snaps`, `run_stuffs` (OL beaten), `run_def_losses` (DL blocked).
+
+Insertion point: immediately after the `_trench` tier is assigned (`:6085`).
+Purely additive (`(x||0)+1`), no `Math.random()`, no outcome change.
+
+**Deliberately left untouched:** the existing random pancake credit
+(`olArr[Math.floor(Math.random()*olArr.length)]`, `:6207`). Redirecting it to
+`reps.ol` would either remove a `Math.random()` (RNG desync) or change the
+per-player pancake distribution (breaks the A/B byte-identical proof). The
+run-block grade uses the new win/loss fields instead.
+
+### Grades (`_mff_audit.js`)
+- **Run-block (OL)**: `60 + 14·z((wins−losses)/snaps)`.
+- **Run-stuff (DL)**: `60 + 14·z((stuffs−losses)/snaps)` (net DL run-trench win rate).
+- **Combined DL** = avg(pass-rush, run-stuff); **Combined OL** = avg(pass-pro, run-block).
+
+### Validation (5-season round-robin, ~1.4M plays — stable)
+| grade | r ↔ OVR | verdict |
+|---|---|---|
+| pass-rush | 0.42 | ✓ defensible |
+| pass-pro | 0.52 | ✓ defensible |
+| run-block | 0.78 | ✓ defensible |
+| run-stuff | 0.87 | ⚠ slightly circular (see finding #2) |
+| DL combo | 0.79 | ✓ |
+| OL combo | 0.82 | ✓ |
+
+League run-block-win rate 48.2%; pressure rate 38.0%. A/B still byte-identical
+(`_mff_ab_check.js` strips the six new run fields). Face validity strong: combined
+OL leaders OVR 89-95, worst all OVR 72-76; combined DL leaders OVR 82-92.
+
+## Findings surfaced by the slices
 1. **The engine's `pressure` is team-level** — it never incorporates the picked
    rusher's individual rating, only team d-line avg + archetype matchup + pick
-   frequency. So a pure pressure-rate grade is a weak *individual* signal;
-   sack-weighting is needed to recover talent correlation. (Lifting this would
-   require Arch B — out of scope.)
-2. **Latent bug (left untouched, out of scope):** `this._currentPressure` is set
+   frequency. So a pure pressure-rate grade is a weak *individual* signal
+   (pass-rush rate ↔ OVR is NOISY); sack-weighting is needed to recover talent
+   correlation. (Lifting this would require Arch B — out of scope.)
+2. **Opposite asymmetry in the run game:** the run-trench `_battleScore` IS
+   individual (OVR-delta dominated, only SD-1.5 noise), so run-trench outcomes
+   are nearly rating-deterministic. A pure run-D win-rate grade therefore
+   re-derives OVR (run-stuff r=0.87 — too high to "add info"). The grade is still
+   REAL (actual resolved reps), it just confirms OVR; combined with pass-rush into
+   the DL grade (r=0.79) it's defensible. Real value-add for run-D will come from
+   the (noisier) tackle/TFL attribution in a later slice. Net: pass-rush is too
+   NOISY and run-stuff too DETERMINISTIC — opposite failure modes, both inherent
+   to how the engine models each phase, and both fixed by combining signals.
+3. **Latent bug (left untouched, out of scope):** `this._currentPressure` is set
    to the real value at `:3044` then **reset to 0 at `:3088`** ("set below" — but
    nothing below re-sets it). So the play-log / visual trench animation always
    sees `pressure=0`. Game logic is unaffected (only `_pushVisual` reads it). The
@@ -124,8 +174,7 @@ NFL ~15%).
 
 ## Next steps (planned, not built)
 Order = cheapest/most-defensible first, each behind the same flag + A/B gate:
-1. **Run-block / run-stuff** — reuse the per-snap `_trench`/`_battleScore`
-   (`:6019-6047`); credit `reps.ol`/`reps.dl` the win/loss. Cheap (already computed).
+1. ~~**Run-block / run-stuff**~~ — ✅ DONE (slice #2).
 2. **Coverage (CB / S / cover-LB)** — reuse `_coverName` + completion outcome
    (`:4904`, `:5179`); add `cover_snaps`, `targets_allowed`, `completions_allowed`,
    `cover_yds_allowed`. Medium effort, high payoff (strongest defensive grade).

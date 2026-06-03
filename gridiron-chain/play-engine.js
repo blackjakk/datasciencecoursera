@@ -6082,6 +6082,28 @@ class GameSimulator {
     else if (_finalScore > -1)  _trench = 'even';
     else if (_finalScore > -3)  _trench = 'loss';
     else                        _trench = 'dominant_loss';
+    // ── MFF run-trench attribution (additive, no RNG, no outcome change) ──
+    // `_trench` is the resolved per-snap OL-vs-DL run battle, already computed
+    // from the individual reps.ol/reps.dl ratings + archetype matchup + noise
+    // (so it's a genuine individual signal, unlike the team-level pass pressure).
+    // Credit the rep to both linemen: the OL gets a run-block win/loss, the DL
+    // gets a run stuff (OL beaten) / loss (DL blocked). Writes only new keys.
+    if (this._MFF_ATTR) {
+      const _olWon = _trench === 'win' || _trench === 'dominant_win';
+      const _dlWon = _trench === 'loss' || _trench === 'dominant_loss';
+      const _rOl = reps.ol?.name && off.players[reps.ol.name];
+      const _rDl = reps.dl?.name && def.players[reps.dl.name];
+      if (_rOl) {
+        _rOl.run_block_snaps = (_rOl.run_block_snaps || 0) + 1;
+        if (_olWon) _rOl.run_block_wins   = (_rOl.run_block_wins   || 0) + 1;
+        if (_dlWon) _rOl.run_block_losses = (_rOl.run_block_losses || 0) + 1;
+      }
+      if (_rDl) {
+        _rDl.run_def_snaps = (_rDl.run_def_snaps || 0) + 1;
+        if (_dlWon) _rDl.run_stuffs     = (_rDl.run_stuffs     || 0) + 1;
+        if (_olWon) _rDl.run_def_losses = (_rDl.run_def_losses || 0) + 1;
+      }
+    }
     // Outcome → base class probability profile. Each profile is internally
     // consistent: more winning = fewer negatives + more chunks. The five
     // profiles produce a 2.5+ yard YPC spread between trench mismatches,
