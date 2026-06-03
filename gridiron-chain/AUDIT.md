@@ -567,6 +567,27 @@ describe play tendency only ("Aggressive shot-taker", "Patient dropback")
 since stat-shape claims like "Big arm" / "immobile" no longer hold.
 (`f4ddf10`)
 
+**Frodo ghost-stat bug — orphan-reconcile mis-attribution (`53d4fda`).**
+The first post-decoupling 200-season audit flagged a **9,397-yd / 60-TD
+season at OVR 76** (Frodo Schwartz, Redwood Giants), plus two more 8,500+
+yd seasons for the same QB — the "outlier-driven" caveat in the decoupling
+entry above. It was not an archetype side-effect; it was a stat-attribution
+bug. `_reconcileOrphanSeasonStats` (`play-franchise-stats.js`) was written
+to repair a *nickname-rename split* — a player whose stats land under both
+"Legal Name" and "Nickname" keys mid-season — via `rosterByNick.get(orphanName)`.
+But it carried a speculative **"best-effort" fallback** that dumped *any*
+leftover orphan stat-row onto a same-position roster player with existing
+stats, even with no name relationship. When a team cycled QBs mid-season
+(cut+sign, IR, trade), every cut QB's row became an orphan and the fallback
+piled all of them onto the current starter → five cycled-out QBs collapsed
+into one 9,000-yd ghost season at sub-80 OVR. **Fix:** keep only the
+nickname→real-name match (the function's original purpose); cycled-out
+orphans correctly stay orphan (those stats belong to a player no longer
+rostered, not to anyone else). Validated in the multi-rep run below:
+orphan-reconcile fires **0×** across all 4 reps and no QB posts an 8,000+
+yd season (max now 6,580–7,247, all legit elite). The narrowed scope is
+documented in the function header.
+
 **Decoupling — multi-rep characterization (4 × 200-season).** The single
 post-decoupling run above was n=1; ran 4 independent 200-season audits to
 separate signal from variance, and to isolate the Gunslinger-share scatter
@@ -575,8 +596,7 @@ that drives top-end QB yardage. Combined 67-legend archetype distribution:
 DUAL_THREAT 3%** — all 5 robustly reachable, no rep produced fewer than
 4 labels. Pipeline cadences in band across all reps (legends μ=27.9/100yr,
 True Brady μ=5.9/100yr). The "outlier-driven" caveat above was retired —
-that was the **Frodo ghost-stat bug**: orphan-reconcile was synthesizing
-phantom seasons for retired-and-rehired players, fixed separately; all 4
+that was the **Frodo ghost-stat bug** (standalone entry above); all 4
 reps fire orphan-reconcile **0×** and max single-season QB yardage now
 sits at legit elite values (6580-7247). The top-40 QB median is a **real
 +2.6% overshoot** (μ=6052, SD≈60, 4/4 over) — small, consistent, directly
@@ -1070,12 +1090,18 @@ to "late-round player reaching 96+ via `p.potential`" (cleaner); apply oracle de
 to the **practice-squad** branch too (still on old grind); update the offseason
 gains-sheet "hidden-gem hero" UI + scouting tags that read `hiddenGem`.
 
-### IN-FLIGHT validation run (started this session)
-`node _brady_audit.js 40` → `/tmp/s1val.log` (bg task `b6q3mr7jb`). **When it
-finishes, check:** (1) Brady-tier cadence now NON-ZERO? (2) 90+ share pulled from
-9.7% toward NFL ~2-3% (did `NFL_DEV_SCALE` fix the inflation)? (3) R1 bust% > 0 /
-PB% down from 93% (does oracle regression create busts)? *Note: `/tmp` logs are
-ephemeral — re-run if the container recycled.*
+### Validation status (updated 2026-06)
+Stage-1's original in-flight run (`/tmp/s1val.log`, bg `b6q3mr7jb`) is long
+gone — `/tmp` is ephemeral — but its three questions have since been answered
+YES by later, larger runs. Most recent: the **4 × 200-season decoupling
+characterization** (see "Decoupling — multi-rep characterization" in the
+calibration history) confirms the pipeline now produces a healthy non-zero
+top-tier cadence — legends **μ=27.9/100yr**, True Brady **μ=5.9/100yr**, both
+in band across all 4 reps — with busts emerging from the oracle regression
+roll. The Brady-cadence-zero problem that motivated the oracle-dev arc is
+resolved. *To re-derive from scratch: `node _brady_audit.js 200` (≈75 min
+single-rep); run 3-4 reps for any tail-cadence or archetype-distribution
+claim, since n=1 scatter is large at the legend tier.*
 
 ### Open realism fixes (prioritized)
 1. **Dual-threat QB run game — DONE.** Designed QB runs were tied to the
