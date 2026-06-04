@@ -2235,10 +2235,22 @@ function buildAnimForPlay(play, prevPlay) {
       const eluciveProb = bt > 0 ? 1.0 : (rbArch === "ELUSIVE" ? 0.95 : rbArch === "SPEED" ? 0.65 : 0.55);
       const powerProb   = bt > 0 ? 1.0 : (rbArch === "POWER"   ? 0.90 : rbArch === "WORKHORSE" ? 0.55 : 0.35);
       const inWindow = (a, b) => runT > a && runT < b;
-      // Tackle window — start at runT 0.72 (~28% of action devoted to tackle
-      // + ragdoll roll-around) so the play doesn't end the instant the
-      // carrier is touched.
-      // First-down sequence: 0.72-0.85 ragdoll (handled by the next
+      // PATH B — single source of truth for tackle timing. Engine publishes
+      // play.motion.tackleT (0..1); the carrier track and primary-tackler
+      // track BOTH converge to the tackle spot at this exact value. Every
+      // ragdoll / hit-pose gate below references TACKLE_T so the moment of
+      // impact stays synchronized across all five touch points (carrier
+      // path endpoint, tackler path endpoint, carrier pose flip, tackler
+      // pose flip, ragdoll impulse). 0.78 fallback preserves legacy
+      // behavior if motion isn't emitted.
+      const TACKLE_T = (play.motion && typeof play.motion.tackleT === "number")
+        ? play.motion.tackleT
+        : 0.78;
+      const POST_TACKLE = Math.max(0.01, 1 - TACKLE_T);
+      // Tackle window — ragdoll starts at runT = TACKLE_T (~22% of action
+      // devoted to tackle + ragdoll roll-around) so the play doesn't end
+      // the instant the carrier is touched.
+      // First-down sequence: TACKLE_T..0.85 ragdoll (handled by the next
       // branch below, since !isTD covers FD too), 0.85-0.90 stand up,
       // 0.90+ signal first down. TDs use 0.88+ for celebrate (handled
       // further down). For first downs we INTERRUPT the ragdoll branch
@@ -2250,7 +2262,7 @@ function buildAnimForPlay(play, prevPlay) {
         rbPose = "celebrate";
         rbT = Math.min(1, (runT - 0.90) / 0.10);
         rb.celebStyle = "first_down";
-      } else if (runT > 0.72 && yards < 90 && !isTD) {
+      } else if (runT > TACKLE_T && yards < 90 && !isTD) {
         // Carrier ragdoll. The impact FEEL comes from the player's own
         // motion (launch + spin) plus brief time dilation, NOT dust/
         // shake noise. force scales the launch velocity and a slow-mo
@@ -2261,6 +2273,22 @@ function buildAnimForPlay(play, prevPlay) {
         // clamps.
         const nowMs = performance.now();
         if (!formation.rb._ragdoll) {
+          if (typeof window !== "undefined" && window.GC_DEBUG_TACKLE) {
+            const _pt = formation.defense[primaryTacklerIdx];
+            const _ptx = (_pt && _pt._sim) ? _pt._sim.x : (_pt ? _pt.x : NaN);
+            const _pty = (_pt && _pt._sim) ? _pt._sim.y : (_pt ? _pt.y : NaN);
+            console.log("[GC_TACKLE]", {
+              tackleT: +TACKLE_T.toFixed(3),
+              runT: +runT.toFixed(3),
+              role: _motionRole,
+              idx: primaryTacklerIdx,
+              rb: { x: +rb.x.toFixed(1), y: +rb.y.toFixed(1) },
+              tackler: { x: +(+_ptx).toFixed(1), y: +(+_pty).toFixed(1) },
+              distPx: +Math.hypot(rb.x - _ptx, rb.y - _pty).toFixed(1),
+              yards: play.yards, mech: play.mechanism,
+              force: play.force ?? null,
+            });
+          }
           const force = play.force || 0;
           const mech = play.mechanism || "head-on";
           // Mechanism drives the FALL SHAPE — high/low/side/behind each
@@ -2325,7 +2353,8 @@ function buildAnimForPlay(play, prevPlay) {
         rbT = Math.min(1, (runT - 0.88) / 0.12);
       }
       // EARLY CRUISE: ELUSIVE → juke; POWER → truck stick at/just past the line.
-      // Moves happen during cruise (0.22 - 0.72) since tackle now starts at 0.72.
+      // Moves happen during cruise (0.22 - 0.72); the carrier then runs the
+      // final ~6% of action time straight before the tackle fires at TACKLE_T.
       // Windows widened (was 0.16/0.14/0.15 → 0.22/0.20/0.18 of action time)
       // so each move takes ~0.5-0.8s in absolute time instead of 0.25-0.35s,
       // which read as a teleport-cut.
@@ -2497,9 +2526,9 @@ function buildAnimForPlay(play, prevPlay) {
             dd.facing = -dir;
             // Tackle at the end if right on the carrier (the real ball-carrier
             // is rb.x/y by convention here regardless of pitch/keep).
-            if (runT > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 26) {
+            if (runT > TACKLE_T && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 26) {
               dd.pose = "tackled";
-              dd.t = Math.min(1, (runT - 0.72) / 0.28);
+              dd.t = Math.min(1, (runT - TACKLE_T) / POST_TACKLE);
             }
             return dd;
           }
@@ -2778,7 +2807,7 @@ function buildAnimForPlay(play, prevPlay) {
         // PILE CAP: only the closest PILE_CAP defenders + the primary
         // can be in the pile. Others stay running (out of position).
         const _inPile = (i === primaryTacklerIdx) || pileIdxSet.has(i);
-        if (!isTrucked && _inPile && yards < 90 && tt > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 28) {
+        if (!isTrucked && _inPile && yards < 90 && tt > TACKLE_T && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 28) {
           if (i === primaryTacklerIdx) {
             // Both variants route to the tackle/ sprite (a horizontal
             // diving wrap). The primaryTacklerDives flag still drives
@@ -2786,7 +2815,7 @@ function buildAnimForPlay(play, prevPlay) {
             // same wrap motion for both. Using "dive" here routed to
             // dive_forward/, a layout-catch pose meant for receivers.
             dd.pose = "hit";
-            dd.t = Math.min(1, (tt - 0.72) / 0.28);
+            dd.t = Math.min(1, (tt - TACKLE_T) / POST_TACKLE);
           } else {
             // Pile-on defender — collapses ON the pile, doesn't ricochet.
             // Hit vector aims slightly TOWARD the carrier so the
