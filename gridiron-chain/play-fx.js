@@ -436,6 +436,14 @@ const GCFx = (() => {
   }
   function _drawPixi() {
     if (!_ensurePixiOverlay()) return false;
+    // Stadium-wall chrome (LED ad ribbon, light beams, vignette) is anchored
+    // to the broadcast-cam perspective wall — it has no meaning in the flat
+    // top-down view, where it was floating as a stray horizontal strip over
+    // the field. Hide it when not in broadcast; particles still render.
+    const _isBroadcast = (typeof cameraMode === "undefined") || cameraMode === "broadcast";
+    if (_pxLedContainer) _pxLedContainer.visible = _isBroadcast;
+    if (_pxLightBeams)   _pxLightBeams.visible   = _isBroadcast;
+    if (_pxVignetteSprite) _pxVignetteSprite.visible = _isBroadcast;
     // Pool: reuse Graphics across frames; index into _pxPool.
     let i = 0;
     for (const p of particles) {
@@ -867,5 +875,15 @@ const GCFx = (() => {
 
   function clear() { particles.length = 0; }
 
-  return { dust, hitBurst, confetti, shake, flash, celebration, lensFlare, bigText, chyron, tick, draw, clear };
+  // Toggle the stadium-wall chrome (LED ribbon / beams / vignette) and
+  // re-render once, so a camera-mode switch while the game is PAUSED takes
+  // effect immediately instead of waiting for the next play's tick.
+  function setStadiumChrome(on) {
+    if (_pxLedContainer)   _pxLedContainer.visible   = on;
+    if (_pxLightBeams)     _pxLightBeams.visible     = on;
+    if (_pxVignetteSprite) _pxVignetteSprite.visible = on;
+    if (_pxApp) { try { _pxApp.renderer.render(_pxApp.stage); } catch (_) {} }
+  }
+
+  return { dust, hitBurst, confetti, shake, flash, celebration, lensFlare, bigText, chyron, tick, draw, clear, setStadiumChrome };
 })();

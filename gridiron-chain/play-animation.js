@@ -9749,6 +9749,12 @@ function setCameraMode(mode) {
   if (pixiPlayer) {
     pixiPlayer.style.display = (cameraMode === "broadcast") ? "" : "none";
   }
+  // Stadium-wall FX (LED ad ribbon, light beams, vignette) only belong in
+  // broadcast cam — in top-down they floated as a stray strip over the
+  // field. Apply immediately so toggling while paused updates at once.
+  if (typeof GCFx !== "undefined" && GCFx.setStadiumChrome) {
+    GCFx.setStadiumChrome(cameraMode === "broadcast");
+  }
   // Update the button states (if those buttons exist on the page yet)
   const tdBtn = document.getElementById("camTopdownBtn");
   const bdBtn = document.getElementById("camBroadcastBtn");
