@@ -9133,10 +9133,20 @@ function _mffProductionBoost(p, season) {
 // Find a game's playLog slice + per-snap WP from the user's perspective.
 // Returns null if the game isn't in the log (legacy game pre-Slice-B,
 // or playoff game which Slice B skips capturing).
+//
+// MEMOIZED: this gets called from mffPostGameWPBlock which runs on every
+// dashboard render. A naive call walks the entire playLog (~33k entries
+// mid-season) just to find the game's __g marker, costing 5-30ms per
+// render. The cache is keyed on (gameKey, season, playLog length) — the
+// only things that can change the curve. Single memo slot since the UI
+// only ever queries the user's most-recent game.
+const _MFF_WPCURVE_CACHE = { key: null, data: null };
 function mffGameWPCurve(homeId, awayId, week, userTeamId) {
   if (!franchise) return null;
   const log = franchise.playLog?.[franchise.season ?? 1];
   if (!Array.isArray(log) || !log.length) return null;
+  const k = (franchise.season ?? 1) + ":" + log.length + ":" + homeId + ":" + awayId + ":" + (week ?? "*") + ":" + userTeamId;
+  if (_MFF_WPCURVE_CACHE.key === k) return _MFF_WPCURVE_CACHE.data;
   // Find the __g marker matching this game.
   let i = 0, found = null;
   while (i < log.length) {
@@ -9148,18 +9158,18 @@ function mffGameWPCurve(homeId, awayId, week, userTeamId) {
     }
     i++;
   }
-  if (!found) return null;
+  if (!found) { _MFF_WPCURVE_CACHE.key = k; _MFF_WPCURVE_CACHE.data = null; return null; }
   // Slice until next __g or end of log.
   let end = found.start;
   while (end < log.length && !log[end].__g) end++;
   const game = log.slice(found.start, end);
-  if (!game.length) return null;
+  if (!game.length) { _MFF_WPCURVE_CACHE.key = k; _MFF_WPCURVE_CACHE.data = null; return null; }
   // Build the WP curve from the user's team's perspective. WP per snap is
   // computed from the offense's side; if user IS the offense, that's
   // user's WP; otherwise mirror via 1 - wp.
   const isUserHome = found.meta.homeId === userTeamId;
   const isUserAway = found.meta.awayId === userTeamId;
-  if (!isUserHome && !isUserAway) return null;
+  if (!isUserHome && !isUserAway) { _MFF_WPCURVE_CACHE.key = k; _MFF_WPCURVE_CACHE.data = null; return null; }
   const userSide = isUserHome ? "home" : "away";
   const curve = [];
   // Kickoff baseline — start at 0.5.
@@ -9181,6 +9191,8 @@ function mffGameWPCurve(homeId, awayId, week, userTeamId) {
     const endWp = userScore > oppScore ? 1 : userScore < oppScore ? 0 : 0.5;
     curve.push({ x: 3600, wp: endWp, label: "Final" });
   }
+  _MFF_WPCURVE_CACHE.key = k;
+  _MFF_WPCURVE_CACHE.data = curve;
   return curve;
 }
 
@@ -9279,8 +9291,18 @@ function mffSeasonTopSwingsHtml(limit = 10) {
 // the user's just-played game (most recent played game where chosenTeamId
 // was on either side) and pairs it with the PotG callout. Returns "" if
 // no playable data (legacy save, playoff game pre-rollover, etc.).
+// MEMOIZED: runs on every dashboard render via _buildPostGameHeadline.
+// Caching the full HTML string (SVG + PotG callout included) means a
+// dashboard re-render between games costs ~0.1ms instead of 5-30ms.
+// Cache key: (userTeamId, season, playLog length, recent-game-week).
+// playLog length is the change-trigger (new game played → new entry → key
+// changes → recompute). userTeamId guards against the rare load-into-
+// different-team case.
+const _MFF_POSTGAME_CACHE = { key: null, data: "" };
 function mffPostGameWPBlock(userTeamId) {
   if (!franchise) return "";
+  const season = franchise.season ?? 1;
+  const logLen = (franchise.playLog?.[season] || []).length;
   // Find the most recent played game for this team (max week, played=true).
   const schedule = franchise.schedule || [];
   let g = null;
@@ -9290,11 +9312,13 @@ function mffPostGameWPBlock(userTeamId) {
     if (!g || x.week > g.week) g = x;
   }
   if (!g) return "";
+  const k = userTeamId + ":" + season + ":" + logLen + ":" + g.week;
+  if (_MFF_POSTGAME_CACHE.key === k) return _MFF_POSTGAME_CACHE.data;
   const curve = mffGameWPCurve(g.homeId, g.awayId, g.week, userTeamId);
-  if (!curve) return "";
+  if (!curve) { _MFF_POSTGAME_CACHE.key = k; _MFF_POSTGAME_CACHE.data = ""; return ""; }
   const teamColor = (typeof getTeam === "function") ? (getTeam(userTeamId)?.primary || "var(--green-lt)") : "var(--green-lt)";
   const potg = mffPlayerOfGameFor(g.homeId, g.awayId, g.week);
-  return `<div style="margin-top:.5rem;padding:.5rem .6rem;border:1px solid var(--border);border-radius:6px;background:rgba(0,0,0,0.06)">
+  const html = `<div style="margin-top:.5rem;padding:.5rem .6rem;border:1px solid var(--border);border-radius:6px;background:rgba(0,0,0,0.06)">
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.25rem">
       <span style="font-size:.62rem;letter-spacing:.6px;color:var(--gray);font-weight:700">WIN PROBABILITY · YOUR PERSPECTIVE</span>
       <span style="font-size:.55rem;opacity:.6">Q1 · Q2 · HALF · Q3 · Q4</span>
@@ -9302,6 +9326,9 @@ function mffPostGameWPBlock(userTeamId) {
     ${mffWPCurveSvg(curve, { color: teamColor, width: 320, height: 60 })}
     ${potg}
   </div>`;
+  _MFF_POSTGAME_CACHE.key = k;
+  _MFF_POSTGAME_CACHE.data = html;
+  return html;
 }
 
 // Rebuild franchise.seasonStats from the per-game stat blobs stored on the
