@@ -1372,6 +1372,15 @@
   .frn-card-box {
     border: 1px dashed var(--border); background: var(--bg2);
     padding: .8rem 1rem; position: relative;
+    /* Scroll-perf: skip painting cards that aren't on screen. The browser
+       still preserves layout (via the intrinsic-size fallback so the
+       scrollbar doesn't jump), it just defers paint until they scroll
+       into view. Major win on long dashboards where the cumulative paint
+       cost of many bordered/shadowed cards causes visible scroll jank.
+       Pseudo-elements (the ┌ ┘ corner brackets) are not clipped — they
+       paint normally when the card is on-screen. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 280px;
   }
   .frn-card-box::before { content:"┌"; position:absolute; top:-.55em; left:-.15em; color:var(--gold); font-size:1.05em; line-height:1; }
   .frn-card-box::after  { content:"┘"; position:absolute; bottom:-.55em; right:-.15em; color:var(--gold); font-size:1.05em; line-height:1; }
