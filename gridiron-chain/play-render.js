@@ -584,6 +584,13 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       _smoothPos.set(_gid, s);
     } else {
       const jump = Math.hypot(x - s.lastX, y - s.lastY);
+      // DIAGNOSTIC (toggle: window.GC_DEBUG_TELEPORT = true). Logs every
+      // per-frame jump above the legit-motion threshold, with the branch
+      // it takes (SNAP=hard teleport let through, glide=absorbed). Used to
+      // pinpoint the receiver-catch teleport. Zero cost when flag is off.
+      if (jump > PASS && typeof window !== "undefined" && window.GC_DEBUG_TELEPORT) {
+        console.log(`[teleport] ${_gid} jump=${jump.toFixed(0)}px (${(jump / 15).toFixed(1)}yd) branch=${jump >= SNAP ? "SNAP-hard" : "glide"} pose=${pose} @(${x.toFixed(0)},${y.toFixed(0)})`);
+      }
       if (jump >= SNAP) {
         s.errX = 0; s.errY = 0;                    // reset / huge → snap
       } else if (jump > PASS) {

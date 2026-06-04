@@ -3455,6 +3455,8 @@ function buildAnimForPlay(play, prevPlay) {
     // first frame after the catch, kept stable for the rest of the play
     // so the same defenders continue chasing instead of swapping.
     let _postCatchPursuerSet = null;
+    // Diagnostic one-shot guard (see [pass-setup] log below).
+    let _dbgPassLogged = false;
     // Sim-driven WR motion post-catch (replaces the time-based linear
     // tween that compressed long YAC into 2.4s of impossible 17-yps
     // sliding). Initialised lazily on the first post-throw render frame.
@@ -3591,6 +3593,16 @@ function buildAnimForPlay(play, prevPlay) {
       // comment above.) Drop ratio held constant at 0.42 of throwFrac.
       const throwFrac = _engineMotionThrowT != null ? _engineMotionThrowT
                                                     : basePass / actionDur;
+      // DIAGNOSTIC (toggle: window.GC_DEBUG_TELEPORT = true). One line per
+      // pass play describing the slot resolution + throwT alignment — the
+      // two things that determine whether the receiver teleports at the
+      // catch. Pair with the [teleport] log in play-render.js's continuity
+      // guard to pinpoint the cause. Zero cost when flag is off.
+      if (!_dbgPassLogged && typeof window !== "undefined" && window.GC_DEBUG_TELEPORT) {
+        _dbgPassLogged = true;
+        const _trkKeys = (play.motion && play.motion.tracks) ? Object.keys(play.motion.tracks).join(",") : "(none)";
+        console.log(`[pass-setup] kind=${play.kind} target=${play.receiver} engineSlot=${_engineSlot} wrChoice=${wrChoice} validSlot=${_validSlot} motion=${!!play.motion} throwT(engine)=${_engineMotionThrowT != null ? _engineMotionThrowT.toFixed(3) : "null"} throwFrac=${throwFrac.toFixed(3)} catchDepth=${catchDepth.toFixed(1)}yd targetDepth=${play.targetDepth} yac=${yac} wrTrackForChoice=${(play.motion && play.motion.tracks && play.motion.tracks[wrChoice]) ? "yes" : "NO-FALLBACK"} tracks=[${_trkKeys}]`);
+      }
       const dropFrac  = throwFrac * 0.42;
       const dropPhase  = PRE + (1 - PRE) * dropFrac;
       const throwPhase = PRE + (1 - PRE) * throwFrac;
