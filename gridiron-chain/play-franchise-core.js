@@ -2555,6 +2555,21 @@ function _backfillCoachingStaff() {
       if (hc.salary == null) hc.salary = +(2 + (hc.rating - 45) * 0.18 + Math.random() * 1.5).toFixed(1);
       if (hc.contractYears == null) hc.contractYears = 2 + Math.floor(Math.random() * 3);
       _migrateContract(hc, "hc");
+      // MFF Slice G: analytics-aggressiveness trait (0-100). How much this
+      // coach trusts the NFL-analytics 4th-down + 2pt chart vs traditional
+      // by-the-book rules. Derived from specialtyTrait so old saves get a
+      // sensible value: Riverboat Gambler trends high, Conservative low.
+      // Random ±10 keeps within-trait coaches distinct.
+      if (hc.analyticsAgg == null) {
+        const base = hc.specialtyTrait === "Riverboat Gambler" ? 80
+                   : hc.specialtyTrait === "Conservative"      ? 15
+                   : hc.specialtyTrait === "Game Manager"      ? 45
+                   : hc.specialtyTrait === "Offensive Minded"  ? 55
+                   : hc.specialtyTrait === "Defensive Minded"  ? 35
+                   : hc.specialtyTrait === "Player Developer"  ? 50
+                   :                                              50;
+        hc.analyticsAgg = Math.max(0, Math.min(100, Math.round(base + (Math.random() - 0.5) * 20)));
+      }
     }
     if (!staff.oc) staff.oc = _rollOC();
     else _migrateContract(staff.oc, "oc");

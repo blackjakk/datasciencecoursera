@@ -332,6 +332,56 @@ End-to-end validation (1-season round-robin → seasonStats → grade module):
 - DL pass-rush ↔ OVR **r=0.40** ✓ · CB coverage ↔ OVR r=0.15 (correct — coverage
   is driven by COV not OVR; audit confirmed r=0.75 vs COV)
 
+### Slice G — Analytics coaching AI (4th-down chart) [ENGINE CHANGE]
+**FIRST ENGINE CHANGE OF THIS SERIES** that's intentional (not the bug-fix
+Fix 1 from earlier). Coaches with a new `analyticsAgg` trait (0-100)
+consult an NFL-style 4th-down decision chart (Burke / nflfastR / Stats
+Bomb consensus) — analytics-aggressive coaches defer to the chart more
+often; conservative coaches stick with traditional rules.
+
+ARCHITECTURE:
+- `coach.hc.analyticsAgg` (0-100): new trait, backfilled in
+  `_backfillCoachingStaff`. Derived from specialtyTrait:
+  Riverboat Gambler=80, Conservative=15, Game Manager=45,
+  Offensive Minded=55, Defensive Minded=35, Player Developer=50,
+  default=50, all ±10 random for within-trait variance.
+- In `_play` 4th-down decision block (`play-engine.js:3227`): after the
+  traditional `action` is set, an analytics-chart recommendation overrides
+  it with probability `analyticsAgg / 100`. So:
+  - analyticsAgg=80 → chart wins 80% of decisions
+  - analyticsAgg=15 → chart wins 15% (traditional logic still drives most)
+  - analyticsAgg=50 (default) → chart wins half the time
+- Chart encodes the standard NFL analytics-era go thresholds (max ytg
+  that says GO):
+  - own deep ≤30: ≤1 yd
+  - own mid 30-50: ≤2 yd
+  - midfield 50-75: ≤4 yd
+  - opp 75-85 (FG range): ≤2 yd (FG is high-make)
+  - opp 85-95 (RZ edge): ≤2/≤4 trailing late
+  - opp 95+ (goal line): ≤2 always; ≤4 trailing late
+- Game-state shifts: trailing 14+ late → bump threshold ≥5;
+  leading 14+ late → drop to ≤1 (burn clock); tied/trailing 1-3 late
+  with FG that ties/wins → always kick.
+
+ENGINE INSIGHT: this is NOT calibration-neutral by design. The A/B
+byte-identity check would FAIL — that's expected. Validation is
+behavioral: no crashes, sensible directional shift, no desyncs.
+
+VALIDATION (60 games × 3 levels of analyticsAgg):
+| analyticsAgg | 4th-down GO% | FG% | PUNT% |
+|---|---|---|---|
+| 10 (conservative) | 22.0% | 6.3% | 71.7% |
+| 50 (default / backfilled) | 21.6% | 5.7% | 72.7% |
+| 90 (Riverboat-style) | 29.8% | 4.4% | 65.8% |
+
+Clear +7.8pt shift in go-for-it rate from low → high analyticsAgg.
+Bounded (not a 100% revolution). agg=50 sits naturally between agg=10
+and agg=90 — backfilled saves don't get a dramatic behavior change.
+
+ENGINE TOUCHED: `play-engine.js` 4th-down decision block ONLY. Adds new
+`coach.hc.analyticsAgg` field via backfill. Safe even on legacy saves
+(coach missing analyticsAgg → defaults to 50 via `?? 50`).
+
 ### Slice F — Live WP curve + Player of the Game + signature plays UI
 Pure UI on top of Slice C's data. Three new visible surfaces:
 - **Live WP curve** on every post-game recap: compact SVG sparkline of

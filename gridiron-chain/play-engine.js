@@ -3225,6 +3225,50 @@ class GameSimulator {
                       : driveCommit === 1 ? 1.35
                       :                     1.60;
       let action;
+
+      // ─── MFF Slice G: analytics coaching chart ──────────────────────
+      // Modern analytics-era coaches consult a 4th-down chart (Burke /
+      // nflfastR / Stats Bomb consensus). Each coach's analyticsAgg trait
+      // (0-100) is the probability they DEFER to the chart on this play
+      // instead of the traditional rules below. analyticsAgg=80 (Riverboat)
+      // → 80% chart; analyticsAgg=15 (Conservative) → 15% chart. The
+      // override is applied AFTER traditional `action` is set, so legacy
+      // saves with no analyticsAgg (defaulted to 50 by _backfillCoachingStaff)
+      // get a meaningful but bounded behavior shift.
+      const hcAA = ((typeof franchise !== "undefined")
+        ? (franchise.coaches?.[offTeamId]?.hc?.analyticsAgg ?? 50)
+        : 50) / 100;
+      let _mffAnalyticsAction = null;
+      if (Math.random() < hcAA) {
+        // The chart's "go threshold" (max ytg that says GO):
+        //   own deep ≤30: ≤1   own mid 30-50: ≤2   midfield 50-65: ≤4
+        //   opp 65-75: ≤4      opp 75-85 (FG): ≤2  opp 85-95 (RZ): ≤2/4
+        //   opp 95+ (goal): ≤2 / ≤4 trailing late
+        let goThreshold;
+        if (this.yardLine <= 30)       goThreshold = 1;
+        else if (this.yardLine <= 50)  goThreshold = 2;
+        else if (this.yardLine <= 75)  goThreshold = 4;
+        else if (this.yardLine <= 85)  goThreshold = 2;
+        else                           goThreshold = (q4Late && scoreDiff < 0) ? 4 : 2;
+        // Game-state shifts
+        if (q4Late && scoreDiff <= -14) goThreshold = Math.max(goThreshold, 5);
+        else if (q4Late && scoreDiff <= -8 && this.time < 600) goThreshold = Math.max(goThreshold, 4);
+        else if (q4Late && scoreDiff >= 14) goThreshold = Math.min(goThreshold, 1);
+        // Late + tied/trailing 1-3 + FG would tie/win → kick.
+        const fgWinChance = q4Late && scoreDiff >= -3 && scoreDiff <= 0 && toEZ <= 30 && inFGRange;
+        if (fgWinChance) _mffAnalyticsAction = "fg";
+        else if (this.ytg <= goThreshold) _mffAnalyticsAction = "go";
+        else if (inFGRange) _mffAnalyticsAction = "fg";
+        else if (q4Final && scoreDiff > 0) _mffAnalyticsAction = "punt";
+        else if (q4Late && scoreDiff < -3) _mffAnalyticsAction = "go";
+        else _mffAnalyticsAction = "punt";
+        // Goal-line override: comfy lead, not late, sometimes bank the 3.
+        if (_mffAnalyticsAction === "go" && isGoalLine && scoreDiff > 7 && !q4Late && Math.random() < 0.30) {
+          _mffAnalyticsAction = "fg";
+        }
+      }
+      // ─── /MFF Slice G ─────────────────────────────────────────────
+
       if (isGoalLine) {
         // 4th-and-goal: NFL ~75% go on 1-3 yds, ~30% on 4+.
         const goalGo = this.ytg <= 3 ? 0.75 : 0.30;
@@ -3282,6 +3326,11 @@ class GameSimulator {
           action = Math.random() < clamp(goRate * goTilt * scoreMod * commitMod, 0, 0.95) ? "go" : "punt";
         }
       }
+      // MFF Slice G: apply analytics-chart override AFTER traditional logic
+      // has produced its `action`. The analytics recommendation takes
+      // precedence when the coach's analyticsAgg rolled high enough.
+      if (_mffAnalyticsAction != null) action = _mffAnalyticsAction;
+
       // HC decision callout — when the coach defies the chart, surface it.
       // Fires on go-for-its outside the obvious 4th-and-1 case (or when an
       // identifiable HC trait drove the call). Skipped on auto-punts.
