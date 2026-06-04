@@ -6478,7 +6478,21 @@ class GameSimulator {
     // ~13yps and then crawled the gain ("extra speed when the RB takes the
     // handoff"). t now ∝ cumulative forward distance, reaching the tackle
     // spot at 0.78. Handles losses via abs distances.
-    const _d01 = 4;                                                // -8 → -4 (mesh)
+    // 2-back style — picked HERE so the carrier track t=0 waypoint matches
+    // the rendered RB start position. makeFormation used to roll I vs PRO
+    // randomly per render → 50% of multi-back runs the engine and renderer
+    // disagreed on the RB's pre-snap depth, causing a 4yd + 28px sprite
+    // teleport at runT=0. Deterministic hash so the visual and the
+    // emitted twoBackStyle land on the same value.
+    const _isMultiBack = useTwoBack || this._currentPersonnel === "I_FORM";
+    const _twoBackStyle = _isMultiBack
+      ? ((((startYard * 7) ^ ((yards | 0) * 13)) >>> 0) & 1 ? "I" : "PRO")
+      : null;
+    // I-style stacks FB/RB behind QB on the midline — RB starts 12yd back
+    // at cy. PRO-style and single-back start at the usual 8yd / +28px slot.
+    const _startDxYd = _twoBackStyle === "I" ? -12 : -8;
+    const _startDyYd = _twoBackStyle === "I" ?  0  : 1.87;
+    const _d01 = Math.abs(_startDxYd - (-4));                      // start → mesh
     const _d12 = Math.abs(_carrierReadDxYd - (-4));                // mesh → read/LOS
     const _d23 = Math.abs(_carrierEndDxYd - _carrierReadDxYd);     // read → end
     const _dTot = Math.max(1, _d01 + _d12 + _d23);
@@ -6487,7 +6501,7 @@ class GameSimulator {
     const _carrierTrack = {
       role: isQBRun ? "QB" : "RB",
       waypoints: [
-        { t: 0.00,    dxYd: -8,                  dyYd: 1.87 },                   // formation
+        { t: 0.00,    dxYd: _startDxYd,          dyYd: _startDyYd },             // formation
         { t: _tMesh,  dxYd: -4,                  dyYd: 1.00 },                   // mesh / handoff
         { t: _tRead,  dxYd: _carrierReadDxYd,    dyYd: 0.50 },                   // read at LOS
         { t: 0.78,    dxYd: _carrierEndDxYd,     dyYd: _carrierLateralEndYd },   // goal line / tackle spot
@@ -6633,7 +6647,7 @@ class GameSimulator {
     // x5 mapping: average tackle 1.0 → 5 (visible mid-impact), big-hit
     // threshold 1.45 → 7.25, massive 1.9 → 9.5, max 2.2 → 11.
     const _playForce = (typeof _hitForce === "number") ? _hitForce * 5 : null;
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, force: _playForce, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null, motion: _motion });
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, force: _playForce, isTwoBack: useTwoBack, twoBackStyle: _twoBackStyle, fb: useTwoBack ? this.offR.starters.rb2 : null, motion: _motion });
     return { yards };
   }
   _drive() {

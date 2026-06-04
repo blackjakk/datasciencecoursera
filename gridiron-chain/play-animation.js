@@ -1160,6 +1160,11 @@ function buildAnimForPlay(play, prevPlay) {
   const cy = (FIELD.TOP + FIELD.BOT) / 2;
   const formation = makeFormation(losX, poss, {
     twoBack: !!play.isTwoBack,
+    // Engine picks the 2-back style (I vs PRO) deterministically per snap
+    // and emits it so the renderer doesn't re-roll and misalign with the
+    // carrier track's t=0 waypoint. Falls back to renderer-random when the
+    // engine doesn't emit (pass plays, legacy).
+    twoBackStyle: play.twoBackStyle || null,
     isGoalLine: (play.startYard ?? 0) >= 95,
     personnel: play.personnel,
     defPackage: play.defPackage,
