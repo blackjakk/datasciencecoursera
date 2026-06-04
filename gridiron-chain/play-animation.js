@@ -1305,11 +1305,23 @@ function buildAnimForPlay(play, prevPlay) {
                    : motionRole === "wr4" ? formation.wr4
                    :                        formation.te;
       motionStartY = target.y;
-      // Motion across into the slot (or to the opposite side for TE).
-      motionEndY = motionRole === "wr1" ? cy - 50
-                : motionRole === "wr2" ? cy + 50
-                : motionRole === "wr3" ? cy + 30
-                : motionRole === "wr4" ? cy - 30
+      // Motion lands at a REAL football alignment — well clear of the
+      // OL Y-range (the line spans cy ± 64px). Old endpoints (cy±50,
+      // cy±30) put motion-WRs literally INSIDE the OL stack at the snap
+      // — a slot WR rendering between the right guard and tackle in the
+      // dots view (the "#10 in the middle of the line" report). New:
+      //   wr1/wr2: motion IN to slot (90px / ~6yd, jog pace)
+      //   wr3/wr4: motion TIGHTEN to tight-slot position (cy±95, where
+      //            wr5 sits in 5WR personnel) — football "tighten the
+      //            split" / "stack" motion, ~55px / 3.7yd at jog pace.
+      //            Outside the OL by 31px center / 11px edge — clearly
+      //            distinct dots, no overlap with the right tackle.
+      //   te:     motion across to the opposite-side in-line TE (cy-78)
+      //           — already clear, unchanged.
+      motionEndY = motionRole === "wr1" ? cy - 150
+                : motionRole === "wr2" ? cy + 150
+                : motionRole === "wr3" ? cy - 95
+                : motionRole === "wr4" ? cy + 95
                 :                        cy - 78;
       target.y = motionEndY;
     }
@@ -1334,12 +1346,16 @@ function buildAnimForPlay(play, prevPlay) {
     const preT = tNow / PRE;
     return preT >= 0.40 && preT < 0.88;
   };
-  // Smoothed X depth for the motion player. He drops ~20px behind the LOS
-  // while jogging (so he clears the line), then returns to set. This MUST
-  // ease in/out — a binary `moving ? -20 : 0` jumped 20px when motion began
-  // (preT 0.40) and again when he set (preT 0.88, right before the snap),
-  // and the render continuity guard smeared each jump into a fast slide:
-  // a stance-posed player gliding ~10yps reads as "super speed at the snap".
+  // Smoothed X depth for the motion player. He drops ~2.5yd (38px) behind
+  // the LOS while jogging — clearly behind the OL row (OL sits at LOS−2px,
+  // so 38px puts the motion path 36px past the line, ~16px between dot
+  // edges in the top-down view) — then returns to set. Was 20px (~1.3yd):
+  // the dot grazed the OL stack during the cross. Easing in/out is
+  // essential — a binary `moving ? -38 : 0` jumps at the motion boundaries
+  // and the render continuity guard smears each jump into a fast slide
+  // ("super speed at the snap"). At set (preT ≥ 0.88) X returns to 0 so
+  // the WR is back at his motionEndY home (well clear of OL Y-range, see
+  // motionEndY above — no overlap to worry about at the snap frame).
   const motionXOffset = (tNow) => {
     if (!hasMotion || tNow >= PRE) return 0;
     const preT = tNow / PRE;
@@ -1348,7 +1364,7 @@ function buildAnimForPlay(play, prevPlay) {
               : preT > 0.80 ? (0.88 - preT) / 0.08      // ease out (set)
               : 1;
     const sm = env * env * (3 - 2 * env);               // smoothstep
-    return -dir * 20 * sm;
+    return -dir * 38 * sm;
   };
 
   // ── DEFENSIVE PRE-SNAP MOVEMENT ─────────────────────────────────────

@@ -315,6 +315,18 @@ function buildRatings(roster) {
       te2: (byPos.TE?.[1])?.name || (byPos.TE?.[0])?.name || "TE2",
       // 3rd TE for JUMBO (13) personnel.
       te3: (byPos.TE?.[2])?.name || (byPos.TE?.[1])?.name || (byPos.TE?.[0])?.name || "TE3",
+      // OL starters by overall rank — top 5 from byPos.OL. Mapped to the
+      // formation's 5 OL slots in Y order (top → bottom = LT/LG/C/RG/RT).
+      // Adding these lets the renderer decorate each OL slot with a real
+      // roster player, so the jersey number stays the SAME across plays
+      // (was re-rolled randomly every formation build, which made the
+      // same OL spot look like 4 different people across consecutive
+      // snaps — pure visual noise).
+      ol1: (byPos.OL?.[0])?.name || "LT",
+      ol2: (byPos.OL?.[1])?.name || "LG",
+      ol3: (byPos.OL?.[2])?.name || "C",
+      ol4: (byPos.OL?.[3])?.name || "RG",
+      ol5: (byPos.OL?.[4])?.name || "RT",
       k:   (byPos.K?.[0])?.name  || "K",
       p:   (byPos.P?.[0])?.name  || (byPos.K?.[0])?.name || "P",  // Punter (fallback to K if missing)
       de1: byPos.DL?.[0]?.name || "LDE",

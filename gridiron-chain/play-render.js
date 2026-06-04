@@ -3246,16 +3246,29 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
     if (formation.wr2) decorate(formation.wr2, pickup(offStarters.wr2));
     if (formation.wr3) decorate(formation.wr3, pickup(offStarters.wr3));
     if (formation.wr4) decorate(formation.wr4, pickup(offStarters.wr4));
-    if (formation.wr5) decorate(formation.wr5, pickup(offStarters.wr3));  // 5th WR reuses WR3 player
+    // wr5 (5th WR) would require personnel.wr >= 5, but PERSONNEL caps at
+    // wr=4 — the slot is never created, so no decorate is needed.
     if (formation.te)  decorate(formation.te,  pickup(offStarters.te));
     if (formation.te2) decorate(formation.te2, pickup(offStarters.te2));
     if (formation.fb)  decorate(formation.fb,  pickup(offStarters.rb2));
   }
-  if (formation.oline) for (const ol of formation.oline) {
+  // OL slots (5) are created in Y order top→bottom = LT/LG/C/RG/RT. Map
+  // each to its real roster player (ol1..ol5) so the jersey on a given
+  // OL position stays the SAME across plays. Was re-rolled randomly each
+  // formation build — the same OL slot read as a different person every
+  // snap, pure visual noise. decorate() pulls bodyType from the player;
+  // OL-specific runStyle is set after so a real OL's stored "explosive"
+  // / "smooth" style doesn't override the lineman jog.
+  if (formation.oline) formation.oline.forEach((ol, i) => {
+    const p = offStarters ? pickup(offStarters[`ol${i + 1}`]) : null;
+    decorate(ol, p);
     ol.runStyle = "plodding";
-    ol.bodyType = "BIG";
-    ol.label = JERSEYS_BY_POS.OL[Math.floor(Math.random() * JERSEYS_BY_POS.OL.length)];
-  }
+    if (!ol.bodyType) ol.bodyType = "BIG";
+    // Fallback when the starter resolves to a placeholder name (no player
+    // in the lookup): pick a stable, per-slot label from the OL pool so
+    // the number STILL doesn't drift across plays (was Math.random()).
+    if (!ol.label) ol.label = JERSEYS_BY_POS.OL[i % JERSEYS_BY_POS.OL.length];
+  });
   if (defStarters) {
     const dl = [defStarters.de1, defStarters.dt1, defStarters.dt2, defStarters.de2];
     const lb = [defStarters.lb1, defStarters.lb2, defStarters.lb3];
