@@ -9036,6 +9036,69 @@ function mffTeamSOS(teamId) {
   return { sosOff: d.sosOff, sosDef: d.sosDef };
 }
 
+// ── MFF Slice H: production-based development boost ─────────────────
+// Returns a multiplier in [0.80, 1.20] applied alongside coachBoost in the
+// offseason dev pass. Elite-production players get a small dev tailwind;
+// underperformers get a headwind. The metric used depends on position:
+//   QB:     EPA/dropback        (Slice B's QB ↔ OVR r=0.47 signal)
+//   WR/TE:  total EPA on catches (Slice B's WR ↔ OVR r=0.61)
+//   RB:     total EPA on carries (weak signal — small magnitudes only)
+//   DL/OL/CB/LB: MFF grade       (Slice A position-group standardized)
+// Players with no production data (rookies, didn't play) get 1.0.
+// BOUNDED INTENTIONALLY: we don't want a "MVP grows 2x" runaway loop.
+// ±20% × the existing coachBoost cap of 2.0× = max ~2.4× total per offseason,
+// which is realistic for the absolute best-case scenario (elite producer +
+// great staff + coachable trait + captains).
+function _mffProductionBoost(p, season) {
+  if (!p || !p.name) return 1.0;
+  // Try live EPA first (current season's playLog still present at the time
+  // dev runs — frnNewSeason freezes summary AFTER dev). Fall back to the
+  // frozen summary if the log was already dropped.
+  const fromLive = (typeof mffEPAFor === "function") ? mffEPAFor(p.name) : null;
+  if (fromLive) {
+    if (fromLive.kind === "qb" && fromLive.db >= 50) {
+      const epaPerDb = fromLive.epa / fromLive.db;
+      if (epaPerDb >=  0.15) return 1.20;
+      if (epaPerDb >=  0.05) return 1.10;
+      if (epaPerDb >= -0.05) return 1.00;
+      if (epaPerDb >= -0.15) return 0.92;
+      return 0.85;
+    }
+    if (fromLive.kind === "rec" && fromLive.rec >= 20) {
+      if (fromLive.epa >=  25) return 1.15;
+      if (fromLive.epa >=  10) return 1.08;
+      if (fromLive.epa >= -10) return 1.00;
+      return 0.92;
+    }
+    if (fromLive.kind === "rb" && fromLive.att >= 60) {
+      if (fromLive.epa >=  15) return 1.10;
+      if (fromLive.epa >=   5) return 1.05;
+      if (fromLive.epa >= -15) return 1.00;
+      return 0.93;
+    }
+  }
+  // Defensive grades: use MFF grade if available (Slice A surface).
+  // _mffComputeLeagueGrades returns standardized 0-99 grades per player.
+  if (typeof _mffComputeLeagueGrades === "function") {
+    try {
+      const grades = _mffComputeLeagueGrades();
+      const g = grades?.[p.name];
+      if (g) {
+        // Combined grade for OL/DL (pass + run); single grade for CB/LB.
+        const v = g.combinedGrade ?? g.coverGrade ?? g.passRushGrade ?? g.runStuffGrade ?? g.passProGrade ?? g.runBlockGrade;
+        if (typeof v === "number" && v > 0) {
+          if (v >= 85) return 1.15;
+          if (v >= 72) return 1.06;
+          if (v >= 50) return 1.00;
+          if (v >= 35) return 0.92;
+          return 0.85;
+        }
+      }
+    } catch (e) { /* defensive — never block dev */ }
+  }
+  return 1.0;
+}
+
 // ─── Slice F: live WP curve + Player-of-the-Game + signature plays ──
 // All read-only — consume the per-play log + the WPA buffers Slice C
 // already populates. UI helpers return ready-to-insert HTML (or null if

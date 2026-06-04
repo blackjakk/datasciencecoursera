@@ -11448,11 +11448,24 @@ function runFrnOffseason() {
       // Resolve gem ceiling — remove flag once reached
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
 
+      // MFF Slice H: production-based development boost. A player who
+      // posted elite EPA/CPOE/grades last season gets a small dev tailwind;
+      // a player who underperformed gets a headwind. This makes statistical
+      // production loop back into development — "play your way to a tier-up"
+      // rather than just OVR/age/coaching determining growth.
+      //
+      // Bounded ±20% (multiplier in [0.80, 1.20]). Stacks with coachBoost
+      // but the 2.0 cap above still applies via cumulative limit below.
+      let prodBoost = 1.0;
+      if (typeof _mffProductionBoost === "function") {
+        try { prodBoost = _mffProductionBoost(p, franchise.season); }
+        catch (e) { /* defensive — never block dev on production lookup */ }
+      }
       // STAGE 1 — unified oracle NFL development (flag-gated; old grind/normal-dev
       // kept in the else for instant fallback + A/B comparison during validation).
       const _ORACLE_DEV = true;
       if (_ORACLE_DEV) {
-        _developNflPlayer(p, coachBoost * tradeBoost);
+        _developNflPlayer(p, coachBoost * tradeBoost * prodBoost);
         // Slight, capped PHYSICAL improvement (arm/speed/explosiveness) on top of
         // the coachable gap-closing dev — a pitcher cranking a few mph, a young
         // player getting more explosive. Slow + youth-gated + capped so physicals

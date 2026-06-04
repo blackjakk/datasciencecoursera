@@ -332,6 +332,42 @@ End-to-end validation (1-season round-robin → seasonStats → grade module):
 - DL pass-rush ↔ OVR **r=0.40** ✓ · CB coverage ↔ OVR r=0.15 (correct — coverage
   is driven by COV not OVR; audit confirmed r=0.75 vs COV)
 
+### Slice H — Production-based player development [OFFSEASON FLOW CHANGE]
+Statistical production now loops back into player development. A player
+who posted elite EPA/CPOE/grades last season gets a small dev tailwind
+in the next offseason; an underperformer gets a headwind. Bounded
+±20% (multiplier in [0.80, 1.20]) so a single great season can't
+catapult a player past their potential ceiling.
+
+Surface: a new `_mffProductionBoost(p, season)` multiplier in
+`play-franchise-stats.js`, applied alongside `coachBoost * tradeBoost`
+in the offseason dev pass at `play-franchise-offseason.js:11468`.
+
+Tier mapping per position (chosen to match each position's Slice B/A
+signal strength):
+- **QB** (volume gate: ≥50 dropbacks; signal: EPA/db)
+  - ≥+0.15 → ×1.20  (elite — Mahomes/Allen tier)
+  - ≥+0.05 → ×1.10  (good — playoff starter)
+  - ±0.05  → ×1.00  (average)
+  - ≥-0.15 → ×0.92  (poor)
+  - <-0.15 → ×0.85  (bad)
+- **WR/TE** (gate: ≥20 catches; signal: total EPA)
+  - ≥+25 → ×1.15, ≥+10 → ×1.08, ±10 → ×1.00, <-10 → ×0.92
+- **RB** (gate: ≥60 carries; signal: total EPA — magnitudes smaller
+  because RB EPA is noisy per audit)
+  - ≥+15 → ×1.10, ≥+5 → ×1.05, ±15 → ×1.00, <-15 → ×0.93
+- **DL/OL/CB/LB** (signal: Slice A standardized MFF grade)
+  - ≥85 → ×1.15, ≥72 → ×1.06, 50-72 → ×1.00, ≥35 → ×0.92, <35 → ×0.85
+
+Players with no production data (rookies, didn't play) get 1.00 —
+defensive: the boost helper never blocks the dev pass.
+
+VALIDATION (smoke test, 16 checks): every tier mapping correct, bounds
+held, unknown/null/missing-name all safely return 1.0.
+
+ENGINE UNCHANGED. Save-state additive (no new fields — reads existing
+EPA/grade data Slice B/A already produce).
+
 ### Slice G — Analytics coaching AI (4th-down chart) [ENGINE CHANGE]
 **FIRST ENGINE CHANGE OF THIS SERIES** that's intentional (not the bug-fix
 Fix 1 from earlier). Coaches with a new `analyticsAgg` trait (0-100)
