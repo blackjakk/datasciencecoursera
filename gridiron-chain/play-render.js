@@ -2910,8 +2910,15 @@ function makeFormation(losX, poss, opts = {}) {
   if (personDef.rb >= 2) {
     const style = opts.twoBackStyle || (Math.random() < 0.5 ? "I" : "PRO");
     if (style === "I") {
-      fb = { x: losX - dir * (isGL ? 5 : 7) * PX, y: cy + 4, role: "FB" };
-      rb = { x: losX - dir * (isGL ? 7 : 10) * PX, y: cy + 6, role: "RB" };
+      // I-Form: FB and RB stacked behind QB on the midline. QB is at backYd=6
+      // (FORMATION_DEPTHS — engine doesn't model under-center). Old spacing
+      // put FB only 1 yd behind QB at cy+4 and RB 4 yd behind QB at cy+6 —
+      // sprites (~30 px) pixel-overlapped with the QB and read as a duplicate
+      // RB. Now FB sits 3 yd deeper than QB, RB another 3 yd behind FB, all
+      // axis-aligned at cy (real I-Form is a centered column). Goal-line
+      // keeps tighter splits so the heavy set still feels compressed.
+      fb = { x: losX - dir * (isGL ? 6 : 9)  * PX, y: cy, role: "FB" };
+      rb = { x: losX - dir * (isGL ? 9 : 12) * PX, y: cy, role: "RB" };
     } else {
       fb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy - (isGL ? 14 : 22), role: "FB" };
       rb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy + (isGL ? 18 : 28), role: "RB" };
