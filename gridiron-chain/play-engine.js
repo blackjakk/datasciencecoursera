@@ -762,6 +762,11 @@ class GameSimulator {
         this._maybeFlagURForHit(carrier, tackler, opts, force);
       }
     }
+    // Return the computed hit force (0.5 - 2.2) so the visual emit path can
+    // surface it as play.force. Same value drives the big-hit broadcast and
+    // injury rolls above, so animation impact stays consistent with the
+    // engine's biomechanics.
+    return force;
   }
   // Unnecessary Roughness penalty + (rarer) ejection. Fires on big hits
   // where the tackler led with the helmet on a defenseless receiver or
@@ -6371,7 +6376,8 @@ class GameSimulator {
     });
     // Force-scaled wear: tackler's STR/SPD/archetype × carrier vulnerability.
     // Negative-yard carries (drilled in the backfield) add extra hit force.
-    this._bumpHitWear(carrier, 0.5, tacklerName, {
+    // Returned force (0.5 - 2.2) drives the visual impact below.
+    const _hitForce = this._bumpHitWear(carrier, 0.5, tacklerName, {
       negativeYards: yards < 0 ? yards : 0,
       playContext: { type: "run", direction: isOutside ? "outside" : "inside", isGoalLine },
     });
@@ -6621,7 +6627,13 @@ class GameSimulator {
       tracks: { carrier: _carrierTrack, tackler: _tacklerTrack,
                 ..._secondaryTracks, ..._blockerTracks },
     };
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null, motion: _motion });
+    // play.force: scale engine force (0.5-2.2) into the animation's expected
+    // range (~0-15). Drives ragdoll launch velocity and slow-mo depth in
+    // play-animation.js (search for `play.force` in the run-ragdoll branch).
+    // x5 mapping: average tackle 1.0 → 5 (visible mid-impact), big-hit
+    // threshold 1.45 → 7.25, massive 1.9 → 9.5, max 2.2 → 11.
+    const _playForce = (typeof _hitForce === "number") ? _hitForce * 5 : null;
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, force: _playForce, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null, motion: _motion });
     return { yards };
   }
   _drive() {
