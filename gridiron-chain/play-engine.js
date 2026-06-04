@@ -5560,12 +5560,38 @@ class GameSimulator {
         // receiver, but no teleport: the ball lands where a tracked
         // receiver actually is, instead of falling back to a random
         // hash-picked WR who's running an unrelated route).
+        // Map the credited receiver to one of the four tracked slots that
+        // _buildPassRouteTracks emits (wr1/wr2/te/rb). The renderer animates
+        // play.motion.targetSlot; if it can't resolve the slot it HASH-picks
+        // a decoy WR running an unrelated route, and at the catch frame the
+        // ball-carrier sim teleports that decoy to the catch point ("receiver
+        // teleports ~5yd downfield on the catch"). Headless analysis showed
+        // ~3.5% of completions hit this — every ball to wr4/wr5/te2/te3/rb2/fb
+        // (any non-primary receiver) had _targetSlot=null. Collapsing them
+        // to the nearest tracked slot closes the gap for ALL receivers (the
+        // wr3→wr2 fix only closed it for the 3rd WR). Cosmetic tradeoff: the
+        // sprite shown catching is the mapped slot's, while the box score
+        // credits the real receiver — same accepted tradeoff as wr3→wr2,
+        // and strictly better than a visible teleport.
         const _targetSlot = rcvr === this.offR.starters.wr1 ? "wr1"
                           : rcvr === this.offR.starters.wr2 ? "wr2"
                           : rcvr === this.offR.starters.wr3 ? "wr2"
+                          : rcvr === this.offR.starters.wr4 ? "wr2"
+                          : rcvr === this.offR.starters.wr5 ? "wr2"
                           : rcvr === this.offR.starters.te  ? "te"
+                          : rcvr === this.offR.starters.te2 ? "te"
+                          : rcvr === this.offR.starters.te3 ? "te"
                           : rcvr === this.offR.starters.rb  ? "rb"
-                          : null;
+                          : rcvr === this.offR.starters.rb2 ? "rb"
+                          : rcvr === this.offR.starters.fb  ? "rb"
+                          // Defensive fallback by position — guarantees a
+                          // non-null tracked slot even for an unexpected name.
+                          : (() => {
+                              const _pos = this._playerByName.get(rcvr)?.position;
+                              return _pos === "TE" ? "te"
+                                   : (_pos === "RB" || _pos === "FB") ? "rb"
+                                   : "wr2";
+                            })();
         // Animation uses scaledDuration(max(targetDepth, yards, 8)) +
         // POST_CATCH_MS to time the play. Mirror that here so engine's
         // routeT (0=snap, 1=settled) aligns with animation's aT.
