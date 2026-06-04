@@ -909,6 +909,194 @@ const DriveMapPanel = {
   },
 };
 
+// ── DRIVE CHART — every play as a +/- bar at its true field position ─────
+// Full-game version of DriveMapPanel: walks ALL plays up to playHead and
+// lays each scrimmage play out as a horizontal bar on a 0-100 field,
+// positioned EXACTLY where it happened. True field directions: home drives
+// L→R (own goal at x=0), away drives R→L (own goal at x=100). Bar length =
+// yards; color = whether the play was a GOOD play in context (success/EPA),
+// not just whether it gained yards. Fills in live; persists post-game.
+let _dvChartCache = { head: -1, data: null };
+function _buildDriveChartData(gr, head) {
+  if (!gr || !gr.plays) return null;
+  head = Math.max(0, Math.min(head ?? gr.plays.length, gr.plays.length));
+  if (_dvChartCache.head === head && _dvChartCache.data) return _dvChartCache.data;
+  const SCRIM = new Set(["complete", "incomplete", "sack", "int", "run", "scramble", "fumble"]);
+  const homeId = gr.homeTeam?.id;
+  const clamp01 = v => Math.max(0, Math.min(100, v));
+  const drives = [];
+  let cur = null;
+  // Result fallback for drives the engine didn't tag with a drive_summary
+  // (some FG/punt paths break the drive loop early). Markers that land
+  // between a drive's last snap and the next drive carry the outcome.
+  const RESULT_MARK = { fg_good: "FIELD GOAL", fg_miss: "MISSED FG", punt: "PUNT" };
+  const inferResult = (d) => {
+    if (d.result) return d.result;
+    if (d._pending) return d._pending;
+    const lp = d.plays[d.plays.length - 1];
+    if (!lp) return null;
+    if (lp.isTD || (lp.endYard ?? 0) >= 100) return "TOUCHDOWN";
+    if (lp.kind === "int") return "INTERCEPTION";
+    if (lp.kind === "fumble") return "FUMBLE";
+    return null;   // genuinely in progress
+  };
+  const closeDrive = (result, startYL) => {
+    if (cur && cur.plays.length) {
+      if (result != null) cur.result = result;
+      cur.result = inferResult(cur);
+      if (startYL != null && cur.startYL == null) cur.startYL = startYL;
+      drives.push(cur);
+    }
+    cur = null;
+  };
+  for (let i = 0; i < head; i++) {
+    const p = gr.plays[i];
+    if (!p) continue;
+    if (p.kind === "drive_summary") { closeDrive(p.driveResult, p.driveStartYL); continue; }
+    // Capture terminal markers for the open drive (TD = score +6; FG; punt).
+    if (cur && !cur.result) {
+      if (p.kind === "score" && (p.pts || 0) >= 6) cur._pending = "TOUCHDOWN";
+      else if (RESULT_MARK[p.kind]) cur._pending = RESULT_MARK[p.kind];
+    }
+    const isScrim = SCRIM.has(p.kind) && p.down >= 1 && p.down <= 4 && typeof p.yardLine === "number";
+    if (!isScrim) continue;
+    // New drive on possession change (safety net if a summary was missed).
+    if (cur && cur.poss !== p.poss) closeDrive(null, null);
+    if (!cur) cur = { poss: p.poss, isHome: p.poss === "home", plays: [], result: null, startYL: p.yardLine };
+    cur.plays.push(p);
+  }
+  if (cur && cur.plays.length) { cur.result = inferResult(cur); drives.push(cur); }   // in-progress / final drive
+
+  // Terminal EP for a drive result (offense perspective) — only used for the
+  // last play's EPA tooltip; coloring uses exact success below.
+  const termEP = (drive) => {
+    const r = (drive.result || "").toUpperCase();
+    const lastP = drive.plays[drive.plays.length - 1];
+    if (lastP && (lastP.isTD || (lastP.endYard ?? 0) >= 100)) return 7;
+    if (r.includes("TOUCHDOWN") || r.includes("-TD")) return 7;
+    if (r.includes("SAFETY")) return -2;
+    if (lastP && lastP.kind === "fg_good") return 3;
+    return null;   // ambiguous (FG/Punt/TO lumped) — skip EPA on terminal play
+  };
+  const epOf = (typeof _mffEP === "function")
+    ? (d, y, yl) => _mffEP(d, y, yl)
+    : () => null;
+  const isSuccess = (typeof _mffIsSuccess === "function")
+    ? (c, scored) => _mffIsSuccess(c, scored)
+    : (c, scored) => scored || (c.yd || 0) >= (c.d === 1 ? c.y * 0.4 : c.d === 2 ? c.y * 0.6 : c.y);
+
+  for (const d of drives) {
+    const beforeEP = d.plays.map(p => epOf(p.down, p.ytg || 10, p.yardLine));
+    d.rows = d.plays.map((p, idx) => {
+      const yards = typeof p.yards === "number" ? p.yards : 0;
+      const start = p.yardLine;
+      const end = clamp01(start + yards);
+      const scored = !!p.isTD || (p.endYard ?? 0) >= 100;
+      const c = { k: p.kind, d: p.down, y: p.ytg || 10, yd: yards };
+      const succ = isSuccess(c, scored);
+      const isTO = p.kind === "int" || p.kind === "fumble";
+      const tier = scored ? "td"
+                 : isTO ? "to"
+                 : succ ? "good"
+                 : yards > 0 ? "ok"
+                 : "bad";
+      // EPA: exact for non-terminal plays (next play's pre-snap EP); terminal
+      // uses the result EP if unambiguous.
+      let epa = null;
+      if (beforeEP[idx] != null) {
+        const after = (idx < d.plays.length - 1)
+          ? beforeEP[idx + 1]
+          : (() => { const t = termEP(d); return t == null ? null : t; })();
+        if (after != null) epa = +(after - beforeEP[idx]).toFixed(2);
+      }
+      return {
+        fxStart: d.isHome ? start : 100 - start,
+        fxEnd:   d.isHome ? end   : 100 - end,
+        yards, tier, epa, kind: p.kind, down: p.down, ytg: p.ytg || 10,
+        startYL: start, scored, dir: d.isHome ? (yards >= 0 ? "r" : "l") : (yards >= 0 ? "l" : "r"),
+        desc: p.desc || "",
+      };
+    });
+  }
+  const data = { drives, homeId, ended: head >= gr.plays.length };
+  _dvChartCache = { head, data };
+  return data;
+}
+
+const DriveChartPanel = {
+  render() { return `<div id="bspnlive-drivechart">${this._body()}</div>`; },
+  _body() {
+    const gr = (typeof gameResult !== "undefined") ? gameResult : null;
+    const head = (typeof playHead !== "undefined") ? playHead : (gr ? gr.plays.length : 0);
+    const data = _buildDriveChartData(gr, head);
+    if (!data || !data.drives.length) {
+      return `<div style="font-size:.62rem;color:var(--blgray);padding:1rem 0;text-align:center">No drives yet — chart fills in as the game is played.</div>`;
+    }
+    const homeT = gr.homeTeam, awayT = gr.awayTeam;
+    const homeAbbr = (typeof _bspnLiveAbbr === "function") ? _bspnLiveAbbr(homeT) : (homeT?.abbr || "HOME");
+    const awayAbbr = (typeof _bspnLiveAbbr === "function") ? _bspnLiveAbbr(awayT) : (awayT?.abbr || "AWAY");
+    const homeColor = homeT?.primary || "#4da3ff";
+    const awayColor = awayT?.primary || "#f5c542";
+    const tickNums = [10, 20, 30, 40, 50, 40, 30, 20, 10];
+    const axis = `<div class="dvchart-axis">
+      <span class="dvchart-ez left" style="background:${homeColor}" title="${homeAbbr} end zone">${homeAbbr}</span>
+      <div class="dvchart-axis-field">
+        ${tickNums.map((n, i) => `<span class="dvchart-axnum" style="left:${(i + 1) * 10}%">${n}</span>`).join("")}
+      </div>
+      <span class="dvchart-ez right" style="background:${awayColor}" title="${awayAbbr} end zone">${awayAbbr}</span>
+    </div>`;
+
+    const drivesHtml = data.drives.map((d, di) => {
+      const team = d.isHome ? homeT : awayT;
+      const teamAbbr = d.isHome ? homeAbbr : awayAbbr;
+      const tc = team?.primary || (d.isHome ? homeColor : awayColor);
+      const r = (d.result || "").toUpperCase();
+      const resClass = r.includes("TOUCHDOWN") || r.includes("-TD") ? "r-td"
+                     : r.includes("SAFETY") ? "r-sfty"
+                     : r.includes("TURNOVER") || r.includes("INT") || r.includes("FUMBLE") ? "r-to"
+                     : r.includes("FG") || r.includes("FIELD GOAL") ? "r-fg"
+                     : r ? "r-punt" : "r-live";
+      const resText = d.result ? d.result : "in progress…";
+      const startTxt = d.startYL != null ? (d.startYL <= 50 ? `own ${d.startYL}` : `opp ${100 - d.startYL}`) : "";
+      const rows = d.rows.map(rw => {
+        const left = Math.min(rw.fxStart, rw.fxEnd);
+        const w = Math.max(0.8, Math.abs(rw.fxEnd - rw.fxStart));
+        const epaTxt = rw.epa != null ? ` · EPA ${rw.epa >= 0 ? "+" : ""}${rw.epa}` : "";
+        const ddTxt = `${rw.down}&${rw.ytg}`;
+        const title = `${ddTxt} at ${rw.startYL <= 50 ? "own " + rw.startYL : "opp " + (100 - rw.startYL)} · ${rw.kind} ${rw.yards >= 0 ? "+" : ""}${rw.yards}yd${epaTxt}${rw.scored ? " · TD!" : ""}`;
+        // Incompletion / zero-gain: a hollow tick at the snap spot.
+        if (rw.kind === "incomplete" || (rw.yards === 0 && rw.kind !== "int" && rw.kind !== "fumble")) {
+          return `<div class="dvchart-play"><div class="dvchart-tick" style="left:${rw.fxStart}%" title="${title}"></div></div>`;
+        }
+        return `<div class="dvchart-play">
+          <div class="dvchart-bar t-${rw.tier} dir-${rw.dir}" style="left:${left}%;width:${w}%" title="${title}"></div>
+        </div>`;
+      }).join("");
+      return `<div class="dvchart-drive">
+        <div class="dvchart-dhead">
+          <span class="dvchart-dteam" style="color:${tc}">${d.isHome ? "▶" : "◀"} ${teamAbbr}</span>
+          <span class="dvchart-dstart">${startTxt}</span>
+          <span class="dvchart-dres ${resClass}">${resText}</span>
+        </div>
+        <div class="dvchart-rows">${rows}</div>
+      </div>`;
+    }).join("");
+
+    return `<div class="dvchart-legend">
+        <span class="lg t-td">TD</span><span class="lg t-good">good play</span>
+        <span class="lg t-ok">gain, short</span><span class="lg t-bad">loss/fail</span>
+        <span class="lg t-to">turnover</span>
+        <span style="margin-left:auto;color:var(--blgray)">◀ ${awayT?.abbr||"AWAY"} drives · ${homeT?.abbr||"HOME"} drives ▶</span>
+      </div>
+      ${axis}
+      <div class="dvchart-field">${drivesHtml}</div>`;
+  },
+  update() {
+    const el = document.getElementById("bspnlive-drivechart");
+    if (el) el.innerHTML = this._body();
+  },
+};
+
 const DriveSummaryPanel = {
   render(state) {
     return `<div id="bspnlive-drive">${this._body(state)}</div>`;
@@ -1358,6 +1546,7 @@ const BSPNGameScreen = {
           <button class="bspnlive-tab" data-tab="box" onclick="_bspnSwitchTab('box')">BOX SCORE</button>
           <button class="bspnlive-tab" data-tab="stats" onclick="_bspnSwitchTab('stats')">TEAM STATS</button>
           <button class="bspnlive-tab" data-tab="drive" onclick="_bspnSwitchTab('drive')">DRIVE · NEXT UP</button>
+          <button class="bspnlive-tab" data-tab="dvchart" onclick="_bspnSwitchTab('dvchart')">DRIVE CHART</button>
           <button class="bspnlive-tab" data-tab="perf" onclick="_bspnSwitchTab('perf')">TOP PERFORMERS</button>
         </div>
         <div class="bspnlive-bottom-content">
@@ -1385,6 +1574,10 @@ const BSPNGameScreen = {
               </div>
             </div>
           </div>
+          <div class="bspnlive-bottom-pane" data-pane="dvchart">
+            <div class="bspnlive-panel-title" style="text-align:left;padding-bottom:.3rem;margin-bottom:.45rem">DRIVE CHART · every play, where it happened</div>
+            ${DriveChartPanel.render()}
+          </div>
           <div class="bspnlive-bottom-pane" data-pane="perf">
             ${TopPerformersPanel.render(state)}
           </div>
@@ -1408,6 +1601,7 @@ const BSPNGameScreen = {
     LastPlayPanel.update(state);
     DriveSummaryPanel.update(state);
     DriveMapPanel.update(state);
+    DriveChartPanel.update();
     NextUpPanel.update(state);
     PlayByPlayPanel.update(state);
     TopPerformersPanel.update(state);
