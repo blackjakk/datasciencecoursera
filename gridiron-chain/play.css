@@ -4647,6 +4647,13 @@
     display: inline-block; white-space: nowrap;
     animation: bspnlive-tk 60s linear infinite;
     padding-left: 100%;
+    /* Scroll-perf: force GPU compositing for the marquee animation. Without
+       will-change, the browser may not auto-promote a translateX-animated
+       element to its own layer — meaning the marquee forces main-thread
+       paint on every frame, dragging the whole page's scroll smoothness
+       with it. backface-visibility:hidden is the belt-and-suspenders hint. */
+    will-change: transform;
+    backface-visibility: hidden;
   }
   @keyframes bspnlive-tk { from { transform: translateX(0); } to { transform: translateX(-100%); } }
   .bspnlive-ticker-item { padding: 0 1.5rem; }
@@ -4831,6 +4838,10 @@
     max-height: 70vh; overflow-y: auto;
     background: var(--bg2); border: 1px solid var(--border);
     padding: .7rem;
+    /* Scroll-perf: isolate this scroll container's paint/layout from the
+       rest of the page so scrolling it (or the page around it) doesn't
+       trigger full-document repaints. */
+    contain: layout style paint;
   }
   .frn-wire-week { margin-bottom: 1rem; }
   .frn-wire-week:last-child { margin-bottom: 0; }
@@ -4844,6 +4855,11 @@
     display: grid; grid-template-columns: 1.4rem 1fr; gap: .4rem;
     padding: .25rem .35rem; font-size: .7rem; line-height: 1.35;
     border-bottom: 1px solid rgba(46,61,46,.3);
+    /* Scroll-perf: skip painting off-screen wire items. The list caps at
+       500 items (_pushNews), and most aren't on screen at any time —
+       deferring their paint is a big scroll win on the news feed. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 24px;
   }
   .frn-wire-item:last-child { border-bottom: none; }
   .frn-wire-icon { color: var(--gold); }
