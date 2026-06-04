@@ -86,7 +86,14 @@
     50% { opacity: 1.02; }
     53% { opacity: 0.99; }
   }
-  body { animation: crt-flicker 6s infinite; }
+  /* DISABLED: opacity animation on the <body> was repainting the entire
+     viewport every animation frame, forever — page-wide scroll/hover/click
+     lag traced to this in a UI perf audit. The CRT effect is still carried
+     by the scanline pattern + phosphor text-shadows on bright text; the
+     subtle opacity flicker was the least-visible component. If we want it
+     back, attach to a `position:fixed; inset:0; pointer-events:none;`
+     overlay element (then only THAT layer repaints, not the body). */
+  /* body { animation: crt-flicker 6s infinite; } */
   /* Soft outer phosphor glow on bright text — gold and green elements get a
      light bloom so they look like they're punching through the screen. */
   .header h1, .score-num, .field-status, .play-caption.score, .play-caption.int {
