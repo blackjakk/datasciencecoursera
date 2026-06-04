@@ -3373,8 +3373,11 @@ function buildAnimForPlay(play, prevPlay) {
     // emit WR screens (play.isWRScreen) with targetSlot=wr1|wr2, so
     // honor the engine slot when it's a valid receiver. Fallback to
     // "rb" preserves the legacy behavior for older plays / paths.
-    const _validSlot = _engineSlot === "wr1" || _engineSlot === "wr2"
-                    || _engineSlot === "te"  || _engineSlot === "rb";
+    // Valid when the engine's slot resolves to a real on-field formation
+    // slot. Generic lookup (wr1/wr2/wr3/wr4/te/te2/rb — whichever this
+    // personnel fielded) so every receiver animates AS ITSELF, with its
+    // own jersey, instead of being collapsed onto wr1/wr2/te/rb.
+    const _validSlot = !!(_engineSlot && formation[_engineSlot]);
     const wrChoice = isScreen ? (_validSlot ? _engineSlot : "rb")
                    : _validSlot ? _engineSlot
                    : wrRoll < 0.45 ? "wr1"
@@ -3396,10 +3399,7 @@ function buildAnimForPlay(play, prevPlay) {
     // lateral break, so the WR would be at one y from motion and
     // the ball arrived at a different y → visible teleport at catch.
     const _wrTrk = (play.motion && play.motion.tracks) ? play.motion.tracks[wrChoice] : null;
-    const _wrBase = wrChoice === "wr1" ? formation.wr1
-                  : wrChoice === "wr2" ? formation.wr2
-                  : wrChoice === "te"  ? formation.te
-                  :                       formation.rb;
+    const _wrBase = formation[wrChoice] || formation.rb;
     let _catchTargetY;
     if (_wrTrk && _wrBase && typeof MotionPlayback !== "undefined" && !isScreen) {
       // Sample at engine-emitted throwT (catch moment in action time).
@@ -3417,6 +3417,8 @@ function buildAnimForPlay(play, prevPlay) {
                   : wrChoice === "wr1" ? cy - 70
                   : wrChoice === "wr2" ? cy + 65
                   : wrChoice === "te"  ? cy + 28
+                  : wrChoice === "rb"  ? cy - 10
+                  : formation[wrChoice] ? formation[wrChoice].y   // slot WR / te2 fallback
                   :                       cy - 10;
     const isComplete = play.kind === "complete";
     // Push TD catches INTO the endzone (~5 yards past the goal line) so
@@ -3436,7 +3438,9 @@ function buildAnimForPlay(play, prevPlay) {
     // named one (was always a CB even when engine credited a safety).
     let intDefIdx = wrChoice === "wr1" ? idxCB1
                   : wrChoice === "wr2" ? idxCB2
-                  : wrChoice === "te"  ? (targetY < cy ? idxS1 : idxS2)
+                  : (wrChoice === "te" || wrChoice === "te2"
+                     || wrChoice === "wr3" || wrChoice === "wr4")
+                      ? (targetY < cy ? idxS1 : idxS2)   // slot WR / TE → safety on that side
                   :                       (targetY < cy ? idxLB3 : idxLB1);  // LB for RB checkdown
     // INT: engine emits `defender`. Dropped pick (incomplete with
     // isDroppedPick): engine emits `dropper`. Pass deflection
@@ -5187,10 +5191,10 @@ function buildAnimForPlay(play, prevPlay) {
                      t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: motionFacing };
           }
         }
-        if (p === formation.wr1 && wrChoice === "wr1") return wrWithPose;
-        if (p === formation.wr2 && wrChoice === "wr2") return wrWithPose;
-        if (p === formation.te && wrChoice === "te") return wrWithPose;
-        if (p === formation.rb && wrChoice === "rb") return wrWithPose;
+        // The targeted receiver — whatever slot — gets the catch pose.
+        // Generic match (was a wr1/wr2/te/rb whitelist that left slot
+        // receivers wr3/wr4/te2 to be drawn by the wrong sprite).
+        if (p === formation[wrChoice]) return wrWithPose;
         // === POST-CATCH DOWNFIELD BLOCKING + TD CELEBRATION ===
         // Non-target receivers (and the RB if he isn't the target) take
         // on two roles during the post-catch window:
@@ -5209,11 +5213,7 @@ function buildAnimForPlay(play, prevPlay) {
             && p.role !== "QB" && p.role !== "OL") {
           // Lazy-init blocker picks on first post-catch frame.
           if (!_downfieldBlockerMap) {
-            const _isTarget = (cand) =>
-                 (cand === formation.wr1 && wrChoice === "wr1")
-              || (cand === formation.wr2 && wrChoice === "wr2")
-              || (cand === formation.te  && wrChoice === "te")
-              || (cand === formation.rb  && wrChoice === "rb");
+            const _isTarget = (cand) => cand === formation[wrChoice];
             const candidates = [];
             for (const cand of formation.offense) {
               if (cand.role === "QB" || cand.role === "OL") continue;
@@ -5434,7 +5434,10 @@ function buildAnimForPlay(play, prevPlay) {
           // Map this player to a slot key for engine track lookup.
           const slotKey = p === formation.wr1 ? "wr1"
                         : p === formation.wr2 ? "wr2"
+                        : p === formation.wr3 ? "wr3"
+                        : p === formation.wr4 ? "wr4"
                         : p === formation.te  ? "te"
+                        : p === formation.te2 ? "te2"
                         : null;
           const trk = (slotKey && play.motion && play.motion.tracks) ? play.motion.tracks[slotKey] : null;
           // Field-bounds clamp so a deep-go route extending past the

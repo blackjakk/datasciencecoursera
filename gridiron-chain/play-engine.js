@@ -1510,7 +1510,7 @@ class GameSimulator {
       // TE 0.4yd forward + 1yd sideways by break = "TE catches the ball
       // standing on the LOS". Real 1-3yd TE/RB throws are flats and
       // swings — early break, big lateral release, almost no vertical.
-      if (slot === targetSlot && (slot === "te" || slot === "rb") && targetDepth <= 3) {
+      if (slot === targetSlot && (slot === "te" || slot === "te2" || slot === "rb") && targetDepth <= 3) {
         // dyYd convention: positive = toward midfield, negative = toward
         // sideline. A flat / swing leak goes OUTWARD toward the sideline
         // the player started on (the route is direction-agnostic — the
@@ -1523,6 +1523,10 @@ class GameSimulator {
           latAtCatch: slot === "rb" ? -7.0 : -7.5,  // wide flat to sideline
         };
       }
+      // te2 mirrors the TE concept shape; its opposite-side alignment is
+      // handled by toMidSign in the renderer. Slot WRs (wr3/wr4) fall to
+      // each concept's default (an inside-breaking route).
+      if (slot === "te2") slot = "te";
       switch (conc) {
         case "QUICK_GAME":
           // Slant + quick-out. wr1 cuts inside (slant), wr2 cuts
@@ -1587,9 +1591,22 @@ class GameSimulator {
       }
       return { role: slot.toUpperCase(), origin: { slot }, waypoints: wps };
     };
+    // Build a route track for every receiver ACTUALLY ON THE FIELD for the
+    // current personnel (so non-targets run real decoy routes instead of
+    // hash paths — Phase 4 intent), plus always the targeted slot. Gating
+    // by personnel keeps us from emitting tracks for off-field slots (e.g.
+    // wr4 in an 11-personnel set) that have no sprite to animate.
+    const _pers = (typeof PERSONNEL !== "undefined" && PERSONNEL[this._currentPersonnel]) || null;
+    const _slots = new Set(["wr1", "wr2"]);
+    if (!_pers || _pers.wr >= 3) _slots.add("wr3");
+    if (_pers && _pers.wr >= 4) _slots.add("wr4");
+    if (!_pers || _pers.te >= 1) _slots.add("te");
+    if (_pers && _pers.te >= 2) _slots.add("te2");
+    if (!_pers || _pers.rb >= 1) _slots.add("rb");
+    if (targetSlot) _slots.add(targetSlot);   // never drop the credited receiver's track
     const tracks = {};
-    for (const slot of ["wr1", "wr2", "te", "rb"]) {
-      if (!this.offR.starters[slot === "te" ? "te" : slot]) continue;
+    for (const slot of _slots) {
+      if (!this.offR.starters[slot]) continue;
       const trk = trackFor(slot);
       if (trk) tracks[slot] = trk;
     }
@@ -1615,13 +1632,15 @@ class GameSimulator {
     // yards. Receiver tracks emit dyYd as "toward midfield" relative
     // to the formation slot — convert to absolute via slot sign +
     // formation offset.
-    const wrSign = targetSlot === "wr1" ? -1
-                 : targetSlot === "wr2" ?  1
-                 : targetSlot === "te"  ?  1
+    const wrSign = targetSlot === "wr1" || targetSlot === "wr3" ? -1   // left-side slots
+                 : targetSlot === "wr2" || targetSlot === "wr4" ?  1   // right-side slots
+                 : targetSlot === "te"  ?  1                            // te1 aligns right
+                 : targetSlot === "te2" ? -1                            // te2 aligns left
                  : targetSlot === "rb"  ?  1
                  : 0;
     const wrFormOffsetYd = targetSlot === "wr1" || targetSlot === "wr2" ? 16
-                         : targetSlot === "te" ? 5
+                         : targetSlot === "wr3" || targetSlot === "wr4" ? 10
+                         : targetSlot === "te" || targetSlot === "te2" ? 5
                          : targetSlot === "rb" ? 1.87
                          : 0;
     // Sample the route track's catch waypoint for the actual latAtCatch
@@ -5547,45 +5566,38 @@ class GameSimulator {
         // Engine emits route waypoints for EVERY receiver on the field
         // (targeted + decoys) so animation doesn't fall back to hash
         // decoys for non-targets. Each track is keyed by formation slot
-        // ("wr1", "wr2", "te", "rb") with origin: { slot }; waypoints
-        // are deltas in YARDS where dyYd is "toward midfield" (positive
-        // = inside break, negative = toward sideline). Targeted slot
-        // gets the full track that ends at the catch + YAC spot;
-        // non-targeted slots get a route ending at their concept-
-        // appropriate spot (no catch, just the route).
-        // Slot WR (wr3) folded into "wr2" — they don't have their own
-        // route shape in _buildPassRouteTracks and the animation has no
-        // wrChoice handler for them. Mapping to wr2 means the animation
-        // shows wr2 making the catch (visual mismatch vs the credited
-        // receiver, but no teleport: the ball lands where a tracked
-        // receiver actually is, instead of falling back to a random
-        // hash-picked WR who's running an unrelated route).
-        // Map the credited receiver to one of the four tracked slots that
-        // _buildPassRouteTracks emits (wr1/wr2/te/rb). The renderer animates
-        // play.motion.targetSlot; if it can't resolve the slot it HASH-picks
-        // a decoy WR running an unrelated route, and at the catch frame the
-        // ball-carrier sim teleports that decoy to the catch point ("receiver
-        // teleports ~5yd downfield on the catch"). Headless analysis showed
-        // ~3.5% of completions hit this — every ball to wr4/wr5/te2/te3/rb2/fb
-        // (any non-primary receiver) had _targetSlot=null. Collapsing them
-        // to the nearest tracked slot closes the gap for ALL receivers (the
-        // wr3→wr2 fix only closed it for the 3rd WR). Cosmetic tradeoff: the
-        // sprite shown catching is the mapped slot's, while the box score
-        // credits the real receiver — same accepted tradeoff as wr3→wr2,
-        // and strictly better than a visible teleport.
+        // ("wr1", "wr2", "wr3", "wr4", "te", "te2", "rb") with
+        // origin: { slot }; waypoints are deltas in YARDS where dyYd is
+        // "toward midfield" (positive = inside break, negative = toward
+        // sideline). Targeted slot gets the full track that ends at the
+        // catch + YAC spot; non-targeted slots get a route ending at
+        // their concept-appropriate spot (no catch, just the route).
+        //
+        // IDENTITY FIX (was: collapse to 4 slots). The credited receiver
+        // now maps to its OWN formation slot so the animation draws the
+        // RIGHT sprite (right jersey) making the catch — no more
+        // "shows the wrong person." pickReceiver (play-data.js) only ever
+        // credits wr1/wr2/wr3/wr4/te/te2/rb, and only when that slot is on
+        // the field for the current personnel (wr3 needs 3WR, wr4 needs
+        // 4WR, te2 needs 2TE), so every slot emitted here has a real,
+        // correctly-numbered sprite + its own route track. The renderer
+        // resolves play.motion.targetSlot via formation[slot]; if it can't
+        // (an off-field slot — only reachable through the defensive
+        // fallback below) it hash-picks a decoy, so the fallback still maps
+        // to an always-present primary slot to avoid a teleport.
         const _targetSlot = rcvr === this.offR.starters.wr1 ? "wr1"
                           : rcvr === this.offR.starters.wr2 ? "wr2"
-                          : rcvr === this.offR.starters.wr3 ? "wr2"
-                          : rcvr === this.offR.starters.wr4 ? "wr2"
-                          : rcvr === this.offR.starters.wr5 ? "wr2"
+                          : rcvr === this.offR.starters.wr3 ? "wr3"
+                          : rcvr === this.offR.starters.wr4 ? "wr4"
+                          : rcvr === this.offR.starters.wr5 ? "wr4"   // rare: 5th WR → nearest on-field slot
                           : rcvr === this.offR.starters.te  ? "te"
-                          : rcvr === this.offR.starters.te2 ? "te"
-                          : rcvr === this.offR.starters.te3 ? "te"
+                          : rcvr === this.offR.starters.te2 ? "te2"
+                          : rcvr === this.offR.starters.te3 ? "te2"   // rare: 3rd TE → te2 sprite
                           : rcvr === this.offR.starters.rb  ? "rb"
-                          : rcvr === this.offR.starters.rb2 ? "rb"
-                          : rcvr === this.offR.starters.fb  ? "rb"
-                          // Defensive fallback by position — guarantees a
-                          // non-null tracked slot even for an unexpected name.
+                          : rcvr === this.offR.starters.rb2 ? "rb"    // rare: 2nd RB → rb slot
+                          : rcvr === this.offR.starters.fb  ? "rb"    // FB → backfield slot
+                          // Defensive fallback by position — guarantees an
+                          // always-present primary slot for an unexpected name.
                           : (() => {
                               const _pos = this._playerByName.get(rcvr)?.position;
                               return _pos === "TE" ? "te"
@@ -5744,8 +5756,12 @@ class GameSimulator {
       // the "WR teleports to the ball" report on dropped slot passes.
       const _incTargetSlot = rcvr === this.offR.starters.wr1 ? "wr1"
                            : rcvr === this.offR.starters.wr2 ? "wr2"
-                           : rcvr === this.offR.starters.wr3 ? "wr2"
+                           : rcvr === this.offR.starters.wr3 ? "wr3"
+                           : rcvr === this.offR.starters.wr4 ? "wr4"
+                           : rcvr === this.offR.starters.wr5 ? "wr4"
                            : rcvr === this.offR.starters.te  ? "te"
+                           : rcvr === this.offR.starters.te2 ? "te2"
+                           : rcvr === this.offR.starters.te3 ? "te2"
                            : rcvr === this.offR.starters.rb  ? "rb"
                            : null;
       const _incScaledMs = Math.max(2200, Math.min(11500, Math.abs(Math.max(targetDepth, 8)) / 12 * 1000 + 1000));
