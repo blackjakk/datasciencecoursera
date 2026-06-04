@@ -673,35 +673,108 @@ End-to-end validation (engine→playLog→`_mffComputeEPA`, 1-season round-robin
   probability constraints (Σ WPA across teams ≠ 0 over a season), which
   drags team-level WPA aggregates down. Per-play WPA is correct in shape.
   Proper fix is GBM/logistic smoothing of the bake (future work).
+- `_mff_bake_xcomp.js [seasons]` — re-bake the skill-free expected-
+  completion table for CPOE (Slice D). Outputs `/tmp/mff_xcomp_baked.js`.
+  6 cells (depth × pressure). Re-run if the engine's completion model
+  changes materially.
 - `_mff_press_probe.js` — pressure-distribution probe for the xPressure consts.
+- `/tmp/mff_prof.js` — paste-into-devtools-console UI profiler (wraps the
+  hot render functions, prints a sorted timing table). Built during the
+  perf pass; not committed (throwaway diagnostic).
 
-## Next steps (planned, not built)
-Order = cheapest/most-defensible first, each behind the same flag + A/B gate:
-1. ~~**Run-block / run-stuff**~~ — ✅ DONE (slice #2).
-2. ~~**Coverage (CB / cover-LB)**~~ — ✅ DONE (slice #3). Safeties excluded
-   (not directly targeted — see finding #3).
-3. ~~**EPA layer (team / QB / WR / RB)**~~ — ✅ DONE (`_mff_epa.js`). Possible
-   follow-ups: WPA (win-probability added), DVOA-style opponent adjustment.
-4. ~~**LB run-defense tackling**~~ — ✅ ASSESSED: noise under Arch-A (r≈0.00). A
-   tackle-skill engine tweak was attempted to route credit to the better run-defender
-   within a team, but it was NOT calibration-neutral (the credited tackler steers
-   `_bumpHitWear` injury/penalty RNG → full desync + perturbed injury bands) and was
-   reverted — see "Engine fixes → Fix 2." Even if it had been safe, LB run-D stays
-   EXCLUDED as a structural category error: a team's LB tackles are ~fixed by play
-   volume + context, so within-team reshuffling can't create cross-league signal
-   (same reason PFF doesn't grade LBs from box scores). The LB UI grade is coverage-
-   only (cover-LB from slice #3).
-5. ~~**Franchise UI surface — Slice A grades + Slice B EPA**~~ — ✅ DONE. Player
-   chips in `_buildStatScopeBlock`; team EPA in the win-prob matchup compare;
-   per-season EPA summaries frozen at rollover. See the "Franchise UI" section
-   above for architecture + validation.
+## Done ledger (everything shipped, newest first)
+Each line = one shipped, validated, pushed unit. Commits on branch
+`claude/football-sim-blockchain-game-b3sdq`.
+
+ENGINE ATTRIBUTION (calibration-safe, A/B byte-identical proven):
+- ✅ Slice #1 — pass-rush / pass-protection grades
+- ✅ Slice #2 — run-block / run-stuff grades
+- ✅ Slice #3 — coverage grades (CB / cover-LB)
+- ✅ Fix 1 — latent pressure-log bug (visual-only, calibration-safe)
+- ❌ LB run-defense tackling — ASSESSED + EXCLUDED (structural category
+  error; tackle-skill engine tweak attempted, found NOT calibration-
+  neutral, reverted — see "Engine fixes → Fix 2")
+
+OFFLINE AUDIT TOOLS:
+- ✅ `_mff_audit.js` — grades + leaderboards + validation
+- ✅ `_mff_epa.js` — EPA leaderboards + validation
+
+LIVE FRANCHISE UI (Slices A-I, all shipped this session):
+- ✅ A — live PFF-style grades (player chips)
+- ✅ B — live EPA (team / QB / WR / RB) + retained per-play log
+- ✅ C — WP / WPA / real FO Success Rate + top-swings + Player-of-Game data
+- ✅ D — CPOE (skill-free baked xComp)
+- ✅ E — DVOA-style opponent adjustment + SOS
+- ✅ F — live WP curve SVG + Player-of-the-Game callout + signature-plays board
+- ✅ G — analytics coaching AI (4th-down chart) [ENGINE CHANGE, behavioral]
+- ✅ H — production-based player development [offseason flow change]
+- ✅ I — awards voting by EPA + WPA + grades
+
+PERF (post Slice I): ✅ 5 commits, see "UI performance pass" above.
+
+## UI performance pass (post Slice I)
+
+After Slices A-I shipped, the franchise UI felt laggy. Investigated +
+fixed in five commits. The lesson: the MFF additions were a minor
+contributor; the dominant cause was a pre-existing CSS issue that the
+new content happened to expose. Diagnostic order mattered — JS profiling
+(via a paste-into-console tracer) ruled out render time FIRST (27ms,
+fast), which redirected the hunt to paint/composite cost.
+
+Fixes, in order shipped:
+1. **`407fec9` — memoize `mffPostGameWPBlock` + `mffGameWPCurve`.** These
+   ran on every dashboard render via `_buildPostGameHeadline`, each
+   walking the full ~34k-entry playLog + rebuilding the WP-curve SVG.
+   Measured cold cost 330ms → 0.002ms cached (172,773x). Cache keyed on
+   (userTeamId, season, playLog length, recent-game-week).
+2. **`680e5c8` — `content-visibility:auto` on `.frn-card-box`.** Defers
+   paint of off-screen dashboard cards. Helped marginally.
+3. **`6b66d5f` — news feed + bottom ticker.** `.frn-wire-item` gets
+   content-visibility (500-item list culls off-screen paint);
+   `.frn-wire-scroll` gets `contain: layout style paint`;
+   `.bspnlive-ticker-inner` gets `will-change: transform` (the 60s marquee
+   wasn't GPU-composited → main-thread paint every frame).
+4. **`fb7efa3` — DISABLE body opacity flicker (THE FIX).** `body {
+   animation: crt-flicker 6s infinite }` animated opacity on the entire
+   <body>, forcing a full-viewport repaint+recomposite every animation
+   frame, forever. This was the load-bearing cause of page-wide lag
+   (scroll stutter, slow hover, sluggish clicks) AND the "floating
+   players" in gameplay (dropped PIXI frames desync'd players from their
+   shadows). Commented out; keyframes kept for a future fixed-overlay
+   reimplementation. CRT look preserved via scanlines + phosphor text-shadows.
+
+Audit also surveyed but did NOT action (not worth the risk/effort yet):
+- `.crt-scanlines` uses `mix-blend-mode: multiply` over a fullscreen
+  overlay — a known paint hog; candidate next fix if lag returns. Could
+  swap for plain `opacity` with near-identical look.
+- `showFranchiseDashboard()` is called from ~58 sites, each a full
+  dashboard rebuild (~27ms). A section-level partial-render refactor
+  would be the big architectural win but is multi-day + regression-risky.
+- `_drawPlayerShadow` (`play-render.js:512`) allocates a fresh
+  `createRadialGradient` per-player per-frame (~1300 gradients/sec at
+  22 players × 60fps) — cacheable by (bulk, scale, alpha). Minor.
+- 24 infinite CSS animations on small elements (individually fine); could
+  gate via IntersectionObserver to pause off-screen ones.
+- 121 box-shadows (not animated, one-time cost — fine).
+
+NONE of the gameplay-rendering files (`play-player-pixi.js`,
+`play-motion.js`, the player-draw paths in `play-render.js`) were
+touched by the MFF work — the gameplay lag was a symptom of the body
+flicker, not an MFF regression.
 
 ## Future work (not built)
-- **WPA (win-probability added)** — uses the same retained `playLog`; needs an
-  empirical WP model (could be baked via the same approach as the EP table).
-- **Signature plays of the season** — top-N biggest-EPA plays per team/player,
-  reusing the retained log; pairs naturally with the existing replay highlights.
-- **DVOA-style opponent adjustment** — adjusts EPA for the strength of the
-  opposing defense / offense.
+- **WP-table refit (logistic / GBM smoothing).** The empirical WP bake
+  isn't a calibrated probabilistic forecast — per-play WPA is correct in
+  shape but multi-game aggregates carry ~±1 WPA/team of noise (documented
+  in Slice C). Refitting the bake as a smoothed model would tighten the
+  team-WPA-↔-wins correlation from r≈0.4-0.8 to the theoretical ~1.0.
+- **CPOE pressure sensitivity (engine).** The xComp bake (Slice D) found
+  pressure barely affects completion in this engine (76.7% pressured vs
+  75.2% clean — opposite of NFL's ~15pt drop). An xPressure recalibration
+  would make CPOE reflect pressure-handling, not just depth-selection.
+  Engine change → needs its own A/B gate.
 - **Safety run-support grade** — would need engine work to attribute
   run-support snaps to safeties; currently they have no defensible grade.
+- **Scanlines `mix-blend-mode` perf fix** — see UI performance pass above.
+- **Section-level dashboard re-render refactor** — the biggest remaining
+  perf lever; deferred as high-effort / high-risk.
