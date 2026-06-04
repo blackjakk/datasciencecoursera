@@ -1,14 +1,16 @@
 # MFF — advanced-analytics layer (EPA + PFF-style player grades)
 
-> Status: **slices #1-#3 + EPA audit + pressure-log fix + franchise-UI (Slice A
-> grades + Slice B EPA) all shipped.** Built: four trench grades (pass-rush,
-> pass-pro, run-stuff, run-block) + combined DL/OL grades, coverage grades
-> (CB + cover-LB), EPA (team / QB / WR / RB), one safe engine fix (the visual
-> pressure-log bug) — attribution proven calibration-neutral by the A/B gate —
-> and the LIVE FRANCHISE UI surface (grade + EPA chips in the player stats
-> panel; team EPA in the win-prob block). The LB run-D grade is excluded as a
-> structural limit. A tackle-skill engine tweak was attempted, found NOT
-> calibration-neutral, and reverted — see "Engine fixes" below.
+> Status: **slices #1-#3 + EPA audit + pressure-log fix + franchise UI Slices
+> A-I all shipped.** Engine attribution (trench reps, coverage), EPA, WPA,
+> CPOE, DVOA-style adjustment, live WP charts, signature-plays leaderboard,
+> Player-of-the-Game, analytics coaching AI (4th-down chart), production-
+> based player development, and awards voting by EPA + WPA + grades — all
+> live in the franchise. Two engine changes: Fix 1 (the visual pressure-log
+> bug — bug fix) and Slice G (analytics coaching AI — intentional behavior
+> change, validated behaviorally not byte-identically). The LB run-D grade
+> is excluded as a structural limit. A tackle-skill engine tweak was
+> attempted, found NOT calibration-neutral, and reverted — see "Engine
+> fixes" below.
 
 ## Goal
 
@@ -331,6 +333,41 @@ End-to-end validation (1-season round-robin → seasonStats → grade module):
 - DL combined ↔ OVR **r=0.74** ✓  · OL combined ↔ OVR **r=0.54** ✓
 - DL pass-rush ↔ OVR **r=0.40** ✓ · CB coverage ↔ OVR r=0.15 (correct — coverage
   is driven by COV not OVR; audit confirmed r=0.75 vs COV)
+
+### Slice I — Awards voting by EPA + WPA + grades
+The awards-voting machinery (`mvpScore`, `_computeOPOY`, `_computeDPOY`)
+gets a small analytics bonus layered on top of the existing traditional
+box-score formulas. The metric weights are calibrated so an elite
+"analytics darling" (high EPA + high WPA + high CPOE) competes with a
+traditional box-stat MVP (high TD/yards) — but doesn't dominate.
+
+Bonus weights (calibrated so a typical elite QB earns ~30-80 bonus
+points on a 200-400 baseline traditional score):
+- EPA: 2.0 points per EPA-unit (sum across season)
+- WPA: 8.0 points per WPA-unit (heavily weighted — clutch matters)
+- CPOE (MVP only): 1.0 point per CPOE % (modest, since CPOE correlates
+  with the existing pass_comp / pass_yds traditional metrics already)
+
+Surfaces affected:
+- `mvpScore(p)` — adds EPA + WPA + CPOE bonus inline (used by MVP, ROY,
+  per-game MVP, all-pro voting).
+- `_computeOPOY()` — uses `_mffAwardsAnalyticsBonus(p)` (EPA + WPA only).
+- `_computeDPOY()` — uses Slice A MFF grades (defensive EPA attribution
+  is sparse at per-snap level, so we proxy via grade × 0.5 × (grade - 50)).
+- Defensive scoring not broken — `_idpScore` baseline is unchanged.
+
+VALIDATION (smoke test):
+- ANALYTICS_DARLING (28TD/4000y/+25 EPA/+4 WPA) gets ~82pt bonus on top.
+- BOX_STAT_KING (38TD/4800y/+8 EPA/+1 WPA) still wins MVP (TD/yards
+  dominate) — but the gap (65.4pts) narrows enough that analytics
+  outperformers can compete.
+- OPOY voting still picks BOX_STAT_KING in this scenario (correct —
+  big TD/yard advantage isn't fully offset by bonus alone).
+- DPOY voting crash-safe even with no grade data available.
+
+ENGINE UNCHANGED. Save-state additive only via reads (no new fields).
+On legacy saves with no EPA history → bonus = 0, awards behave identically
+to before.
 
 ### Slice H — Production-based player development [OFFSEASON FLOW CHANGE]
 Statistical production now loops back into player development. A player

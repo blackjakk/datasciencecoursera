@@ -8107,6 +8107,31 @@ function mvpScore(p) {
   // Kicker
   s += (p.fg_made       || 0) * 2
      + (p.xp_made       || 0) * 0.5;
+  // MFF Slice I: analytics bonus. Adds EPA + WPA + clutch CPOE on top
+  // of the traditional box-score score. The weights are calibrated so a
+  // typical elite QB (≈+15 EPA, +5 WPA) earns ~30-40 bonus points —
+  // sizable but doesn't dominate the traditional 200-400 baseline. This
+  // makes "analytics darlings" (high CPOE / high WPA in close games)
+  // compete with traditional counting-stat MVPs.
+  if (typeof mffEPAFor === "function" && p.name) {
+    try {
+      const r = mffEPAFor(p.name);
+      if (r) {
+        // EPA: 2 points per EPA-unit (sum across season). 15 EPA → +30.
+        s += (r.epa || 0) * 2.0;
+        // WPA: 8 points per WPA-unit (heavily weighted — clutch matters
+        // for MVP). 5 WPA → +40.
+        s += (r.wpa || 0) * 8.0;
+        // CPOE bonus for QBs (only QBs have attComp): 1 point per CPOE
+        // percentage point. +5% CPOE → +5. Modest, since CPOE correlates
+        // with the existing pass_comp/yds metrics already.
+        if (r.kind === "qb" && r.attComp >= 30) {
+          const cpoePct = ((r.actComp - r.xComp) / r.attComp) * 100;
+          s += cpoePct * 1.0;
+        }
+      }
+    } catch (e) { /* defensive — never block MVP vote */ }
+  }
   return s;
 }
 
@@ -9869,6 +9894,18 @@ function _computeGameOfYear() {
   return best;
 }
 
+// MFF Slice I helper: analytics bonus for a player (EPA + WPA, scaled to
+// be comparable to the box-score baseline). Shared by OPOY/DPOY (MVP has
+// its own inline copy with CPOE).
+function _mffAwardsAnalyticsBonus(p) {
+  if (!p || !p.name || typeof mffEPAFor !== "function") return 0;
+  try {
+    const r = mffEPAFor(p.name);
+    if (!r) return 0;
+    return (r.epa || 0) * 2.0 + (r.wpa || 0) * 8.0;
+  } catch (e) { return 0; }
+}
+
 // Offensive Player of the Year — best offensive production × team success.
 function _computeOPOY() {
   let best = null;
@@ -9883,7 +9920,9 @@ function _computeOPOY() {
       const offScore = (p.pass_td||0)*6 + (p.pass_yds||0)*0.05 + (p.pass_comp||0)*0.30
                      - (p.pass_int||0)*4 + (p.rush_td||0)*6 + (p.rush_yds||0)*0.08
                      + (p.rec_td||0)*6 + (p.rec_yds||0)*0.10 + (p.rec||0)*0.5;
-      const s = offScore * teamMul;
+      // MFF Slice I: analytics bonus (EPA + WPA). Sized so elite analytic
+      // outperformers compete with traditional box-stat leaders.
+      const s = (offScore + _mffAwardsAnalyticsBonus(p)) * teamMul;
       if (!best || s > best.score) best = { ...p, teamId: tid, score: s };
     }
   }
@@ -9901,7 +9940,23 @@ function _computeDPOY() {
     const teamMul = 0.6 + winPct * 0.8;
     for (const p of Object.values(players)) {
       if (!["DL","LB","CB","S"].includes(p.pos)) continue;
-      const s = _idpScore(p.pos, p) * teamMul;
+      // MFF Slice I: defensive analytics bonus — flip sign since the EPA
+      // a defender "produces" comes from the offense FACING them. Negative
+      // EPA-allowed on plays where this defender was the tackler / target
+      // / coverage = good defense. We use the player's grade as a proxy
+      // for now since per-play defensive EPA attribution is sparse.
+      let analytics = 0;
+      if (typeof _mffComputeLeagueGrades === "function") {
+        try {
+          const grades = _mffComputeLeagueGrades();
+          const g = grades?.[p.name];
+          if (g) {
+            const v = g.combinedGrade ?? g.coverGrade ?? g.passRushGrade ?? g.runStuffGrade;
+            if (typeof v === "number") analytics = Math.max(0, v - 50) * 0.5;
+          }
+        } catch (e) { /* defensive */ }
+      }
+      const s = (_idpScore(p.pos, p) + analytics) * teamMul;
       if (!best || s > best.score) best = { ...p, teamId: tid, score: s };
     }
   }
