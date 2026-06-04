@@ -541,6 +541,23 @@ function _drawPlayerShadow(ctx, x, y, style, pose) {
   ctx.restore();
 }
 
+// Relative luminance (0..1) of a CSS hex / rgb color — picks black vs white
+// jersey-number text on a dot. Defaults dark on parse failure.
+function _dotLum(c) {
+  if (typeof c !== "string") return 0;
+  let r = 0, g = 0, b = 0;
+  const hex = c.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    let h = hex[1];
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    const n = parseInt(h, 16); r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255;
+  } else {
+    const m = c.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+    if (m) { r = +m[1]; g = +m[2]; b = +m[3]; }
+  }
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
 function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
   // Non-finite position guard. A bad x/y (NaN/Infinity from an
   // uninitialized velocity, a divide-by-zero, etc.) makes every draw
@@ -609,6 +626,43 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   // pose") → falls through to the suppressed procedural path →
   // player vanishes. Idle has a sprite for all 8 dirs.
   if (pose == null || pose === "") pose = "idle";
+  // ── TOP-DOWN DOT MODE ─────────────────────────────────────────────────
+  // In the flat top-down camera, draw each player as a simple dot instead
+  // of the full sprite — a clean "tactical" read where you just track where
+  // everyone is. Broadcast cam is unaffected (it routes players through PIXI,
+  // not this canvas2D path). Kill-switch: window.GC_TOPDOWN_DOTS = false
+  // restores the top-down sprites. x,y are already continuity-smoothed above.
+  if ((typeof cameraMode !== "undefined" && cameraMode === "topdown")
+      && (typeof window === "undefined" || window.GC_TOPDOWN_DOTS !== false)) {
+    const dotR = 10;
+    const fill = color || "#9aa0aa";
+    ctx.save();
+    // ground shadow
+    ctx.beginPath();
+    ctx.ellipse(x, y + dotR * 0.55, dotR * 0.95, dotR * 0.4, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fill();
+    // body dot
+    ctx.beginPath(); ctx.arc(x, y, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = secondary || "rgba(0,0,0,.6)"; ctx.stroke();
+    // jersey number (only short numeric labels — names would overflow)
+    const txt = label != null ? String(label) : "";
+    if (txt && txt.length <= 2 && /^[0-9]+$/.test(txt)) {
+      ctx.fillStyle = _dotLum(fill) > 0.55 ? "#111" : "#fff";
+      ctx.font = `bold ${Math.round(dotR * 1.1)}px ui-monospace, Menlo, monospace`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(txt, x, y + 0.5);
+    }
+    ctx.restore();
+    // Minimal carry sink so drawBall still finds the carrier and the ball
+    // sits on the right dot (foot==center for a dot; no chest offset).
+    drawPlayer._carryHandSink = drawPlayer._carryHandSink || {};
+    drawPlayer._carryHandSink[style.name || ("p_" + label)] = {
+      x, y, footX: x, footY: y, frameMs: performance.now(), pose,
+    };
+    return;
+  }
   // Derive locomotion-driven pose-t and facing from per-player position
   // deltas. Caller's t and facing are used as fallback / for non-
   // locomotion poses. Cache update happens every frame (regardless of
