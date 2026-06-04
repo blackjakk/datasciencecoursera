@@ -712,6 +712,33 @@ LIVE FRANCHISE UI (Slices A-I, all shipped this session):
 
 PERF (post Slice I): ✅ 5 commits, see "UI performance pass" above.
 
+LIVE GAME PRESENTATION (post-perf session):
+- ✅ Receiver-catch teleport fix (map ALL receivers to a tracked slot) —
+  diagnosed headlessly over 4k completions; deep-ball teleport 5.3%→0%.
+- ✅ DRIVE CHART tab — every play as a +/- bar at its TRUE field position
+  (home L→R, away R→L), colored by success/EPA via `_mffIsSuccess`/`_mffEP`
+  (the analytics layer, reused). Live + post-game. See below.
+- ✅ Top-down view = dots (one colored dot + jersey # per player) instead
+  of sprites; broadcast cam unchanged.
+- ✅ LED stadium ribbon / light beams hidden in top-down (broadcast-only
+  chrome was floating over the flat field).
+
+## Drive chart (analytics consumer)
+
+`DriveChartPanel` + `_buildDriveChartData(gr, head)` in play-broadcast.js.
+Walks `gameResult.plays` up to `playHead`, groups into drives
+(drive_summary markers + possession-change fallback + result inference from
+score/fg/punt markers), and lays each scrimmage play out as a horizontal
+bar on a 0-100 field at its real yard line. Geometry: home poss →
+fieldX=yardLine (drives right), away poss → fieldX=100−yardLine (drives
+left); bar spans [start, start+yards]; a bright LOS tick shows the snap
+side so gain vs loss direction reads. Color tiers from the analytics layer:
+TD / good (success) / ok (gain but stalled) / loss-fail / turnover. EPA
+shown in the per-bar tooltip (exact for non-terminal plays via next-snap
+EP delta; terminal play uses the drive-result EP). Memoized on `head`.
+Validated headlessly: drive grouping, field geometry, [0,100] bounds,
+tier + EPA population, clean HTML.
+
 ## UI performance pass (post Slice I)
 
 After Slices A-I shipped, the franchise UI felt laggy. Investigated +
