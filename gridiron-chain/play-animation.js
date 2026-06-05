@@ -5062,10 +5062,15 @@ function buildAnimForPlay(play, prevPlay) {
         }
         // INT — the picking defender races to the catch spot, then carries the ball back
         if (play.kind === "int" && i === intDefIdx) {
+          // Start the ease from the LAST RENDERED position (carries
+          // through any pre-snap coverage shift), not from formation
+          // home, so the first post-snap frame doesn't snap back.
+          const _intStartX = (typeof d._lastRenderedX === "number") ? d._lastRenderedX : d.x;
+          const _intStartY = (typeof d._lastRenderedY === "number") ? d._lastRenderedY : d.y;
           if (t < throwPhase) {
             const tt = Math.min(1, aT / (throwFrac));
-            dd.x = d.x + (targetX - d.x) * easeOutCubic(tt);
-            dd.y = d.y + (targetY - d.y) * easeOutCubic(tt);
+            dd.x = _intStartX + (targetX - _intStartX) * easeOutCubic(tt);
+            dd.y = _intStartY + (targetY - _intStartY) * easeOutCubic(tt);
           } else {
             dd.x = ballX;
             dd.y = ballY;
@@ -5087,10 +5092,14 @@ function buildAnimForPlay(play, prevPlay) {
         // covering defender of the targeted WR — same defender who
         // would've made the pick.
         if (play.isDroppedPick && i === intDefIdx) {
+          // Same pattern as INT — start from last rendered position so
+          // the pre-snap coverage shift carries through the snap.
+          const _dpStartX = (typeof d._lastRenderedX === "number") ? d._lastRenderedX : d.x;
+          const _dpStartY = (typeof d._lastRenderedY === "number") ? d._lastRenderedY : d.y;
           if (t < throwPhase) {
             const tt = Math.min(1, aT / (throwFrac));
-            dd.x = d.x + (targetX - d.x) * easeOutCubic(tt);
-            dd.y = d.y + (targetY - d.y) * easeOutCubic(tt);
+            dd.x = _dpStartX + (targetX - _dpStartX) * easeOutCubic(tt);
+            dd.y = _dpStartY + (targetY - _dpStartY) * easeOutCubic(tt);
             // Closer to throwPhase: reach pose, arms up for the ball.
             // Progress t once (arms come up and hold) — without an
             // explicit t the reach/catch sprite inherits the wall-clock
@@ -5117,6 +5126,10 @@ function buildAnimForPlay(play, prevPlay) {
         // the WR's hands close on it. Closes on the ball trajectory,
         // jumps at the catch moment, lands and watches the ball drop.
         if (_isPDPlay && i === intDefIdx) {
+          // Start ease from last rendered (pre-snap coverage shift)
+          // so the PD defender doesn't snap back to formation at t=PRE.
+          const _pdStartX = (typeof d._lastRenderedX === "number") ? d._lastRenderedX : d.x;
+          const _pdStartY = (typeof d._lastRenderedY === "number") ? d._lastRenderedY : d.y;
           if (t < throwPhase) {
             // Close on the CONTACT point — the WR's hands (targetX,targetY).
             // On a PD the throw is on-target (incOffset is 0), so the ball
@@ -5126,8 +5139,8 @@ function buildAnimForPlay(play, prevPlay) {
             const _pdBallY = targetY + incOffsetY;
             const tt = Math.min(1, aT / throwFrac);
             const _pdEaseT = easeOutCubic(tt);
-            dd.x = d.x + (_pdBallX - d.x) * _pdEaseT;
-            dd.y = d.y + (_pdBallY - d.y) * _pdEaseT;
+            dd.x = _pdStartX + (_pdBallX - _pdStartX) * _pdEaseT;
+            dd.y = _pdStartY + (_pdBallY - _pdStartY) * _pdEaseT;
             if (aT > throwFrac * 0.88) {
               dd.pose = "leap";   // rise up to contest the ball (windup)
               // Progress once into the leap (no explicit t → wall-clock
