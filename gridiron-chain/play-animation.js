@@ -4794,16 +4794,26 @@ function buildAnimForPlay(play, prevPlay) {
             }
             let _trkX = losX + dir * (sample.dxYd + _xYdShift) * FIELD.PX_PER_YARD;
             let _trkY = cy + sample.dyYd * FIELD.PX_PER_YARD;
-            // SAFETY ROTATION OUT OF THE TWO-HIGH DISGUISE — pre-snap both
-            // safeties showed a balanced two-high look (~11yd, ±9yd). The
-            // engine track's spot is the TRUE shell, so ease from the
-            // disguise to the track over the rotation window: in C3/C1 one
-            // safety visibly spins to the deep middle while the other rolls
-            // down (single-high), in C2/C4 they stay split (two-high). This
-            // is what makes the shells read differently post-snap.
-            if ((i === idxS1 || i === idxS2) && cov && cov !== "C0_BLITZ") {
-              const _disgX = losX + dir * 11 * FIELD.PX_PER_YARD;
-              const _disgY = cy + ((i === idxS1) ? -1 : 1) * 9 * FIELD.PX_PER_YARD;
+            // SAFETY ROTATION OUT OF PRE-SNAP LOOK — ease from wherever
+            // the safety was JUST rendered to the engine's track waypoint
+            // over the rotation window, regardless of coverage. The
+            // engine track's spot is the TRUE shell (one safety spins to
+            // deep middle in C3/C1, both hold in C2/C4, SS walks down in
+            // C0_BLITZ); easing from the pre-snap render makes the
+            // transition continuous instead of jumping to track-t=0.
+            // _lastRenderedX/Y is captured by _syncDefRendered after the
+            // prior frame's draw and reflects the actual pre-snap
+            // position (two-high disguise for non-blitz, walked-up for
+            // C0_BLITZ, anything else for custom shifts). Fallback to
+            // the legacy hardcoded disguise spot when no prior render
+            // exists (first frame of a play).
+            if (i === idxS1 || i === idxS2) {
+              const _disgX = (typeof d._lastRenderedX === "number")
+                ? d._lastRenderedX
+                : losX + dir * 11 * FIELD.PX_PER_YARD;
+              const _disgY = (typeof d._lastRenderedY === "number")
+                ? d._lastRenderedY
+                : cy + ((i === idxS1) ? -1 : 1) * 9 * FIELD.PX_PER_YARD;
               const _rotT = Math.min(1, aT / Math.max(0.001, throwFrac * 0.45));
               const _er = _rotT * _rotT * (3 - 2 * _rotT);   // smoothstep
               _trkX = _disgX + (_trkX - _disgX) * _er;
@@ -6201,6 +6211,15 @@ function buildAnimForPlay(play, prevPlay) {
           return dd;
         }
         if (t <= PRE) return dd;
+        // Carry last rendered position into dd's starting basis (Stage 4
+        // pattern, applied to the sack branch). Without this, the post-
+        // snap branch reads dd.x = d.x (formation) instead of the
+        // coverage-adjusted pre-snap render, teleporting any defender
+        // whose pre-snap shift differed from formation.
+        if (typeof d._lastRenderedX === "number") {
+          dd.x = d._lastRenderedX;
+          dd.y = d._lastRenderedY;
+        }
         const tt = (t - PRE) / (1 - PRE);
         // PATH B Phase 7 — engine-emitted sacker track wins for the
         // named DL/blitzer. Other DLs continue with the existing
