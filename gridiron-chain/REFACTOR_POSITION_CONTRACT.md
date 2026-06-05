@@ -3,10 +3,10 @@
 *Goal: close the entire "teleport" bug family in the play renderer, instead of
 discovering each seam by user report and patching it.*
 
-Status: **STAGES 0-6 SHIPPED — 77% reduction in egregious teleports
-(138 → 32). Snap teleport class structurally closed across runs and
-pass plays. Sack pre-snap-shift class closed.** See *Execution log*
-at the bottom.
+Status: **STAGES 0-8 SHIPPED — 93% reduction in egregious teleports
+(138 → 10). Runs structurally clean. Snap teleport class closed across
+all play kinds. Late-YAC overshoot teleport closed.** See *Execution
+log* at the bottom.
 The RB-target reference-frame patch (`eb67c82`) and the FG fixes
 (`b94f8c4`) were interim seam-patches that this refactor subsumes.
 
@@ -253,19 +253,23 @@ Usage: `node _teleport_capture.js 6` then `node _teleport_detect.js broadcast`
 
 ## Resume pointer
 
-- Stages 0-6 done. Egregious teleports down 77% (138 → 32). Runs clean;
-  pass-play snap teleports closed; sack pre-snap shifts closed; safety
-  rotation handles all coverages including C0_BLITZ.
+- Stages 0-8 done. **Egregious teleports down 93% (138 → 10).** Runs
+  clean; pass-play snap teleports closed; sack pre-snap shifts closed;
+  safety rotation handles all coverages including C0_BLITZ; INT / PD /
+  dropped-pick ease starts from pre-snap render; late-YAC overshoot
+  clamp closed.
 - The structural framework: every engine track's t=0 is the formation
   slot (or `_lastRenderedX/Y` for pre-snap-shifted defenders); every
   defender's `_sim` syncs to the rendered position each frame; every
-  offense slot's last rendered (x,y) is captured.
-- Remaining ~32 egregious plays cluster in narrower per-class issues
-  — see *What's NOT closed yet* below. Diminishing returns from broad
-  passes; each remaining class is best addressed with a targeted trace
-  via `_teleport_trace.js` against a specific failing play.
-- Interim patches already in: RB reference-frame remap `eb67c82`, FG sail/cheer
-  `b94f8c4`. Both are subsumed by Stages 2-3.
+  offense slot's last rendered (x,y) is captured; post-catch `_wrLastX`
+  tracks the sim, not the still-running route.
+- Remaining ~10 egregious plays are scattered per-play edge cases, not
+  patterns — see *What's NOT closed yet* below. Diminishing returns
+  from broad passes; each remaining issue is best addressed with a
+  targeted trace via `_teleport_trace.js` against a specific failing
+  play.
+- Interim patches already in: RB reference-frame remap `eb67c82`,
+  FG sail/cheer `b94f8c4`. Both are subsumed by Stages 2-3.
 
 ---
 
@@ -399,6 +403,60 @@ init pattern to the sack branch (`def.map` at ~6204).
 Safety / incomplete-wr* snap teleports largely closed. `sack/-`
 went from 6 worst 9.5yd to 1 worst 6.5yd.
 
+### Stage 7 — `5e0f817` — INT / dropped-pick / PD ease starts from last rendered
+
+Three coupled sites in the pass-play `def.map` (INT defender at line
+5067, dropped pick at 5092, PD defender at 5129) used the same broken
+pattern:
+
+```js
+dd.x = d.x + (target - d.x) * easeOutCubic(tt)
+```
+
+`d.x` is the FORMATION home. Stage 4's `dd` init had set
+`dd.x = d._lastRenderedX` (the coverage-shifted pre-snap render),
+but these three lines OVERWROTE that with `d.x` every frame. So at
+`t = PRE+ε` the defender jumped from his press/disguise position
+back to formation, then started the ease to the ball.
+
+Flagged at f270 in the `incomplete/-` class with jumps to 21.6yd.
+
+**Fix:** capture `_lastRenderedX/Y` as `_intStartX`, `_dpStartX`,
+`_pdStartX` and ease from there.
+
+**Results:** 32 → 14 (−56% vs Stage 6, **−90% vs baseline**).
+
+### Stage 8 — `6735fd6` — Post-catch `_wrLastX` tracks `_wrSim`, not route
+
+Post-catch, line 4004 unconditionally wrote `_wrLastX = wr.x`. But
+`wr.x` at that point was the still-advancing ROUTE position (from
+the route branch at 3899+). The post-catch branch at line 4251 then
+overrode `wr.x = ballX = _wrSim.x`; the override never propagated
+back to `_wrLastX`.
+
+Downstream, `_catchX = _wrLastX` is recomputed every frame; the
+route's projection keeps advancing along YAC waypoints while
+`_wrSim.x` diverges (different speed model). When the route's
+`_wrLastX` crosses `_effEndX`, `_carrySign` flips and the overshoot
+clamp at line 4233 fires:
+
+```js
+if ((_wrSim.x - _effEndX) * _carrySign > 0) {
+  _wrSim.x = _effEndX;   // teleports sim back to engine endpoint
+}
+```
+
+The sprite jumps from wherever the sim had drifted (often 8-16 yd
+past `_effEndX`) back to `_effEndX` in one frame. Detector flagged
+this as `complete/wr1` / `wr2` / `te` at f421-f534 with jumps to
+16 yd.
+
+**Fix:** after `wr.x = ballX` in the post-catch branch, also write
+`_wrLastX = wr.x`. `_wrLastX` now tracks the sim instead of the
+still-running route.
+
+**Results:** 14 → 10 (−29% vs Stage 7, **−93% vs baseline**).
+
 ---
 
 ## Pre-refactor session fixes (this session, not Stage work)
@@ -449,44 +507,39 @@ tackler↔carrier distance, role, position at impact.
 | 3 | `1b0df9c` | 119 | **0/6** | none |
 | 4 | `c2c8b08` | 55 | 0/6 | none |
 | 5 | `d0a1955` | 61 | 0/6 | none |
-| 6 | `49ae992` | **32** | 0/6 (1/6 in re-capture variance) | 18 yd outlier |
+| 6 | `49ae992` | 32 | 0/6 (1/6 variance) | 18 yd outlier |
+| 7 | `5e0f817` | 14 | 0/6 | none |
+| 8 | `6735fd6` | **10** | 0/6 | none |
 
 `(Stage 3's 119 vs Stage 2's 107 is capture variance — the run-play
 composition flipped to clean, which is the durable signal.)`
 
 ---
 
-## What's NOT closed yet (after Stage 6)
+## What's NOT closed yet (after Stage 8)
 
-Per the detector's class breakdown after Stage 6, ~32 egregious plays
-remain. They cluster in narrower per-class issues:
+Per the detector's class breakdown after Stage 8, ~10 egregious plays
+remain. They are narrow per-play edge cases, not patterns:
 
-1. **Post-incompletion ball-deflection / late cleanup** at f270+
-   (`incomplete/-` × 1-4 plays worst 21.6yd). Defender's late-play
-   repositioning when the ball is batted down; player jumps cross-
-   field to a ball location.
-2. **Late YAC handoff** at f430-f534 (`complete/wr1` × 5 worst 16.3yd,
-   `complete/wr2` × 1 worst 7.5yd). Catch-frame `_wrSim` init reads
-   `_wrLastX` correctly, but some edge case in the LATE post-catch
-   pursuit / tackle clamp re-sets position.
-3. **NB/slot-coverage snap teleport** on incomplete passes at f131
-   (`incomplete/wr3` × 5 worst 10.4yd, `incomplete/wr1` × 2-3 worst
-   9.5yd). The nickel back doesn't enter the safety-rotation ease,
-   the CB1/CB2 specific code, or `_applySecondary` — so its
-   pre-snap coverage shift isn't smoothed through the snap. Fix
-   shape: extend the rotation pattern to NB / slot DBs.
-4. **Punt coverage** (`punt/-` × 1-2 plays worst 6.9yd). Special-
-   teams unit doesn't use the contract yet.
-5. **Run play edge case** (`run/-` × 1-2 plays worst 18.7yd at f168).
-   Re-emerged in some capture batteries; likely a defender's track
-   handoff to pursuit on a specific run direction. Was 0 in earlier
-   captures — borderline.
+1. **Single `incomplete/-` outlier** at f312 (~18yd). Late-play
+   defender repositioning, likely the ball-deflection cleanup phase
+   on a single specific play.
+2. **Single `sack/-`** at f131 worst 14.3yd. An LB blitzer's
+   pre-snap-walked-up position transitions to the engine sacker track
+   without a rotation ease. Fix shape: extend the Stage 6 safety
+   rotation ease to LBs in the sack branch.
+3. **Few `complete/wr1`** at f448 worst 10.5yd. A residual late YAC
+   case (one specific play type — Stage 8 closed most).
+4. **Few `complete/rb`** at f185 worst 8yd. RB checkdown — the
+   borderline class (16 plays at 5.3yd) suggests the route-to-sim
+   handoff timing for RB targets differs from WR targets.
+5. **`punt/-`** at f227 worst 10.9yd. Special-teams unit doesn't
+   use the contract yet.
 
-Each follows the same Family-A pattern as Stages 1-6: capture
-rendered position → init from there at the phase boundary. Each is
-localized (~10-30 lines).
+Each follows the same Family-A pattern as Stages 1-8. None
+require structural rework; each is a localized 10-30 line fix
+similar to the ones already shipped.
 
-**Diminishing returns set in around Stage 5-6**: the cheap structural
-wins are taken; remaining bugs are per-class edge cases. The detector
-harness lets each be diagnosed in isolation when a real user report
-points at one.
+**Diminishing returns** apply: the cheap structural wins are taken;
+remaining bugs are per-play edge cases. The detector harness lets
+each be diagnosed when a user report points at one.
