@@ -5498,7 +5498,16 @@ function buildAnimForPlay(play, prevPlay) {
             // then skipped velocity init → `_followVX += ...` = NaN →
             // the player drew at NaN and VANISHED for the rest of the
             // play. Init velocities whenever they're missing.
-            if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
+            // Init from PREVIOUSLY RENDERED position so a player
+            // transitioning from route/pass-block phase to post-catch
+            // downfield-blocker phase doesn't snap back to formation
+            // home. _lastRenderedX is captured at the end of this
+            // map() each frame. Same pattern as Stage 3 run-play
+            // celebration init.
+            if (p._followX == null) {
+              p._followX = p._lastRenderedX ?? p.x;
+              p._followY = p._lastRenderedY ?? p.y;
+            }
             if (p._followVX == null) { p._followVX = 0; p._followVY = 0; }
             // Frame-time factor — _followVX is px-per-60fps-frame, but the
             // position step below runs once per RENDER frame. Drive it off
@@ -5701,6 +5710,19 @@ function buildAnimForPlay(play, prevPlay) {
         }
         return { ...p, pose: "idle", facing: dir };
       });
+      // Capture each offense slot's RENDERED position. The post-catch
+      // downfield-blocker / TD-celebration init at line ~5501 reads
+      // p._followX (initialized from p._lastRenderedX) so a player
+      // transitioning from route-phase to post-catch phase doesn't
+      // snap back to formation home. Mirrors the Stage 3 run-play
+      // capture. formation.offense order matches the map (no filter).
+      for (let _k = 0; _k < formation.offense.length && _k < off.length; _k++) {
+        const _fp = formation.offense[_k];
+        const _r  = off[_k];
+        if (!_r || typeof _r.x !== "number" || typeof _r.y !== "number") continue;
+        _fp._lastRenderedX = _r.x;
+        _fp._lastRenderedY = _r.y;
+      }
       _syncDefRendered(def);
       drawPlayers(off, def);
       // Standalone ball visibility. The ball is drawn ONLY while it's a
