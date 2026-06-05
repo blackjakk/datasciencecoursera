@@ -1,0 +1,70 @@
+name: Teleport regression gate
+
+# Replays a deterministic (seeded) battery of plays through the real renderer
+# and fails if egregious (>=6yd/frame) player teleports exceed the committed
+# baseline (gridiron-chain/_teleport_baseline.json). Only runs when
+# position-critical files change.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "gridiron-chain/play-animation.js"
+      - "gridiron-chain/play-engine.js"
+      - "gridiron-chain/play-render.js"
+      - "gridiron-chain/play-motion.js"
+      - "gridiron-chain/play-data.js"
+      - "gridiron-chain/play-sim.js"
+      - "gridiron-chain/play-player.js"
+      - "gridiron-chain/_teleport_capture.js"
+      - "gridiron-chain/_teleport_detect.js"
+      - "gridiron-chain/_teleport_baseline.json"
+      - "gridiron-chain/_teleport_gate.sh"
+      - ".github/workflows/teleport-gate.yml"
+  pull_request:
+    paths:
+      - "gridiron-chain/play-animation.js"
+      - "gridiron-chain/play-engine.js"
+      - "gridiron-chain/play-render.js"
+      - "gridiron-chain/play-motion.js"
+      - "gridiron-chain/play-data.js"
+      - "gridiron-chain/play-sim.js"
+      - "gridiron-chain/play-player.js"
+      - "gridiron-chain/_teleport_capture.js"
+      - "gridiron-chain/_teleport_detect.js"
+      - "gridiron-chain/_teleport_baseline.json"
+      - "gridiron-chain/_teleport_gate.sh"
+      - ".github/workflows/teleport-gate.yml"
+
+jobs:
+  teleport-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: gridiron-chain
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm install -g playwright
+          playwright install --with-deps chromium
+
+      - name: Point the detector at the global Playwright
+        run: echo "PLAYWRIGHT_LIB=$(npm root -g)/playwright" >> "$GITHUB_ENV"
+
+      - name: Run teleport gate (seeded capture -> detect -> compare baseline)
+        run: ./_teleport_gate.sh
+
+      - name: Upload teleport report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teleport-report
+          path: /tmp/teleport_report.json
+          if-no-files-found: ignore

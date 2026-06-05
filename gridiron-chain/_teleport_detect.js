@@ -16,7 +16,14 @@
 // record (entity, x, y) per frame, stub the visual-only draws to no-ops, then
 // step render(t) over a frame grid. Real render path, no canvas-stub drift.
 const fs = require("fs");
-const PW_LIB = "/opt/node22/lib/node_modules/playwright";
+// Resolve Playwright portably: explicit env override (CI) → normal module
+// resolution (local/global install) → this environment's hardcoded path
+// (kept as the fallback so nothing changes here).
+const PW_LIB = (() => {
+  if (process.env.PLAYWRIGHT_LIB) return process.env.PLAYWRIGHT_LIB;
+  try { require.resolve("playwright"); return "playwright"; } catch (e) {}
+  return "/opt/node22/lib/node_modules/playwright";
+})();
 const { chromium } = require(PW_LIB);
 
 const URL = "http://localhost:5173/play.html";

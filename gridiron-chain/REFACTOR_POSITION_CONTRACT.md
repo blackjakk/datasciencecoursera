@@ -602,6 +602,20 @@ Artifacts:
   **11 egregious / 82 flags / 336 plays** at commit `f8d7012`.
 - `_teleport_gate.sh` — runs the seeded pipeline and exits 1 if egregious
   exceeds the baseline. Verified: passes at 11≤11, fails at 11>10.
+- `_teleport_detect.js` — Playwright path is now resolved portably
+  (`PLAYWRIGHT_LIB` env → module resolution → this env's hardcoded path), so
+  the detector runs in CI as well as here.
+
+Triggers (so the gate actually guards):
+- **Pre-commit hook** (`.githooks/pre-commit`, repo root) — fires only when
+  position-critical game files (`play-animation/engine/render/motion.js`) are
+  staged; runs the gate, blocks on regression (rc 1), warns-but-allows if the
+  harness is unavailable (rc 2). Install once: `git config core.hooksPath .githooks`.
+  Bypass a single commit with `git commit --no-verify`.
+- **GitHub Action** (`.github/workflows/teleport-gate.yml`) — installs
+  Playwright + Chromium, points the detector at the global install via
+  `PLAYWRIGHT_LIB`, runs the gate on push/PR that touch the watched paths, and
+  uploads `/tmp/teleport_report.json` as an artifact on failure.
 
 Re-baseline after a genuine improvement by lowering `egregious` in the JSON in
 the same commit as the fix. **Don't compare across seeds** — seed 99 is a

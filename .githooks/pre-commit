@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Pre-commit hook — teleport regression gate.
+#
+# Fires ONLY when position-critical gridiron-chain render/engine files are
+# staged, so it's a fast no-op for everything else. When it does fire it runs
+# the deterministic seeded gate (_teleport_gate.sh) and blocks the commit if
+# egregious teleports exceed the committed baseline.
+#
+# Install once (from repo root):   git config core.hooksPath .githooks
+# Bypass for one commit:           git commit --no-verify
+#
+# Exit handling: gate rc 1 = real regression (block); rc 2 = harness unavailable
+# (e.g. no Playwright on this machine) → warn but allow, since a missing harness
+# is not a regression.
+set -u
+
+WATCH='gridiron-chain/(play-animation|play-engine|play-render|play-motion)\.js'
+staged="$(git diff --cached --name-only)"
+if ! printf '%s\n' "$staged" | grep -qE "$WATCH"; then
+  exit 0   # nothing position-relevant changed
+fi
+
+echo "▶ pre-commit: position files staged — running teleport gate (seeded) ..."
+( cd "$(git rev-parse --show-toplevel)/gridiron-chain" && ./_teleport_gate.sh )
+rc=$?
+
+if [ "$rc" -eq 1 ]; then
+  echo ""
+  echo "✗ TELEPORT REGRESSION — egregious teleports exceed baseline. Commit blocked."
+  echo "  Detail: /tmp/teleport_report.json"
+  echo "  If this is an intentional, verified improvement, lower 'egregious' in"
+  echo "  gridiron-chain/_teleport_baseline.json in the same commit."
+  echo "  To bypass (not recommended): git commit --no-verify"
+  exit 1
+elif [ "$rc" -eq 2 ]; then
+  echo "⚠ teleport gate could not run (harness unavailable) — allowing commit."
+  exit 0
+fi
+exit 0
