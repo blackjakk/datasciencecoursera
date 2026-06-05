@@ -2662,9 +2662,11 @@ function buildAnimForPlay(play, prevPlay) {
               dd.t = tt;
             }
           } else {
-            // Fallback — hold at formation with jitter
-            dd.x = d.x + Math.sin(tt * Math.PI * 6 + i * 0.4) * 1.5;
-            dd.y = d.y + wobble;
+            // Fallback — hold at last-rendered (pre-snap shift) with jitter
+            const _dlBaseXR = (typeof d._lastRenderedX === "number") ? d._lastRenderedX : d.x;
+            const _dlBaseYR = (typeof d._lastRenderedY === "number") ? d._lastRenderedY : d.y;
+            dd.x = _dlBaseXR + Math.sin(tt * Math.PI * 6 + i * 0.4) * 1.5;
+            dd.y = _dlBaseYR + wobble;
             dd.pose = "engage";
             dd.archetype = _archForLineman(d, "DL");
             dd.t = tt;
@@ -4571,8 +4573,12 @@ function buildAnimForPlay(play, prevPlay) {
             const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
             const _postThrowT_dl = aT > throwFrac ? Math.min(1, (aT - throwFrac) / Math.max(0.001, 1 - throwFrac)) : 0;
             const _postPushExtra = _postThrowT_dl * 3 + Math.sin(aT * Math.PI * 5 + d.y * 0.09) * _postThrowT_dl * 1.5;
-            dd.x = d.x - dir * (_engagePush + _postPushExtra) + wobble * 0.6;
-            dd.y = d.y + wobble;
+            // Base from last rendered (Stage 4 pattern) so pre-snap shifts
+            // carry through this fallback path too.
+            const _dlBaseX = (typeof d._lastRenderedX === "number") ? d._lastRenderedX : d.x;
+            const _dlBaseY = (typeof d._lastRenderedY === "number") ? d._lastRenderedY : d.y;
+            dd.x = _dlBaseX - dir * (_engagePush + _postPushExtra) + wobble * 0.6;
+            dd.y = _dlBaseY + wobble;
             dd.pose = "engage";
             dd.t = tt;
             dd.archetype = _archForLineman(d, "DL");
@@ -6296,8 +6302,10 @@ function buildAnimForPlay(play, prevPlay) {
             } else {
               const wig = Math.sin(tt * Math.PI * 1.5 + i) * 1.2;
               const fwdProgress = isPrimary ? Math.min(3, tt * 4) : 0;
-              dd.x = d.x + dir * fwdProgress;
-              dd.y = d.y + wig;
+              const _dlBaseX2 = (typeof d._lastRenderedX === "number") ? d._lastRenderedX : d.x;
+              const _dlBaseY2 = (typeof d._lastRenderedY === "number") ? d._lastRenderedY : d.y;
+              dd.x = _dlBaseX2 + dir * fwdProgress;
+              dd.y = _dlBaseY2 + wig;
             }
             dd.pose = "engage";
             // Hold the engage pose on frame 0 (was wall-clock cycling
@@ -6386,8 +6394,10 @@ function buildAnimForPlay(play, prevPlay) {
               dd.y = d._sackEng.defenderY;
             } else {
               const wig = Math.sin(tt * Math.PI * 1.2 + i * 0.7) * 1.0;
-              dd.x = d.x + wig * 0.5;
-              dd.y = d.y + wig;
+              const _dlBaseX3 = (typeof d._lastRenderedX === "number") ? d._lastRenderedX : d.x;
+              const _dlBaseY3 = (typeof d._lastRenderedY === "number") ? d._lastRenderedY : d.y;
+              dd.x = _dlBaseX3 + wig * 0.5;
+              dd.y = _dlBaseY3 + wig;
             }
             dd.pose = "engage";
             dd.t = 0;
