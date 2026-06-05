@@ -41,20 +41,30 @@ cd /home/user/datasciencecoursera/gridiron-chain
 > false-alarmed on its own committed code. 11 is not a regression — it's the same
 > code measured honestly. See `REFACTOR_POSITION_CONTRACT.md` § "Determinism".
 
-## What's open (6 remaining egregious plays, scattered)
+## What's open (11 egregious plays on the seed=1337 battery)
 
-Two patterns, both timing-window per-play edge cases not class issues:
+**RE-DIAGNOSED.** The handoff's "TD-celebration `complete/wr1`" hypothesis was
+WRONG — frame-by-frame trace shows none of the flagged plays are TDs and the
+receiver pose is never `celebrate`. The real cause is ONE seam: the
+**tackle-frame snap**. A player (defender at his scrape spot, or carrier at his
+YAC-sim spot) is drawn at position A through the whole pre-tackle phase, then on
+the `tackled`/`hit`/`ragdoll` pose flip snaps in one frame to the engine's
+tackle/rest coordinate (position B) and freezes/ragdolls from there. Spans
+`run/-` (21.8yd, biggest), `complete/wr1`, `complete/rb`, `complete/wr2`.
 
-1. **TD-celebration window `complete/wr1`** × 3 plays at f452+ (worst 15.7 yd).
-   Likely interacts with `animState.slowMoUntil` slow-mo window at the
-   celebration transition. Worth instrumenting via `_inc_trace.js` at the
-   next user report — point it at TD complete plays.
-2. **`complete/rb` checkdown + `complete/wr2` outliers** × 3 plays
-   (7-10 yd). Per-play handoff timing.
+Mechanism + recommended fix are in `REFACTOR_POSITION_CONTRACT.md` →
+"What's NOT closed yet — RE-DIAGNOSED". Short version: the primary tackler is
+driven by `play.motion.tracks.tackler` (`play-animation.js` ~2761-2820); the
+pre-tackle branch freezes position while that track advances to the carrier, so
+the release snaps. Fix = sample the continuous track in the pre-tackle branch
+(track-driven sites) and/or ease the ragdoll anchor from last-rendered
+(physics sites). Blast radius = every tackle animation; do it in a dedicated
+session with the gate (baseline 11) as the guard. A correct fix should drop the
+count toward ~1-2.
 
-Both fall under "per-instance trace via `_inc_trace.js`, then targeted
-source-of-truth fix." Documented in `REFACTOR_POSITION_CONTRACT.md` under
-"What's NOT closed yet (after Stage 11)".
+Trace tool used: `/tmp/trace_play.js` (targets a specific report-play index +
+player; replicates the detector's FIELD_KINDS ordering). Worth promoting into
+the repo next to `_inc_trace.js` if the tackle work resumes.
 
 ## Suggested next moves (in priority order)
 

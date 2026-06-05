@@ -645,26 +645,53 @@ composition flipped to clean, which is the durable signal.)`
 
 ---
 
-## What's NOT closed yet (after Stage 11)
+## What's NOT closed yet — RE-DIAGNOSED on the deterministic battery
 
-Per the detector's class breakdown after Stage 11, ~6 egregious plays
-remain. They cluster in two patterns:
+On the seed=1337 battery the floor is **11 egregious plays** (not 6 — see
+*Determinism*). They fall in these classes:
 
-1. **TD-celebration window `complete/wr1`** (× 3 plays at f452+,
-   worst 15.7yd). For passes that end as TDs, the target receiver
-   transitions through `wrPose = "celebrate"` at `aT > 0.90`. The
-   `_wrSim` runs to `_effEndX` (which has a 3yd EZ bonus for TDs)
-   and the sim's natural cruise hits a phase boundary. Tracing
-   via `_inc_trace.js` against a TD play didn't reveal an obvious
-   override — the jump may be a multi-frame skip via the wall-clock
-   slow-mo window. Worth instrumenting at the next user report.
-2. **`complete/rb` checkdown** (× 2 plays at f149, worst 7yd) +
-   `complete/wr2` (× 1 at f457, worst 10.1yd). Per-play edge cases
-   in the route-to-sim handoff.
+| Class | × | Worst | Example (player · frame · jump) |
+|---|---|---|---|
+| `run/-` | 3 | **21.8yd** | LB f171→172 scrape→tackled, (764,330)→(1088,378) |
+| `complete/wr1` | 3 | 11.3yd | WR f445→446, (499,74)→(360,172) |
+| `complete/rb` | 3 | 10yd | RB/defender f150-484 |
+| `complete/wr2` | 1 | 14.5yd | WR f496→497 |
+| `incomplete/-` | 1 | 20.5yd | f270→271 |
 
-Each is a per-play timing case. Structural framework is in place;
-remaining issues are best diagnosed via `_inc_trace.js` against the
-specific failing play if a user reports one.
+**The handoff's "TD-celebration `complete/wr1`" hypothesis is WRONG** — verified
+by frame-by-frame trace (`/tmp/trace_play.js`, kept under `_inc_trace.js`
+lineage). None of the flagged `complete/wr1` plays are TDs (endYard 68/77, not
+100+); the receiver pose at the jump is `hit`/`run`, never `celebrate`.
 
-**Diminishing returns** are real: 138 → 6 across 11 stages
-(95.7% reduction). The cheap structural wins are taken.
+**The true root cause is a single seam: the tackle-frame snap.** Every one of
+these is the same signature:
+
+1. A player is drawn at position A for the whole pre-tackle phase — a defender
+   at his scrape/coverage spot, or a carrier at his YAC-sim spot.
+2. At the tackle frame his pose flips to `tackled` / `hit` / `ragdoll` and he
+   **snaps in one frame to position B** — the engine's tackle/rest coordinate
+   (next to where the carrier was downed).
+3. He then freezes / ragdolls from B.
+
+Mechanism (located, not yet fixed): the primary tackler is driven by
+`play.motion.tracks.tackler` via `MotionPlayback.sampleTrack` (`play-animation.js`
+~2761-2820; `_useTacklerMotion` skips the continuous rubber-band at ~2897 because
+"the waypoint path already lands on the carrier at t=0.78"). The pre-tackle
+scrape/coverage branch holds the player at a static early position while that
+track advances toward the carrier; when the tackle pose releases to the track
+sample, it lands on the carrier — a discontinuity of up to 22yd. The receiver
+side is the analogous post-catch tackler/YAC-sim handoff (~4749, `_wrSim` →
+`_effEndX`/`_simFinalY` at ~4199-4260). It is the **same Family-A seam at the
+tackle boundary** that the `_lastRenderedX` convention never reached.
+
+**Why it isn't patched here:** the fix is not a one-liner. Either (a) the
+pre-tackle branch must sample the (continuous) tackler track instead of freezing,
+or (b) the tackle pose must EASE the anchor from the player's last-rendered
+position to the tackle spot over the ragdoll window, applied at every tackle-pose
+site (carrier ragdoll ~2358, primary tackler ~2920, pile-on ~2937, trucked ~2860,
+receiver post-catch ~4199). The blast radius is every tackle animation across
+every play kind — too wide to land safely without a dedicated session. With the
+seeded gate now guarding (baseline 11), that work is now *measurable*: a correct
+fix should drop the count toward ~1-2 (the `incomplete/-` outlier may be separate)
+with no regression. Recommended approach: option (a) for the track-driven tackler
+(keep one source of truth), option (b)'s ease only for the ragdoll-physics sites.
