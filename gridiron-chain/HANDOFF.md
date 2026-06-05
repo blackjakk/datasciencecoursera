@@ -14,16 +14,156 @@ Mature, deeply-featured. Recent work has shifted from contract/extension UX (set
 ## 2. Repository / environment
 
 - **Repo path**: `/home/user/datasciencecoursera/gridiron-chain/` (or Windows: `C:\Users\bsg50\PyCharmMiscProject\datasciencecoursera\gridiron-chain\`)
-- **Active branch**: `claude/football-sim-blockchain-game-b3sdq`
-- **Latest commit**: `bcc4e96` (sprite-atlas expansion + engine wiring + speed audit + procedural suppression + route de-convergence — see § 3 *Session 2 continuation*)
+- **Active branch**: `claude/charming-brown-b18u2`
+- **Latest commit**: `ba248ad` (Stage 11 LB-track package mapping + DL formation jitter sweep + late-YAC overshoot freeze + post-catch _wrLastX freeze + safety rotation ease + INT/PD/dropped-pick ease starts + sack LB last-rendered + many more — see § 3 *position-contract refactor*)
 - **Stack**: vanilla JS, no bundler. Files concatenated via `<script src>` in `play.html` in this order: `play-data.js` → `play-franchise-core.js` → `play-franchise-season.js` → `play-franchise-stats.js` → `play-franchise-offseason.js` → `play-engine.js` → `play-broadcast.js` → `play-render.js` → `play-animation.js`. Top-level `const`/`function` declarations are cross-file accessible.
 - **Lint/test**: `node -c <file>.js` for syntax checks (no other tests). User views via CDN: `https://rawcdn.githack.com/blackjakk/datasciencecoursera/<commit>/gridiron-chain/play.html`
+- **Teleport detector** (this session, durable): `node _teleport_capture.js 4 && node _teleport_detect.js tactical`. Stage 11 floor = 6 egregious plays out of ~300 (96% reduction from a 138-baseline). Use the `teleport-check` skill (user-level `~/.claude/skills/teleport-check/`) to run + interpret.
 - **Save layer**: `_idbPut`/`_idbGet` is primary; localStorage is the fast mirror. Auto-trim at 4MB via `_trimFranchiseForStorage`. Diagnostic: `frnSaveDiagnostics()` from devtools.
 - **Verification helpers** (in `/tmp/`): `snap_calib.mjs` (projection dots on field), `snap_scrub.mjs` (timeline interaction), `snap_backfill.mjs` (round-trip a stripped save). All assume `python3 -m http.server 8765` running in repo root.
 
 ---
 
-## 3. Current arc — animation realism + sprite atlas expansion (this session)
+## 3. Current arc — position-contract refactor: 96% teleport closure (this session)
+
+End-to-end execution of the `REFACTOR_POSITION_CONTRACT.md` design that
+had been sitting at "DESIGN — awaiting go-ahead" since prior sessions.
+Stages 0-11 shipped. Egregious teleport plays dropped **138 → 6 (96%)**.
+Runs are structurally clean (0 / 6 flagged). The snap-teleport class is
+closed across run, complete-pass, incomplete-pass, sack, and the
+DIME-LB-on-wrong-hook subclass.
+
+### How the work was driven
+
+The whole arc followed the methodology now captured in the
+`stage-gated-refactor` skill (`~/.claude/skills/stage-gated-refactor/`):
+contract doc first → build detector (Stage 0) → measure baseline → ship
+one boundary per stage with measured deltas → docs commit per stage →
+name what's superseded by later cleaner fixes → stop honestly at
+diminishing returns. See the skill for the methodology and
+`REFACTOR_POSITION_CONTRACT.md` for the canonical worked example.
+
+### Pre-refactor session fixes (4 commits, before Stage 1)
+
+| Commit | What |
+|---|---|
+| `c854d51` | Bind tackle-time to `play.motion.tackleT` — 5 hardcoded `0.72` gates in `play-animation.js` were drifting from the engine's `tackleT: 0.78`. Ragdoll was firing ~125 ms before the tackler arrived. |
+| `a6f4f33` | Emit `play.force` on runs from engine biomechanics. `_bumpHitWear` already computes a 0.5-2.2 force from tackler STR/SPD/archetype; the run emit path now surfaces it as `play.force = engineForce * 5`. Animation reads it for ragdoll impulse + slow-mo depth. |
+| `520c5c1` | I-Form FB/RB spacing — FB was at `cy+4`, RB at `cy+6` (2 px Y separation, sprites overlapping QB). Fixed to FB at -9 yd, RB at -12 yd, both on midline. |
+| `72526ac` | Engine carrier-track t=0 was hardcoded at single-back depth. On I-style 2-back runs the RB sprite teleported 4 yd + 28 px at runT=0. Engine now picks the 2-back style deterministically per snap, emits `twoBackStyle`, and adjusts the carrier track t=0 accordingly. |
+
+### Position-contract refactor stages (11 commits + 5 docs commits)
+
+| Stage | Commit | What changed | Egregious after |
+|---|---|---|---|
+| 1 | `15c0bb7` | Engine emits specific `tacklerSlot` (cb1/cb2/fs/ss/lb1-3/nb), animation reads slot directly; renderer rewrites every engine-track t=0 waypoint to the matched formation slot before sampling. | 137 |
+| 2 | `2a59003` | Defender `_sim` sync with track position — `_syncSimAt(nx, ny, factor)` creates the sim at the track position if missing instead of letting `pursue()` lazily create it at formation. | 107 |
+| 3 | `1b0df9c` | TD-celebration init + WR-block target lock — capture `_lastRenderedX/Y` after the run-play offense map; cache the WR's chosen block defender INDEX (not reference) on first selection. | 119 (runs hit 0/6) |
+| 4 | `c2c8b08` | `_syncDefRendered(rendered)` after every `def.map` syncs `d._sim` to the rendered position uniformly; pass-play `def.map` post-snap init reads `dd.x = d._lastRenderedX`. | 55 |
+| 5 | `d0a1955` | Same `_lastRenderedX` capture pattern applied to pass-play offense map + `_followX` init. | 61 (variance) |
+| 6 | `49ae992` | Safety rotation ease uses `d._lastRenderedX/Y` as `_disgX/_disgY` (replacing hardcoded 11yd/9yd disguise) and applies to C0_BLITZ too; sack `def.map` post-snap init reads `dd.x = d._lastRenderedX`. | 32 |
+| 7 | `5e0f817` | INT defender + dropped-pick + PD-defender ease all start from `d._lastRenderedX/Y` instead of `d.x` formation home. | 14 |
+| 8 | `6735fd6` | Post-catch `_wrLastX = wr.x` after the override. **SUPERSEDED by Stage 9.** Closed the visible late-YAC teleport but silently broke the overshoot clamp by making `_carrySign` flip exactly where the clamp condition needed to hold. | 10 |
+| 9 | `1e92925` | Freeze `_wrLastX` at the catch frame (gate line 4004 on `t < throwPhase`) — the structurally correct fix. `_catchX` and `_carrySign` stay stable, clamp fires only on real overshoot. Also: sack-branch LB scrape bases from `d._lastRenderedX`. | 7 |
+| 10 | `575f705` | Sweep through DL formation-jitter fallback paths (3 sites: run-play DL hold, complete-pass DL engagement-unavailable, sack-branch DL holds) — all read `d._lastRenderedX/Y`. Practical impact small (DL shifts are small) but uniform. | 8 (variance) |
+| 11 | `f4d5466` | **Real systemic bug.** LB → engine-track mapping used positional ordinal (index 0 → `lb1`), so in DIME packages the single MLB was driven to the top-side hook. Now routes by formation LB count: BASE_43 = unchanged; NICKEL = lb1/lb3 (outside hooks); DIME = lb2 (middle MLB). | **6** |
+
+Docs commits paired with the code stages: `2918432` (Stages 1-5),
+`20d522b` (Stage 6), `a0948f5` (Stages 7-8), `b805add` (Stage 9),
+`8dc1b6b` (Stages 10-11).
+
+### Durable tools shipped this session
+
+- `_teleport_capture.js` / `_teleport_detect.js` / `_teleport_trace.js` —
+  these existed BEFORE the session (Stage 0 was already built in a prior
+  session). They were the enabler.
+- `_inc_trace.js` (new this session, `ba248ad`) — single-play per-frame
+  dump that finds the worst per-frame jump across all rendered players.
+  Currently configured to target `complete/wr1` TD plays (edit the
+  selector loop at the top to retarget). That's how the Stage 11
+  DIME-LB-mapping bug surfaced.
+
+### Skills added (user level, `~/.claude/skills/`)
+
+- **`stage-gated-refactor`** — general-purpose, codifies the methodology
+  (contract doc → detector → stage commits with deltas → honest
+  supersession → stop at diminishing returns). References
+  `REFACTOR_POSITION_CONTRACT.md` as the canonical example.
+- **`teleport-check`** — gridiron-chain-specific. Wraps the harness into
+  one command, knows the Stage 11 floor (6 plays), lists the closed
+  classes so you don't false-alarm on expected residuals, and tells
+  you what to do when a new class appears.
+
+Both are user-level, NOT in this repo (the repo's `.claude/` is
+gitignored — intentional). They persist for this user across all
+sessions on this container.
+
+### Audit caveats honestly recorded
+
+- **Stage 8 was superseded by Stage 9.** Stage 8's `_wrLastX = wr.x`
+  patch closed the visible late-YAC teleport but had a subtle side
+  effect: keeping `_catchX = sim.x` made `_carrySign` flip exactly when
+  the overshoot clamp should fire, silently disabling it. Stage 9
+  replaced it with the structurally correct freeze-at-catch. Both
+  stages are in git history; the contract doc records the supersession.
+- **Stage 5 was structurally correct but practically flat.** The
+  failure mode it targeted was rarely hit (route branch maintains
+  `_followX` every frame). Recorded as flat.
+- **Stage 10 was a uniform DL sweep that didn't reduce the egregious
+  count** (DL pre-snap shifts via `defShiftXY` are small, ≤2 yd).
+  Recorded as variance-equivalent. The fix is still right because it
+  uniformizes the source-of-truth pattern.
+- **Stage 11's NICKEL mapping** is a small improvement of similar
+  magnitude in both directions (top → lb1, bottom → lb3). The big win
+  was the DIME case (1 LB → lb2 instead of lb1). Both shipped together.
+
+### What's NOT closed yet (after Stage 11)
+
+Per the detector's class breakdown, **6 egregious plays remain**, in
+2 patterns:
+
+1. **TD-celebration window `complete/wr1`** (× 3 plays at f452+,
+   worst 15.7 yd). For passes that end as TDs, the target receiver
+   transitions through `wrPose = "celebrate"` at `aT > 0.90`. `_inc_trace.js`
+   pointed at TD plays didn't reproduce the jump in 1-game captures —
+   likely interacts with the wall-clock slow-mo window
+   (`animState.slowMoUntil` set in `play-animation.js:2380+`) at the
+   celebration transition. Worth instrumenting at the next user report.
+2. **`complete/rb` checkdown + `complete/wr2` outliers** (× 3 plays,
+   7-10 yd). Per-play handoff timing edge cases that don't replay in
+   `_inc_trace.js` on similar-looking plays.
+
+These are scattered per-play timing windows, not patterns. The
+structural framework is closed. The detector + `_inc_trace.js` will
+identify the override site in seconds at the next user report.
+
+### Latest commits on this arc
+
+- `ba248ad` — chore: `_inc_trace.js` retargeted to complete/wr1 TD plays
+- `8dc1b6b` — docs: record Stages 10-11 (96% reduction, +DIME-LB fix)
+- `f4d5466` — fix: LB-track mapping by package, not ordinal (Stage 11)
+- `575f705` — fix: DL formation-jitter fallbacks read last-rendered (Stage 10)
+- `b805add` — docs: record Stage 9 (95% reduction)
+- `1e92925` — fix: freeze `_wrLastX` at catch + sack LB last-rendered (Stage 9)
+- `a0948f5` — docs: record Stages 7-8 (93% reduction)
+- `6735fd6` — fix: post-catch `_wrLastX` tracks `_wrSim`, not route (Stage 8 — superseded by Stage 9)
+- `5e0f817` — fix: INT/dropped-pick/PD ease starts from last rendered (Stage 7)
+- `20d522b` — docs: add Stage 6 results (77% reduction)
+- `49ae992` — fix: safety rotation ease + sack dd init (Stage 6)
+- `2918432` — docs: record Stages 1-5 progress + session fixes
+- `d0a1955` — fix: `_lastRenderedX` capture + `_followX` init on pass plays (Stage 5)
+- `c2c8b08` — fix: sync defender sim + carry rendered pos through snap (Stage 4)
+- `1b0df9c` — fix: TD celebration init + WR block target lock (Stage 3)
+- `2a59003` — fix: sync defender sim with track position (Stage 2)
+- `15c0bb7` — fix: enforce track t=0 = formation slot for run plays (Stage 1)
+- `72526ac` — fix: align engine carrier-track start with renderer 2-back style
+- `520c5c1` — fix: I-Form FB/RB spacing — sprites no longer overlap QB
+- `a6f4f33` — fix: emit `play.force` on runs from engine biomechanics
+- `c854d51` — fix: bind tackle-time to engine's `play.motion.tackleT`
+
+---
+
+## 3A. Earlier arc — animation realism + sprite atlas expansion (prior session)
 
 The shipped focus this session was making each play TYPE read distinctly and
 realistically (so a sack doesn't look like a clean dropback, a fumble doesn't
@@ -259,7 +399,7 @@ DRAG_MESH (crossing) and INTERMEDIATE (already opposite directions) left alone.
 
 ---
 
-## 3A. Earlier arc — visual / broadcast / replay (prior sessions)
+## 3B. Earlier arc — visual / broadcast / replay (older sessions)
 
 Foundation for the current arc. Don't redo.
 
