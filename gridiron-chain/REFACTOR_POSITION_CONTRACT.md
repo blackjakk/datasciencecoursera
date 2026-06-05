@@ -3,8 +3,10 @@
 *Goal: close the entire "teleport" bug family in the play renderer, instead of
 discovering each seam by user report and patching it.*
 
-Status: **STAGES 0-5 SHIPPED — runs structurally clean, snap teleport class
-largely closed across all play kinds.** See *Execution log* at the bottom.
+Status: **STAGES 0-6 SHIPPED — 77% reduction in egregious teleports
+(138 → 32). Snap teleport class structurally closed across runs and
+pass plays. Sack pre-snap-shift class closed.** See *Execution log*
+at the bottom.
 The RB-target reference-frame patch (`eb67c82`) and the FG fixes
 (`b94f8c4`) were interim seam-patches that this refactor subsumes.
 
@@ -251,17 +253,17 @@ Usage: `node _teleport_capture.js 6` then `node _teleport_detect.js broadcast`
 
 ## Resume pointer
 
-- Stages 0-5 done. The structural framework is in place: every engine track's
-  t=0 is the formation slot; every defender's `_sim` syncs to the rendered
-  position each frame; every offense slot's last rendered (x,y) is captured
-  so later phase branches read from there instead of formation home.
-- Runs are clean (0 egregious). Pass-play snap teleport is largely closed.
-  Remaining ~55 egregious plays are mid-action handoffs (catch-frame
-  `_wrSim` re-init, pursuit→zone transitions on non-tackler safeties).
-- Next: **Stage 6 — catch-frame `_wrSim` continuity**. Per-frame `_wrLastX`
-  capture during the route appears intact, but `_wrSim.init` may not see
-  the right value on certain target slots (RB checkdowns, te2). Use
-  `_teleport_trace.js` on a `complete/wr1` worst-case to confirm the seam.
+- Stages 0-6 done. Egregious teleports down 77% (138 → 32). Runs clean;
+  pass-play snap teleports closed; sack pre-snap shifts closed; safety
+  rotation handles all coverages including C0_BLITZ.
+- The structural framework: every engine track's t=0 is the formation
+  slot (or `_lastRenderedX/Y` for pre-snap-shifted defenders); every
+  defender's `_sim` syncs to the rendered position each frame; every
+  offense slot's last rendered (x,y) is captured.
+- Remaining ~32 egregious plays cluster in narrower per-class issues
+  — see *What's NOT closed yet* below. Diminishing returns from broad
+  passes; each remaining class is best addressed with a targeted trace
+  via `_teleport_trace.js` against a specific failing play.
 - Interim patches already in: RB reference-frame remap `eb67c82`, FG sail/cheer
   `b94f8c4`. Both are subsumed by Stages 2-3.
 
@@ -367,6 +369,36 @@ practical impact small — most pass-play offense branches already
 maintain `_followX` via `p._followX = _x` lines, so the init at line
 ~5501 rarely fires. Diminishing returns from this angle.
 
+### Stage 6 — `49ae992` — Safety rotation ease + sack dd init
+
+Two coupled changes targeting the safety pre-snap → post-snap teleport
+on pass plays (~30 of the remaining 61) and extending Stage 4's dd
+init pattern to the sack branch (`def.map` at ~6204).
+
+1. **Safety rotation block at `play-animation.js:4804`** previously
+   used a hardcoded `_disgX/_disgY` (two-high disguise: 11yd, ±9yd)
+   as the start of the ease, and *excluded C0_BLITZ entirely*. So:
+   - In C0_BLITZ, safeties skipped the ease and snapped to the
+     engine track t=0 directly — a 7-8 yd diagonal jump from the
+     walked-up box position to deep middle.
+   - In non-blitz, the hardcoded `_disgX/_disgY` happened to match
+     the pre-snap render by coincidence — until any pre-snap
+     variant moved it.
+
+   Fix: replace the hardcoded disguise with `d._lastRenderedX/Y`
+   (the actual pre-snap render, captured by `_syncDefRendered`) and
+   drop the C0_BLITZ exclusion. The ease now starts from wherever
+   the safety was *just drawn*, regardless of coverage.
+
+2. **Sack `def.map` at line ~6204** had its own pre-snap branch but
+   no carry-forward of the rendered position into `dd`'s post-snap
+   starting basis. Added the `dd.x = d._lastRenderedX` init, matching
+   Stage 4 for the complete-pass branch.
+
+**Results:** 61 → 32 (−48% vs Stage 5, **−77% vs baseline**).
+Safety / incomplete-wr* snap teleports largely closed. `sack/-`
+went from 6 worst 9.5yd to 1 worst 6.5yd.
+
 ---
 
 ## Pre-refactor session fixes (this session, not Stage work)
@@ -415,33 +447,46 @@ tackler↔carrier distance, role, position at impact.
 | 1 | `15c0bb7` | 137 | 5/6 | 10.0 yd |
 | 2 | `2a59003` | 107 | 4/6 | 11.1 yd |
 | 3 | `1b0df9c` | 119 | **0/6** | none |
-| 4 | `c2c8b08` | **55** | 0/6 | none |
+| 4 | `c2c8b08` | 55 | 0/6 | none |
 | 5 | `d0a1955` | 61 | 0/6 | none |
+| 6 | `49ae992` | **32** | 0/6 (1/6 in re-capture variance) | 18 yd outlier |
 
 `(Stage 3's 119 vs Stage 2's 107 is capture variance — the run-play
 composition flipped to clean, which is the durable signal.)`
 
 ---
 
-## What's NOT closed yet
+## What's NOT closed yet (after Stage 6)
 
-Per the detector's class breakdown after Stage 5, remaining egregious
-plays cluster in:
+Per the detector's class breakdown after Stage 6, ~32 egregious plays
+remain. They cluster in narrower per-class issues:
 
-1. **Catch-frame `_wrSim` re-init** (`complete/wr1` × 5 worst 13.9yd,
-   `complete/wr3` worst 13.4yd at late frames f167-f547). The route's
-   `_wrLastX` capture is per-frame; the sim init reads it. But there
-   are edge cases — possibly TARGET slots that don't run through the
-   route branch (RB checkdown? te2 on certain concepts?).
-2. **Pass-play snap teleport residue** on incomplete passes
-   (`incomplete/wr2` × 4 worst 10.4yd at f131→132). Stage 4 closed the
-   main path; some specific pre-snap branch isn't carrying its
-   rendered position into the post-snap dd init.
-3. **Sack defender pursuit** (`sack/-` × 6 worst 8.8yd). Late-action
-   pursuit handoff for the rusher reaching the QB.
-4. **Punt coverage** (`punt/-` × 1-2 plays). Special-teams unit has
-   its own render path that doesn't use the contract yet.
+1. **Post-incompletion ball-deflection / late cleanup** at f270+
+   (`incomplete/-` × 1-4 plays worst 21.6yd). Defender's late-play
+   repositioning when the ball is batted down; player jumps cross-
+   field to a ball location.
+2. **Late YAC handoff** at f430-f534 (`complete/wr1` × 5 worst 16.3yd,
+   `complete/wr2` × 1 worst 7.5yd). Catch-frame `_wrSim` init reads
+   `_wrLastX` correctly, but some edge case in the LATE post-catch
+   pursuit / tackle clamp re-sets position.
+3. **NB/slot-coverage snap teleport** on incomplete passes at f131
+   (`incomplete/wr3` × 5 worst 10.4yd, `incomplete/wr1` × 2-3 worst
+   9.5yd). The nickel back doesn't enter the safety-rotation ease,
+   the CB1/CB2 specific code, or `_applySecondary` — so its
+   pre-snap coverage shift isn't smoothed through the snap. Fix
+   shape: extend the rotation pattern to NB / slot DBs.
+4. **Punt coverage** (`punt/-` × 1-2 plays worst 6.9yd). Special-
+   teams unit doesn't use the contract yet.
+5. **Run play edge case** (`run/-` × 1-2 plays worst 18.7yd at f168).
+   Re-emerged in some capture batteries; likely a defender's track
+   handoff to pursuit on a specific run direction. Was 0 in earlier
+   captures — borderline.
 
-Each follows the same Family-A pattern as Stages 1-5. The fix shape
-is identical: capture rendered position → init from there at the
-phase boundary. Localized, ~10-30 lines each.
+Each follows the same Family-A pattern as Stages 1-6: capture
+rendered position → init from there at the phase boundary. Each is
+localized (~10-30 lines).
+
+**Diminishing returns set in around Stage 5-6**: the cheap structural
+wins are taken; remaining bugs are per-class edge cases. The detector
+harness lets each be diagnosed in isolation when a real user report
+points at one.
