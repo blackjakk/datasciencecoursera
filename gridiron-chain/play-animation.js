@@ -4250,6 +4250,16 @@ function buildAnimForPlay(play, prevPlay) {
           // Receiver carries the ball — keep them locked together
           wr.x = ballX;
           wr.y = ballY;
+          // Track the actual rendered position (sim-driven) post-catch.
+          // Line 4004 still runs every frame and writes _wrLastX = wr.x
+          // BEFORE the post-catch branch overrides wr.x — so without this
+          // update, _wrLastX = the still-advancing engine-track ROUTE
+          // position while _wrSim.x diverges. _catchX/_carrySign are
+          // computed from _wrLastX, so when the route crosses _effEndX,
+          // _carrySign flips and the overshoot clamp fires — teleporting
+          // _wrSim.x back to _effEndX (the late-YAC f431 jump).
+          _wrLastX = wr.x;
+          _wrLastY = wr.y;
         } else if (play.kind === "incomplete" && play.incReason === "pd") {
           // DEFLECTION — the ball arrived on-target at the WR's hands
           // (targetX, targetY at hand height); the defender's hand knocks
