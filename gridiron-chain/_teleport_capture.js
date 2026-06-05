@@ -4,9 +4,17 @@
 // target slot × coverage, and writes them to /tmp/teleport_plays.json for the
 // detector (_teleport_detect.js) to replay through the renderer.
 //
-//   Usage:  node _teleport_capture.js [games]      (default 6)
+//   Usage:  node _teleport_capture.js [games] [seed]   (default 6, seed 1337)
 //   Output: /tmp/teleport_plays.json
 //             { homeTeam, awayTeam, plays: [ <play-visual>, ... ] }
+//
+// DETERMINISM: the engine draws from Math.random in ~142 sites, so an unseeded
+// capture produces a DIFFERENT battery every run — which makes the teleport
+// count wobble run-to-run (e.g. 4–13 egregious on identical code) and any
+// regression gate built on it unreliable. We override Math.random with a seeded
+// mulberry32 PRNG *inside this harness's eval scope only*, so the same seed
+// always yields the byte-identical battery. The shipped game engine is
+// untouched and stays fully stochastic for real players.
 //
 // Dev/audit tool only — ignored by the build. Mirrors _sim_audit.js's loader so
 // top-level const/class declarations share one lexical scope.
@@ -46,6 +54,25 @@ const shim = `
 `;
 
 const GAMES = Number(process.argv[2] || 6);
+// Default seed is fixed so the bare `node _teleport_capture.js 4` invocation
+// (used by the teleport-check skill and the CI gate) is reproducible. Pass a
+// second arg to capture a different — but still fixed — battery.
+const SEED = (process.argv[3] != null ? Number(process.argv[3]) : 1337) >>> 0;
+
+// Seeded RNG prelude — prepended to the eval blob so EVERY engine Math.random()
+// call (load-time tables + per-play sim) draws from one deterministic stream.
+// mulberry32: tiny, fast, good distribution; ample for sim variety.
+const seedPrelude = `
+  (function () {
+    var __a = ${SEED} >>> 0;
+    Math.random = function () {
+      __a |= 0; __a = (__a + 0x6D2B79F5) | 0;
+      var t = Math.imul(__a ^ (__a >>> 15), 1 | __a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  })();
+`;
 
 const capture = `
 ;(function runCapture() {
@@ -103,7 +130,7 @@ const capture = `
 })();
 `;
 
-let blob = shim + "\n";
+let blob = seedPrelude + "\n" + shim + "\n";
 for (const f of files) {
   let code = fs.readFileSync(path.join(__dirname, f), "utf8");
   code = stripUiInit(code, f);
@@ -124,6 +151,6 @@ const allPlays = result.games.flatMap(g => g.plays);
 const byKind = {};
 for (const p of allPlays) byKind[p.kind] = (byKind[p.kind] || 0) + 1;
 console.error("Wrote " + allPlays.length + " plays / " + result.games.length +
-  " games → /tmp/teleport_plays.json");
+  " games → /tmp/teleport_plays.json  (seed=" + SEED + ", deterministic)");
 console.error("By kind: " + Object.entries(byKind).sort((a, b) => b[1] - a[1])
   .map(([k, c]) => k + ":" + c).join("  "));

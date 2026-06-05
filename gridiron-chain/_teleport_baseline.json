@@ -1,0 +1,13 @@
+{
+  "_comment": "Canonical teleport-detector baseline for the regression gate. Reproducible because the capture is SEEDED (see _teleport_capture.js). The gate (_teleport_gate.sh) fails if 'egregious' exceeds this number. To re-baseline after an intentional improvement: run the gate, confirm the lower number, and update 'egregious'/'flags'/'commit' here in the same commit.",
+  "seed": 1337,
+  "games": 4,
+  "cam": "tactical",
+  "commit": "f8d7012",
+  "plays": 336,
+  "egregious": 11,
+  "flags": 82,
+  "nonFinite": 0,
+  "renderErrors": 0,
+  "note": "The prior handoff quoted a floor of 6, but that was a single UNSEEDED draw; on identical code the unseeded count ranged 4-13 run-to-run. 11 is the reproducible value on the seed=1337 / 4-game battery. Not a regression — the same code, measured honestly."
+}

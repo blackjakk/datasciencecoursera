@@ -546,10 +546,16 @@ same branch and were validated independently:
 ## Detector — usage cheat sheet
 
 The `_teleport_capture.js` + `_teleport_detect.js` harness is the
-regression gate. Run it after any future change that touches positions:
+regression gate. The one-command form (seeded + baseline-compared):
 
 ```
-node _teleport_capture.js 4           # capture 4 games of plays
+./_teleport_gate.sh                   # capture(seed=1337,4g) → detect → compare baseline; exit 1 on regression
+```
+
+Or the manual form:
+
+```
+node _teleport_capture.js 4           # SEEDED battery (default seed 1337 → reproducible)
 nohup npx --yes http-server -p 5173 -c-1 -s . > /tmp/dev-server.log 2>&1 &
 node _teleport_detect.js tactical     # detect against tactical (dots) view
 # headline at top of stdout: egregious-plays count
@@ -563,6 +569,43 @@ per-frame jump >12px with the player's name, jump magnitude, branch
 
 For run-play tackle diagnosis: `window.GC_DEBUG_TACKLE = true` logs
 tackler↔carrier distance, role, position at impact.
+
+---
+
+## Determinism — the metric is now reproducible (post-refactor follow-up)
+
+The Stage-0 detector was sound in *kind* (it replays the REAL render path and
+flags ≥6yd/frame jumps, which are genuine on-screen pops) but its inputs were
+**non-deterministic**: `_teleport_capture.js` simulated fresh stochastic games
+every run (the engine draws `Math.random` in ~142 sites, unseeded). So every
+measurement used a different battery, and the egregious count wobbled
+**4–13 on identical code**. Consequences that were hiding in the stage numbers:
+
+- The "138 → 6, 96%" headline is *directionally* real (the borderline band fell
+  too, runs went structurally 0/6) but the precision is false — the doc's own
+  baseline is quoted as both **116** (calibration text) and **138** (the table).
+- Three "stage wins" actually went the wrong way (S2→S3 107→119, S4→S5 55→61,
+  S9→S10 7→8) and were waved off as "variance" — correctly, but that same
+  variance applies to the deltas counted as progress.
+- The "floor 6, alarm if >10" gate would **false-alarm on its own committed
+  code**: the reproducible count on the canonical battery is **11**, not 6.
+
+**Fix (this follow-up):** `_teleport_capture.js` now overrides `Math.random`
+with a seeded mulberry32 PRNG **inside its eval scope only** — the shipped game
+engine is untouched and stays stochastic for real players. Same seed → byte-
+identical battery (verified by sha256) → reproducible count. The detector was
+already deterministic given a fixed battery (`play-animation.js` has zero
+`Math.random`; the 18 in `play-render.js` are in stubbed visual-only draws).
+
+Artifacts:
+- `_teleport_baseline.json` — canonical numbers (seed 1337, 4 games, tactical):
+  **11 egregious / 82 flags / 336 plays** at commit `f8d7012`.
+- `_teleport_gate.sh` — runs the seeded pipeline and exits 1 if egregious
+  exceeds the baseline. Verified: passes at 11≤11, fails at 11>10.
+
+Re-baseline after a genuine improvement by lowering `egregious` in the JSON in
+the same commit as the fix. **Don't compare across seeds** — seed 99 is a
+different (also fixed) battery with a different absolute count.
 
 ---
 

@@ -22,19 +22,24 @@ Position-contract refactor, Stages 0-11. Egregious teleport plays:
 1 trace tool + 1 chore. Stage 8 was superseded by Stage 9 — both kept in
 git history with the supersession recorded in the contract doc.
 
-## Detector floor (Stage 11)
+## Detector floor — now DETERMINISTIC (seeded)
+
+The capture is now seeded (`_teleport_capture.js` overrides `Math.random` with a
+mulberry32 stream in its eval scope only — the shipped engine stays stochastic).
+Same seed → byte-identical battery → reproducible count. One command:
 
 ```bash
 cd /home/user/datasciencecoursera/gridiron-chain
-node _teleport_capture.js 4
-nohup npx --yes http-server -p 5173 -c-1 -s . > /tmp/dev-server.log 2>&1 &
-sleep 3
-node _teleport_detect.js tactical
-pgrep -f "http-server -p 5173" | xargs -r kill 2>/dev/null
+./_teleport_gate.sh          # capture(seed=1337,4 games) → detect → compare baseline
 ```
 
-Expected: **~6 egregious plays out of ~300**. If more than ~10, regression
-investigate. Use the `teleport-check` skill.
+**Reproducible floor: 11 egregious / 336 plays** on the seed=1337 battery
+(`_teleport_baseline.json`). The gate exits 0 if ≤ baseline, 1 on regression.
+
+> ⚠️ The old "floor is 6, alarm if >10" was a SINGLE UNSEEDED draw. On identical
+> code the unseeded count ranged **4–13** run-to-run, so that gate would have
+> false-alarmed on its own committed code. 11 is not a regression — it's the same
+> code measured honestly. See `REFACTOR_POSITION_CONTRACT.md` § "Determinism".
 
 ## What's open (6 remaining egregious plays, scattered)
 
@@ -53,10 +58,13 @@ source-of-truth fix." Documented in `REFACTOR_POSITION_CONTRACT.md` under
 
 ## Suggested next moves (in priority order)
 
-1. **Wire the detector into CI / pre-commit** (contract doc Stage 6
-   — explicitly unfinished). Without a regression gate, the 96% can
-   erode silently. One bash script + a hook. The `teleport-check` skill
-   describes the exact command.
+1. **Finish wiring the gate into CI / pre-commit.** The deterministic gate
+   itself now exists: `_teleport_gate.sh` (seeded capture → detect → compare
+   `_teleport_baseline.json`, exit 1 on regression). What remains is the
+   *trigger*: a pre-commit hook (cheap) and/or a GitHub Action. NOTE the
+   detector hardcodes the Playwright path `/opt/node22/...`; a GH-Actions
+   workflow must install Playwright + browsers and a static server first, so
+   that's a real (small) design step, not a copy-paste.
 2. **Close one or two of the remaining 6 plays** if a user reports
    them in-game. Use `_inc_trace.js`, follow the source-of-truth pattern
    from any prior stage as a template.
