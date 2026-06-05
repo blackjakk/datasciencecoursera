@@ -3997,11 +3997,21 @@ function buildAnimForPlay(play, prevPlay) {
       wr.y = Math.max(FIELD.TOP + _sideMargin, Math.min(FIELD.BOT - _sideMargin, wr.y));
       // Capture the WR's actual rendered position AND velocity so _wrSim
       // can init from both (continuity + momentum across the catch).
-      if (_wrLastX != null) {
-        _wrVX = _wrVX * 0.6 + (wr.x - _wrLastX) * 0.4;   // px/frame, smoothed
-        _wrVY = _wrVY * 0.6 + (wr.y - _wrLastY) * 0.4;
+      // POST-CATCH FREEZE: only update _wrLastX during the route phase.
+      // Once we're past throwPhase, _wrLastX must stay at the catch-frame
+      // value — the post-catch branch reads _catchX = _wrLastX and uses
+      // it to compute _carrySign for the overshoot clamp. If we keep
+      // updating _wrLastX to the route's still-advancing projection,
+      // _carrySign flips when the route crosses _effEndX, the clamp
+      // fires incorrectly, and _wrSim teleports back to _effEndX
+      // (the late-YAC f421-f534 jump).
+      if (t < throwPhase) {
+        if (_wrLastX != null) {
+          _wrVX = _wrVX * 0.6 + (wr.x - _wrLastX) * 0.4;   // px/frame, smoothed
+          _wrVY = _wrVY * 0.6 + (wr.y - _wrLastY) * 0.4;
+        }
+        _wrLastX = wr.x; _wrLastY = wr.y;
       }
-      _wrLastX = wr.x; _wrLastY = wr.y;
 
       // Throw style — TOUCH lobs high+slow, ZIP fires low+fast, DEEP arcs even higher
       const throwType = play.throwType || (isScreen ? "CHECKDOWN" : "TOUCH");
@@ -4247,19 +4257,12 @@ function buildAnimForPlay(play, prevPlay) {
             ballX = targetX + (_effEndX - targetX) * tt;
             ballY = targetY + (finalY - targetY) * tt;
           }
-          // Receiver carries the ball — keep them locked together
+          // Receiver carries the ball — keep them locked together.
+          // _wrLastX is FROZEN at the catch-frame value (gated at line
+          // ~4010), so the overshoot clamp at line ~4233 uses the catch
+          // position as its anchor — not the still-projecting route.
           wr.x = ballX;
           wr.y = ballY;
-          // Track the actual rendered position (sim-driven) post-catch.
-          // Line 4004 still runs every frame and writes _wrLastX = wr.x
-          // BEFORE the post-catch branch overrides wr.x — so without this
-          // update, _wrLastX = the still-advancing engine-track ROUTE
-          // position while _wrSim.x diverges. _catchX/_carrySign are
-          // computed from _wrLastX, so when the route crosses _effEndX,
-          // _carrySign flips and the overshoot clamp fires — teleporting
-          // _wrSim.x back to _effEndX (the late-YAC f431 jump).
-          _wrLastX = wr.x;
-          _wrLastY = wr.y;
         } else if (play.kind === "incomplete" && play.incReason === "pd") {
           // DEFLECTION — the ball arrived on-target at the WR's hands
           // (targetX, targetY at hand height); the defender's hand knocks
@@ -6391,11 +6394,16 @@ function buildAnimForPlay(play, prevPlay) {
           }
         } else if (i >= 4 && i <= 6) {
           // LBs hold their drop depth with a slow scrape — slight
-          // forward drift, gentle sway, frozen pose-frame.
+          // forward drift, gentle sway, frozen pose-frame. Base from
+          // _lastRenderedX so a walked-up blitz LB doesn't snap back
+          // to formation slot at the snap (was a 14yd jump in the
+          // detector's sack/- class).
+          const _lbBaseX = (typeof d._lastRenderedX === "number") ? d._lastRenderedX : d.x;
+          const _lbBaseY = (typeof d._lastRenderedY === "number") ? d._lastRenderedY : d.y;
           const lbProg = Math.min(1, tt * 1.2);
           const wigLB = Math.sin(tt * Math.PI * 1.0 + i * 0.5) * 0.8;
-          dd.x = d.x - dir * lbProg * 12;
-          dd.y = d.y + wigLB;
+          dd.x = _lbBaseX - dir * lbProg * 12;
+          dd.y = _lbBaseY + wigLB;
           dd.pose = "scrape";
           dd.t = 0;
         }
