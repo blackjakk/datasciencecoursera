@@ -1574,6 +1574,39 @@ function buildAnimForPlay(play, prevPlay) {
       moved: Math.hypot(d._sim.x - beforeX, d._sim.y - beforeY) > 0.5,
     };
   };
+  // ── DEFENDER SIM ↔ RENDERED-POSITION SYNC (Stage 4) ────────────────
+  // Sync formation.defense[i]._sim to the position the defender was
+  // JUST rendered at, every frame, regardless of which code path
+  // produced that position (pre-snap defShiftXY + coverage adjustment,
+  // engine track sample, pursue sim, ragdoll, anything). The next
+  // frame's pursue() will then start from there instead of from the
+  // formation home — closes the pre-snap → post-snap snap teleport
+  // class on pass plays (CB press → release, walked-up safety → deep
+  // rotation) where the coverage-adjusted spot is 5-9 yards off the
+  // formation slot.
+  // Call AFTER each def.map() with the rendered array. Mutates the
+  // formation slots in place; idempotent.
+  function _syncDefRendered(rendered) {
+    if (!rendered || !formation || !formation.defense) return;
+    for (let i = 0; i < rendered.length; i++) {
+      const r = rendered[i];
+      const fd = formation.defense[i];
+      if (!r || !fd) continue;
+      if (typeof r.x !== "number" || typeof r.y !== "number") continue;
+      fd._lastRenderedX = r.x;
+      fd._lastRenderedY = r.y;
+      if (typeof SimPlayer !== "undefined") {
+        if (!fd._sim) {
+          fd._sim = new SimPlayer(r.x, r.y, {
+            maxSpeed: SIM_DEFAULTS.MAX_SPEED,
+            accel: SIM_DEFAULTS.ACCEL,
+          });
+        } else {
+          fd._sim.x = r.x; fd._sim.y = r.y;
+        }
+      }
+    }
+  }
   // Action duration scales with yardage. Derived from real-football math
   // so plays don't "stop early": distance / cruise-speed + ragdoll beat,
   // floored at a real minimum action time. Real NFL snap-to-whistle is
@@ -3241,6 +3274,7 @@ function buildAnimForPlay(play, prevPlay) {
         });
         carrierToDraw = rb;
       }
+      _syncDefRendered(def);
       drawPlayers([...off2, carrierToDraw], def);
       // RUN TRAIL — dotted breadcrumbs from the LOS to the current ball
       // position. Only after the snap-and-handoff phase so it doesn't
@@ -3383,6 +3417,7 @@ function buildAnimForPlay(play, prevPlay) {
       const def = formation.defense.map((d, i) => ({
         ...d, pose: "stance", t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: -dir,
       }));
+      _syncDefRendered(def);
       drawPlayers(off, def);
       drawBall(ctx, ballX, ballY);
       // Banner: "SPIKE — CLOCK STOPPED!" once the ball hits the ground.
@@ -3422,6 +3457,7 @@ function buildAnimForPlay(play, prevPlay) {
       // Dead ball — both lines set in stance at the pre-penalty spot.
       const off = formation.offense.map(p => ({ ...p, pose: "stance", t: 0, facing: dir }));
       const def = formation.defense.map(d => ({ ...d, pose: "stance", t: 0, facing: -dir }));
+      _syncDefRendered(def);
       drawPlayers(off, def);
       drawBall(ctx, losX - dir * 2, cy);
       // Referee — throws the flag over the first ~28%, then SIGNALS the call:
@@ -4438,6 +4474,21 @@ function buildAnimForPlay(play, prevPlay) {
           dd.y = d.y + dy;
           dd.pose = isDefShifting(i, t) ? "run" : (isDefPointer(i) ? "point" : "stance");
           return dd;
+        }
+        // Carry the LAST RENDERED position forward as dd's starting basis,
+        // so post-snap branches that read dd.x as a baseline (CB follow
+        // init at d._cbFollowX = dd.x, zone-bail ease from dd.x, etc.)
+        // don't snap back to formation home on the first post-snap frame.
+        // _syncDefRendered captures the pre-snap rendered position
+        // (coverage-adjusted CB press, walked-up safety, etc.) at the end
+        // of the prior frame. Without this, the CB jumps 5-9 yards
+        // laterally from the press alignment back to formation slot, then
+        // starts the follow logic from there — the f131→132 pass-play
+        // snap teleport. Subsequent dd.x assignments below override as
+        // usual; this just sets the initial value.
+        if (typeof d._lastRenderedX === "number") {
+          dd.x = d._lastRenderedX;
+          dd.y = d._lastRenderedY;
         }
         dd.pose = "run";
         if (i < 4) {
@@ -5650,6 +5701,7 @@ function buildAnimForPlay(play, prevPlay) {
         }
         return { ...p, pose: "idle", facing: dir };
       });
+      _syncDefRendered(def);
       drawPlayers(off, def);
       // Standalone ball visibility. The ball is drawn ONLY while it's a
       // free object — in the air (pure flight) or loose on the ground
@@ -6410,6 +6462,7 @@ function buildAnimForPlay(play, prevPlay) {
         }
         return { ...p, pose: "idle", facing: dir };
       });
+      _syncDefRendered(def);
       drawPlayers(off, def);
       // Pre-snap: ball at the LOS (between center's legs). Was at
       // qb.x = LOS-90px ≈ 30px in front of RB — user-reported "ball
