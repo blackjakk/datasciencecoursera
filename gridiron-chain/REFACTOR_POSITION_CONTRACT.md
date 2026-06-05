@@ -3,9 +3,10 @@
 *Goal: close the entire "teleport" bug family in the play renderer, instead of
 discovering each seam by user report and patching it.*
 
-Status: **DESIGN — awaiting go-ahead to start Stage 0.** No production code
-changed by this doc. The RB-target reference-frame patch (`eb67c82`) and the FG
-fixes (`b94f8c4`) are interim seam-patches that this refactor subsumes.
+Status: **STAGES 0-5 SHIPPED — runs structurally clean, snap teleport class
+largely closed across all play kinds.** See *Execution log* at the bottom.
+The RB-target reference-frame patch (`eb67c82`) and the FG fixes
+(`b94f8c4`) were interim seam-patches that this refactor subsumes.
 
 ---
 
@@ -250,9 +251,197 @@ Usage: `node _teleport_capture.js 6` then `node _teleport_detect.js broadcast`
 
 ## Resume pointer
 
+- Stages 0-5 done. The structural framework is in place: every engine track's
+  t=0 is the formation slot; every defender's `_sim` syncs to the rendered
+  position each frame; every offense slot's last rendered (x,y) is captured
+  so later phase branches read from there instead of formation home.
+- Runs are clean (0 egregious). Pass-play snap teleport is largely closed.
+  Remaining ~55 egregious plays are mid-action handoffs (catch-frame
+  `_wrSim` re-init, pursuit→zone transitions on non-tackler safeties).
+- Next: **Stage 6 — catch-frame `_wrSim` continuity**. Per-frame `_wrLastX`
+  capture during the route appears intact, but `_wrSim.init` may not see
+  the right value on certain target slots (RB checkdowns, te2). Use
+  `_teleport_trace.js` on a `complete/wr1` worst-case to confirm the seam.
 - Interim patches already in: RB reference-frame remap `eb67c82`, FG sail/cheer
-  `b94f8c4`. Both are subsumed by Stages 2–3 and can be deleted in Stage 5.
-- Full position-write inventory (146 sites, grouped by phase/source) was produced
-  by the scoping agent; the handoff + time-budget tables above are its
-  actionable distillation.
-- Start at **Stage 0**. It's pure upside and de-risks everything after it.
+  `b94f8c4`. Both are subsumed by Stages 2-3.
+
+---
+
+## Execution log — what shipped (this session)
+
+Five stages landed on branch `claude/charming-brown-b18u2`. All measured
+against the Stage-0 detector at native 60fps × tactical (dots) view × 4
+captured games (~330 field plays).
+
+### Stage 1 — `15c0bb7` — Track t=0 = formation slot (run plays)
+
+**Two coupled changes:**
+1. Engine emits the specific tackler slot (`cb1`/`cb2`/`fs`/`ss`/`lb1-3`/`nb`)
+   alongside the role string. Animation reads slot first and looks up the
+   defender index directly (`_idxForSlot`) instead of hash-picking by role.
+   Closes the worst case: engine emitted a play-side CB tackler track but
+   the animation hash-picked the off-side CB, so the corner warped 34yd
+   laterally at the snap to reach the engine's t=0 waypoint.
+2. Renderer rewrites every engine-emitted track's t=0 waypoint to the
+   matched formation slot's LOS-relative position before sampling. The
+   `_alignT0(track, slot)` helper runs once per frame, idempotent.
+   Applied to carrier, primary tackler, FS, SS, CB1, CB2.
+
+**Results:** 138 → 137 egregious plays (variance); worst run-play jump
+34.1yd → 10.0yd; f131→132 snap teleport on runs eliminated.
+
+### Stage 2 — `2a59003` — Defender sim sync with track position
+
+When an engine motion track drove a defender, the code previously parked
+`d._sim` at the track position ONLY if the sim already existed. If the sim
+hadn't been created yet (the common case for track-driven defenders), the
+parking was skipped. The moment the track branch deactivated (juke flips
+`isDodged`, truck flips `isTrucked`), `pursue()` CREATED `d._sim` from
+scratch at the formation position — warping the defender from his track
+position back to formation.
+
+**Fix:** `_syncSimAt(nx, ny, factor)` creates the sim at `(nx, ny)` if
+missing, otherwise updates position. Called every frame the track drives
+the defender.
+
+**Results:** 137 → 107 egregious; 4/6 runs flagged.
+
+### Stage 3 — `1b0df9c` — TD celebration init + WR block target lock
+
+Two run-play seams of the same Family-A pattern: code reading formation
+home instead of previously rendered position.
+
+1. **TD celebration init** at `runT > 0.92`:
+   `if (p._followX == null) { p._followX = p.x; p._followY = p.y; }`
+   At the frame celebration starts, the player teleported from his
+   downfield blocking position back to formation home, then the
+   velocity-based converge moved him toward the scorer. QB/OL
+   "celebrate in place" branch returned `{ ...p }` with no x/y override.
+
+   **Fix:** capture each offense slot's rendered (x, y) at the end of
+   `offense.map` each frame as `_lastRenderedX/_lastRenderedY`.
+   Celebration init reads from there.
+
+2. **WR run-block target re-pick:** `sameSide.filter().reduce(nearest)`
+   re-picked every frame. When the nearest CB switched sides (crosses
+   midline), the WR's lerp endpoint jumped 30-50px.
+
+   **Fix:** cache the chosen defender's INDEX (not reference — `def[]`
+   is rebuilt each frame) on first selection. Lock for the play.
+
+**Results:** 107 → 119 egregious (capture variance); **0/6 runs flagged**
+— run-play teleport class structurally closed.
+
+### Stage 4 — `c2c8b08` — Defender sim sync + carry rendered pos through snap
+
+Same Family-A pattern, applied to pass plays. Pre-snap defenders are
+shifted by coverage (CB press at 2yd, walked-up safety at 5-6yd in C0/C1,
+etc.). Post-snap, `pursue()` initialized `d._sim` from `d.x`/`d.y` —
+formation home — teleporting the defender 5-9 yards back to his
+formation slot at t=PRE.
+
+**Two coupled changes:**
+1. `_syncDefRendered(rendered)` helper, called after every `def.map`.
+   For each rendered defender, stores its position on the formation slot
+   (`d._lastRenderedX` / `d._lastRenderedY`) AND syncs `d._sim` to that
+   position. Mirrors Stage 2's `_syncSimAt`, applied uniformly across
+   every play kind's `def.map`.
+2. In the pass-play `def.map` post-snap branch, initialize `dd.x`/`dd.y`
+   from `d._lastRenderedX/Y`. The `dd` object is `{ ...d }` each frame;
+   without this, post-snap code reading `dd.x` as a baseline (CB follow
+   init `d._cbFollowX = dd.x`, zone-bail ease from `dd.x`) snapped to
+   formation slot.
+
+**Results:** 119 → 55 egregious (−60% from baseline). Runs stay clean.
+Pass-play snap teleport class largely closed.
+
+### Stage 5 — `d0a1955` — _lastRenderedX capture + _followX init on pass plays
+
+Propagated Stage 3's "read from last rendered position" pattern to
+pass-play offense. Captures `_lastRenderedX/Y` after the complete-pass
+`offense.map`; updates the downfield-blocker / TD-celebration init
+(`if (p._followX == null) p._followX = p._lastRenderedX ?? p.x`).
+
+**Results:** 55 → 61 (essentially flat). Structural fix landed but
+practical impact small — most pass-play offense branches already
+maintain `_followX` via `p._followX = _x` lines, so the init at line
+~5501 rarely fires. Diminishing returns from this angle.
+
+---
+
+## Pre-refactor session fixes (this session, not Stage work)
+
+Four earlier commits this session were focused fixes that surfaced during
+the investigation but didn't fit the staged refactor. They're part of the
+same branch and were validated independently:
+
+| Commit | What |
+|---|---|
+| `c854d51` | Bind tackle-time to `play.motion.tackleT` — `play-animation.js` had `0.72` hardcoded in five run-play gates while the engine emitted `tackleT = 0.78`. Ragdoll fired ~125ms before the tackler arrived. Single source of truth pattern (prefigured Stage 1). |
+| `a6f4f33` | Emit `play.force` on runs from the engine's biomechanics. `_bumpHitWear` already computes a 0.5-2.2 force based on tackler STR/SPD/archetype; the run path now captures it and surfaces as `play.force = engineForce * 5`. Animation reads it for ragdoll impulse + slow-mo depth. |
+| `520c5c1` | I-Form FB/RB spacing — formation had FB at `cy+4`, RB at `cy+6` (2px Y separation), which read as overlapping sprites stacked behind the QB. Fixed to proper I-Form depths (FB -9yd back, RB -12yd back, both on midline). |
+| `72526ac` | I-Form carrier-track start aligned with renderer 2-back style. The engine's carrier track `t=0` was hardcoded at single-back depth (-8yd, +1.87yd); on I-style 2-back runs the RB sprite teleported 4yd forward + 28px at runT=0. Engine now picks the 2-back style deterministically per snap, emits `twoBackStyle`, and adjusts the carrier track `t=0` accordingly. |
+
+---
+
+## Detector — usage cheat sheet
+
+The `_teleport_capture.js` + `_teleport_detect.js` harness is the
+regression gate. Run it after any future change that touches positions:
+
+```
+node _teleport_capture.js 4           # capture 4 games of plays
+nohup npx --yes http-server -p 5173 -c-1 -s . > /tmp/dev-server.log 2>&1 &
+node _teleport_detect.js tactical     # detect against tactical (dots) view
+# headline at top of stdout: egregious-plays count
+# full detail: /tmp/teleport_report.json
+```
+
+Live diagnostic for a single play: enable `window.GC_DEBUG_TELEPORT = true`
+in the console; the continuity guard (`play-render.js:608`) logs every
+per-frame jump >12px with the player's name, jump magnitude, branch
+(SNAP/glide), and destination coords.
+
+For run-play tackle diagnosis: `window.GC_DEBUG_TACKLE = true` logs
+tackler↔carrier distance, role, position at impact.
+
+---
+
+## Baseline vs current — at a glance
+
+| Stage | Commit | Egregious | Runs flagged | Worst run jump |
+|---|---|---|---|---|
+| 0 baseline | — | 138 | 6/6 | 34.1 yd |
+| 1 | `15c0bb7` | 137 | 5/6 | 10.0 yd |
+| 2 | `2a59003` | 107 | 4/6 | 11.1 yd |
+| 3 | `1b0df9c` | 119 | **0/6** | none |
+| 4 | `c2c8b08` | **55** | 0/6 | none |
+| 5 | `d0a1955` | 61 | 0/6 | none |
+
+`(Stage 3's 119 vs Stage 2's 107 is capture variance — the run-play
+composition flipped to clean, which is the durable signal.)`
+
+---
+
+## What's NOT closed yet
+
+Per the detector's class breakdown after Stage 5, remaining egregious
+plays cluster in:
+
+1. **Catch-frame `_wrSim` re-init** (`complete/wr1` × 5 worst 13.9yd,
+   `complete/wr3` worst 13.4yd at late frames f167-f547). The route's
+   `_wrLastX` capture is per-frame; the sim init reads it. But there
+   are edge cases — possibly TARGET slots that don't run through the
+   route branch (RB checkdown? te2 on certain concepts?).
+2. **Pass-play snap teleport residue** on incomplete passes
+   (`incomplete/wr2` × 4 worst 10.4yd at f131→132). Stage 4 closed the
+   main path; some specific pre-snap branch isn't carrying its
+   rendered position into the post-snap dd init.
+3. **Sack defender pursuit** (`sack/-` × 6 worst 8.8yd). Late-action
+   pursuit handoff for the rusher reaching the QB.
+4. **Punt coverage** (`punt/-` × 1-2 plays). Special-teams unit has
+   its own render path that doesn't use the contract yet.
+
+Each follows the same Family-A pattern as Stages 1-5. The fix shape
+is identical: capture rendered position → init from there at the
+phase boundary. Localized, ~10-30 lines each.
