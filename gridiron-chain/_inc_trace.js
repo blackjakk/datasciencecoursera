@@ -4,17 +4,19 @@ const fs = require("fs");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 (async () => {
   const battery = JSON.parse(fs.readFileSync("/tmp/teleport_plays.json", "utf8"));
-  // Pick a PD incomplete — the class that's been flagged
-  let game = null, play = null, bestDepth = -1;
+  // Pick complete/wr1 TD play — late-action jump pattern
+  let game = null, play = null;
   for (const g of battery.games) for (const p of g.plays) {
-    if (p.kind === "incomplete" && p.incReason === "pd" && (p.targetDepth ?? 0) > bestDepth) {
-      bestDepth = p.targetDepth ?? 0;
+    if (p.kind === "complete" && p.motion && p.motion.targetSlot === "wr1"
+        && (p.endYard ?? 0) >= 100 && !play) {
       game = g; play = p;
     }
   }
   if (!play) {
     for (const g of battery.games) for (const p of g.plays) {
-      if (p.kind === "incomplete") { game = g; play = p; break; }
+      if (p.kind === "complete" && p.motion && p.motion.targetSlot === "wr1" && (p.yards ?? 0) > 15) {
+        game = g; play = p; break;
+      }
     }
   }
   if (!play) { console.log("no incomplete play"); process.exit(1); }
@@ -84,7 +86,7 @@ const { chromium } = require("/opt/node22/lib/node_modules/playwright");
         }
         if (prev) {
           const d = Math.hypot(pick.x - prev.x, pick.y - prev.y);
-          if (d > 30 && (!worst || d > worst.d)) {
+          if (d > 15 && (!worst || d > worst.d)) {
             worst = { id, role: pick.role, fromF: prev.f, toF: pick.f, from: [prev.x, prev.y], to: [pick.x, pick.y], d: Math.round(d) };
           }
         }
