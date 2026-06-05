@@ -3,11 +3,11 @@
 *Goal: close the entire "teleport" bug family in the play renderer, instead of
 discovering each seam by user report and patching it.*
 
-Status: **STAGES 0-9 SHIPPED — 95% reduction in egregious teleports
-(138 → 7). Runs structurally clean. Snap teleport class closed across
-all play kinds (including sack-branch LB blitzers). Late-YAC
-overshoot clamp restored to correct semantics.** See *Execution log*
-at the bottom.
+Status: **STAGES 0-11 SHIPPED — 96% reduction in egregious teleports
+(138 → 6). Runs structurally clean. Snap teleport class closed across
+all play kinds. Late-YAC overshoot clamp restored. DIME-LB coverage
+mapping corrected (was being driven to top-side hook track instead of
+MLB hook).** See *Execution log* at the bottom.
 The RB-target reference-frame patch (`eb67c82`) and the FG fixes
 (`b94f8c4`) were interim seam-patches that this refactor subsumes.
 
@@ -254,12 +254,13 @@ Usage: `node _teleport_capture.js 6` then `node _teleport_detect.js broadcast`
 
 ## Resume pointer
 
-- Stages 0-9 done. **Egregious teleports down 95% (138 → 7).** Runs
+- Stages 0-11 done. **Egregious teleports down 96% (138 → 6).** Runs
   structurally clean; pass-play snap teleports closed; sack pre-snap
   shifts (DL + LB) closed; safety rotation handles all coverages
   including C0_BLITZ; INT / PD / dropped-pick ease starts from
-  pre-snap render; late-YAC overshoot clamp restored to correct
-  semantics via `_wrLastX` freeze.
+  pre-snap render; late-YAC overshoot clamp restored via `_wrLastX`
+  freeze; DIME / NICKEL / BASE_43 LB mapping now respects formation
+  count.
 - The structural framework: every engine track's t=0 is the formation
   slot (or `_lastRenderedX/Y` for pre-snap-shifted defenders); every
   defender's `_sim` syncs to the rendered position each frame; every
@@ -480,6 +481,51 @@ Two coupled changes.
 Closes `complete/wr2` late YAC, `sack/-` LB walked-up, drops
 `complete/rb` from 6 to 2 plays.
 
+### Stage 10 — `575f705` — DL formation-jitter fallbacks read last-rendered
+
+Sweep through remaining `d.x`-anchored fallback paths in the
+def.map (three sites: run-play DL formation hold, complete-pass DL
+engagement-unavailable fallback, sack-branch DL holds). All converted
+to base from `d._lastRenderedX` so pre-snap shifts carry through.
+
+**Results:** 7 → 8 egregious (capture variance — statistically
+equivalent at this magnitude). Structural cleanup but small practical
+impact because DL pre-snap shifts via `defShiftXY` are small (≤2yd).
+
+### Stage 11 — `f4d5466` — LB-track mapping by package, not ordinal
+
+First-principles trace of a single incomplete PD play (via
+`_inc_trace.js`) revealed a real systemic bug. The LB → engine-track
+mapping used the defender's POSITIONAL ORDINAL in the formation array
+(`lb1` = index 0, `lb2` = 1, `lb3` = 2), regardless of how many LBs
+were on the field. In DIME and QUARTER packages, the single LB is the
+MLB (middle linebacker), but ordinal 0 mapped it to the `lb1` track —
+the TOP-side hook (−7 yd from middle).
+
+Result: the DIME LB at `cy` snapped to `lb1`'s t=0 waypoint at
+`cy − 42` (2.8 yd Y delta) at the snap, and his entire coverage
+assignment for the play was wrong (running the top hook, leaving
+the middle unmanned).
+
+**Fix:** route by formation LB count (`idxCB1 − idxLB1`):
+
+| LB count | Package | Mapping |
+|---|---|---|
+| 3 | BASE_43 | `lb1` / `lb2` / `lb3` by ordinal (unchanged) |
+| 2 | NICKEL  | ordinal 0 → `lb1`, ordinal 1 → `lb3` (outside hooks) |
+| 1 | DIME    | ordinal 0 → `lb2` (middle / MLB) |
+| 0 | QUARTER | n/a |
+
+Tracing tool committed: `_inc_trace.js` — a single-play per-frame dump
+similar to `_teleport_trace.js` but ranges over all players and finds
+the worst per-frame jump. That's how this bug surfaced.
+
+**Results:** 8 → 6 (**−96% vs baseline**). Borderline class also
+dropped 122 → 82 plays — the DIME-LB mismapping produced many
+small misalignments across plays that were under the egregious
+threshold individually but all relaxed at once with the correct
+mapping.
+
 ---
 
 ## Pre-refactor session fixes (this session, not Stage work)
@@ -533,36 +579,35 @@ tackler↔carrier distance, role, position at impact.
 | 6 | `49ae992` | 32 | 0/6 (1/6 variance) | 18 yd outlier |
 | 7 | `5e0f817` | 14 | 0/6 | none |
 | 8 | `6735fd6` | 10 | 0/6 | none |
-| 9 | `1e92925` | **7** | 0/6 | none |
+| 9 | `1e92925` | 7 | 0/6 | none |
+| 10 | `575f705` | 8 (variance) | 0/6 | none |
+| 11 | `f4d5466` | **6** | 0/6 | none |
 
 `(Stage 3's 119 vs Stage 2's 107 is capture variance — the run-play
 composition flipped to clean, which is the durable signal.)`
 
 ---
 
-## What's NOT closed yet (after Stage 9)
+## What's NOT closed yet (after Stage 11)
 
-Per the detector's class breakdown after Stage 9, ~7 egregious plays
-remain — almost all single-play outliers, not patterns:
+Per the detector's class breakdown after Stage 11, ~6 egregious plays
+remain. They cluster in two patterns:
 
-1. **Post-incompletion phase outlier** (`incomplete/-` × 2 plays at
-   f270 ~21yd). A defender's late-action repositioning when the ball
-   is batted down. The PD branch's `intDefIdx` is now properly handled
-   (Stage 7), but this is a *different* defender doing some other
-   late-action move — likely a cleanup path I haven't traced.
-2. **Single deep-route YAC** (`complete/wr3` × 1 at f515, 12.9yd).
-   One specific play type, late-action.
-3. **Residual `complete/wr1`** (×2 at f441, 8.8yd). Deep YAC corner
-   route variant — Stage 9's freeze closed most but a tackle-clamp
-   edge case remains.
-4. **Residual `complete/rb`** (×2 at f155, 7yd). RB checkdown
-   borderline — 16 plays in the 5.3yd borderline tier suggest a
-   route-to-sim handoff timing difference for backfield targets.
+1. **TD-celebration window `complete/wr1`** (× 3 plays at f452+,
+   worst 15.7yd). For passes that end as TDs, the target receiver
+   transitions through `wrPose = "celebrate"` at `aT > 0.90`. The
+   `_wrSim` runs to `_effEndX` (which has a 3yd EZ bonus for TDs)
+   and the sim's natural cruise hits a phase boundary. Tracing
+   via `_inc_trace.js` against a TD play didn't reveal an obvious
+   override — the jump may be a multi-frame skip via the wall-clock
+   slow-mo window. Worth instrumenting at the next user report.
+2. **`complete/rb` checkdown** (× 2 plays at f149, worst 7yd) +
+   `complete/wr2` (× 1 at f457, worst 10.1yd). Per-play edge cases
+   in the route-to-sim handoff.
 
-Each is a single-play / few-play case. The structural framework
-is in place; remaining issues are best diagnosed per-play via
-`_teleport_trace.js` if/when a user actually sees them.
+Each is a per-play timing case. Structural framework is in place;
+remaining issues are best diagnosed via `_inc_trace.js` against the
+specific failing play if a user reports one.
 
-**Diminishing returns** are real: the structural wins are taken;
-remaining bugs are scattered specific cases. We went from 138
-egregious teleports to 7 across 9 stages.
+**Diminishing returns** are real: 138 → 6 across 11 stages
+(95.7% reduction). The cheap structural wins are taken.
