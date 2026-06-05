@@ -1,0 +1,50 @@
+name: Audit regression gate
+
+# Runs the SEEDED realism audits and fails if a tracked aggregate metric (league
+# pressure / run-block-win / completion-allowed) drifts from its committed
+# baseline beyond tolerance. Pure node — no browser, no server. Only runs when
+# engine/talent files (or the audit harness) change. The seeded determinism is
+# what makes this a gate at all: unseeded, the metrics swung several points
+# run-to-run on identical code.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "gridiron-chain/play-engine.js"
+      - "gridiron-chain/play-player.js"
+      - "gridiron-chain/play-sim.js"
+      - "gridiron-chain/play-data.js"
+      - "gridiron-chain/play-motion.js"
+      - "gridiron-chain/play-render.js"
+      - "gridiron-chain/_mff_audit.js"
+      - "gridiron-chain/_audit_gate.js"
+      - "gridiron-chain/_audit_baseline.json"
+      - ".github/workflows/audit-gate.yml"
+  pull_request:
+    paths:
+      - "gridiron-chain/play-engine.js"
+      - "gridiron-chain/play-player.js"
+      - "gridiron-chain/play-sim.js"
+      - "gridiron-chain/play-data.js"
+      - "gridiron-chain/play-motion.js"
+      - "gridiron-chain/play-render.js"
+      - "gridiron-chain/_mff_audit.js"
+      - "gridiron-chain/_audit_gate.js"
+      - "gridiron-chain/_audit_baseline.json"
+      - ".github/workflows/audit-gate.yml"
+
+jobs:
+  audit-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: gridiron-chain
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run audit regression gate (seeded)
+        run: node _audit_gate.js

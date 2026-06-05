@@ -1,39 +1,53 @@
 #!/usr/bin/env bash
-# Pre-commit hook — teleport regression gate.
+# Pre-commit hook — seeded regression gates (teleport + realism audit).
 #
-# Fires ONLY when position-critical gridiron-chain render/engine files are
-# staged, so it's a fast no-op for everything else. When it does fire it runs
-# the deterministic seeded gate (_teleport_gate.sh) and blocks the commit if
-# egregious teleports exceed the committed baseline.
+# Each gate fires ONLY when its relevant gridiron-chain files are staged, so it's
+# a fast no-op otherwise. Both are deterministic (seeded), so a failure is a real
+# regression, not sampling noise.
+#   - Teleport gate  (_teleport_gate.sh): render/animation position files.
+#   - Audit gate     (_audit_gate.js):    engine/talent realism files.
 #
 # Install once (from repo root):   git config core.hooksPath .githooks
 # Bypass for one commit:           git commit --no-verify
 #
-# Exit handling: gate rc 1 = real regression (block); rc 2 = harness unavailable
-# (e.g. no Playwright on this machine) → warn but allow, since a missing harness
-# is not a regression.
+# Per-gate exit handling: rc 1 = real regression (block); rc 2 = harness
+# unavailable (e.g. no Playwright) → warn but allow, since that's not a regression.
 set -u
 
-WATCH='gridiron-chain/(play-animation|play-engine|play-render|play-motion)\.js'
+ROOT="$(git rev-parse --show-toplevel)"
 staged="$(git diff --cached --name-only)"
-if ! printf '%s\n' "$staged" | grep -qE "$WATCH"; then
-  exit 0   # nothing position-relevant changed
+match() { printf '%s\n' "$staged" | grep -qE "$1"; }
+
+# ── Teleport gate ──────────────────────────────────────────────────────────
+if match 'gridiron-chain/(play-animation|play-engine|play-render|play-motion)\.js'; then
+  echo "▶ pre-commit: position files staged — running teleport gate (seeded) ..."
+  ( cd "$ROOT/gridiron-chain" && ./_teleport_gate.sh ); rc=$?
+  if [ "$rc" -eq 1 ]; then
+    echo ""
+    echo "✗ TELEPORT REGRESSION — egregious teleports exceed baseline. Commit blocked."
+    echo "  Detail: /tmp/teleport_report.json"
+    echo "  If intentional, lower 'egregious' in gridiron-chain/_teleport_baseline.json"
+    echo "  in the same commit. Bypass (not recommended): git commit --no-verify"
+    exit 1
+  elif [ "$rc" -eq 2 ]; then
+    echo "⚠ teleport gate could not run (harness unavailable) — allowing commit."
+  fi
 fi
 
-echo "▶ pre-commit: position files staged — running teleport gate (seeded) ..."
-( cd "$(git rev-parse --show-toplevel)/gridiron-chain" && ./_teleport_gate.sh )
-rc=$?
-
-if [ "$rc" -eq 1 ]; then
-  echo ""
-  echo "✗ TELEPORT REGRESSION — egregious teleports exceed baseline. Commit blocked."
-  echo "  Detail: /tmp/teleport_report.json"
-  echo "  If this is an intentional, verified improvement, lower 'egregious' in"
-  echo "  gridiron-chain/_teleport_baseline.json in the same commit."
-  echo "  To bypass (not recommended): git commit --no-verify"
-  exit 1
-elif [ "$rc" -eq 2 ]; then
-  echo "⚠ teleport gate could not run (harness unavailable) — allowing commit."
-  exit 0
+# ── Audit (realism) gate ───────────────────────────────────────────────────
+if match 'gridiron-chain/(play-engine|play-player|play-sim|play-data|play-motion|play-render|_mff_audit|_audit_gate)\.(js)|gridiron-chain/_audit_baseline\.json'; then
+  echo "▶ pre-commit: engine/talent files staged — running audit gate (seeded) ..."
+  ( cd "$ROOT/gridiron-chain" && node _audit_gate.js ); rc=$?
+  if [ "$rc" -eq 1 ]; then
+    echo ""
+    echo "✗ AUDIT REGRESSION — a realism metric drifted beyond tolerance. Commit blocked."
+    echo "  If intentional, update the matching 'value' in"
+    echo "  gridiron-chain/_audit_baseline.json in the same commit."
+    echo "  Bypass (not recommended): git commit --no-verify"
+    exit 1
+  elif [ "$rc" -eq 2 ]; then
+    echo "⚠ audit gate could not run — allowing commit."
+  fi
 fi
+
 exit 0

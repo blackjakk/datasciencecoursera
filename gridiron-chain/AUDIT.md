@@ -53,6 +53,20 @@ node _brady_audit.js 100   # ~40 min — settles the noisy Brady cadence
 > metrics. Seeding + adequate N together is the trustworthy combo.
 > (`_brady_audit` / `_audit_all.sh` are not yet seeded — follow-up.)
 
+> **Regression gate (automated).** `_audit_gate.js` + `_audit_baseline.json` turn
+> the seeded MFF aggregates into a CI/pre-commit check — the FM-style
+> cross-version regression test. It runs `_mff_audit.js 1` (seeded, ~60s) and
+> **fails if league pressure / run-block-win / completion-allowed drift from the
+> baseline beyond tolerance** (the audit's own NFL band is an informational
+> warning, not a failure). Run locally with `node _audit_gate.js`. Wired into
+> `.github/workflows/audit-gate.yml` (engine/talent file changes) and the
+> `.githooks/pre-commit` hook. **Scope:** it gates AGGREGATES only — the
+> per-player leaderboards are small-sample noise even seeded, so raise the season
+> count for those, don't gate them. Re-baseline an intentional realism change by
+> updating the matching `value` in `_audit_baseline.json` in the same commit
+> (same protocol as the teleport gate). N=1 is for CI speed; the gate detects
+> *drift*, it does not assert NFL-validity — that's still a manual large-N run.
+
 No flags, no build step, no browser. Output is plain-text tables with NFL
 bands and `OK` / `!!` flags. Stderr carries progress + benign noise (filter
 with `2>&1 | grep -vE "missing pick|IDB|^\s+at "` if you want it clean).
