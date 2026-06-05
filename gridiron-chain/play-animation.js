@@ -4770,11 +4770,31 @@ function buildAnimForPlay(play, prevPlay) {
           const ti = play.motion.tracks;
           const isLBIdx = (i >= idxLB1 && i < idxCB1);
           const lbOrdinal = i - idxLB1;     // 0, 1, 2
+          const _lbCount = idxCB1 - idxLB1;
           if (isLBIdx) {
-            _passSecondaryTrack = lbOrdinal === 0 ? ti.lb1
-                                : lbOrdinal === 1 ? ti.lb2
-                                : lbOrdinal === 2 ? ti.lb3
-                                : null;
+            // Map LB index → engine track key. In NICKEL the formation
+            // has 2 LBs (W/M) which map to lb1/lb2. In DIME the formation
+            // has 1 LB which is the MLB (middle) — must map to lb2, NOT
+            // lb1 (which is the top-side hook). Without this correction
+            // the single DIME LB at cy snaps to the lb1 t=0 waypoint
+            // at cy-42 (a ~3yd jump at the snap, and his coverage
+            // assignment for the rest of the play is wrong).
+            if (_lbCount === 3) {
+              _passSecondaryTrack = lbOrdinal === 0 ? ti.lb1
+                                  : lbOrdinal === 1 ? ti.lb2
+                                  : lbOrdinal === 2 ? ti.lb3
+                                  : null;
+            } else if (_lbCount === 2) {
+              // NICKEL: top LB → lb1, bottom LB → lb3 (closer to lb2 since
+              // both formation slots are ±_lbYNickel ≈ ±22px from cy and
+              // engine's lb1 hook is at -7yd vs lb3's +7yd — slot-side
+              // match is best). Use lb1/lb3 since those are the outside
+              // hooks; the middle hook is unused in NICKEL.
+              _passSecondaryTrack = lbOrdinal === 0 ? ti.lb1 : ti.lb3;
+            } else {
+              // DIME / QUARTER (1 LB or 0 LB) — single LB is the MLB.
+              _passSecondaryTrack = ti.lb2;
+            }
           } else if (i === idxS1) {
             _passSecondaryTrack = ti.fs;
           } else if (i === idxS2) {
