@@ -2963,8 +2963,13 @@ function buildAnimForPlay(play, prevPlay) {
         // of the goal line on long TD runs.
         if (isTD && runT > 0.92) {
           if (p.role === "QB" || p.role === "OL") {
-            // Celebrate in place. Pose-only override; no position lerp.
+            // Celebrate in place. Pose-only override; rendered position
+            // pins to where the player was on the previous frame (NOT
+            // formation home) — otherwise the QB / OL teleport back to
+            // their pre-snap slot the frame celebration triggers.
             return { ...p,
+                     x: p._lastRenderedX ?? p.x,
+                     y: p._lastRenderedY ?? p.y,
                      pose: "celebrate",
                      t: Math.min(1, (runT - 0.92) / 0.08),
                      facing: dir };
@@ -2981,7 +2986,16 @@ function buildAnimForPlay(play, prevPlay) {
                                 FIELD.EZ_PX * 0.5, FIELD.W - FIELD.EZ_PX * 0.5);
           const targetY = clamp(rb.y + Math.sin(angle) * radius,
                                 FIELD.TOP + 20, FIELD.BOT - 20);
-          if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
+          // Initialize from the PREVIOUSLY RENDERED position, not the
+          // formation slot. Reading p.x/p.y here was the late-play
+          // teleport: at the frame celebration starts, the player jumps
+          // from his downfield blocking spot back to formation home and
+          // begins the celebrate-converge from there. _lastRenderedX is
+          // captured at the end of this map() each frame.
+          if (p._followX == null) {
+            p._followX = p._lastRenderedX ?? p.x;
+            p._followY = p._lastRenderedY ?? p.y;
+          }
           if (p._followVX == null) { p._followVX = 0; p._followVY = 0; }
           // Frame-time factor (see pass downfield-blocker block) — driven
           // off PLAY-TIME (t) delta so it's both refresh-independent AND
@@ -3126,18 +3140,30 @@ function buildAnimForPlay(play, prevPlay) {
         // close on the nearest CB and adopt the "engage" pose. The TE handles
         // its edge block above; here we only deal with wide receivers.
         if (p.role === "WR1" || p.role === "WR2" || p.role === "WR3" || p.role === "WR4" || p.role === "WR5") {
-          // Find the closest CB on the same side of the field
-          const sameSide = (def && def.length) ? def.filter(d => Math.sign(d.y - cy) === Math.sign(p.y - cy) && (d.role === "CB" || d.role === "NB" || d.role === "DB")) : [];
-          // Fallback target — sprint downfield if no CB found
+          // Pick a CB to block, then LOCK that choice for the rest of
+          // the play. Re-picking every frame caused a teleport when the
+          // nearest CB switched sides (e.g., a CB crosses the midline
+          // and the sameSide filter returns a defender 30+ yards away);
+          // the WR's lerp endpoint jumped, snapping the sprite. Cache
+          // the defender INDEX (not the object) since def[] is rebuilt
+          // each frame.
           let tgtX = p.x + dir * 18, tgtY = p.y;
-          if (sameSide.length) {
-            // Pick the nearest CB
-            const tgt = sameSide.reduce((best, d) => {
-              const dist = Math.hypot(d.x - p.x, d.y - p.y);
-              return (best == null || dist < best.dist) ? { d, dist } : best;
-            }, null);
-            if (tgt) { tgtX = tgt.d.x - dir * 4; tgtY = tgt.d.y; }
+          let tgtDef = (p._blockTargetIdx != null && def && def[p._blockTargetIdx])
+            ? def[p._blockTargetIdx] : null;
+          if (!tgtDef && def && def.length) {
+            const sameSide = def.filter(d => Math.sign(d.y - cy) === Math.sign(p.y - cy) && (d.role === "CB" || d.role === "NB" || d.role === "DB"));
+            if (sameSide.length) {
+              const best = sameSide.reduce((b, d) => {
+                const dist = Math.hypot(d.x - p.x, d.y - p.y);
+                return (b == null || dist < b.dist) ? { d, dist } : b;
+              }, null);
+              if (best) {
+                tgtDef = best.d;
+                p._blockTargetIdx = def.indexOf(tgtDef);
+              }
+            }
           }
+          if (tgtDef) { tgtX = tgtDef.x - dir * 4; tgtY = tgtDef.y; }
           // Release downfield first, then close on the CB
           const releaseT = Math.min(1, tt / 0.30);
           const closeT   = Math.max(0, (tt - 0.30) / 0.70);
@@ -3153,6 +3179,25 @@ function buildAnimForPlay(play, prevPlay) {
         // role string we didn't catch above.
         return { ...p, x: p.x + dir * tt * 14, pose: "run", t: (t < 0.95 ? ((performance.now() / 333) + 0.5) % 1 : 0), facing: dir };
       });
+      // Capture each offense slot's RENDERED position from this frame so
+      // next-frame branches that need "where was this player last" (TD
+      // celebration init, QB celebrate-in-place, future phase handoffs)
+      // read the last rendered spot, not formation home. Same Family-A
+      // continuity fix as the Stage 1+2 track/sim work — applied to the
+      // offense's frame-to-frame phase handoff.
+      // filter() preserves order; off[k] corresponds to the k-th non-RB
+      // formation slot.
+      {
+        let _k = 0;
+        for (const _fp of formation.offense) {
+          if (_fp.role === "RB") continue;
+          const _r = off[_k++];
+          if (_r && typeof _r.x === "number" && typeof _r.y === "number") {
+            _fp._lastRenderedX = _r.x;
+            _fp._lastRenderedY = _r.y;
+          }
+        }
+      }
       // For scrambles / option keepers the QB is the actual ball carrier — so
       // we render the QB sprite at the carrier position with the carrier pose,
       // and the RB sits in the backfield as a check-down blocker.
