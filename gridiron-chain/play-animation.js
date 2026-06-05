@@ -2744,6 +2744,25 @@ function buildAnimForPlay(play, prevPlay) {
           else if (i === idxCB2) _secondaryTrack = _tracksAll.cb2;
         }
         const _useSecondaryMotion = _secondaryTrack && typeof MotionPlayback !== "undefined";
+        // Sync d._sim to a known (x, y) so a later pursue() handoff starts
+        // from THERE, not from formation. Without this, the sim is created
+        // lazily at d.x/d.y (formation) the first time pursue() runs —
+        // teleporting the defender from his track position back to
+        // formation. Creates the sim if missing; updates if present.
+        // (Stage 2 of REFACTOR_POSITION_CONTRACT.md: kill the
+        // formation→pursue-sim handoff seam.)
+        const _syncSimAt = (nx, ny, factor) => {
+          if (typeof SimPlayer === "undefined") return;
+          if (!d._sim) {
+            d._sim = new SimPlayer(nx, ny, {
+              maxSpeed: SIM_DEFAULTS.MAX_SPEED * factor,
+              accel: SIM_DEFAULTS.ACCEL,
+            });
+            d._simFactor = factor;
+          } else {
+            d._sim.x = nx; d._sim.y = ny;
+          }
+        };
         let np;
         if (_useTacklerMotion) {
           const sample = MotionPlayback.sampleTrack(_tacklerTrack, runT);
@@ -2752,10 +2771,7 @@ function buildAnimForPlay(play, prevPlay) {
             const ny = cy + sample.dyYd * FIELD.PX_PER_YARD;
             const moved = Math.hypot(nx - d.x, ny - d.y) > 0.5;
             np = { x: nx, y: ny, moved };
-            // Park the sim at this spot so any later code that reads
-            // d._sim sees a consistent position (no teleport on the
-            // next frame if motion ends).
-            if (d._sim) { d._sim.x = nx; d._sim.y = ny; }
+            _syncSimAt(nx, ny, factor);
           }
         } else if (_useSecondaryMotion) {
           const sample = MotionPlayback.sampleTrack(_secondaryTrack, runT);
@@ -2764,7 +2780,7 @@ function buildAnimForPlay(play, prevPlay) {
             const ny = cy + sample.dyYd * FIELD.PX_PER_YARD;
             const moved = Math.hypot(nx - d.x, ny - d.y) > 0.5;
             np = { x: nx, y: ny, moved };
-            if (d._sim) { d._sim.x = nx; d._sim.y = ny; }
+            _syncSimAt(nx, ny, factor);
           }
         }
         let primarySpeedPx = SIM_DEFAULTS.MAX_SPEED * factor;
