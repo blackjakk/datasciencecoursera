@@ -647,12 +647,13 @@ composition flipped to clean, which is the durable signal.)`
 
 ## What's NOT closed yet — RE-DIAGNOSED on the deterministic battery
 
-On the seed=1337 battery the floor is **11 egregious plays** (not 6 — see
-*Determinism*). They fall in these classes:
+On the seed=1337 battery the floor is now **8 egregious plays** (was 11; the
+`run/-` truck-snap class is closed — see *Stage 12* below). Not 6 — see
+*Determinism*. The remaining classes:
 
 | Class | × | Worst | Example (player · frame · jump) |
 |---|---|---|---|
-| `run/-` | 3 | **21.8yd** | LB f171→172 scrape→tackled, (764,330)→(1088,378) |
+| ~~`run/-`~~ | ~~3~~ | ~~21.8yd~~ | **CLOSED** (Stage 12 — trucked-defender continuity) |
 | `complete/wr1` | 3 | 11.3yd | WR f445→446, (499,74)→(360,172) |
 | `complete/rb` | 3 | 10yd | RB/defender f150-484 |
 | `complete/wr2` | 1 | 14.5yd | WR f496→497 |
@@ -695,3 +696,24 @@ seeded gate now guarding (baseline 11), that work is now *measurable*: a correct
 fix should drop the count toward ~1-2 (the `incomplete/-` outlier may be separate)
 with no regression. Recommended approach: option (a) for the track-driven tackler
 (keep one source of truth), option (b)'s ease only for the ragdoll-physics sites.
+
+### Stage 12 — trucked-defender continuity (`run/-` truck-snap closed)
+
+First tackle-seam site fixed, gate-verified. Confirmed by instrumented trace
+that the `run/-` 21.8yd jumps were the **trucked defender** (`isTrucked =
+i === dodgeIdx && rbPose === "truck"`, ~2713): when `truck` flips true, the
+branch at ~2860 hard-set `dd.x = rb.x + dir*6` (the carrier), teleporting the
+victim from his scrape spot to the carrier — up to 22yd — because his pursuit
+sim never converged (he was 22yd away at truck onset).
+
+**Fix:** capture the victim's last-rendered position (`dd.x/y`, already set from
+`np` just above) at truck onset and ease to the carrier anchor over a 0.18-runT
+window (smootherstep), instead of snapping. The "bowled over" motion now reads
+as a continuous slide; max per-frame delta dropped from 328px to ~13px.
+
+**Result (seed=1337):** 11 → **8** egregious. `run/-` ×3 closed; no regression
+(remaining 8 are exactly the prior non-run classes). Baseline lowered to 8.
+
+The other tackle-seam sites (post-catch `_wrSim` for `complete/*`, the
+`incomplete/-` outlier) are the same family but distinct branches — next session,
+same trace-then-ease method, gate as guard.

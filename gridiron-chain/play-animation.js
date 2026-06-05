@@ -2857,9 +2857,23 @@ function buildAnimForPlay(play, prevPlay) {
         }
         dd.x = np.x; dd.y = np.y;
         if (isTrucked) {
-          // Trucked defender ragdolls — anchor to carrier position and fall
-          dd.x = rb.x + dir * 6;
-          dd.y = rb.y + 2;
+          // Trucked defender ragdolls — driven toward the carrier and falls.
+          // CONTINUITY (tackle seam, REFACTOR_POSITION_CONTRACT.md): the truck
+          // victim can be several yards from the carrier at truck onset (his
+          // pursuit sim didn't converge), so hard-setting him onto the carrier
+          // teleported up to ~22yd in one frame. Capture where he was last
+          // rendered (dd.x/y, set from np just above) at the onset frame and
+          // EASE to the carrier anchor over the truck window, so "bowled over"
+          // reads as continuous motion instead of a pop.
+          const _truckAnchorX = rb.x + dir * 6;
+          const _truckAnchorY = rb.y + 2;
+          if (d._truckBaseX == null) {
+            d._truckBaseX = dd.x; d._truckBaseY = dd.y; d._truckOnsetRunT = runT;
+          }
+          const _tp = Math.min(1, Math.max(0, (runT - d._truckOnsetRunT) / 0.18));
+          const _te = _tp * _tp * (3 - 2 * _tp);
+          dd.x = d._truckBaseX + (_truckAnchorX - d._truckBaseX) * _te;
+          dd.y = d._truckBaseY + (_truckAnchorY - d._truckBaseY) * _te;
           dd.pose = "tackled";
           // Fall progress over the truck window (cruise 0.34-0.52)
           const truckT = Math.min(1, Math.max(0, (runT - 0.34) / 0.20));

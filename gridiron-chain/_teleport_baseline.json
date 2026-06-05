@@ -3,11 +3,11 @@
   "seed": 1337,
   "games": 4,
   "cam": "tactical",
-  "commit": "f8d7012",
+  "commit": "(truck-victim continuity fix on exciting-babbage)",
   "plays": 336,
-  "egregious": 11,
-  "flags": 82,
+  "egregious": 8,
+  "flags": 80,
   "nonFinite": 0,
   "renderErrors": 0,
-  "note": "The prior handoff quoted a floor of 6, but that was a single UNSEEDED draw; on identical code the unseeded count ranged 4-13 run-to-run. 11 is the reproducible value on the seed=1337 / 4-game battery. Not a regression — the same code, measured honestly."
+  "note": "Was 11 before the trucked-defender continuity fix (run/- truck-snap class, worst 21.8yd, closed). Remaining 8 are post-catch receiver/carrier tackle snaps + 1 incomplete outlier. The earlier handoff floor of 6 was a single unseeded draw; 8 is reproducible on the seed=1337 / 4-game battery."
 }
