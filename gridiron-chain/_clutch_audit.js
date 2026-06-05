@@ -110,7 +110,28 @@ const audit = `
 })();
 `;
 
-let bundle = shim;
+// DETERMINISM: both the engine (~142 unseeded Math.random/game) and this audit's
+// own pool shuffle draw from Math.random, so an unseeded run samples different
+// games AND a different player pool every time — the worst case for detecting a
+// SMALL orthogonal signal (the ICE-vs-CHOKE clutch DiD, targets ~+5pp/+3pp/-1pp).
+// Seeding (mulberry32, bundle eval scope only; shipped engine untouched) makes
+// the run reproducible so the DiD is attributable, not noise. Default seed fixed;
+// pass arg 3 to vary. The DiD still needs large GAMES (arg 2, default 4000) to
+// resolve — seeding gives reproducibility, sample size gives the signal.
+const SEED = (process.argv[3] != null ? Number(process.argv[3]) : 1337) >>> 0;
+const seedPrelude = `
+  (function () {
+    var __a = ${SEED} >>> 0;
+    Math.random = function () {
+      __a |= 0; __a = (__a + 0x6D2B79F5) | 0;
+      var t = Math.imul(__a ^ (__a >>> 15), 1 | __a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  })();
+`;
+console.error("[_clutch_audit seed=" + SEED + ", deterministic — DiD still needs large GAMES (arg 2) to resolve]");
+let bundle = seedPrelude + shim;
 for (const f of files) bundle += "\n;// ===== " + f + " =====\n" + stripUiInit(fs.readFileSync(path.join(__dirname, f), "utf8"), f) + "\n";
 bundle += audit;
 new Function(bundle)();

@@ -161,5 +161,26 @@ const audit=`;(function(){
   L("      cover-LB   r="+corr(cvlbs,r=>r.g_cov,r=>r.cov).toFixed(2)+"   "+band(corr(cvlbs,r=>r.g_cov,r=>r.cov))+"   (vs OVR: "+corr(cvlbs,r=>r.g_cov,r=>r.ovr).toFixed(2)+")");
   L("");
 })();`;
-let code=shim+"\n"; for(const f of files){let c=fs.readFileSync(path.join(__dirname,f),"utf8");c=stripUiInit(c,f);code+="\n"+c+"\n";}
+// DETERMINISM: the engine draws ~142 unseeded Math.random per game, so an
+// unseeded audit produces a different season every run. Aggregate verdicts have
+// wide bands and survive, but the per-player LEADERBOARDS are noise-dominated at
+// low season counts (two 1-season runs share almost no top names). Seed
+// Math.random with a mulberry32 stream (bundle eval scope only; the shipped
+// engine is untouched) so the SAME seed gives the SAME result. Pass arg 3 to
+// vary the seed. NOTE: seeding gives REPRODUCIBILITY, not validity — for stable
+// leaderboards still raise the season count (arg 2).
+const SEED = (process.argv[3] != null ? Number(process.argv[3]) : 1337) >>> 0;
+const seedPrelude = `
+  (function () {
+    var __a = ${SEED} >>> 0;
+    Math.random = function () {
+      __a |= 0; __a = (__a + 0x6D2B79F5) | 0;
+      var t = Math.imul(__a ^ (__a >>> 15), 1 | __a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  })();
+`;
+console.error("[_mff_audit seed=" + SEED + ", deterministic — raise season count (arg 2) for stable leaderboards]");
+let code=seedPrelude+shim+"\n"; for(const f of files){let c=fs.readFileSync(path.join(__dirname,f),"utf8");c=stripUiInit(c,f);code+="\n"+c+"\n";}
 code+=audit; require("vm").runInThisContext(code,{filename:"_mff_audit_bundle.js"});

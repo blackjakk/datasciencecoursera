@@ -38,6 +38,21 @@ node _brady_audit.js 100   # ~40 min — settles the noisy Brady cadence
 > tail-sensitive question (per-position 90+ rates, K/P, legends) — 40-season
 > per-position tails are small-sample noise.
 
+> **Determinism (seeded).** `_sim_audit`, `_clutch_audit`, and `_mff_audit` now
+> override `Math.random` with a seeded mulberry32 stream (default seed 1337; pass
+> it as the LAST arg to vary, e.g. `node _sim_audit.js 5 99`). The shipped engine
+> is untouched. **Why this matters for *this doc's* promise:** the engine is
+> stochastic (~142 `Math.random`/game), so before seeding every run sampled
+> *different* games — two unseeded 1-season `_mff_audit` runs shared almost no
+> leaderboard names and league rates swung several points. That breaks
+> "re-run, see if you helped or broke something": the diff is your change PLUS
+> sampling noise. With a fixed seed the games are identical run-to-run, so a
+> metric delta is attributable to your change. **Caveat:** seeding gives
+> *reproducibility*, not *validity* — a seeded small sample is reproducibly
+> noisy, so keep raising the season count (the advice above) for tail-sensitive
+> metrics. Seeding + adequate N together is the trustworthy combo.
+> (`_brady_audit` / `_audit_all.sh` are not yet seeded — follow-up.)
+
 No flags, no build step, no browser. Output is plain-text tables with NFL
 bands and `OK` / `!!` flags. Stderr carries progress + benign noise (filter
 with `2>&1 | grep -vE "missing pick|IDB|^\s+at "` if you want it clean).

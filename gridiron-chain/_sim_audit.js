@@ -796,7 +796,27 @@ const audit = `
 })();
 `;
 
-let bundle = shim + extraConsts;
+// DETERMINISM: the engine is unseeded (~142 Math.random/game), so this audit
+// samples different games every run. At the default 100 seasons the aggregate
+// realism benchmarks are large-N and stable, but seeding makes the run exactly
+// reproducible — so a benchmark that moves after a code change is attributable
+// to the change, not to noise (the same regression-gate value as the seeded
+// teleport battery). mulberry32 in the bundle eval scope only; shipped engine
+// untouched. Default seed fixed; pass arg 3 to vary.
+const SEED = (process.argv[3] != null ? Number(process.argv[3]) : 1337) >>> 0;
+const seedPrelude = `
+  (function () {
+    var __a = ${SEED} >>> 0;
+    Math.random = function () {
+      __a |= 0; __a = (__a + 0x6D2B79F5) | 0;
+      var t = Math.imul(__a ^ (__a >>> 15), 1 | __a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  })();
+`;
+console.error("[_sim_audit seed=" + SEED + ", deterministic]");
+let bundle = seedPrelude + shim + extraConsts;
 for (const f of files) bundle += "\n;// ===== " + f + " =====\n" + stripUiInit(fs.readFileSync(path.join(__dirname, f), "utf8"), f) + "\n";
 bundle += audit;
 
