@@ -6634,6 +6634,12 @@ class GameSimulator {
     });
     const _motion = {
       tacklerRole: _tacklerRole,
+      // Specific defender slot the engine resolved as the tackler ("cb1" /
+      // "cb2" / "fs" / "ss" / "lb1-3" / "nb"). Animation reads this in
+      // preference to tacklerRole so the wrong-CB collision (engine emits
+      // a play-side tackler track, animation hash-picks the off-side CB,
+      // sprite teleports across the field at the snap) can't happen.
+      tacklerSlot: _tacklerSlot || null,
       tackleT:    0.78,                                  // matches TACKLE_START_AT in animation
       hitDir:     { dx: -1, dy: _hitLatSign * 0.3 },     // pushed backward + lateral
       carrierEndDY: _carrierEndDY,

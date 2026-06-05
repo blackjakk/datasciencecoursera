@@ -2213,7 +2213,10 @@ function buildAnimForPlay(play, prevPlay) {
       // (older plays or non-run kinds that don't populate it yet).
       const tacklerHash = (((play.startYard * 31) ^ ((play.yards||0) * 17) ^ ((play.time||0) * 13)) >>> 0);
       const numPursuers = Math.max(1, formation.defense.length - 4);
-      // Map play.motion.tacklerRole → defender index in formation.defense
+      // Map play.motion.tacklerRole → defender index in formation.defense.
+      // Used only when the engine didn't emit a specific tacklerSlot (legacy
+      // plays); falls back to a hash pick which can collide with the wrong
+      // CB and warp across the field. Prefer _idxForSlot below.
       function _idxForTacklerRole(role) {
         if (role === "MLB") return idxLBmid;
         if (role === "OLB") return (tacklerHash & 1) ? idxLB1 : idxLB3;
@@ -2222,11 +2225,62 @@ function buildAnimForPlay(play, prevPlay) {
         if (role === "CB")  return (tacklerHash & 1) ? idxCB1 : idxCB2;
         return null;
       }
+      // Direct slot → index map. Engine already knows which specific slot
+      // it credited the tackle to; reading that here avoids the role
+      // collision that hash-picks the wrong CB / OLB.
+      function _idxForSlot(slot) {
+        if (slot === "cb1") return idxCB1;
+        if (slot === "cb2") return idxCB2;
+        if (slot === "nb")  return idxNB;
+        if (slot === "fs")  return idxS1;
+        if (slot === "ss")  return idxS2;
+        if (slot === "lb1") return idxLB1;
+        if (slot === "lb2") return idxLBmid;
+        if (slot === "lb3") return idxLB3;
+        return null;
+      }
       const _motionRole = (play.motion && play.motion.tacklerRole) || null;
-      const _motionIdx = _motionRole ? _idxForTacklerRole(_motionRole) : null;
+      const _motionSlot = (play.motion && play.motion.tacklerSlot) || null;
+      const _slotIdx = _motionSlot ? _idxForSlot(_motionSlot) : null;
+      const _motionIdx = _slotIdx ?? (_motionRole ? _idxForTacklerRole(_motionRole) : null);
       const primaryTacklerIdx = (_motionIdx != null && _motionIdx < formation.defense.length)
         ? _motionIdx
         : 4 + (tacklerHash % numPursuers);
+      // ── TRACK-START ALIGNMENT (Stage 1, REFACTOR_POSITION_CONTRACT.md) ──
+      // Single source of truth for "where this player starts pre-snap" is
+      // the renderer's formation slot. The engine's motion track owns the
+      // trajectory SHAPE from there. Without this enforcement, engine
+      // tracks (authored independently in play-engine.js) disagree with
+      // formation at t=0 — e.g. the fs track says cy=0 deep middle but
+      // formation.s1 sits at cy-56 in 2-high; the cb-tackler track says
+      // play-side dyYd=+18 but formation.cb1 is at the top numbers. At
+      // the snap (t=PRE) the sampler jumps from formation to track t=0
+      // and the sprite teleports across the field (detector measured up
+      // to 34yd in a single frame). Rewrite the t=0 waypoint in place to
+      // match formation; the rest of the track interpolates from there.
+      // Idempotent across frames (sets the same value every call).
+      const _toYd = (x, y) => ({
+        dxYd: (x - losX) * dir / FIELD.PX_PER_YARD,
+        dyYd: (y - cy) / FIELD.PX_PER_YARD,
+      });
+      const _alignT0 = (track, slot) => {
+        if (!track || !slot || !track.waypoints || !track.waypoints.length) return;
+        const w0 = track.waypoints[0];
+        if (!w0 || w0.t !== 0) return;
+        const { dxYd, dyYd } = _toYd(slot.x, slot.y);
+        w0.dxYd = dxYd;
+        w0.dyYd = dyYd;
+      };
+      const _tracks = play.motion && play.motion.tracks;
+      if (_tracks) {
+        _alignT0(_tracks.carrier, isQBRun ? formation.qb : formation.rb);
+        if (primaryTacklerIdx != null && formation.defense[primaryTacklerIdx])
+          _alignT0(_tracks.tackler, formation.defense[primaryTacklerIdx]);
+        _alignT0(_tracks.fs,  formation.defense[idxS1]);
+        _alignT0(_tracks.ss,  formation.defense[idxS2]);
+        _alignT0(_tracks.cb1, formation.defense[idxCB1]);
+        _alignT0(_tracks.cb2, formation.defense[idxCB2]);
+      }
       // Tackler-arrives-via-dive odds. Mechanism overrides the random
       // pick: "low" tackles (cut/shoestring) are ALWAYS dive; "behind"
       // tackles (chase-down) are NEVER dive; others use the per-play
