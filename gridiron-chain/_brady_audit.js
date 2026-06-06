@@ -2056,7 +2056,27 @@ const harness = `
 })();
 `;
 
-let bundle = shim + extraConsts;
+// DETERMINISM: the franchise sim (frnSimToEndOfSeason) is engine-backed and
+// unseeded, so legend/Brady-gem rates and career tails vary run-to-run. Seed
+// Math.random with a mulberry32 stream (bundle eval scope only; shipped engine
+// untouched) so a re-run after a talent/dev change is attributable to the change,
+// not to a different random career. Default seed fixed; pass arg 3 to vary. As
+// always: seeding gives reproducibility, not validity — tail-sensitive legend
+// rates still need large SEASONS (arg 2).
+const SEED = (process.argv[3] != null ? Number(process.argv[3]) : 1337) >>> 0;
+const seedPrelude = `
+  (function () {
+    var __a = ${SEED} >>> 0;
+    Math.random = function () {
+      __a |= 0; __a = (__a + 0x6D2B79F5) | 0;
+      var t = Math.imul(__a ^ (__a >>> 15), 1 | __a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  })();
+`;
+console.error("[_brady_audit seed=" + SEED + ", deterministic — raise SEASONS (arg 2) for stable legend tails]");
+let bundle = seedPrelude + shim + extraConsts;
 for (const f of files) {
   bundle += "\n;// ===== " + f + " =====\n" + stripUiInit(fs.readFileSync(path.join(__dirname, f), "utf8"), f) + "\n";
 }

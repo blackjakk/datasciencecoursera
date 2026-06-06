@@ -1,48 +1,60 @@
 {
-  "_comment": "Realism regression baseline for _audit_gate.js. Reproducible because the audits are SEEDED (see the seed prelude in each _*_audit.js). The gate fails if a metric drifts from 'value' by more than 'tol'. 'nfl' is the audit's own acceptable band (informational warning only, not a failure). N=1 season is chosen for CI speed; the gate is REGRESSION-focused (did an engine/talent change move realism?), not a realism-validity claim — run larger N manually for that (see AUDIT.md). Re-baseline after an intentional change by updating 'value' in the same commit.",
+  "_comment": "Realism regression baseline for _audit_gate.js. Reproducible because the audits are SEEDED. The gate fails if a metric drifts from 'value' by more than 'tol'. 'nfl' is the audit's own acceptable band (informational warning only, not a failure). Metrics tagged 'fast' run in the pre-commit hook (node _audit_gate.js --fast, mff only, ~1min); the full set (adds the slower _sim_audit benchmarks) runs in CI. Gate is REGRESSION-focused (did an engine/talent change move realism?), not a realism-validity claim — run larger N manually for that (see AUDIT.md). Re-baseline an intentional change by updating 'value' in the same commit. NOTE: rare-event tails (INT rate, turnovers) are deliberately NOT gated — small-sample noisy even seeded.",
   "seed": 1337,
   "metrics": [
     {
-      "audit": "_mff_audit.js",
-      "args": [
-        "1"
-      ],
+      "audit": "_mff_audit.js", "args": ["1"], "fast": true,
       "label": "mff_league_pressure_rate",
       "pattern": "League pressure rate:\\s+([0-9.]+)%",
-      "value": 40,
-      "tol": 2.5,
-      "nfl": [
-        30,
-        40
-      ]
+      "value": 40.0, "tol": 2.5, "nfl": [30, 40]
     },
     {
-      "audit": "_mff_audit.js",
-      "args": [
-        "1"
-      ],
+      "audit": "_mff_audit.js", "args": ["1"], "fast": true,
       "label": "mff_run_block_win_rate",
       "pattern": "League run-block-win rate:\\s+([0-9.]+)%",
-      "value": 45.4,
-      "tol": 3,
-      "nfl": [
-        30,
-        60
-      ]
+      "value": 45.4, "tol": 3.0, "nfl": [30, 60]
     },
     {
-      "audit": "_mff_audit.js",
-      "args": [
-        "1"
-      ],
+      "audit": "_mff_audit.js", "args": ["1"], "fast": true,
       "label": "mff_completion_allowed",
       "pattern": "League completion-allowed:\\s+([0-9.]+)%",
-      "value": 65.2,
-      "tol": 2.5,
-      "nfl": [
-        58,
-        69
-      ]
+      "value": 65.2, "tol": 2.5, "nfl": [58, 69]
+    },
+    {
+      "audit": "_sim_audit.js", "args": ["2"],
+      "label": "sim_points_per_game",
+      "pattern": "Points / game\\s+([0-9.]+)",
+      "value": 20.9, "tol": 1.5, "nfl": [17, 27]
+    },
+    {
+      "audit": "_sim_audit.js", "args": ["2"],
+      "label": "sim_total_yds_per_game",
+      "pattern": "Total yds / game\\s+([0-9.]+)",
+      "value": 346, "tol": 18, "nfl": [290, 380]
+    },
+    {
+      "audit": "_sim_audit.js", "args": ["2"],
+      "label": "sim_completion_pct",
+      "pattern": "Completion %\\s+([0-9.]+)%",
+      "value": 65.3, "tol": 1.5, "nfl": [58, 69]
+    },
+    {
+      "audit": "_sim_audit.js", "args": ["2"],
+      "label": "sim_yards_per_carry",
+      "pattern": "Yards / carry\\s+([0-9.]+)",
+      "value": 4.29, "tol": 0.25, "nfl": [3.9, 4.9]
+    },
+    {
+      "audit": "_sim_audit.js", "args": ["2"],
+      "label": "sim_sacks_per_game",
+      "pattern": "Sacks / game\\s+([0-9.]+)",
+      "value": 2.34, "tol": 0.4, "nfl": [1.6, 3.3]
+    },
+    {
+      "audit": "_sim_audit.js", "args": ["2"],
+      "label": "sim_yards_per_play",
+      "pattern": "Yards / play\\s+([0-9.]+)",
+      "value": 5.73, "tol": 0.25, "nfl": [5.0, 6.0]
     }
   ]
 }

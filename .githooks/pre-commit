@@ -36,8 +36,8 @@ fi
 
 # ── Audit (realism) gate ───────────────────────────────────────────────────
 if match 'gridiron-chain/(play-engine|play-player|play-sim|play-data|play-motion|play-render|_mff_audit|_audit_gate)\.(js)|gridiron-chain/_audit_baseline\.json'; then
-  echo "▶ pre-commit: engine/talent files staged — running audit gate (seeded) ..."
-  ( cd "$ROOT/gridiron-chain" && node _audit_gate.js ); rc=$?
+  echo "▶ pre-commit: engine/talent files staged — running audit gate (seeded, --fast) ..."
+  ( cd "$ROOT/gridiron-chain" && node _audit_gate.js --fast ); rc=$?
   if [ "$rc" -eq 1 ]; then
     echo ""
     echo "✗ AUDIT REGRESSION — a realism metric drifted beyond tolerance. Commit blocked."

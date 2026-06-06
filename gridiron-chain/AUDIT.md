@@ -51,21 +51,29 @@ node _brady_audit.js 100   # ~40 min — settles the noisy Brady cadence
 > *reproducibility*, not *validity* — a seeded small sample is reproducibly
 > noisy, so keep raising the season count (the advice above) for tail-sensitive
 > metrics. Seeding + adequate N together is the trustworthy combo.
-> (`_brady_audit` / `_audit_all.sh` are not yet seeded — follow-up.)
+> Now seeded: `_sim_audit`, `_clutch_audit`, `_mff_audit`, `_brady_audit` (pass
+> the seed as the LAST arg, e.g. `node _brady_audit.js 75 99`). `_audit_all.sh`
+> just wraps the now-seeded harnesses.
 
 > **Regression gate (automated).** `_audit_gate.js` + `_audit_baseline.json` turn
-> the seeded MFF aggregates into a CI/pre-commit check — the FM-style
-> cross-version regression test. It runs `_mff_audit.js 1` (seeded, ~60s) and
-> **fails if league pressure / run-block-win / completion-allowed drift from the
-> baseline beyond tolerance** (the audit's own NFL band is an informational
-> warning, not a failure). Run locally with `node _audit_gate.js`. Wired into
-> `.github/workflows/audit-gate.yml` (engine/talent file changes) and the
-> `.githooks/pre-commit` hook. **Scope:** it gates AGGREGATES only — the
-> per-player leaderboards are small-sample noise even seeded, so raise the season
-> count for those, don't gate them. Re-baseline an intentional realism change by
-> updating the matching `value` in `_audit_baseline.json` in the same commit
-> (same protocol as the teleport gate). N=1 is for CI speed; the gate detects
-> *drift*, it does not assert NFL-validity — that's still a manual large-N run.
+> the seeded audits into a CI/pre-commit check — the FM-style cross-version
+> regression test. **Fails if a tracked metric drifts from baseline beyond
+> tolerance** (the audit's own NFL band is an informational warning, not a
+> failure). Two tiers:
+> - **`node _audit_gate.js --fast`** — mff league aggregates only (pressure /
+>   run-block-win / completion), ~60s. Used by the `.githooks/pre-commit` hook so
+>   commits stay fast.
+> - **`node _audit_gate.js`** (full) — adds the `_sim_audit` realism benchmarks
+>   (points/yds/completion/ypc/sacks/ypp, seeded 2-season), ~3-4min. Used by
+>   `.github/workflows/audit-gate.yml` on engine/talent file changes.
+>
+> **Scope:** gates stable AGGREGATES only — per-player leaderboards AND rare-event
+> tails (INT rate, turnovers) are small-sample noise even seeded, so they're left
+> out; raise the season count for those, don't gate them. Re-baseline an
+> intentional realism change by updating the matching `value` in
+> `_audit_baseline.json` in the same commit (same protocol as the teleport gate).
+> Small N is for speed; the gate detects *drift*, it does not assert
+> NFL-validity — that's still a manual large-N run.
 
 No flags, no build step, no browser. Output is plain-text tables with NFL
 bands and `OK` / `!!` flags. Stderr carries progress + benign noise (filter
