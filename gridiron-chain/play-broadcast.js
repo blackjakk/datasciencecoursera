@@ -287,6 +287,8 @@ function _liveBioForTeams(gr, head, homeT, awayT, snap) {
       const snapPct = teamSnaps > 0 ? Math.min(100, Math.round(snaps / teamSnaps * 100)) : null;
       const wear = Math.round(target._wear || 0);
       const stress = Math.round(target._stress || 0);
+      // Per-game fatigue (0-100), enriched onto the snapshot by the engine.
+      const fatigue = Math.round(playerStats.fatigue || 0);
       const isInjured = !!(target.injury && target.injury.weeksRemaining > 0);
       const lastHit = recentHits[target.name] || null;
       // Body-part wear snapshot (chronic scars). Only include regions with
@@ -302,7 +304,7 @@ function _liveBioForTeams(gr, head, homeT, awayT, snap) {
         role: role.label, pos: target.position,
         name: target.name, jersey: target.jersey || null,
         ovr: target.overall || null,
-        wear, stress,
+        wear, stress, fatigue,
         snaps, snapPct,
         injury: isInjured ? {
           label: target.injury.label,
@@ -1335,6 +1337,10 @@ const LiveBioPanel = {
     const stressColor = r.stress >= 75 ? "#ff7070" : r.stress >= 55 ? "#e8a000" : "#7ee08a";
     const wearW = Math.max(0, Math.min(100, r.wear));
     const stressW = Math.max(0, Math.min(100, r.stress));
+    // Fatigue: green (fresh) → amber → red (gassed). High = tired = worse.
+    const fatigue = r.fatigue || 0;
+    const fatColor = fatigue >= 70 ? "#ff7070" : fatigue >= 45 ? "#e8a000" : "#7ee08a";
+    const fatW = Math.max(0, Math.min(100, fatigue));
     const hitChip = r.lastHit
       ? `<span class="livebio-hit-chip"
             title="Last contact: ${r.lastHit.mech || "hit"}${r.lastHit.force ? ` · force ${r.lastHit.force.toFixed(2)}` : ""}">💥${r.lastHit.force ? r.lastHit.force.toFixed(1) : ""}</span>`
@@ -1365,6 +1371,11 @@ const LiveBioPanel = {
             <span class="livebio-bar-lbl">S</span>
             <div class="livebio-bar"><div class="livebio-bar-fill" style="width:${stressW}%;background:${stressColor}"></div></div>
             <span class="livebio-bar-val">${r.stress}</span>
+          </div>
+          <div class="livebio-bar-row" title="In-game fatigue (0-100) — accumulates with workload, recovers on the bench; up to -20% performance when gassed">
+            <span class="livebio-bar-lbl">F</span>
+            <div class="livebio-bar"><div class="livebio-bar-fill" style="width:${fatW}%;background:${fatColor}"></div></div>
+            <span class="livebio-bar-val">${fatigue}</span>
           </div>
         </div>
         <div class="livebio-bodyhot-col${hasScars ? "" : " empty"}" title="${hasScars ? `Chronic wear / past injuries by region` : `No notable region wear`}">

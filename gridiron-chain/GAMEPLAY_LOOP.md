@@ -125,19 +125,21 @@ screens) and **redundant raw confirms**, not click count.
 - **Wear / stress** — feed injury risk; in the player data export (stats ~5247).
 
 **NOT surfaced — punch list**
-1. **13 personnel / JUMBO is invisible.** Drives run/PA mods in the engine but
-   **never shown** in depth chart, formation display, or play-by-play. Also
-   `pickReceiver` only targets `wr1-4 / te / rb` — **TE2/TE3 are never thrown
-   to**, so in a 3-TE set only the move-TE can catch (others are pure blockers).
-   *Fix:* show the personnel package in the in-game HUD + play log; optionally
-   let TE2 be a target in JUMBO.
-2. **Per-game fatigue (0-100) is invisible.** The base *stamina* stat shows, but
-   the in-game fatigue accumulation (recovery-on-breaks, just fixed) has no UI —
-   the player can't see a workhorse wearing down late. *Fix:* a stamina/fatigue
-   bar on the in-game player chips or the snap-share view.
-3. **Wear/stress are data-only** — they drive injuries but there's no clean
-   player-facing "load/health" readout beyond the export. *Fix (optional):* a
-   load meter on the vitals screen.
+1. ✅ **13 personnel / JUMBO — SURFACED** in the live play-by-play feed
+   (`play-broadcast.js` `_pbpChips`/`_PERSONNEL_TAG`): "tell" packages get a chip
+   (gold "13 pers" for JUMBO; ghost-blue 12/10/01/21; vanilla 11 omitted to avoid
+   chipping every play). *Still open:* the DEFENSIVE package (Nickel/Dime) isn't
+   chipped (offense only); and `pickReceiver` still rarely targets TE2/TE3, so a
+   3-TE set is mostly blockers.
+2. ✅ **Per-game fatigue (0-100) — SURFACED** as an "F" bar in the live-bio HUD
+   (`play-broadcast.js` `LiveBioPanel._row`, alongside Wear/Stress), green→amber→
+   red. Engine plumbing: `GameSimulator._statsSnapWithFatigue()` enriches each
+   play's `statsSnap` with per-player `_fatigueLevel` (otherwise engine-internal).
+   A workhorse RB hits ~67/100 by game end → visible amber bar. *Still open:*
+   fatigue only shows once a player has a stat-snapshot entry (early game sparse).
+3. **Wear/stress are data-only** beyond the live-bio W/S bars — no clean
+   player-facing "load/health" readout on the vitals/franchise screens. *Fix
+   (optional):* a load meter on the vitals screen.
 
 ---
 

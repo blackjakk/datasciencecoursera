@@ -2615,8 +2615,23 @@ class GameSimulator {
       homeScore: this.score.home,
       awayScore: this.score.away,
       timeouts: { ...this.timeouts },
-      statsSnap: JSON.parse(JSON.stringify(this.stats)),
+      statsSnap: this._statsSnapWithFatigue(),
     });
+  }
+  // Live stats snapshot enriched with per-player FATIGUE (0-100). Fatigue lives
+  // in this._fatigue (engine-internal, drives _fatigueMul up to -20% perf) and
+  // is otherwise invisible to the broadcast — attach it to each player's snap
+  // entry so the live-bio HUD can show a workhorse wearing down.
+  _statsSnapWithFatigue() {
+    const snap = JSON.parse(JSON.stringify(this.stats));
+    for (const side of ["home", "away"]) {
+      const players = snap[side] && snap[side].players;
+      if (!players) continue;
+      for (const name in players) {
+        players[name].fatigue = Math.round(this._fatigueLevel(name));
+      }
+    }
+    return snap;
   }
   _score(pts, type) {
     this.score[this.poss] += pts;
