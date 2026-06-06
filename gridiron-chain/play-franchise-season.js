@@ -75,6 +75,40 @@ function _frnGoHome() {
   renderFrnStartScreen();
 }
 
+// Graceful error fallback for any franchise render crash. A render bug is NOT
+// the same as a corrupt save (the data on disk is almost always fine), so the
+// message must NOT alarm the user into abandoning a good franchise. Offers SAFE
+// recovery first (Reload / Home-saved); "start new" is demoted to a reassuring
+// link that explicitly preserves the current slot. Used by both the app-shell
+// render and the phase dispatch below.
+function _frnRenderError(err, phase) {
+  try { console.error("[franchise render] crash on phase '" + phase + "':", err); } catch (_e) {}
+  const host = (typeof $ === "function") ? $("frnHomeContent") : document.getElementById("frnHomeContent");
+  if (!host) return;
+  const safeMsg = String((err && err.message) || err || "unknown error").replace(/</g, "&lt;");
+  host.innerHTML = `
+    <div class="frn-welcome" style="max-width:560px;margin:2rem auto;text-align:center">
+      <div class="frn-welcome-title" style="color:var(--gold)">⚠ This screen hit a display error</div>
+      <div class="frn-welcome-sub" style="margin-top:.5rem">
+        Your franchise is <b>safe</b> — this is a rendering glitch, not lost data.
+        Reloading usually clears it; if it sticks, go Home and re-open the slot.
+      </div>
+      <div style="margin-top:1.1rem;display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-gold" onclick="location.reload()">⟳ Reload</button>
+        <button class="btn" onclick="(typeof _frnGoHome==='function'?_frnGoHome():location.reload())">← Home (saved)</button>
+      </div>
+      <details style="margin-top:1.1rem;text-align:left;font-size:.65rem;color:var(--gray)">
+        <summary style="cursor:pointer;color:var(--gold)">Technical details</summary>
+        <div style="margin-top:.4rem;font-family:monospace;white-space:pre-wrap;word-break:break-word">phase: ${phase || "?"}
+${safeMsg}</div>
+      </details>
+      <div style="margin-top:1rem;font-size:.6rem;color:var(--gray)">
+        Still stuck? You can <a style="color:var(--gold);cursor:pointer" onclick="frnStartNew()">start a new franchise</a> —
+        your current one stays saved in its slot.
+      </div>
+    </div>`;
+}
+
 function showFranchiseDashboard() {
   // Dismiss any lingering hover tooltips when changing screens
   try { frnHoverTipHide && frnHoverTipHide(); } catch {}
@@ -266,7 +300,12 @@ function showFranchiseDashboard() {
   if (shellEl) {
     if (phase === "regular" && !showRecap) {
       shellEl.style.display = "block";
-      if (typeof _frnRenderAppShell === "function") _frnRenderAppShell();
+      // App-shell render is outside the dispatch try below, so guard it here —
+      // a shell crash should degrade to the error fallback, not white-screen.
+      if (typeof _frnRenderAppShell === "function") {
+        try { _frnRenderAppShell(); }
+        catch (err) { _frnRenderError(err, "regular (app shell)"); return; }
+      }
     } else {
       shellEl.style.display = "none";
       // Hide the Bloomberg footer too in non-regular phases (it's
@@ -298,15 +337,7 @@ function showFranchiseDashboard() {
     }
     else                                   renderFrnStartScreen();
   } catch (err) {
-    console.error("Dashboard render error:", err);
-    $("frnHomeContent").innerHTML = `
-      <div class="frn-welcome">
-        <div class="frn-welcome-title" style="color:var(--red)">⚠ Save data is corrupted</div>
-        <div class="frn-welcome-sub">${err.message || "Unknown error"}</div>
-        <div style="margin-top:1rem">
-          <button class="btn btn-gold" onclick="frnStartNew()">+ Start New Franchise</button>
-        </div>
-      </div>`;
+    _frnRenderError(err, phase);
   }
 }
 
