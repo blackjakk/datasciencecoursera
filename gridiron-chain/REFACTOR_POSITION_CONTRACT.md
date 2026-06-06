@@ -765,3 +765,24 @@ def render, or a tackle-pile/overlay draw). **The actual next probe:** monkeypat
 flagged CB at f426 — that names the exact draw site directly, instead of guessing
 which def.map. Two diagnoses down (not TD-celebration, not `_wrSim`); the render
 path itself is the remaining unknown.
+
+**Stage 13 follow-up #2 (call-site probe — ran the stack trace):** wrapped
+`drawPlayer` to capture `new Error().stack` for the flagged CB at f424/425/426.
+**Exact draw site, all three frames:**
+`drawPlayers (play-animation.js:1268)` ← `render (play-animation.js:5803)`. Line
+5803 is `drawPlayers(off, def)`; there is exactly one `const def =
+formation.defense.map(...)` in scope (the 4430 map), so `def` *is* the 4430 map
+output. **The blocker:** instrumenting that map's own return (line 5223, the
+`return dd` — verified placement) to fire for ALL defenders at the tackle frame
+gives **zero hits**, even role=CB across t∈[0.84,0.88]. So the map's return is
+not executed at the tackle frame, yet `drawPlayers(def)` at 5803 still draws the
+CB from `def`. That's only possible if `def` at 5803 is built in a scope/cadence
+other than the per-frame 4430 map (a cached array, an outer-scope reassignment,
+or a second render path sharing the name) — render indirection not yet unravelled.
+**The actual next probe (start here):** instrument INSIDE `drawPlayers`
+(`play-animation.js:1268`) — log each element's `(name, x, y)` as it draws — and
+separately map the control flow around line 5803 (is `def` the 4430 result that
+frame, or something else?). That resolves the indirection; the position fix
+itself (ease the CB's tackle-convergence from last-rendered) is the easy part
+once the array feeding 5803 is identified. Three diagnoses down; the obstacle is
+now a specific, narrow structural question, not a hunt.
