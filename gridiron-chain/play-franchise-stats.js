@@ -6241,8 +6241,15 @@ const _FRN_TABS = [
 function frnSetTab(tabId) {
   if (!_FRN_TABS.some(t => t.id === tabId)) return;
   _frnActiveTab = tabId;
-  _frnRenderAppShell();
-  _frnRenderActiveTab();
+  // Tab switching renders directly (not via showFranchiseDashboard's boundary),
+  // so guard it here — a crash in one tab shouldn't white-screen the whole app.
+  try {
+    _frnRenderAppShell();
+    _frnRenderActiveTab();
+  } catch (err) {
+    if (typeof _frnRenderError === "function") _frnRenderError(err, "regular (" + tabId + " tab)");
+    else console.error("[frnSetTab] render crash:", err);
+  }
 }
 
 function _frnRenderAppShell() {
