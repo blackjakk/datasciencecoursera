@@ -4498,25 +4498,35 @@ function frnStartNew() {
 // first interaction is sim-a-game, not roster-management. Friction matters
 // most in the first 60 seconds.
 function frnQuickStart() {
-  const meta = _readSlotsMeta();
-  meta.activeSlotId = null;
-  _writeSlotsMeta(meta);
-  franchise = null;
-  franchiseDraft = _buildDraftLeague();
-  // Pick a random powerhouse from the freshly-generated league
-  const tiers = franchiseDraft.teamTiers;
-  const powerhouses = TEAMS.filter(t => tiers[t.id] === "powerhouse");
-  const choice = powerhouses[Math.floor(Math.random() * powerhouses.length)] || TEAMS[0];
-  startFranchise(choice.id);
-  // Skip preseason + free agency entirely — drop straight into Week 1.
-  // The same state transitions frnStartSeason()/frnFAFinish() would run
-  // collapsed into one jump so the new user's first action is a real game.
-  franchise.phase = "regular";
-  franchise.freeAgents = [];
-  franchise._faOffers = {};
-  franchise._faResults = null;
-  saveFranchise();
-  showFranchiseDashboard();
+  // Guarded: _buildDraftLeague (below) and the skip-to-Week-1 logic run outside
+  // startFranchise's own guard, so wrap the whole thing → a clean "try again"
+  // message instead of a stranded half-state.
+  try {
+    const meta = _readSlotsMeta();
+    meta.activeSlotId = null;
+    _writeSlotsMeta(meta);
+    franchise = null;
+    franchiseDraft = _buildDraftLeague();
+    // Pick a random powerhouse from the freshly-generated league
+    const tiers = franchiseDraft.teamTiers;
+    const powerhouses = TEAMS.filter(t => tiers[t.id] === "powerhouse");
+    const choice = powerhouses[Math.floor(Math.random() * powerhouses.length)] || TEAMS[0];
+    // startFranchise renders its own error + returns false on failure; bail so we
+    // don't run the skip-to-Week-1 logic below on a null franchise.
+    if (!startFranchise(choice.id)) return;
+    // Skip preseason + free agency entirely — drop straight into Week 1, so the
+    // new user's first action is a real game.
+    franchise.phase = "regular";
+    franchise.freeAgents = [];
+    franchise._faOffers = {};
+    franchise._faResults = null;
+    saveFranchise();
+    showFranchiseDashboard();
+  } catch (err) {
+    console.error("[frnQuickStart] failed:", err);
+    try { franchise = null; franchiseDraft = null; } catch (_e) {}
+    _frnRenderCreateError(err);
+  }
 }
 
 // ─── "Choose Your Story" archetype picker ──────────────────────────────────
@@ -4637,10 +4647,41 @@ function openFranchiseModal()  { setAppMode("franchise"); showFranchiseHome(); }
 function closeFranchiseModal() { /* no-op: franchise is inline now */ }
 
 // ── Initialize new franchise ─────────────────────────────────────────────────
+// Graceful fallback for a franchise CREATION failure (distinct from a render
+// crash — here no franchise exists yet, so the user is sent back to start, not
+// "Home"). Used by startFranchise + frnQuickStart.
+function _frnRenderCreateError(err) {
+  const host = (typeof $ === "function") ? $("frnHomeContent") : document.getElementById("frnHomeContent");
+  const fh   = (typeof $ === "function") ? $("franchiseHome")  : document.getElementById("franchiseHome");
+  if (fh) fh.style.display = "block";
+  if (!host) { if (typeof renderFrnStartScreen === "function") renderFrnStartScreen(); return; }
+  const safeMsg = String((err && err.message) || err || "unknown error").replace(/</g, "&lt;");
+  host.innerHTML = `
+    <div class="frn-welcome" style="max-width:520px;margin:2rem auto;text-align:center">
+      <div class="frn-welcome-title" style="color:var(--gold)">⚠ Couldn't start that franchise</div>
+      <div class="frn-welcome-sub" style="margin-top:.5rem">Something went wrong building the league — no franchise was created. Pick a team and try again, or reload.</div>
+      <div style="margin-top:1.1rem;display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-gold" onclick="(typeof renderFrnStartScreen==='function'?renderFrnStartScreen():location.reload())">← Back to start</button>
+        <button class="btn" onclick="location.reload()">⟳ Reload</button>
+      </div>
+      <details style="margin-top:1.1rem;text-align:left;font-size:.65rem;color:var(--gray)">
+        <summary style="cursor:pointer;color:var(--gold)">Technical details</summary>
+        <div style="margin-top:.4rem;font-family:monospace;white-space:pre-wrap;word-break:break-word">${safeMsg}</div>
+      </details>
+    </div>`;
+}
+
 function startFranchise(teamId) {
   // If the user came through the picker, the draft already has fresh rosters,
   // ages, and contracts. Reuse them so the detail-page preview is exactly
   // what they get. Otherwise (legacy entry points) generate fresh.
+  // Wrapped: franchise CREATION (build league, generate schedule, init systems)
+  // runs OUTSIDE the dashboard's render boundary, so an unguarded throw here
+  // would escape the click handler and strand the user on a half-built screen
+  // with a broken `franchise` global. On failure: discard the partial state and
+  // show a clean "try again" message. (showFranchiseDashboard at the end has its
+  // own boundary, so a render glitch is handled there, not here.)
+  try {
   const draft = franchiseDraft || _buildDraftLeague();
   franchise = {
     chosenTeamId: teamId,
@@ -4670,5 +4711,15 @@ function startFranchise(teamId) {
   if (typeof _seedCollegePipeline === "function") _seedCollegePipeline();
   saveFranchise();
   showFranchiseDashboard();
+  return true;
+  } catch (err) {
+    console.error("[startFranchise] creation failed:", err);
+    // Discard the half-built franchise so no broken global lingers, show a clean
+    // "try again" message, and return false so callers (e.g. frnQuickStart) bail
+    // instead of running post-creation logic on a null franchise.
+    try { franchise = null; franchiseDraft = null; } catch (_e) {}
+    _frnRenderCreateError(err);
+    return false;
+  }
 }
 
