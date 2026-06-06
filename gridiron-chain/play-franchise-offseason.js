@@ -18824,6 +18824,9 @@ function _startDraftFloorAnim() {
 function renderFrnDraftPreshow() {
   const d = franchise.draft;
   if (!d) { renderFrnDraft(); return; }
+  // Pre-draft scouting screen is a sub-state of the preshow — delegate so a
+  // refresh while scouting keeps the user on the scouting board.
+  if (d._preScoutOpen) { renderFrnPreDraftScout(); return; }
   const seasonNum = (franchise.season || 0) + 1;
   const myTeam = getTeam(franchise.chosenTeamId);
 
@@ -19223,10 +19226,14 @@ function renderFrnDraftPreshow() {
 
       <!-- CTA — bigger, more inviting, with meta caption -->
       <div style="text-align:center;margin:2rem 0 .8rem;padding:1.2rem 1rem;background:linear-gradient(180deg, rgba(245,197,66,.04), transparent);border-top:1px solid var(--blborder)">
-        <button class="btn btn-gold" style="font-size:1rem;padding:.85rem 2.4rem;letter-spacing:1.2px;font-weight:900;border-radius:3px"
-          onclick="frnBeginDraftActual()">📋 BEGIN DRAFT →</button>
+        <div style="display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-outline" style="font-size:.85rem;padding:.85rem 1.6rem;letter-spacing:.8px;font-weight:800;border-radius:3px"
+            onclick="frnOpenPreScout()" title="Spend your pre-draft scouting reports to sharpen grades before the clock starts">🔍 SCOUT THE CLASS</button>
+          <button class="btn btn-gold" style="font-size:1rem;padding:.85rem 2.4rem;letter-spacing:1.2px;font-weight:900;border-radius:3px"
+            onclick="frnBeginDraftActual()">📋 BEGIN DRAFT →</button>
+        </div>
         <div style="font-size:.6rem;color:var(--gray);margin-top:.5rem;letter-spacing:.5px">
-          ${d.pickOrder?.length || 224} picks · ${(franchise.season||0)+1} season class · ready when you are
+          ${d.pickOrder?.length || 224} picks · ${(franchise.season||0)+1} season class · ${_preScoutsLeft()} scouting reports to spend
         </div>
       </div>
     </div>`;
@@ -22184,11 +22191,13 @@ function _migrateDraftScouts() {
   franchise._draftScoutsMigrated = true;
 }
 
-// Add or remove a scout category for a prospect. Each category costs 1
-// slot. Toggling the same category clears it.
-function frnDraftScoutCategory(name, cat) {
-  if (!franchise.draft) return;
-  if (!DRAFT_SCOUT_CATEGORIES.includes(cat)) return;
+// Core scout-category assignment — shared by the live board
+// (frnDraftScoutCategory) and the pre-draft scouting screen (frnPreScout).
+// Stamps the category under `round` (the budget bucket: ≥1 = in-draft round,
+// 0 = pre-draft). Does NOT budget-check, save, or render — that's the
+// caller's job. Returns true if a new category was assigned.
+function _assignScoutCategory(name, cat, round) {
+  if (!DRAFT_SCOUT_CATEGORIES.includes(cat)) return false;
   _migrateDraftScouts();
   franchise.draftScouts       = franchise.draftScouts || [];
   franchise.draftScoutReveals = franchise.draftScoutReveals || {};
@@ -22201,36 +22210,178 @@ function frnDraftScoutCategory(name, cat) {
   } else if (!rev.categoryRounds) {
     rev.categoryRounds = {};
   }
-  const has = rev.categories.includes(cat);
-  if (has) {
-    // No undo — scout assignments are committed once made. The "click"
-    // is the deliberate spend. (Tooltip in UI should make this clear.)
-    return;
-  } else {
-    if (_draftScoutsLeftThisRound() <= 0) return;
-    rev.categories.push(cat);
-    rev.categoryRounds[cat] = _draftCurrentRound();
-    if (!franchise.draftScouts.includes(name)) franchise.draftScouts.push(name);
-    const prospect   = franchise.draft.class.find(q => q.name === name);
-    const knockType  = prospect?.collegeProfile?.knockType || null;
-    const knockCat   = knockType ? _DRAFT_KNOCK_CATEGORY[knockType] : null;
-    // If this category resolves the prospect's actual knock, generate the
-    // dismiss/confirm note. Otherwise the category-specific intel
-    // (medical risk dial / scheme fit / etc.) carries the value.
-    if (knockType && knockCat === cat) {
-      // Falsy bug: `|| 5` treated 0 (camp body grade) as 5. Camp bodies
-      // got R5-level expected potential (66) instead of their actual
-      // expected potential (58). Switched to ?? so 0 routes correctly.
-      const r       = prospect?._generatedRound ?? 5;
-      const expPot  = { 1:88,2:81,3:75,4:70,5:66,6:63,7:60,0:58 }[r] ?? 65;
-      const isHiUp  = (prospect?.potential || 65) >= expPot + 4;
-      rev.knockNotes[cat] = _buildScoutKnockNote(knockType, isHiUp);
-    }
-    // Film category triggers the potential-reveal roll (50% odds).
-    if (cat === "film") rev.revealed = rev.revealed || (Math.random() < 0.50);
+  // No undo — scout assignments are committed once made. The "click" is the
+  // deliberate spend. (Tooltip in UI should make this clear.)
+  if (rev.categories.includes(cat)) return false;
+  rev.categories.push(cat);
+  rev.categoryRounds[cat] = round;
+  if (!franchise.draftScouts.includes(name)) franchise.draftScouts.push(name);
+  const prospect   = franchise.draft.class.find(q => q.name === name);
+  const knockType  = prospect?.collegeProfile?.knockType || null;
+  const knockCat   = knockType ? _DRAFT_KNOCK_CATEGORY[knockType] : null;
+  // If this category resolves the prospect's actual knock, generate the
+  // dismiss/confirm note. Otherwise the category-specific intel (medical
+  // risk dial / scheme fit / etc.) carries the value.
+  if (knockType && knockCat === cat) {
+    // Falsy bug: `|| 5` treated 0 (camp body grade) as 5. Camp bodies got
+    // R5-level expected potential (66) instead of their actual expected
+    // potential (58). Switched to ?? so 0 routes correctly.
+    const r       = prospect?._generatedRound ?? 5;
+    const expPot  = { 1:88,2:81,3:75,4:70,5:66,6:63,7:60,0:58 }[r] ?? 65;
+    const isHiUp  = (prospect?.potential || 65) >= expPot + 4;
+    rev.knockNotes[cat] = _buildScoutKnockNote(knockType, isHiUp);
   }
+  // Film category triggers the potential-reveal roll (50% odds).
+  if (cat === "film") rev.revealed = rev.revealed || (Math.random() < 0.50);
+  return true;
+}
+
+// Add a scout category for a prospect on the live board. Each category costs
+// 1 slot from the current round's budget (5/round). No undo.
+function frnDraftScoutCategory(name, cat) {
+  if (!franchise.draft) return;
+  if (!DRAFT_SCOUT_CATEGORIES.includes(cat)) return;
+  if (_draftScoutHasCategory(name, cat)) return;
+  if (_draftScoutsLeftThisRound() <= 0) return;
+  if (!_assignScoutCategory(name, cat, _draftCurrentRound())) return;
   saveFranchise();
   renderFrnDraft();
+}
+
+// ── Pre-draft scouting phase ────────────────────────────────────────────────
+// A dedicated budget you spend BEFORE the clock starts — the allocation game
+// (you can't scout 350 prospects, so who?). Stamped in the round-0 bucket so
+// it's fully separate from the in-draft 5/round. Sharpening is identical: each
+// report tightens the prospect's grade band (via _collegeProspectSharpening)
+// and de-biases the grade toward truth, which flows straight into the live
+// board + War Room recommendations.
+const DRAFT_PRESCOUT_BUDGET = 20;
+function _preScoutsSpent() {
+  let n = 0;
+  for (const rev of Object.values(franchise.draftScoutReveals || {})) {
+    if (!rev?.categoryRounds) continue;
+    for (const cat of (rev.categories || [])) if (rev.categoryRounds[cat] === 0) n++;
+  }
+  return n;
+}
+function _preScoutsLeft() { return Math.max(0, DRAFT_PRESCOUT_BUDGET - _preScoutsSpent()); }
+
+function frnPreScout(name, cat) {
+  if (!franchise.draft) return;
+  if (!DRAFT_SCOUT_CATEGORIES.includes(cat)) return;
+  if (_draftScoutHasCategory(name, cat)) return;
+  if (_preScoutsLeft() <= 0) return;
+  if (!_assignScoutCategory(name, cat, 0)) return; // round 0 = pre-draft bucket
+  saveFranchise();
+  renderFrnPreDraftScout();
+}
+function frnPreScoutFilter(pos) {
+  if (!franchise.draft) return;
+  franchise.draft._preScoutFilter = pos;
+  renderFrnPreDraftScout();
+}
+function frnOpenPreScout() {
+  if (!franchise.draft) return;
+  franchise.draft._preScoutOpen = true;
+  saveFranchise();
+  renderFrnPreDraftScout();
+}
+function frnClosePreScout() {
+  if (!franchise.draft) return;
+  franchise.draft._preScoutOpen = false;
+  saveFranchise();
+  renderFrnDraftPreshow();
+}
+
+function renderFrnPreDraftScout() {
+  const d = franchise.draft;
+  if (!d) { renderFrnDraft(); return; }
+  _migrateDraftScouts();
+  const myId    = franchise.chosenTeamId;
+  const myTeam  = getTeam(myId);
+  const left    = _preScoutsLeft();
+  const spent   = _preScoutsSpent();
+  const filter  = d._preScoutFilter || "ALL";
+  const POS     = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S"];
+
+  let pool = d.class.filter(p => p._generatedRound !== 0)
+    .sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a));
+  if (filter !== "ALL") pool = pool.filter(p => p.position === filter);
+  const shown = pool.slice(0, 60);
+
+  const filterChips = POS.map(f => {
+    const active = f === filter;
+    const cnt = f === "ALL" ? d.class.filter(p => p._generatedRound !== 0).length
+                            : d.class.filter(p => p._generatedRound !== 0 && p.position === f).length;
+    return `<button onclick="frnPreScoutFilter('${f}')" class="frn-prescout-chip${active?" active":""}">${f}<span style="opacity:.5;font-size:.5rem;margin-left:.2rem">${cnt}</span></button>`;
+  }).join("");
+
+  const rowsHtml = shown.map((p, i) => {
+    const esc         = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const sg          = scoutGrade(p);
+    const conf        = _draftConfidence(p);
+    const sgColor     = sg >= 82 ? "var(--green-lt)" : sg >= 70 ? "var(--gold)" : sg >= 60 ? "var(--gold-lt)" : "var(--gray)";
+    const scoutedCats = _draftScoutCategories(p.name);
+    const needLvl     = _draftNeedLevel(myId, p.position);
+    const needBadge   = needLvl===2 ? `<span class="frn-draft-need-crit" title="Critical team need">❗</span>`
+                      : needLvl===1 ? `<span class="frn-draft-need-need" title="Team need">⚠</span>` : "";
+    const genR        = p._generatedRound;
+    const projLabel   = genR ? `~R${genR}` : "";
+    const catButtons  = DRAFT_SCOUT_CATEGORIES.map(c => {
+      const meta   = DRAFT_SCOUT_CAT_META[c];
+      const has    = scoutedCats.includes(c);
+      const canAdd = !has && left > 0;
+      const tip    = has ? `✓ ${meta.label} scouted` : canAdd ? `${meta.label} · ${meta.desc} · ${left} left · NO UNDO` : `No pre-draft reports left`;
+      return `<button class="frn-prescout-cat${has?" active":""}" ${canAdd?`onclick="frnPreScout('${esc}','${c}')"`:"disabled"} title="${tip}" style="${has?`color:${meta.color};border-color:${meta.color}aa;background:${meta.color}15`:!canAdd?"opacity:.3;cursor:not-allowed":""}">${meta.icon}</button>`;
+    }).join("");
+    return `<div class="frn-prescout-row">
+      <span class="frn-prescout-rank">${i+1}</span>
+      <span class="frn-prescout-name" onclick="frnOpenPlayerCard('${esc}')" title="Open ${p.name}'s scouting card">${p.name}</span>
+      ${_posPillHtml(p.position)}
+      <span class="frn-prescout-proj">${projLabel}</span>
+      ${needBadge}
+      <span class="frn-prescout-grade" style="color:${sgColor}">${gradeLabel(sg)}</span>
+      <span class="frn-prescout-conf" style="color:${conf.color};border-color:${conf.color}55" title="±${conf.band} grade band — scout to tighten">${conf.label}</span>
+      <div class="frn-prescout-cats">${catButtons}</div>
+    </div>`;
+  }).join("");
+
+  const pct = Math.round((spent / DRAFT_PRESCOUT_BUDGET) * 100);
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-prescout-wrap">
+      <div class="frn-prescout-head">
+        <div>
+          <div style="font-size:.6rem;color:var(--gold);letter-spacing:2px;font-weight:700">🔍 PRE-DRAFT SCOUTING</div>
+          <div style="font-size:1.15rem;font-weight:900;color:var(--gold-lt)">Build your board</div>
+          <div style="color:var(--gray);font-size:.68rem">${myTeam ? `${myTeam.city} ${myTeam.name}` : "Your team"} · ${(franchise.season||0)+1} class</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-end">
+          <button class="btn btn-outline" style="font-size:.6rem;padding:.28rem .65rem" onclick="frnClosePreScout()">← Back to combine</button>
+          <button class="btn btn-gold" style="font-size:.7rem;padding:.4rem .9rem;font-weight:900" onclick="frnBeginDraftActual()">📋 BEGIN DRAFT →</button>
+        </div>
+      </div>
+
+      <div class="frn-prescout-budget">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.25rem">
+          <span style="font-size:.62rem;color:var(--gold);letter-spacing:1px;font-weight:700">SCOUTING REPORTS</span>
+          <span style="font-size:.66rem;color:${left===0?"var(--red)":"var(--green-lt)"};font-weight:700">${left} / ${DRAFT_PRESCOUT_BUDGET} left</span>
+        </div>
+        <div class="frn-prescout-meter"><div class="frn-prescout-meter-fill" style="width:${pct}%"></div></div>
+        <div style="font-size:.56rem;color:var(--gray);margin-top:.3rem;line-height:1.4">
+          Spend reports to sharpen a prospect's grade — an unscouted senior is a <b>±8 guess</b>; a few reports
+          <b>lock it in</b> and can reveal he's a reach or a steal. You can't scout everyone, so target your needs.
+          These reads carry onto the live board and into your <b style="color:var(--gold-lt)">War Room</b> recommendations.
+        </div>
+      </div>
+
+      <div class="frn-prescout-filters">${filterChips}</div>
+      <div class="frn-prescout-list">${rowsHtml || `<div style="color:var(--gray);font-style:italic;padding:1rem;text-align:center">No prospects at ${filter}</div>`}</div>
+
+      <div style="text-align:center;margin:1.4rem 0 .6rem;padding-top:1rem;border-top:1px solid var(--blborder)">
+        <button class="btn btn-gold" style="font-size:.95rem;padding:.8rem 2.2rem;letter-spacing:1px;font-weight:900" onclick="frnBeginDraftActual()">📋 BEGIN DRAFT →</button>
+        <div style="font-size:.58rem;color:var(--gray);margin-top:.45rem">${left} report${left===1?"":"s"} unspent · scouting is free, the clock isn't</div>
+      </div>
+    </div>`;
 }
 
 // Back-compat shim — old callers used frnDraftScout(name). Route to the

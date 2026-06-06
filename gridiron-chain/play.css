@@ -8815,6 +8815,65 @@
     font-style: italic;
   }
 
+  /* Pre-draft scouting screen */
+  .frn-prescout-wrap { max-width: 880px; margin: 0 auto; padding: 1rem; }
+  .frn-prescout-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 1rem; margin-bottom: .8rem; flex-wrap: wrap;
+  }
+  .frn-prescout-budget {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-top: 2px solid var(--gold); padding: .6rem .7rem; margin-bottom: .7rem;
+  }
+  .frn-prescout-meter {
+    height: 7px; background: rgba(0,0,0,.4); border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .frn-prescout-meter-fill {
+    height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-lt));
+    transition: width .25s ease;
+  }
+  .frn-prescout-filters {
+    display: flex; gap: .25rem; flex-wrap: wrap; margin-bottom: .55rem;
+  }
+  .frn-prescout-chip {
+    font-size: .6rem; letter-spacing: .5px; padding: .18rem .5rem;
+    border: 1px solid var(--border); background: transparent; color: var(--gray);
+    cursor: pointer; font-family: inherit;
+  }
+  .frn-prescout-chip.active { border-color: var(--gold); background: rgba(245,197,66,.12); color: var(--gold); }
+  .frn-prescout-list { display: flex; flex-direction: column; }
+  .frn-prescout-row {
+    display: flex; align-items: center; gap: .45rem;
+    padding: .35rem .4rem; border-bottom: 1px solid var(--blborder);
+  }
+  .frn-prescout-row:hover { background: rgba(255,255,255,.02); }
+  .frn-prescout-rank {
+    flex: 0 0 auto; width: 1.5rem; text-align: right;
+    color: var(--gray); font-weight: 700; font-size: .6rem;
+  }
+  .frn-prescout-name {
+    font-weight: 700; font-size: .68rem; color: var(--white); cursor: pointer;
+    min-width: 7rem; flex: 0 0 auto;
+  }
+  .frn-prescout-name:hover { color: var(--gold-lt); text-decoration: underline; }
+  .frn-prescout-proj { color: var(--gray); font-size: .55rem; min-width: 2rem; }
+  .frn-prescout-grade {
+    font-weight: 700; font-size: .64rem; min-width: 1.7rem; text-align: right;
+    margin-left: auto;
+  }
+  .frn-prescout-conf {
+    font-size: .5rem; font-weight: 800; letter-spacing: .4px;
+    padding: .08rem .3rem; border: 1px solid; min-width: 4.4rem; text-align: center;
+  }
+  .frn-prescout-cats { display: flex; gap: .2rem; flex: 0 0 auto; }
+  .frn-prescout-cat {
+    width: 1.5rem; height: 1.5rem; line-height: 1; font-size: .72rem;
+    border: 1px solid var(--border); background: rgba(0,0,0,.25);
+    cursor: pointer; padding: 0;
+  }
+  .frn-prescout-cat:hover:not(:disabled):not(.active) { border-color: var(--gold); }
+
   /* UDFA Scramble screen */
   .frn-udfa-hero {
     text-align: center; padding: 1rem 1.2rem; margin-bottom: .8rem;
