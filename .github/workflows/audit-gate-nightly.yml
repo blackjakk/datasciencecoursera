@@ -1,0 +1,40 @@
+name: Audit regression gate (nightly, slow)
+
+# The slow tier of the realism gate: clutch DiD + brady career aggregates. These
+# need large/seeded samples that are too slow for a per-PR check, so they run on
+# a schedule (and on-demand). Pure node — no browser. Seeded, so a metric that
+# moves is attributable to an engine/talent change, not sampling noise.
+#
+# NOTE: GitHub only fires `schedule` on the repo's DEFAULT branch, so the cron
+# activates once this is merged. Until then, trigger it by hand via
+# workflow_dispatch (Actions tab → this workflow → Run workflow).
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC daily
+  workflow_dispatch: {}
+  # Also run when the slow harnesses, the gate, or the baseline change, so a
+  # change to them is checked without waiting for the nightly cron.
+  push:
+    branches: ["**"]
+    paths:
+      - "gridiron-chain/_clutch_audit.js"
+      - "gridiron-chain/_brady_audit.js"
+      - "gridiron-chain/_audit_gate.js"
+      - "gridiron-chain/_audit_baseline.json"
+      - ".github/workflows/audit-gate-nightly.yml"
+
+jobs:
+  audit-gate-slow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: gridiron-chain
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run slow audit gate (clutch DiD + brady aggregates)
+        run: node _audit_gate.js --slow

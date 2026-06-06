@@ -25,12 +25,19 @@ const { execFileSync } = require("child_process");
 const BASE = JSON.parse(fs.readFileSync(path.join(__dirname, "_audit_baseline.json"), "utf8"));
 const SEED = BASE.seed != null ? BASE.seed : 1337;
 
-// --fast runs only the quick metrics (those tagged "fast": true — i.e. the ~1min
-// mff aggregates), for the pre-commit hook. CI runs the full set (adds the
-// slower _sim_audit realism benchmarks).
-const FAST = process.argv.includes("--fast");
-const METRICS = FAST ? BASE.metrics.filter(m => m.fast) : BASE.metrics;
-if (FAST) process.stderr.write("(--fast: quick metrics only)\n");
+// Tiered metric selection (each metric has a "tier": fast | full | slow):
+//   --fast        → fast only          (pre-commit hook, ~1min: mff aggregates)
+//   (no flag)     → fast + full        (per-PR CI, ~3-4min: + sim benchmarks)
+//   --slow        → slow only          (nightly: clutch DiD + brady aggregates)
+//   --all         → every tier
+const ARGV = process.argv.slice(2);
+const TIERS =
+    ARGV.includes("--all")  ? null
+  : ARGV.includes("--slow") ? ["slow"]
+  : ARGV.includes("--fast") ? ["fast"]
+  :                           ["fast", "full"];
+const METRICS = TIERS ? BASE.metrics.filter(m => TIERS.includes(m.tier || "full")) : BASE.metrics;
+process.stderr.write(`(tiers: ${TIERS ? TIERS.join("+") : "all"} — ${METRICS.length} metrics)\n`);
 
 // Group metrics by the (audit, args) command so each audit runs ONCE.
 const groups = new Map();

@@ -59,21 +59,28 @@ node _brady_audit.js 100   # ~40 min — settles the noisy Brady cadence
 > the seeded audits into a CI/pre-commit check — the FM-style cross-version
 > regression test. **Fails if a tracked metric drifts from baseline beyond
 > tolerance** (the audit's own NFL band is an informational warning, not a
-> failure). Two tiers:
-> - **`node _audit_gate.js --fast`** — mff league aggregates only (pressure /
+> failure). THREE TIERS (each metric is tagged `tier` in the baseline):
+> - **`node _audit_gate.js --fast`** — `fast`: mff league aggregates (pressure /
 >   run-block-win / completion), ~60s. Used by the `.githooks/pre-commit` hook so
 >   commits stay fast.
-> - **`node _audit_gate.js`** (full) — adds the `_sim_audit` realism benchmarks
->   (points/yds/completion/ypc/sacks/ypp, seeded 2-season), ~3-4min. Used by
->   `.github/workflows/audit-gate.yml` on engine/talent file changes.
+> - **`node _audit_gate.js`** (default) — `fast`+`full`: adds the `_sim_audit`
+>   realism benchmarks (points/yds/completion/ypc/sacks/ypp, seeded 2-season),
+>   ~3-4min. Used by `.github/workflows/audit-gate.yml` on engine/talent changes.
+> - **`node _audit_gate.js --slow`** — `slow`: clutch DiD (completion/INT) +
+>   brady career aggregates (league OVR mean, roster size, elite-90 share),
+>   ~9min. Used by `.github/workflows/audit-gate-nightly.yml` (cron + dispatch),
+>   so tail-sensitive realism is guarded without slowing per-PR checks. (`--all`
+>   runs every tier.)
 >
 > **Scope:** gates stable AGGREGATES only — per-player leaderboards AND rare-event
-> tails (INT rate, turnovers) are small-sample noise even seeded, so they're left
-> out; raise the season count for those, don't gate them. Re-baseline an
-> intentional realism change by updating the matching `value` in
-> `_audit_baseline.json` in the same commit (same protocol as the teleport gate).
-> Small N is for speed; the gate detects *drift*, it does not assert
-> NFL-validity — that's still a manual large-N run.
+> tails (sim INT-rate/turnovers, clutch FG-DiD which needs huge N) are small-sample
+> noise even seeded, so they're left out; raise the sample for those, don't gate
+> them. Re-baseline an intentional realism change by updating the matching `value`
+> in `_audit_baseline.json` in the same commit (same protocol as the teleport
+> gate). The chosen N is for speed; the gate detects *drift*, it does not assert
+> NFL-validity — that's still a manual large-N run. (GitHub fires the nightly cron
+> only on the default branch, so it activates on merge; trigger by hand via
+> workflow_dispatch until then.)
 
 No flags, no build step, no browser. Output is plain-text tables with NFL
 bands and `OK` / `!!` flags. Stderr carries progress + benign noise (filter
