@@ -21890,7 +21890,7 @@ function renderFrnDraft() {
     ${tradeOffers.length ? tradeOffers.map(o => {
       const team = getTeam(o.teamId);
       const swap = d.pickOrder[o.swapSlot];
-      const youGet = [`R${swap.round}.${swap.pickInRound}${swap.isComp?"c":""}`, ...o.compSlots.map(k => { const s = d.pickOrder[k]; return `R${s.round}.${s.pickInRound}${s.isComp?"c":""}`; })].join(" + ");
+      const youGet = (o.getLabels || []).join(" + ");
       const slideTo = `R${swap.round}.${swap.pickInRound}`;
       const expanded = d._tradeConfirmId === o.id;
       const surplus = o.valueGiven - o.myVal;
@@ -22424,12 +22424,13 @@ function renderFrnPreDraftScout() {
     </div>`;
 }
 
-// ── Trade down (on the clock) ───────────────────────────────────────────────
-// Self-contained against d.pickOrder slot indices (the live draft's single
-// source of truth — this year's picks are consumed this draft, so we never
-// have to reconcile franchise.picks). A trade-down = swap the user's on-clock
-// slot with a mover's later slot, plus the mover sends compensation slots to
-// cover the value gap. Future-year picks aren't tradeable in-draft (v1).
+// ── Live-draft trades (down on the clock, up from the floor) ────────────────
+// A trade = swap the two teams' draft SLOTS (this year, in d.pickOrder) plus a
+// compensation bundle that covers the value gap. Compensation assets are
+// either this-year remaining slots OR future-year picks (franchise.picks,
+// transferred via currentOwnerId so they flow into next year's draft order).
+// This-year slots are the live draft's source of truth; future picks bridge
+// to franchise.picks. See _teamDraftAssets / _transferAssets.
 
 // Jimmy-Johnson-style value chart, linearly interpolated. Input: 1-based
 // overall pick number. Pick 1 ≈ 3000, R1 end ≈ 590, R3 ≈ 200, late ≈ ~1.
@@ -22476,13 +22477,76 @@ function _draftEliteThreshold(available) {
   const sorted = available.map(_draftBoardScore).sort((a, b) => b - a);
   return sorted[Math.min(15, sorted.length - 1)] ?? 0;
 }
-// Greedy cheapest combination of slot indices whose value covers `gap`
-// (× tolerance). Returns the chosen indices, or null if unreachable.
-function _draftCoverGap(slotIdxs, gap, tol) {
-  const sorted = slotIdxs.slice().sort((a, b) => _draftSlotValue(b+1) - _draftSlotValue(a+1));
+// ── Tradeable-asset model (this-year slots + future-year picks) ─────────────
+function _draftThisYear() {
+  const d = franchise.draft;
+  return d?.pickOrder?.[0]?.year ?? ((new Date().getFullYear()) + (franchise.season || 1));
+}
+// Future-year pick value, on the SAME chart as this-year slots: map the round
+// to a representative current-year slot, then discount ~30% per year out
+// (standings/injury risk + time value). Comp picks shaved another 20%.
+function _futurePickValue(pick, thisYear) {
+  const repPickNum = 32 * ((pick.round || 1) - 1) + 17; // ~middle of that round
+  const base       = _draftSlotValue(repPickNum);
+  const yearsOut   = Math.max(1, (pick.year || thisYear + 1) - thisYear);
+  let v = base * Math.pow(0.7, yearsOut);
+  if (pick.isComp) v *= 0.8;
+  return Math.max(1, Math.round(v));
+}
+function _assetValue(a) {
+  return a.kind === "slot" ? _draftSlotValue(a.idx + 1) : (a.value || 1);
+}
+function _assetLabel(a) {
+  if (a.kind === "slot") {
+    const s = franchise.draft.pickOrder[a.idx];
+    return `R${s.round}.${s.pickInRound}${s.isComp ? "c" : ""}`;
+  }
+  return `${a.year} R${a.round}${a.isComp ? "c" : ""}`;
+}
+// Every tradeable draft asset a team owns: this-year remaining slots (after
+// `afterIdx`, excluding `excludeSlot`) + their future-year picks.
+function _teamDraftAssets(teamId, afterIdx, excludeSlot) {
+  const d = franchise.draft;
+  const thisYear = _draftThisYear();
+  const assets = [];
+  for (let k = afterIdx + 1; k < d.pickOrder.length; k++) {
+    if (k === excludeSlot) continue;
+    if (d.pickOrder[k].teamId === teamId) assets.push({ kind: "slot", idx: k });
+  }
+  for (const p of (franchise.picks || [])) {
+    if (p.currentOwnerId === teamId && (p.year || 0) > thisYear) {
+      assets.push({ kind: "future", key: _tradePickKey(p), year: p.year, round: p.round, isComp: !!p.isComp, value: _futurePickValue(p, thisYear) });
+    }
+  }
+  return assets;
+}
+// Pick the compensation bundle covering `gap` with the LEAST overshoot, so a
+// team doesn't dump a future 1st to cover a 40-point gap. Prefer the single
+// asset closest above the requirement (clean 1-pick deal); only stack
+// largest-first when no single asset covers it (a big move-up).
+function _draftCoverGapAssets(assets, gap, tol) {
+  if (gap <= 0) return [];
+  const need = gap * (tol ?? 1.0);
+  const singles = assets.filter(a => _assetValue(a) >= need)
+                        .sort((a, b) => _assetValue(a) - _assetValue(b));
+  if (singles.length) return [singles[0]];        // smallest pick that still covers
+  const sorted = assets.slice().sort((a, b) => _assetValue(b) - _assetValue(a));
   const chosen = []; let sum = 0;
-  for (const k of sorted) { if (sum >= gap) break; chosen.push(k); sum += _draftSlotValue(k+1); }
-  return sum >= gap * (tol ?? 1.0) ? chosen : null;
+  for (const a of sorted) { chosen.push(a); sum += _assetValue(a); if (sum >= need) return chosen; }
+  return null;                                     // can't cover even with everything
+}
+// Move a bundle of assets to `toTeam`. Slots flip d.pickOrder ownership;
+// future picks flip franchise.picks currentOwnerId (→ next year's draft).
+function _transferAssets(assets, toTeam, fromTeam) {
+  const d = franchise.draft;
+  for (const a of (assets || [])) {
+    if (a.kind === "slot") {
+      d.pickOrder[a.idx].teamId = toTeam;
+    } else {
+      const pk = _tradePickFromKey(a.key, fromTeam) || (franchise.picks || []).find(p => _tradePickKey(p) === a.key);
+      if (pk) pk.currentOwnerId = toTeam;
+    }
+  }
 }
 
 // Generate move-up offers for the team currently on the clock (the user).
@@ -22513,14 +22577,18 @@ function _genTradeDownOffers(shopping) {
     const target = _aiTopTarget(T, available);
     if (!target) continue;
     if (!shopping && _draftBoardScore(target) < eliteBar) continue; // not worth moving up
-    const comp = _draftCoverGap(tSlots.slice(1), gap, shopping ? 0.8 : 1.0);
+    const assets = _teamDraftAssets(T, i, swapIdx);  // their other picks (slots + future)
+    const comp = _draftCoverGapAssets(assets, gap, shopping ? 0.8 : 1.0);
     if (!comp) continue;                             // can't cover the gap → no offer
-    const valueGiven = _draftSlotValue(swapIdx + 1) + comp.reduce((s, k) => s + _draftSlotValue(k+1), 0);
+    const valueGiven = _draftSlotValue(swapIdx + 1) + comp.reduce((s, a) => s + _assetValue(a), 0);
     seenTeams.add(T);
+    const swap = d.pickOrder[swapIdx];
+    const swapLabel = `R${swap.round}.${swap.pickInRound}${swap.isComp?"c":""}`;
     offers.push({
-      id: `${T}_${swapIdx}`, teamId: T, swapSlot: swapIdx, compSlots: comp,
+      id: `${T}_${swapIdx}`, teamId: T, swapSlot: swapIdx, compAssets: comp,
       target: target.name, targetPos: target.position,
       myVal: Math.round(myVal), valueGiven: Math.round(valueGiven),
+      getLabels: [swapLabel, ...comp.map(_assetLabel)],
     });
     if (offers.length >= 3) break;
   }
@@ -22556,12 +22624,12 @@ function frnDraftAcceptTrade(id) {
   if (d.pickOrder[i].teamId !== myId) return;
   if (d.pickOrder[o.swapSlot].teamId !== o.teamId) return;
   // Execute: the mover takes the user's slot; the user slides to the mover's
-  // slot + the compensation slots.
-  d.pickOrder[i].teamId        = o.teamId;
+  // slot + the compensation assets (this-year slots and/or future picks).
+  d.pickOrder[i].teamId          = o.teamId;
   d.pickOrder[o.swapSlot].teamId = myId;
-  for (const k of o.compSlots) d.pickOrder[k].teamId = myId;
+  _transferAssets(o.compAssets, myId, o.teamId);
   const team = getTeam(o.teamId);
-  const got = [o.swapSlot, ...o.compSlots].map(k => { const s = d.pickOrder[k]; return `R${s.round}.${s.pickInRound}${s.isComp?"c":""}`; }).join(" + ");
+  const got = (o.getLabels || []).join(" + ");
   const gave = `R${d.pickOrder[i].round}.${d.pickOrder[i].pickInRound}`;
   if (typeof _pushNews === "function") _pushNews({ type: "trade", label: `📉 TRADE — you traded back with ${team?.name||"?"}: sent ${gave}, acquired ${got}` });
   d._tradeOffers = []; d._tradeOffersIdx = -1; d._tradeConfirmId = null; d._shopped = false;
