@@ -21874,6 +21874,45 @@ function renderFrnDraft() {
   // Holistic "who should we take right now" — need-weighted BPA scored on the
   // user's scouted grade (so it shifts as they scout) with a one-line why +
   // confidence read. The headline card on the user's clock.
+  // ── Trade-down offers (regenerate when the pick changes) ──────────────────
+  if (d._tradeOffersIdx !== d.currentIdx) {
+    d._tradeOffers    = _genTradeDownOffers(false);
+    d._tradeOffersIdx = d.currentIdx;
+    d._tradeConfirmId = null;
+    d._shopped        = false;
+  }
+  const tradeOffers = d._tradeOffers || [];
+  const tradePanelHtml = `<div class="frn-draft-trade-card">
+    <div class="frn-draft-trade-head">
+      <span>📉 TRADE DOWN</span>
+      <button class="frn-trade-shop-btn" onclick="frnDraftShopPick()" title="Solicit move-up offers from teams picking below you">${d._shopped ? "↻ Re-shop" : "📣 Shop this pick"}</button>
+    </div>
+    ${tradeOffers.length ? tradeOffers.map(o => {
+      const team = getTeam(o.teamId);
+      const swap = d.pickOrder[o.swapSlot];
+      const youGet = [`R${swap.round}.${swap.pickInRound}${swap.isComp?"c":""}`, ...o.compSlots.map(k => { const s = d.pickOrder[k]; return `R${s.round}.${s.pickInRound}${s.isComp?"c":""}`; })].join(" + ");
+      const slideTo = `R${swap.round}.${swap.pickInRound}`;
+      const expanded = d._tradeConfirmId === o.id;
+      const surplus = o.valueGiven - o.myVal;
+      return `<div class="frn-draft-trade-offer${expanded?" expanded":""}">
+        <div class="frn-trade-offer-main">
+          <div class="frn-trade-offer-info">
+            <div class="frn-trade-offer-team">${team?.city||""} ${team?.name||"?"} <span style="color:var(--gray);font-weight:400;letter-spacing:0">want up</span></div>
+            <div class="frn-trade-offer-detail">eyeing <b style="color:var(--gold-lt)">${o.target}</b> · ${o.targetPos} — you get <b style="color:var(--green-lt)">${youGet}</b></div>
+          </div>
+          ${expanded ? "" : `<button class="frn-trade-review-btn" onclick="frnDraftReviewTrade('${o.id}')">REVIEW →</button>`}
+        </div>
+        ${expanded ? `<div class="frn-trade-offer-confirm">
+          <div class="frn-trade-offer-confirm-note">Trade back to <b>${slideTo}</b>: ${team?.name} jumps to your pick, you acquire <b>${youGet}</b>${surplus>0?` <span style="color:var(--green-lt)">(+${surplus} value)</span>`:""}.</div>
+          <div class="frn-trade-offer-actions">
+            <button class="btn btn-gold" style="font-size:.58rem;padding:.24rem .6rem;font-weight:800" onclick="frnDraftAcceptTrade('${o.id}')">✓ CONFIRM TRADE</button>
+            <button class="btn btn-outline" style="font-size:.58rem;padding:.24rem .5rem" onclick="frnDraftCancelTradeReview()">✕ Cancel</button>
+          </div>
+        </div>` : ""}
+      </div>`;
+    }).join("") : `<div class="frn-draft-trade-empty">${d._shopped ? "No teams want to move up to this pick right now." : "Shop the pick to see who wants to move up."}</div>`}
+  </div>`;
+
   const recs = _draftRecommendations(myId, draftablePool, 4);
   const recsHtml = recs.length ? `<div class="frn-draft-info-card frn-draft-recs">
     <div class="frn-card-title" style="margin-bottom:.3rem">🎯 WAR ROOM · RECOMMENDED</div>
@@ -21958,6 +21997,7 @@ function renderFrnDraft() {
               title="Skip to UDFA — autopick every remaining slot">⏩ Auto-Draft Rest</button>
           </div>
         </div>
+        ${tradePanelHtml}
         ${searchHtml}
         <div class="frn-draft-filters">${filterHtml}</div>
         ${scoutedLaneHtml}
@@ -22382,6 +22422,153 @@ function renderFrnPreDraftScout() {
         <div style="font-size:.58rem;color:var(--gray);margin-top:.45rem">${left} report${left===1?"":"s"} unspent · scouting is free, the clock isn't</div>
       </div>
     </div>`;
+}
+
+// ── Trade down (on the clock) ───────────────────────────────────────────────
+// Self-contained against d.pickOrder slot indices (the live draft's single
+// source of truth — this year's picks are consumed this draft, so we never
+// have to reconcile franchise.picks). A trade-down = swap the user's on-clock
+// slot with a mover's later slot, plus the mover sends compensation slots to
+// cover the value gap. Future-year picks aren't tradeable in-draft (v1).
+
+// Jimmy-Johnson-style value chart, linearly interpolated. Input: 1-based
+// overall pick number. Pick 1 ≈ 3000, R1 end ≈ 590, R3 ≈ 200, late ≈ ~1.
+const _DRAFT_VAL_ANCHORS = [
+  [1,3000],[4,1800],[8,1400],[12,1200],[16,1000],[20,850],[24,740],[28,660],
+  [32,590],[40,490],[48,420],[56,340],[64,270],[80,184],[96,116],[112,68],
+  [128,46],[160,27],[192,11],[224,4],[256,1],
+];
+function _draftSlotValue(overallPick1) {
+  const n = Math.max(1, overallPick1);
+  const A = _DRAFT_VAL_ANCHORS;
+  if (n <= A[0][0]) return A[0][1];
+  for (let i = 1; i < A.length; i++) {
+    if (n <= A[i][0]) {
+      const [n0, v0] = A[i-1], [n1, v1] = A[i];
+      return Math.round(v0 + (v1 - v0) * ((n - n0) / (n1 - n0)));
+    }
+  }
+  return A[A.length-1][1];
+}
+
+// A team's most-coveted available prospect (need-weighted consensus score —
+// the motivation to move up).
+function _aiTopTarget(teamId, available) {
+  if (!available.length) return null;
+  const roster = franchise.rosters[teamId] || [];
+  const starters = {};
+  for (const p of roster) {
+    if (!p.position) continue;
+    if (starters[p.position] == null || (p.overall||0) > starters[p.position]) starters[p.position] = p.overall||0;
+  }
+  let best = null, bestScore = -Infinity;
+  for (const p of available) {
+    const needBonus = Math.max(0, 75 - (starters[p.position] || 50));
+    const posPrem   = _DRAFT_POS_PREMIUM[p.position] ?? 0;
+    const s = (p.overall||60) + (p._aiScoutBias||0) + needBonus * 0.45 + posPrem;
+    if (s > bestScore) { bestScore = s; best = p; }
+  }
+  return best;
+}
+// "Worth trading up for" bar — ~top-16 board score in the remaining pool.
+function _draftEliteThreshold(available) {
+  if (!available.length) return Infinity;
+  const sorted = available.map(_draftBoardScore).sort((a, b) => b - a);
+  return sorted[Math.min(15, sorted.length - 1)] ?? 0;
+}
+// Greedy cheapest combination of slot indices whose value covers `gap`
+// (× tolerance). Returns the chosen indices, or null if unreachable.
+function _draftCoverGap(slotIdxs, gap, tol) {
+  const sorted = slotIdxs.slice().sort((a, b) => _draftSlotValue(b+1) - _draftSlotValue(a+1));
+  const chosen = []; let sum = 0;
+  for (const k of sorted) { if (sum >= gap) break; chosen.push(k); sum += _draftSlotValue(k+1); }
+  return sum >= gap * (tol ?? 1.0) ? chosen : null;
+}
+
+// Generate move-up offers for the team currently on the clock (the user).
+// `shopping` widens the search window + relaxes the value tolerance + drops
+// the "must covet an elite" gate, modelling the user actively soliciting.
+function _genTradeDownOffers(shopping) {
+  const d = franchise.draft;
+  const myId = franchise.chosenTeamId;
+  const i = d.currentIdx;
+  if (i >= d.pickOrder.length) return [];
+  const myVal = _draftSlotValue(i + 1);
+  const taken = new Set(d.picks.map(p => p.prospectName));
+  const available = d.class.filter(p => !taken.has(p.name) && p._generatedRound !== 0);
+  const eliteBar = _draftEliteThreshold(available);
+  const windowEnd = Math.min(d.pickOrder.length, i + (shopping ? 28 : 14));
+  const offers = [];
+  const seenTeams = new Set();
+  for (let j = i + 1; j < windowEnd; j++) {
+    const T = d.pickOrder[j].teamId;
+    if (T === myId || seenTeams.has(T)) continue;
+    // T's tradeable assets this draft (their slots after the user's pick).
+    const tSlots = [];
+    for (let k = i + 1; k < d.pickOrder.length; k++) if (d.pickOrder[k].teamId === T) tSlots.push(k);
+    if (!tSlots.length) continue;
+    const swapIdx = tSlots[0];                       // soonest = the slots that swap
+    const gap = myVal - _draftSlotValue(swapIdx + 1);
+    if (gap <= 0) continue;                          // their pick isn't below ours in value
+    const target = _aiTopTarget(T, available);
+    if (!target) continue;
+    if (!shopping && _draftBoardScore(target) < eliteBar) continue; // not worth moving up
+    const comp = _draftCoverGap(tSlots.slice(1), gap, shopping ? 0.8 : 1.0);
+    if (!comp) continue;                             // can't cover the gap → no offer
+    const valueGiven = _draftSlotValue(swapIdx + 1) + comp.reduce((s, k) => s + _draftSlotValue(k+1), 0);
+    seenTeams.add(T);
+    offers.push({
+      id: `${T}_${swapIdx}`, teamId: T, swapSlot: swapIdx, compSlots: comp,
+      target: target.name, targetPos: target.position,
+      myVal: Math.round(myVal), valueGiven: Math.round(valueGiven),
+    });
+    if (offers.length >= 3) break;
+  }
+  // Best return first.
+  offers.sort((a, b) => b.valueGiven - a.valueGiven);
+  return offers;
+}
+
+function frnDraftShopPick() {
+  const d = franchise?.draft;
+  if (!d) return;
+  d._tradeOffers    = _genTradeDownOffers(true);
+  d._tradeOffersIdx = d.currentIdx;
+  d._tradeConfirmId = null;
+  d._shopped        = true;
+  renderFrnDraft();
+}
+function frnDraftReviewTrade(id) {
+  const d = franchise?.draft; if (!d) return;
+  d._tradeConfirmId = id; renderFrnDraft();
+}
+function frnDraftCancelTradeReview() {
+  const d = franchise?.draft; if (!d) return;
+  d._tradeConfirmId = null; renderFrnDraft();
+}
+function frnDraftAcceptTrade(id) {
+  const d = franchise?.draft; if (!d) return;
+  const myId = franchise.chosenTeamId;
+  const o = (d._tradeOffers || []).find(x => x.id === id);
+  if (!o) return;
+  const i = d.currentIdx;
+  // Validate the slots still hold (defensive — state shouldn't have moved).
+  if (d.pickOrder[i].teamId !== myId) return;
+  if (d.pickOrder[o.swapSlot].teamId !== o.teamId) return;
+  // Execute: the mover takes the user's slot; the user slides to the mover's
+  // slot + the compensation slots.
+  d.pickOrder[i].teamId        = o.teamId;
+  d.pickOrder[o.swapSlot].teamId = myId;
+  for (const k of o.compSlots) d.pickOrder[k].teamId = myId;
+  const team = getTeam(o.teamId);
+  const got = [o.swapSlot, ...o.compSlots].map(k => { const s = d.pickOrder[k]; return `R${s.round}.${s.pickInRound}${s.isComp?"c":""}`; }).join(" + ");
+  const gave = `R${d.pickOrder[i].round}.${d.pickOrder[i].pickInRound}`;
+  if (typeof _pushNews === "function") _pushNews({ type: "trade", label: `📉 TRADE — you traded back with ${team?.name||"?"}: sent ${gave}, acquired ${got}` });
+  d._tradeOffers = []; d._tradeOffersIdx = -1; d._tradeConfirmId = null; d._shopped = false;
+  saveFranchise();
+  // Slot i now belongs to the mover (AI) — let the floor animation run their
+  // pick(s) until the user's next (now-later) slot.
+  _startDraftFloorAnim();
 }
 
 // Back-compat shim — old callers used frnDraftScout(name). Route to the
