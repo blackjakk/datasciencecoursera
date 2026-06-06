@@ -469,6 +469,7 @@ function toBSPNLiveGameState(gr, head) {
       concept: p.concept || null,
       coverage: p.coverage || null,
       personnel: p.personnel || null,   // offensive personnel grouping (surfaced as a chip)
+      defPackage: p.defPackage || null, // defensive package faced — surfaced as a chip
     });
   }
   pbpRows.reverse();
@@ -1152,6 +1153,9 @@ const _COVERAGE_LABEL = {
 // Personnel grouping → compact NFL tag. Vanilla 11 (BASE/TRIPS) is omitted to
 // avoid chipping every play; the "tell" packages (heavy/light/13) get a chip.
 const _PERSONNEL_TAG = { I_FORM:"21", HEAVY:"12", JUMBO:"13", SPREAD:"10", EMPTY:"01" };
+// Defensive package → chip label. Vanilla 4-3 BASE is omitted (like vanilla 11
+// on offense); the sub packages are the "tell" worth showing as the matchup.
+const _DEF_PKG_TAG = { NICKEL:"NICKEL", DIME:"DIME", QUARTER:"QUARTER" };
 function _pbpChips(r) {
   const chips = [];
   if (r.personnel && _PERSONNEL_TAG[r.personnel]) {
@@ -1160,6 +1164,10 @@ function _pbpChips(r) {
     const jumbo = r.personnel === "JUMBO";
     const col = jumbo ? "#d4af37" : "#8fb3c9";
     chips.push(`<span class="bspn-pbp-chip ghost" style="color:${col};border-color:${col}">${tag} pers</span>`);
+  }
+  // Defensive package faced — red-toned to read as the defense's response.
+  if (r.defPackage && _DEF_PKG_TAG[r.defPackage]) {
+    chips.push(`<span class="bspn-pbp-chip ghost" style="color:#e0917f;border-color:#e0917f">${_DEF_PKG_TAG[r.defPackage]}</span>`);
   }
   if (r.concept && r.coverage) {
     const cn = _CONCEPT_LABEL[r.concept] || r.concept;
