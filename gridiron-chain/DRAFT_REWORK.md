@@ -134,7 +134,7 @@ that pays off at every later stage.
 | 1 | Action-sourced reducer + on-the-clock timer + paced AI + sim-to-my-pick | no | `_ux_snapshot` |
 | 2 | Trade-down/up on the clock (reuse `_pickValue` + offseason trade engine) | no | `_ux_snapshot`; spot-check pick-value balance |
 | 3 | Hot-seat MP — human-controlled teams via `controllerFor`, seat-pass UI | no | `_ux_snapshot` |
-| 4 | Networked MP — `"remote"` controller + transport | **yes** | (future) |
+| 4 | Networked MP — `"remote"` controller + transport (**MegaETH backend, §7**) | **yes** | `hardhat compile` |
 
 **Risks / guards:**
 - The on-the-clock refactor touches `renderFrnDraft` + the pick flow — keep it
@@ -148,3 +148,102 @@ that pays off at every later stage.
 **First concrete step:** extract `applyDraftAction` + `controllerFor` and route the
 *existing* pick/auto-pick through them (behavior-neutral), so Stage 1's clock has a
 clean seam to hang on. Verify the draft still plays identically, then add the clock.
+
+---
+
+## 7. On-chain / MegaETH backend (Stage 4, concretely)
+
+The networked-MP transport (Stage 4) does not have to be a relay we build and
+host. **MegaETH is the transport** — and, better, the *authoritative reducer*.
+This is the version where the draft is genuinely the crown jewel: a public,
+trustless, real-time draft where every pick and trade is on-chain.
+
+### 7.1 Why this maps so cleanly
+
+The Section 2 architecture was chosen for exactly this. An action-sourced,
+deterministic reducer with per-team controllers is **the same shape as a smart
+contract**: actions → transactions, reducer → contract state transitions,
+controller (`teamNFT.ownerOf`) → `msg.sender` auth, transport → event log.
+Nothing about Stages 1–3 has to be thrown away; the on-chain backend is a second
+implementation of the *same* `applyDraftAction`.
+
+| Off-chain model (§2) | On-chain (`contracts/DraftSystem.sol`) |
+|---|---|
+| `draft.pickOrder[currentIdx]` "on the clock" | `picks[season][currentPickIdx]` + `onTheClock()` view |
+| `controllerFor(teamId)` | `teamNFT.ownerOf(p.teamId) == msg.sender` (the NFT owner *is* the GM) |
+| `MAKE_PICK(teamId, prospectId)` | `selectPlayer(prospectIdx)` (auth'd, charges `PICK_FEE` GRID) |
+| `CLOCK_EXPIRE` → auto-pick best-by-need | `forcePick()` — **permissionless**, picks from on-chain `queues[teamId]` |
+| Pinned target / big board | `setQueue(teamId, prospectIdxs)` (pre-committed, used by `forcePick`) |
+| `PROPOSE_TRADE` / `ACCEPT_TRADE` | `proposeTrade(...)` / `acceptTrade(offerId)` — atomic pick-ownership swap |
+| Reducer recomputes `pickOrder` after a trade | `acceptTrade` mutates `Pick.teamId` (source of truth); order is derived |
+| Front-end re-render | subscribe to events (`OnTheClock`, `PickMade`, `TradeAccepted`, …) |
+
+### 7.2 Why MegaETH specifically
+
+A live, on-the-clock draft needs the chain to feel like a game loop, not a
+settlement layer. MegaETH (real-time EVM L2, chainId **6342**) gives
+~milliseconds-to-confirm and cheap gas, so a pick or a trade-accept lands inside
+the visible clock window — the board *ticks* in near-real-time off the event
+stream. On a slow/expensive L1 the "on the clock" fiction breaks (you'd be
+waiting 12s + paying real money per pick); on MegaETH it's playable.
+
+### 7.3 The on-chain clock (the hard part, solved trustlessly)
+
+Contracts can't run timers. The pattern in `DraftSystem.sol`:
+- Each pick has an on-chain **`pickDeadline = block.timestamp + pickClock`**
+  (default 90s, commissioner-tunable via `setPickClock`).
+- The on-clock GM calls `selectPlayer` before the deadline.
+- If they stall, **anyone** (a keeper bot, an opponent, the commissioner —
+  permissionless) can call **`forcePick()`** once `block.timestamp > pickDeadline`.
+  It auto-picks the best un-taken prospect from that team's pre-committed
+  `queues[teamId]` (falling back to first-available), then advances. No fee is
+  charged on an auto-pick (the GM forfeited their action), and the draft can
+  never deadlock on an absent owner.
+- `forcePick` being permissionless is the whole trick: liveness doesn't depend on
+  any single party staying online, so the draft self-heals.
+
+### 7.4 Trade up / down on-chain
+
+`proposeTrade(fromTeam, toTeam, picksOut[], picksIn[], gridOut)` opens an offer
+(pick indices + an optional GRID sweetener); the counterparty's NFT owner calls
+`acceptTrade(offerId)` for an **atomic** swap of `Pick.teamId` ownership (+ GRID
+transfer). Both sides are re-validated at accept-time (`_requireOwnedUnused`), and
+if the swap touches the pick currently on the clock, the deadline resets for the
+new owner. Because the pick board's owner field *is* the source of truth, the
+order reorders for free — same invariant as the off-chain reducer. This is the
+exact "trade down while on the clock" the user asked for, made trustless.
+
+### 7.5 Signing & roster, atomically with the pick
+
+`_commitPick` does the football bookkeeping in the same transaction as the pick:
+`playerNFT.sign(pid, teamId, 4, salary)` (4-yr rookie deal) + `teamNFT.addToRoster`.
+So "make pick" and "player is now signed to your team" are one atomic on-chain
+fact — no drift between the draft and the roster.
+
+### 7.6 Friction to design around (honest list)
+
+- **Approvals / gas.** `selectPlayer` needs a prior `GRID.approve` for `PICK_FEE`,
+  and every action is a tx (wallet pop / gas). For a snappy feel, use a session
+  key or a relayer so the GM isn't signing every pick — or make manual picks
+  free and only charge elsewhere. MegaETH's low fees make this tolerable; the UX
+  still has to hide it.
+- **Prospect identity.** Prospects are `playerNFT` ids minted before `openDraft`;
+  the off-chain prospect class must be reconciled to on-chain ids (a pre-draft
+  mint/seed step, `scripts/seed.js`).
+- **Privacy.** On-chain `queues` (big boards) are public — opponents can read your
+  board. A commit–reveal queue is the fix if that matters; for v1, public boards
+  are an acceptable (even fun) tradeoff.
+- **Front-end is a pure view.** The client never owns draft logic on this path; it
+  renders from events and `onTheClock()` and submits txs. The off-chain reducer
+  (§2) remains the single-player / hot-seat backend — **same actions, two
+  backends**, selected by `controllerFor` returning `"remote:chain"`.
+
+### 7.7 Status of the on-chain piece
+
+`contracts/DraftSystem.sol` is written and **compiles** (`npx hardhat compile`,
+solc 0.8.20, OZ 5.0.2 pinned). It is the concrete Stage-4 sketch — deadline +
+permissionless queue auto-pick + propose/accept trades — not yet deployed or
+wired to the front-end. Next steps when Stage 4 is picked up: deploy script +
+ABI into `src/contracts`, an events→reducer adapter on the client, and a
+keeper/`forcePick` bot. (The contract is **not** covered by the teleport/audit
+gates — those guard the JS sim engine; contracts are gated by `hardhat compile`.)

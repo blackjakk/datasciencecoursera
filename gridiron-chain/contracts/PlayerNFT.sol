@@ -40,7 +40,7 @@ contract PlayerNFT is ERC721, Ownable {
     mapping(address => bool)    public authorizedMinters;
 
     event PlayerMinted(uint256 indexed id, string name, Position pos, uint8 overall);
-    event PlayerSigned(uint256 indexed id, uint256 teamId, uint256 years, uint256 salary);
+    event PlayerSigned(uint256 indexed id, uint256 teamId, uint256 numYears, uint256 salary);
     event PlayerReleased(uint256 indexed id);
 
     modifier onlyAuth() {
@@ -86,11 +86,11 @@ contract PlayerNFT is ERC721, Ownable {
 
     // ─── Signing / releasing ─────────────────────────────────────────────────
 
-    function sign(uint256 id, uint256 teamId, uint256 years, uint256 salary) external onlyAuth {
+    function sign(uint256 id, uint256 teamId, uint256 numYears, uint256 salary) external onlyAuth {
         players[id].teamId        = teamId;
-        players[id].contractYears = years;
+        players[id].contractYears = numYears;
         players[id].salary        = salary;
-        emit PlayerSigned(id, teamId, years, salary);
+        emit PlayerSigned(id, teamId, numYears, salary);
     }
 
     function release(uint256 id) external onlyAuth {
