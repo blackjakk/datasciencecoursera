@@ -373,16 +373,24 @@ function pickReceiver(playbook, starters, personnel, coverageMix, touchMul) {
       for (const k of ["wr1", "wr2", "wr3", "wr4", "te", "rb"]) mix[k] /= total;
     }
   }
-  // Multi-TE sets (HEAVY 12 / JUMBO 13): give the 2nd TE a real receiving share
-  // carved from the TE target. Without this only the move-TE ever catches, so a
-  // 3-TE package was purely a blocking label with no 2nd receiving threat.
+  // Multi-TE sets (HEAVY 12 / JUMBO 13): give the 2nd — and in JUMBO the 3rd — TE
+  // a real receiving share carved from the move-TE's target. Without this only the
+  // move-TE ever catches, so a 3-TE package was a pure blocking label.
   if (p.te >= 2 && mix.te > 0 && starters.te2 && starters.te2 !== starters.te) {
-    const te2Share = p.te >= 3 ? 0.40 : 0.30;   // JUMBO (13) leans on TE2 more
-    mix.te2 = mix.te * te2Share;
-    mix.te  = mix.te * (1 - te2Share);
+    const teTotal = mix.te;
+    if (p.te >= 3 && starters.te3 && starters.te3 !== starters.te2 && starters.te3 !== starters.te) {
+      // JUMBO (13): three TEs split the share — move-TE leads, TE3 a real sliver.
+      mix.te  = teTotal * 0.50;
+      mix.te2 = teTotal * 0.33;
+      mix.te3 = teTotal * 0.17;
+    } else {
+      // HEAVY (12): two TEs.
+      mix.te2 = teTotal * 0.30;
+      mix.te  = teTotal * 0.70;
+    }
   }
   let roll = Math.random();
-  for (const key of ["wr1", "wr2", "wr3", "wr4", "te", "te2", "rb"]) {
+  for (const key of ["wr1", "wr2", "wr3", "wr4", "te", "te2", "te3", "rb"]) {
     const prob = mix[key] || 0;
     if (prob <= 0) continue;
     if (roll < prob) return starters[key] || starters.wr1;

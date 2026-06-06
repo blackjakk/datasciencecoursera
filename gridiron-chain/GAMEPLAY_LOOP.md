@@ -125,12 +125,14 @@ screens) and **redundant raw confirms**, not click count.
 - **Wear / stress** — feed injury risk; in the player data export (stats ~5247).
 
 **NOT surfaced — punch list**
-1. ✅ **13 personnel / JUMBO — SURFACED** in the live play-by-play feed
-   (`play-broadcast.js` `_pbpChips`/`_PERSONNEL_TAG`): "tell" packages get a chip
-   (gold "13 pers" for JUMBO; ghost-blue 12/10/01/21; vanilla 11 omitted to avoid
-   chipping every play). *Still open:* the DEFENSIVE package (Nickel/Dime) isn't
-   chipped (offense only); and `pickReceiver` still rarely targets TE2/TE3, so a
-   3-TE set is mostly blockers.
+1. ✅ **13 personnel / JUMBO — SURFACED.** Play-by-play chips (`play-broadcast.js`
+   `_pbpChips`): the offensive "tell" package (gold "13 pers" for JUMBO; ghost-blue
+   12/10/01/21; vanilla 11 omitted) AND the defensive sub-package faced (red-toned
+   "NICKEL"/"DIME"/"QUARTER"; vanilla 4-3 omitted) — so the matchup reads at a
+   glance. TE-targeting (`pickReceiver`, play-data.js): TE2 already had a share in
+   HEAVY/JUMBO; TE3 now gets ~7% in JUMBO (move-TE 50 / TE2 33 / TE3 17 of the TE
+   share), so a 3-TE set is no longer a pure blocking label. (Engine-metric-neutral
+   within gate tolerance — verified.)
 2. ✅ **Per-game fatigue (0-100) — SURFACED** as an "F" bar in the live-bio HUD
    (`play-broadcast.js` `LiveBioPanel._row`, alongside Wear/Stress), green→amber→
    red. Engine plumbing: `GameSimulator._statsSnapWithFatigue()` enriches each
