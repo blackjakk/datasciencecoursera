@@ -109,7 +109,43 @@ ${safeMsg}</div>
     </div>`;
 }
 
+// Idempotent: wrap every major franchise render entry point so a crash inside
+// one — whatever invoked it (the dashboard dispatch OR any of the ~80 direct
+// re-render call sites: a draft pick refreshing the board, an FA bid refreshing
+// the market, an offseason action, etc.) — degrades to the recoverable error
+// fallback instead of white-screening. These are classic-script function
+// declarations (global-object properties), so reassigning the global name wraps
+// it for every bare-name caller. Installed once, lazily, on the first dashboard
+// render — by which point every file has loaded and every fn is defined.
+let _frnRenderGuardsInstalled = false;
+function _frnInstallRenderGuards() {
+  if (_frnRenderGuardsInstalled) return;
+  _frnRenderGuardsInstalled = true;
+  const g = (typeof window !== "undefined") ? window
+          : (typeof globalThis !== "undefined") ? globalThis : null;
+  if (!g) return;
+  const wrap = (name, label) => {
+    const orig = g[name];
+    if (typeof orig !== "function" || orig._frnGuarded) return;
+    const wrapped = function (...args) {
+      try { return orig.apply(this, args); }
+      catch (err) { _frnRenderError(err, label || name); }
+    };
+    wrapped._frnGuarded = true;
+    g[name] = wrapped;
+  };
+  [["renderFrnStartScreen", "start"], ["renderFrnPreseason", "preseason"],
+   ["renderFrnFA", "free agency"], ["renderFrnFAResults", "FA results"], ["renderFrnFACuts", "FA cuts"],
+   ["renderFrnSeasonRecap", "season recap"], ["renderFrnPlayoffs", "playoffs"],
+   ["showFrnAwards", "awards"], ["renderFrnAwards", "awards"],
+   ["renderFrnResignings", "re-signings"], ["_renderResignUI", "re-signings"], ["renderFrnOffseason", "offseason"],
+   ["renderFrnDraftPreshow", "draft preshow"], ["renderFrnDraft", "draft"],
+   ["renderFrnUDFAScramble", "UDFA"], ["_renderPostDraftGrade", "draft grade"],
+   ["_frnRenderActiveTab", "regular season"]].forEach(([n, l]) => wrap(n, l));
+}
+
 function showFranchiseDashboard() {
+  _frnInstallRenderGuards();
   // Dismiss any lingering hover tooltips when changing screens
   try { frnHoverTipHide && frnHoverTipHide(); } catch {}
   try { _frnHoverTipPgHide && _frnHoverTipPgHide(); } catch {}
@@ -119,6 +155,15 @@ function showFranchiseDashboard() {
   try { _showInjuryRepairBanner(); } catch (_e) {}
   // Week recap modal — pops once per completed week with the top plays
   try { _showWeekRecapIfReady && _showWeekRecapIfReady(); } catch (_e) {}
+  // SAVE-MIGRATION / BACKFILL BLOCK (wrapped). Best-effort repairs for older
+  // saves; many sub-steps already self-guard, but several backfills below
+  // (assignContracts, the jersey / guaranteed-money / career loops, etc.) do
+  // not — and they run BEFORE the dispatch boundary, so an unguarded throw here
+  // would white-screen on load. Wrap the whole block: on failure, log and fall
+  // through to render (the data is usually still renderable, and the dispatch's
+  // own boundary catches any render crash). Body indentation left as-is to keep
+  // this a minimal, low-risk defensive wrap.
+  try {
   // Defensive defaults for older saves missing newer fields
   if (!franchise.phase)            franchise.phase = "regular";
   if (!franchise.seasonStats)      franchise.seasonStats = {};
@@ -277,6 +322,9 @@ function showFranchiseDashboard() {
       generateCareer(p);
       _assignFACareerTeams(p);
     }
+  }
+  } catch (_repairErr) {
+    console.warn("[franchise backfill] non-fatal, continuing to render:", _repairErr);
   }
 
   $("franchiseHome").style.display = "block";
