@@ -874,22 +874,31 @@
 
   /* Welcome screen (no franchise yet) */
   .frn-welcome {
-    text-align: center; padding: 1.5rem 1rem;
-    border: 1px dashed var(--border); background: var(--bg2);
+    text-align: center; padding: 1.9rem 1rem 1.6rem;
+    border: 1px dashed var(--border);
+    background: linear-gradient(180deg, #151d15 0%, var(--bg2) 55%, #0d130d 100%);
     margin-bottom: 1rem; position: relative;
+    box-shadow: inset 0 1px 0 rgba(240,204,48,.06);
   }
   .frn-welcome::before { content:"┌"; position:absolute; top:-.55em; left:-.15em; color:var(--gold); font-size:1.15em; line-height:1; }
   .frn-welcome::after  { content:"┘"; position:absolute; bottom:-.55em; right:-.15em; color:var(--gold); font-size:1.15em; line-height:1; }
   .frn-welcome-title {
-    font-size: 1.6rem; font-weight: 900; color: var(--gold);
-    margin-bottom: .4rem; letter-spacing: 1px;
+    font-size: 2.15rem; font-weight: 900; color: var(--gold-lt);
+    margin-bottom: .3rem; letter-spacing: 1.5px;
+    text-shadow: 0 0 24px rgba(240,204,48,.22), 0 2px 5px rgba(0,0,0,.45);
   }
-  .frn-welcome-sub { color: var(--gray); margin-bottom: .5rem; font-size: .85rem; }
+  .frn-welcome-sub {
+    color: #c4c4c4; margin-bottom: .7rem; font-size: .74rem;
+    letter-spacing: 2.5px; text-transform: uppercase;
+  }
   .frn-welcome-feats {
-    display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap;
-    margin: .8rem 0; font-size: .72rem; color: var(--gray);
+    display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap;
+    margin: .9rem 0 .2rem; font-size: .73rem; color: var(--gray);
   }
-  .frn-welcome-feat { background: var(--bg3); padding: .25rem .6rem; border: 1px solid var(--border); }
+  .frn-welcome-feat {
+    background: var(--bg3); padding: .34rem .72rem;
+    border: 1px solid var(--border); border-radius: 4px; color: #c4c4c4;
+  }
   .frn-welcome-feat strong { color: var(--gold-lt); }
 
   /* Save-slot list */
@@ -1050,14 +1059,27 @@
   .frn-start-btn.disabled { opacity: .45; cursor: not-allowed; }
   .frn-start-btn.disabled::before,
   .frn-start-btn.disabled::after { color: var(--gray); }
-  .frn-start-icon { font-size: 2.2rem; color: var(--gold); line-height: 1; }
+  .frn-start-icon { font-size: 2.5rem; line-height: 1; filter: drop-shadow(0 0 11px rgba(240,204,48,.32)); }
   .frn-start-title {
-    font-size: 1.2rem; font-weight: 900; color: var(--gold-lt);
-    letter-spacing: 1.5px;
+    font-size: 1.38rem; font-weight: 900; color: var(--gold-lt);
+    letter-spacing: 2px; text-shadow: 0 0 14px rgba(240,204,48,.28);
   }
-  .frn-start-btn.disabled .frn-start-title { color: var(--gray); }
-  .frn-start-sub { color: var(--gray); font-size: .75rem; }
-  .frn-start-load .frn-start-icon { font-size: 1.8rem; }
+  .frn-start-btn.disabled .frn-start-title { color: var(--gray); text-shadow: none; }
+  .frn-start-sub { color: #b2b2b2; font-size: .76rem; }
+  .frn-start-load .frn-start-icon { font-size: 1.8rem; filter: none; }
+  /* QUICK START is THE primary action — gold gradient + glow so it reads as a
+     button, not just another framed card. */
+  .frn-start-btn.frn-start-new {
+    border-color: var(--gold);
+    background: linear-gradient(135deg, rgba(200,169,0,.15), rgba(200,169,0,.04) 62%, var(--bg2));
+    box-shadow: 0 0 0 1px rgba(200,169,0,.14), 0 6px 22px rgba(0,0,0,.38);
+  }
+  .frn-start-btn.frn-start-new:not(.disabled):hover {
+    border-color: var(--gold-lt);
+    background: linear-gradient(135deg, rgba(240,204,48,.22), rgba(200,169,0,.07) 62%, var(--bg3));
+    box-shadow: 0 0 0 1px rgba(240,204,48,.28), 0 9px 28px rgba(0,0,0,.45);
+    transform: translateY(-2px);
+  }
 
   /* Alt-row: two side-by-side secondary buttons below the QUICK START hero —
      'Choose Your Story →' (archetype picker) and 'Browse All 32 Teams →'
