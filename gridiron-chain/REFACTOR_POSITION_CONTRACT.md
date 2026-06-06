@@ -748,3 +748,20 @@ gate-verify (target 8 → ~2). The `incomplete/-` 20.5yd outlier is likely the
 same family (a defender on the incomplete-pass tackle/break).
 
 Gate remains green at the 8 baseline (no code shipped this stage).
+
+**Stage 13 follow-up (second tracing pass — dead-ends, so the next effort skips
+them):** the flagged player is confirmed a **CB** (`role=CB`), drawn `hit`,
+snapping (560,71)→(450,158) at f426 then frozen. Key surprise: the **complete-pass
+def.map at `play-animation.js:4430` (the obvious one — `_postCatchPursuerSet`,
+`_isPassTacklerByName`, the `hit` tackle at ~5083) does NOT execute at the tackle
+frame.** Instrumented its `return dd` (5222) and the `isPursuer` line (4974) to
+fire for ALL defenders at t∈(0.865,0.868) (≈f425-426): **zero hits.** The pre-snap
+early-return at 4505 is `t<PRE` only, so that's not it. Conclusion: post-catch
+defender rendering for the flagged CB goes through a **different / second render
+path** than the 4430 map — `render(t)` appears to be multi-phase, and the CB's
+`hit` draw at the tackle comes from a path not yet located (a separate post-catch
+def render, or a tackle-pile/overlay draw). **The actual next probe:** monkeypatch
+`drawPlayer` to log the call STACK (or a unique marker per draw site) for the
+flagged CB at f426 — that names the exact draw site directly, instead of guessing
+which def.map. Two diagnoses down (not TD-celebration, not `_wrSim`); the render
+path itself is the remaining unknown.
