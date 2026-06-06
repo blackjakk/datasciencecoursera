@@ -21863,6 +21863,35 @@ function renderFrnDraft() {
     ${bestAtNeedRows}
   </div>` : "";
 
+  // ── War room recommendations ──────────────────────────────────────────────
+  // Holistic "who should we take right now" — need-weighted BPA scored on the
+  // user's scouted grade (so it shifts as they scout) with a one-line why +
+  // confidence read. The headline card on the user's clock.
+  const recs = _draftRecommendations(myId, draftablePool, 4);
+  const recsHtml = recs.length ? `<div class="frn-draft-info-card frn-draft-recs">
+    <div class="frn-card-title" style="margin-bottom:.3rem">🎯 WAR ROOM · RECOMMENDED</div>
+    ${recs.map((r, i) => {
+      const esc = (r.p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+      const sg = r.seen;
+      const sgColor = sg >= 82 ? "var(--green-lt)" : sg >= 70 ? "var(--gold)" : sg >= 60 ? "var(--gold-lt)" : "var(--gray)";
+      return `<div class="frn-draft-rec-row">
+        <span class="frn-draft-rec-rank">${i+1}</span>
+        <div class="frn-draft-rec-body">
+          <div class="frn-draft-rec-top">
+            <span class="frn-draft-rec-name" onclick="frnOpenPlayerCard('${esc}')" title="Open ${r.p.name}'s scouting card">${r.p.name}</span>
+            ${_posPillHtml(r.p.position)}
+            <span style="color:${sgColor};font-weight:700;font-size:.6rem" title="Your scout grade">${gradeLabel(sg)}</span>
+          </div>
+          <div class="frn-draft-rec-why">
+            <span>${r.why}</span><span style="color:${r.conf.color}"> · ${r.conf.short}</span>
+          </div>
+        </div>
+        <button class="btn btn-gold frn-draft-rec-draft" onclick="frnDraftPick('${esc}')" title="Draft ${r.p.name}">DRAFT</button>
+      </div>`;
+    }).join("")}
+    <div class="frn-draft-rec-foot">Ranked by need × value × your scouting · scout more to sharpen</div>
+  </div>` : "";
+
   // ── Your class ───────────────────────────────────────────────────────────
   const myPicks = d.picks.filter(pk=>pk.teamId===myId);
   const myPicksHtml = myPicks.length ? myPicks.map(pk=>`
@@ -21929,6 +21958,7 @@ function renderFrnDraft() {
         <div class="frn-draft-board">${boardHtml}</div>
       </div>
       <div class="frn-draft-info-panel">
+        ${recsHtml}
         <div class="frn-draft-info-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">
             <div class="frn-card-title">TEAM NEEDS</div>
@@ -22489,6 +22519,61 @@ function _draftSchemeBonus(teamId, pos) {
   if (id === "OPTION"           && (pos === "QB" || pos === "RB")) return 3;
   return 0;
 }
+// ── Scouting confidence (the "error bar") ──────────────────────────────────
+// Surfaces _playerNoiseBand as a human-readable confidence tier. Lower band =
+// sharper read. This is the first-principles piece the draft was missing: the
+// user could see a grade but never how much to TRUST it. A scouted senior
+// tightens from ±8 (UNKNOWN) toward ±1 (LOCKED IN), and scoutGrade de-biases
+// toward truth as it tightens — so confidence and grade move together.
+function _draftConfidence(p) {
+  const band = (typeof _playerNoiseBand === "function") ? _playerNoiseBand(p) : 8;
+  if (band <= 2) return { band, tier: "high", label: "LOCKED IN",  short: "✓ confirmed",   color: "var(--green-lt)" };
+  if (band <= 4) return { band, tier: "med",  label: "SOLID READ", short: "solid read",    color: "var(--gold)" };
+  if (band <= 6) return { band, tier: "low",  label: "PROJECTION", short: "limited intel", color: "var(--gold-lt)" };
+  return            { band, tier: "fog",  label: "UNKNOWN",    short: "⚠ unscouted",   color: "var(--gray)" };
+}
+
+// ── On-the-clock recommendations ───────────────────────────────────────────
+// A holistic "who should we take RIGHT NOW" board, ranked by the SAME weights
+// _aiAutoPick uses (need-weighted BPA + positional premium + scheme fit), with
+// two deliberate differences:
+//   1. scored on the user's PERCEIVED grade (scoutGrade), which sharpens as
+//      they scout — so the board is literally "based on scouting results";
+//   2. deterministic (no war-room random*4) — a recommendation must be stable
+//      across re-renders.
+// Returns the top `n` available with a one-line rationale + confidence read.
+function _draftRecommendations(teamId, pool, n = 4) {
+  if (!Array.isArray(pool) || !pool.length) return [];
+  const roster = franchise.rosters[teamId] || [];
+  const startersByPos = {};
+  for (const p of roster) {
+    if (!p.position) continue;
+    if (startersByPos[p.position] == null || (p.overall || 0) > startersByPos[p.position]) {
+      startersByPos[p.position] = p.overall || 0;
+    }
+  }
+  const scored = pool.map(p => {
+    const seen      = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 60);
+    const starter   = startersByPos[p.position] || 50;
+    const needBonus = Math.max(0, 75 - starter);
+    const posPrem   = _DRAFT_POS_PREMIUM[p.position] ?? 0;
+    const scheme    = (typeof _draftSchemeBonus === "function") ? _draftSchemeBonus(teamId, p.position) : 0;
+    const score     = seen + needBonus * 0.45 + posPrem + scheme;
+    return { p, score, seen, needBonus, posPrem };
+  }).sort((a, b) => b.score - a.score);
+
+  return scored.slice(0, n).map(s => {
+    const lvl  = (typeof _draftNeedLevel === "function") ? _draftNeedLevel(teamId, s.p.position) : 0;
+    const conf = _draftConfidence(s.p);
+    let why;
+    if (lvl === 2)            why = `fills a CRITICAL hole at ${s.p.position}`;
+    else if (lvl === 1)       why = `addresses your ${s.p.position} need`;
+    else if (s.posPrem >= 4)  why = `premium ${s.p.position} value`;
+    else                      why = `best on the board`;
+    return { p: s.p, seen: s.seen, why, lvl, conf };
+  });
+}
+
 function _aiAutoPick(slot, opts) {
   if (!slot || !slot.teamId) {
     console.error("[draft] _aiAutoPick called with invalid slot — pickOrder corruption", slot);

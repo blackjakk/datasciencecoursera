@@ -8779,6 +8779,42 @@
   }
   .frn-draft-best-row:hover { background: rgba(212,175,55,.08); }
 
+  /* War room recommendations — the headline card on the user's clock */
+  .frn-draft-recs {
+    border-top: 2px solid var(--gold) !important;
+    background: linear-gradient(180deg, rgba(212,175,55,.07), rgba(0,0,0,.12)) !important;
+  }
+  .frn-draft-rec-row {
+    display: flex; gap: .4rem; align-items: center;
+    padding: .32rem .15rem; border-bottom: 1px dashed rgba(212,175,55,.18);
+  }
+  .frn-draft-rec-row:last-of-type { border-bottom: none; }
+  .frn-draft-rec-rank {
+    flex: 0 0 auto; width: 1.05rem; height: 1.05rem; line-height: 1.05rem;
+    text-align: center; font-weight: 900; font-size: .6rem;
+    color: var(--bg1); background: var(--gold);
+  }
+  .frn-draft-rec-body { flex: 1; min-width: 0; }
+  .frn-draft-rec-top { display: flex; align-items: center; gap: .3rem; }
+  .frn-draft-rec-name {
+    font-weight: 700; font-size: .66rem; color: var(--white);
+    cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-draft-rec-name:hover { color: var(--gold-lt); text-decoration: underline; }
+  .frn-draft-rec-why {
+    font-size: .55rem; color: var(--gray); margin-top: .05rem;
+    line-height: 1.25;
+  }
+  .frn-draft-rec-draft {
+    flex: 0 0 auto; padding: .18rem .42rem !important;
+    font-size: .56rem !important; letter-spacing: .4px;
+  }
+  .frn-draft-rec-foot {
+    font-size: .5rem; color: var(--gray); opacity: .75;
+    margin-top: .35rem; padding-top: .3rem; border-top: 1px solid var(--border);
+    font-style: italic;
+  }
+
   /* UDFA Scramble screen */
   .frn-udfa-hero {
     text-align: center; padding: 1rem 1.2rem; margin-bottom: .8rem;
