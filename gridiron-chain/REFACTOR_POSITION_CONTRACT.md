@@ -680,10 +680,12 @@ Mechanism (located, not yet fixed): the primary tackler is driven by
 "the waypoint path already lands on the carrier at t=0.78"). The pre-tackle
 scrape/coverage branch holds the player at a static early position while that
 track advances toward the carrier; when the tackle pose releases to the track
-sample, it lands on the carrier — a discontinuity of up to 22yd. The receiver
-side is the analogous post-catch tackler/YAC-sim handoff (~4749, `_wrSim` →
-`_effEndX`/`_simFinalY` at ~4199-4260). It is the **same Family-A seam at the
-tackle boundary** that the `_lastRenderedX` convention never reached.
+sample, it lands on the carrier — a discontinuity of up to 22yd. The pass-play
+`complete/*` cases are the SAME seam (a tackling **defender** snapping to the
+carrier-end at the tackle), **not** the receiver/`_wrSim` path — see *Stage 13*,
+which disproves the earlier `_wrSim` hypothesis by instrumentation. It is the
+**same Family-A seam at the tackle boundary** that the `_lastRenderedX`
+convention never reached.
 
 **Why it isn't patched here:** the fix is not a one-liner. Either (a) the
 pre-tackle branch must sample the (continuous) tackler track instead of freezing,
@@ -714,6 +716,35 @@ as a continuous slide; max per-frame delta dropped from 328px to ~13px.
 **Result (seed=1337):** 11 → **8** egregious. `run/-` ×3 closed; no regression
 (remaining 8 are exactly the prior non-run classes). Baseline lowered to 8.
 
-The other tackle-seam sites (post-catch `_wrSim` for `complete/*`, the
-`incomplete/-` outlier) are the same family but distinct branches — next session,
-same trace-then-ease method, gate as guard.
+### Stage 13 — `complete/*` re-diagnosis (investigated, NOT yet fixed)
+
+Traced the remaining `complete/wr1` egregious (e.g. play#76, flagged player
+"Malik Karpov", f425→426 (560,71)→(450,158), then frozen). Two earlier
+hypotheses **disproven by instrumentation**:
+
+1. **Not the receiver / `_wrSim`.** Instrumented `_wrSim` directly: it moves
+   perfectly smoothly to its endpoint (preClamp == postClamp every frame, the
+   overshoot clamp never fires a big correction). The targeted receiver on that
+   play is "Rob Pukui", not the flagged player — `_wrSim` is a red herring.
+2. **The flagged player is a TACKLING DEFENDER**, drawn with pose `hit`, whose
+   POSITION snaps to the carrier's tackle spot at the tackle frame and freezes.
+   This is the **same family as Stage 12** (the run/truck tackle snap), just on
+   pass plays — *not* a receiver/YAC issue.
+
+Where it is NOT: the pass def.map contact-snap (`~5063-5067`, `dd.x = ballX ±
+CONTACT_DIST`) does **not** fire for this defender (instrumented — no hits). So
+his position is set further upstream in the pass def.map pursuit/tracker path
+(likely the `_passTacklerTrack` sample or a pursuit handoff landing on the
+carrier-end spot at the tackle window), which this session did not fully pin.
+
+**Why not fixed:** the exact upstream line wasn't isolated, and that block
+(pursuer set / locked-tackler / `_passTacklerTrack` / pile-on) is densely
+nested. Per the session's own rule, no guess-patch into tangled tackle code just
+to move the gate number — the fix must be as understood as Stage 12 was.
+**Next step:** instrument the pass def.map per-defender at its `return dd` for
+the flagged defender, find the line that lands him on the carrier-end at the
+tackle window, then apply the Stage-12 ease-from-last-rendered pattern;
+gate-verify (target 8 → ~2). The `incomplete/-` 20.5yd outlier is likely the
+same family (a defender on the incomplete-pass tackle/break).
+
+Gate remains green at the 8 baseline (no code shipped this stage).
