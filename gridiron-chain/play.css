@@ -1412,7 +1412,8 @@
   }
   @media (max-width: 800px) { .frn-dash-grid { grid-template-columns: 1fr; } }
   .frn-card-box {
-    border: 1px dashed var(--border); background: var(--bg2);
+    border: 1px dashed var(--border);
+    background: linear-gradient(180deg, #131a13, var(--bg2) 60%);
     padding: .8rem 1rem; position: relative;
     /* Scroll-perf: skip painting cards that aren't on screen. The browser
        still preserves layout (via the intrinsic-size fallback so the
@@ -1427,9 +1428,10 @@
   .frn-card-box::before { content:"┌"; position:absolute; top:-.55em; left:-.15em; color:var(--gold); font-size:1.05em; line-height:1; }
   .frn-card-box::after  { content:"┘"; position:absolute; bottom:-.55em; right:-.15em; color:var(--gold); font-size:1.05em; line-height:1; }
   .frn-card-title {
-    font-size: .66rem; font-weight: 700; color: var(--gold);
-    letter-spacing: .6px; margin-bottom: .55rem;
-    padding-bottom: .3rem; border-bottom: 1px solid var(--border);
+    font-size: .66rem; font-weight: 700; color: var(--gold-lt);
+    letter-spacing: .8px; margin-bottom: .55rem;
+    padding-bottom: .32rem; border-bottom: 1px solid rgba(200,169,0,.30);
+    text-shadow: 0 0 9px rgba(240,204,48,.13);
     display: flex; justify-content: space-between; align-items: center;
   }
   .frn-card-title-sub { color: var(--gray); font-size: .6rem; font-weight: 400; }
@@ -2916,9 +2918,10 @@
     margin-left: .35rem;
   }
   .frn-card-title {
-    font-size: .62rem; font-weight: 800; color: var(--gold);
-    letter-spacing: .6px; padding-bottom: .25rem; margin-bottom: .3rem;
-    border-bottom: 1px solid var(--border);
+    font-size: .62rem; font-weight: 800; color: var(--gold-lt);
+    letter-spacing: .7px; padding-bottom: .28rem; margin-bottom: .35rem;
+    border-bottom: 1px solid rgba(200,169,0,.30);
+    text-shadow: 0 0 9px rgba(240,204,48,.13);
   }
   .frn-pcard-seasonstats {
     display: grid; grid-template-columns: repeat(2, 1fr); gap: .15rem .5rem;
