@@ -4684,9 +4684,11 @@
   }
   .bspnlive-pbp-row {
     display: grid; grid-template-columns: 60px 1.4rem 6.6rem 1fr;
-    gap: .4rem; padding: .15rem .1rem;
+    gap: .4rem; padding: .2rem .3rem;
     border-bottom: 1px dashed rgba(0,0,0,.1);
+    border-radius: 2px; transition: background .12s;
   }
+  .bspnlive-pbp-row:hover { background: rgba(0,0,0,.05); }
   .bspnlive-pbp-row .q { color: var(--blgreen); font-weight: 700; letter-spacing: .5px; }
   .bspnlive-pbp-row .t { font-weight: 700; }
   .bspnlive-pbp-row .dd { color: var(--blgray); font-size: .62rem; font-variant-numeric: tabular-nums; }
