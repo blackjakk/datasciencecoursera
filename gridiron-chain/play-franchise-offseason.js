@@ -18605,6 +18605,7 @@ const DRAFT_ANIM_TICK_MS = 200;
 
 function _scheduleAnimTick() {
   if (_draftAnimTimer != null) return; // already scheduled
+  if (franchise?.draft?._tradeUpOpen) return; // paused while the user reviews a trade-up
   _draftAnimTimer = setTimeout(() => {
     _draftAnimTimer = null;
     _animTick();
@@ -18614,6 +18615,7 @@ function _scheduleAnimTick() {
 function _animTick() {
   const d = franchise?.draft;
   if (!d || d._animSinceIdx === undefined) return;
+  if (d._tradeUpOpen) return; // paused for trade-up review
   // Already past user's slot or end? Animation done.
   if (d.currentIdx >= d.pickOrder.length
       || d.pickOrder[d.currentIdx].teamId === franchise.chosenTeamId) {
@@ -18736,6 +18738,36 @@ function _renderDraftFloor() {
        </div>`
     : "";
 
+  // ── Trade up (jump the line for a sliding target) ─────────────────────────
+  const canTradeUp = !!nextUserSlot && remaining > 0;
+  const tradeUpOpts = d._tradeUpOpen ? (d._tradeUpOptions || []) : [];
+  const tradeUpHtml = d._tradeUpOpen ? `<div class="frn-draft-trade-card frn-draft-tradeup-card">
+    <div class="frn-draft-trade-head">
+      <span style="color:#86e0a3">📈 TRADE UP</span>
+      <button class="frn-trade-shop-btn" onclick="frnDraftCloseTradeUp()">✕ Close / resume</button>
+    </div>
+    ${tradeUpOpts.length ? tradeUpOpts.map(o => {
+      const team = getTeam(o.teamId);
+      const expanded = d._tradeUpConfirmId === o.id;
+      return `<div class="frn-draft-trade-offer${expanded?" expanded":""}">
+        <div class="frn-trade-offer-main">
+          <div class="frn-trade-offer-info">
+            <div class="frn-trade-offer-team">Jump to <span style="color:#86e0a3">${o.pickLabel}</span> <span style="color:var(--gray);font-weight:400;letter-spacing:0">· from ${team?.city||""} ${team?.name||"?"}</span></div>
+            <div class="frn-trade-offer-detail">you send <b style="color:var(--white)">${o.giveLabels.join(" + ")}</b></div>
+          </div>
+          ${expanded ? "" : `<button class="frn-trade-review-btn frn-tradeup-review" onclick="frnDraftReviewTradeUp('${o.id}')">REVIEW →</button>`}
+        </div>
+        ${expanded ? `<div class="frn-trade-offer-confirm">
+          <div class="frn-trade-offer-confirm-note">Move up to <b>${o.pickLabel}</b>: ${team?.name} slides back to your pick and receives <b>${o.giveLabels.join(" + ")}</b>. Confirm to jump the line.</div>
+          <div class="frn-trade-offer-actions">
+            <button class="btn btn-gold" style="font-size:.58rem;padding:.24rem .6rem;font-weight:800" onclick="frnDraftTradeUp('${o.id}')">✓ CONFIRM TRADE UP</button>
+            <button class="btn btn-outline" style="font-size:.58rem;padding:.24rem .5rem" onclick="frnDraftCancelTradeUpReview()">✕ Cancel</button>
+          </div>
+        </div>` : ""}
+      </div>`;
+    }).join("") : `<div class="frn-draft-trade-empty">No affordable trade-up from here — you don't have the draft capital to jump these picks.</div>`}
+  </div>` : "";
+
   $("frnHomeContent").innerHTML = `
     <div style="max-width:840px;margin:0 auto;padding:1rem">
       ${undoBannerHtml}
@@ -18754,9 +18786,13 @@ function _renderDraftFloor() {
               : (myTeam ? `${myTeam.city} ${myTeam.name}` : "Your team")}
           </div>
         </div>
-        <button class="btn btn-gold" style="font-size:.7rem;padding:.4rem .9rem;white-space:nowrap"
-          onclick="frnSkipDraftFloor()">⏩ Skip to my pick</button>
+        <div style="display:flex;gap:.4rem;align-items:center">
+          ${canTradeUp && !d._tradeUpOpen ? `<button class="btn btn-outline" style="font-size:.6rem;padding:.4rem .7rem;white-space:nowrap;color:#86e0a3;border-color:#86e0a3" onclick="frnDraftOpenTradeUp()" title="Jump ahead to grab a sliding target — pauses the draft">📈 Trade Up</button>` : ""}
+          <button class="btn btn-gold" style="font-size:.7rem;padding:.4rem .9rem;white-space:nowrap"
+            onclick="frnSkipDraftFloor()">⏩ Skip to my pick</button>
+        </div>
       </div>
+      ${tradeUpHtml}
       ${onClockTeam ? `
       <div style="background:var(--bg2);border:1px solid var(--border);padding:.55rem .7rem;margin-bottom:.6rem;border-radius:3px;display:flex;justify-content:space-between;align-items:center">
         <div>
@@ -22636,6 +22672,96 @@ function frnDraftAcceptTrade(id) {
   saveFranchise();
   // Slot i now belongs to the mover (AI) — let the floor animation run their
   // pick(s) until the user's next (now-later) slot.
+  _startDraftFloorAnim();
+}
+
+// ── Trade up (from the draft floor, while waiting) ──────────────────────────
+// The user jumps ahead to grab a sliding target: they take an upcoming AI slot
+// and that team slides back to the user's soonest pick + the user's
+// compensation (this-year picks and/or futures). The user pays the gap — you
+// pay a premium to move up. Surfaced on the floor, which pauses while open so
+// the auto-advancing board doesn't move the goalposts mid-decision.
+function _genTradeUpOptions() {
+  const d = franchise.draft;
+  const myId = franchise.chosenTeamId;
+  const cur = d.currentIdx;
+  let userNextIdx = -1;
+  for (let i = cur; i < d.pickOrder.length; i++) {
+    if (d.pickOrder[i].teamId === myId) { userNextIdx = i; break; }
+  }
+  if (userNextIdx < 0 || userNextIdx === cur) return []; // on the clock or no pick left
+  const userNextVal = _draftSlotValue(userNextIdx + 1);
+  const myAssets = _teamDraftAssets(myId, userNextIdx, -1); // comp pool (after the swap pick)
+  const swap = d.pickOrder[userNextIdx];
+  const swapLabel = `R${swap.round}.${swap.pickInRound}${swap.isComp?"c":""}`;
+  const options = [];
+  const seen = new Set();
+  for (let t = cur; t < userNextIdx; t++) {
+    const T = d.pickOrder[t].teamId;
+    if (T === myId || seen.has(T)) continue;
+    const gap = _draftSlotValue(t + 1) - userNextVal;
+    if (gap <= 0) continue;
+    const comp = _draftCoverGapAssets(myAssets, gap, 1.0); // user pays the full gap
+    if (!comp) continue;                                   // can't afford this jump
+    seen.add(T);
+    const tslot = d.pickOrder[t];
+    options.push({
+      id: `up_${t}`, targetIdx: t, teamId: T,
+      pickLabel: `R${tslot.round}.${tslot.pickInRound}${tslot.isComp?"c":""}`,
+      swapSlot: userNextIdx, compAssets: comp,
+      giveLabels: [swapLabel, ...comp.map(_assetLabel)],
+      cost: Math.round(userNextVal + comp.reduce((s, a) => s + _assetValue(a), 0)),
+      targetVal: Math.round(_draftSlotValue(t + 1)),
+    });
+    if (options.length >= 3) break;
+  }
+  return options;
+}
+
+function frnDraftOpenTradeUp() {
+  const d = franchise?.draft; if (!d) return;
+  if (_draftAnimTimer != null) { clearTimeout(_draftAnimTimer); _draftAnimTimer = null; }
+  d._tradeUpOpen      = true;
+  d._tradeUpOptions   = _genTradeUpOptions();
+  d._tradeUpConfirmId = null;
+  saveFranchise();
+  _renderDraftFloor();
+}
+function frnDraftCloseTradeUp() {
+  const d = franchise?.draft; if (!d) return;
+  d._tradeUpOpen = false; d._tradeUpConfirmId = null;
+  saveFranchise();
+  // Resume the floor animation from where it paused.
+  _renderDraftFloor();
+  _scheduleAnimTick();
+}
+function frnDraftReviewTradeUp(id) {
+  const d = franchise?.draft; if (!d) return;
+  d._tradeUpConfirmId = id; _renderDraftFloor();
+}
+function frnDraftCancelTradeUpReview() {
+  const d = franchise?.draft; if (!d) return;
+  d._tradeUpConfirmId = null; _renderDraftFloor();
+}
+function frnDraftTradeUp(id) {
+  const d = franchise?.draft; if (!d) return;
+  const myId = franchise.chosenTeamId;
+  const o = (d._tradeUpOptions || []).find(x => x.id === id);
+  if (!o) return;
+  const t = o.targetIdx, sw = o.swapSlot;
+  // Defensive validation — state shouldn't have moved (we paused), but check.
+  if (d.pickOrder[sw].teamId !== myId)   return;
+  if (d.pickOrder[t].teamId  !== o.teamId) return;
+  // Execute: user takes the target slot; the team slides to the user's pick;
+  // the user sends compensation.
+  d.pickOrder[t].teamId  = myId;
+  d.pickOrder[sw].teamId = o.teamId;
+  _transferAssets(o.compAssets, o.teamId, myId); // user → team
+  const team = getTeam(o.teamId);
+  if (typeof _pushNews === "function") _pushNews({ type: "trade", label: `📈 TRADE UP — you moved up to ${o.pickLabel} (from ${team?.name||"?"}): sent ${o.giveLabels.join(" + ")}` });
+  d._tradeUpOpen = false; d._tradeUpOptions = []; d._tradeUpConfirmId = null;
+  saveFranchise();
+  // Resume: AI picks roll from currentIdx up to the user's new (earlier) slot.
   _startDraftFloorAnim();
 }
 

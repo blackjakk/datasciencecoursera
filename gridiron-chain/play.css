@@ -8915,6 +8915,12 @@
   }
   .frn-trade-offer-confirm-note { font-size: .56rem; color: var(--white); line-height: 1.35; margin-bottom: .4rem; }
   .frn-trade-offer-actions { display: flex; gap: .4rem; }
+  /* Trade-up variant (green accent) */
+  .frn-draft-tradeup-card { border-left-color: #86e0a3; margin-bottom: .6rem; }
+  .frn-draft-tradeup-card .frn-draft-trade-offer.expanded { border-color: #86e0a3; background: rgba(134,224,163,.07); }
+  .frn-draft-tradeup-card .frn-trade-offer-confirm { border-top-color: rgba(134,224,163,.3); }
+  .frn-tradeup-review { border-color: #86e0a3 !important; color: #86e0a3 !important; background: rgba(134,224,163,.08) !important; }
+  .frn-tradeup-review:hover { background: rgba(134,224,163,.18) !important; }
 
   /* UDFA Scramble screen */
   .frn-udfa-hero {
