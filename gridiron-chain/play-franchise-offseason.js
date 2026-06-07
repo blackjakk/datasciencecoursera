@@ -11259,6 +11259,41 @@ function _unlockSeasonKnowledge() {
   }
 }
 
+// ── Locker room (mentor ⇄ cancer) ───────────────────────────────────────────
+// Builds the team's leadership picture from the existing personality system,
+// and pairs MENTORS (captains, or strong age≥29 vets) with the top young player
+// at their OWN position — a targeted dev boost that's named and visible, the
+// counterpart to the team-wide cancer drain. Used by the offseason dev loop
+// (applies the boost) and the dev-report LOCKER ROOM card (shows it).
+const MENTOR_DEV_BOOST = 1.12;
+function _lockerRoom(teamId) {
+  const roster = franchise.rosters?.[teamId] || [];
+  const captains = roster.filter(p => p.personality === "captain");
+  const cancers  = roster.filter(p => p.personality === "cancer");
+  const isMentor = p => p.personality === "captain" || ((p.age || 0) >= 29 && (p.overall || 0) >= 80);
+  const byPos = {};
+  for (const p of roster) (byPos[p.position] ||= []).push(p);
+  const pairs = [];
+  const menteeNames = new Set();
+  for (const pos in byPos) {
+    const grp = byPos[pos];
+    const mentors = grp.filter(isMentor).sort((a, b) => (b.overall || 0) - (a.overall || 0));
+    const youngs  = grp.filter(p => (p.age || 0) <= 24 && !isMentor(p))
+                       .sort((a, b) => ((b.potential || b.overall || 0)) - ((a.potential || a.overall || 0)));
+    let mi = 0;
+    for (const mentee of youngs) {
+      if (mi >= mentors.length) break;
+      const mentor = mentors[mi];
+      if ((mentor.overall || 0) <= (mentee.overall || 0)) break; // mentor must out-rank
+      mi++;
+      pairs.push({ mentor, mentee, pos });
+      menteeNames.add(mentee.name);
+    }
+  }
+  const devMul = Math.max(0.85, 1 - 0.05 * cancers.length); // mirrors the dev-loop cancer penalty
+  return { captains, cancers, pairs, menteeNames, devMul };
+}
+
 function runFrnOffseason() {
   _unlockSeasonKnowledge();
   const changes  = [];
@@ -11277,6 +11312,9 @@ function runFrnOffseason() {
     const teamCaptains = roster.filter(q => q.personality === "captain" && (q.age || 0) >= 28).length;
     const teamCancers  = roster.filter(q => q.personality === "cancer").length;
     const cancerPenalty = Math.max(0.85, 1.0 - 0.05 * teamCancers);
+    // Mentorship pairings — the top young player at a mentor's position gets a
+    // targeted dev boost (the positive counterpart to the cancer drain).
+    const _menteeNames = _lockerRoom(tId).menteeNames;
 
     // Coordinator rating → player dev: higher-rated OC lifts skill+OL positions,
     // higher-rated DC lifts defensive positions. Smooth ramp from 50→89 (0→+15%).
@@ -11391,6 +11429,8 @@ function runFrnOffseason() {
       if (teamCaptains > 0 && (p.age || 0) <= 25 && p.personality !== "captain") {
         coachBoost *= 1.0 + Math.min(0.10, teamCaptains * 0.04); // up to +10% from team captains
       }
+      // Targeted mentorship — a paired mentee gets an extra, named boost.
+      if (_menteeNames.has(p.name)) { coachBoost *= MENTOR_DEV_BOOST; p._mentoredThisOffseason = true; }
       coachBoost *= cancerPenalty; // team-wide drain from locker-room cancers
       // Retune step 6 (valve 1 / coach compounding cap): the full multiplier
       // stack (HC Player Developer 1.35 × coachable 1.25 × FO up to 1.6 ×
@@ -13156,6 +13196,24 @@ function _buildOffseasonGainsSheet() {
   // Headline unit OVRs + team-shape stats. Pulls from live roster
   // for OFF/DEF/ST so it reflects the post-dev current state, not
   // just the dev-cycle subset.
+  const lockerRoomBlock = (() => {
+    const lr = _lockerRoom(myId);
+    if (!lr.captains.length && !lr.cancers.length && !lr.pairs.length) return "";
+    const esc = n => (n || "").replace(/'/g, "&#39;");
+    const capLine = lr.captains.length
+      ? `<div style="font-size:.6rem;margin-bottom:.2rem"><span style="color:var(--gold);font-weight:700">⭐ Captains</span> <span style="color:var(--blwhite)">${lr.captains.map(c => esc(c.name)).join(", ")}</span></div>` : "";
+    const canLine = lr.cancers.length
+      ? `<div style="font-size:.6rem;margin-bottom:.2rem;color:#ff8a8a"><b>☢ Cancers</b> ${lr.cancers.map(c => esc(c.name)).join(", ")} <span style="color:#ffb3b3">· −${Math.round((1 - lr.devMul) * 100)}% team dev</span></div>` : "";
+    const pairLines = lr.pairs.length
+      ? `<div style="font-size:.55rem;color:var(--gray);letter-spacing:.5px;margin:.25rem 0 .1rem">MENTORSHIPS · +${Math.round((MENTOR_DEV_BOOST - 1) * 100)}% dev</div>`
+        + lr.pairs.map(pr => `<div style="font-size:.6rem;margin-bottom:.12rem"><span style="color:var(--gold)">${esc(pr.mentor.name)}</span> <span style="color:var(--gray)">→ mentoring</span> <span style="color:#86e0a3;font-weight:700">${esc(pr.mentee.name)}</span> <span style="color:var(--gray)">(${pr.pos})</span></div>`).join("")
+      : `<div style="font-size:.58rem;color:var(--gray);font-style:italic">No active mentorships — pair a veteran leader with a young player at his position.</div>`;
+    return `<div style="margin-bottom:.6rem;padding:.55rem .7rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-left:2px solid var(--gold);border-radius:3px">
+      <div style="font-size:.55rem;color:var(--gold);letter-spacing:1.2px;font-weight:700;margin-bottom:.35rem">🛋 LOCKER ROOM</div>
+      ${capLine}${canLine}${pairLines}
+    </div>`;
+  })();
+
   const teamStatusBlock = (() => {
     const roster = franchise?.rosters?.[myId] || [];
     if (!roster.length) return "";
@@ -14018,6 +14076,7 @@ function _buildOffseasonGainsSheet() {
         ${_section("DECLINERS", decliners, "#ff9b9b")}
       </div>
       <div class="frn-dev-side" style="min-width:0;display:flex;flex-direction:column;gap:.6rem">
+        ${lockerRoomBlock}
         ${teamStatusBlock}
         ${posNeedsBlock}
         ${valueSpotlightBlock}
