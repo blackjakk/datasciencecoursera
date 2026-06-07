@@ -5400,12 +5400,21 @@ function _teamRosterStrength(teamId) {
   const top = r.slice().sort((a, b) => (b.overall||0) - (a.overall||0)).slice(0, 22);
   return top.reduce((s, p) => s + (p.overall || 60), 0) / top.length;
 }
+// Per-pass memo of the league strength distribution — _teamContentionScore is
+// called per-team-per-FA in the weekly AI bid round, and recomputing the whole
+// league each call was O(calls × 32). Invalidated (set null) at the top of the
+// FA render + bid-round + resolution so it rebuilds once per pass.
+let _faContentionMemo = null;
 function _teamContentionScore(teamId) {
-  const all = TEAMS.map(t => _teamRosterStrength(t.id));
-  const mean = all.reduce((a, b) => a + b, 0) / all.length;
-  const variance = all.reduce((a, b) => a + (b - mean) ** 2, 0) / all.length;
-  const sd = Math.sqrt(variance) || 1;
-  let s = 0.5 + (_teamRosterStrength(teamId) - mean) / (sd * 3); // ±1.5 SD → [0,1]
+  if (!_faContentionMemo) {
+    const strengths = {}; const arr = [];
+    for (const t of TEAMS) { const v = _teamRosterStrength(t.id); strengths[t.id] = v; arr.push(v); }
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const sd = Math.sqrt(arr.reduce((a, b) => a + (b - mean) ** 2, 0) / arr.length) || 1;
+    _faContentionMemo = { strengths, mean, sd };
+  }
+  const m = _faContentionMemo;
+  let s = 0.5 + ((m.strengths[teamId] ?? m.mean) - m.mean) / (m.sd * 3); // ±1.5 SD → [0,1]
   const st = franchise.standings?.[teamId];
   if (st && (st.w != null) && (st.l != null)) {
     const games = st.w + st.l + (st.t || 0);
@@ -5617,6 +5626,7 @@ function frnFASetFilter(field, value) {
 }
 
 function renderFrnFA(selectedKey) {
+  _faContentionMemo = null; // rebuild league-contention once per render
   const { chosenTeamId, freeAgents = [], _faOffers = {}, salaryCap, season } = franchise;
   const cap = effectiveSalaryCap(chosenTeamId);
   const myRoster = franchise.rosters[chosenTeamId] || [];
@@ -5774,7 +5784,12 @@ function renderFrnFA(selectedKey) {
     const isKnown = _isKnownPlayer(selected);
     const sGrade  = scoutGrade(selected);
     const heatGrade = selected._workoutHot ? Math.max(sGrade, 80) : sGrade;
-    const suitors = TEAMS.filter(t => t.id !== chosenTeamId && _faAIInterest(t.id, selected) >= 0.1).length;
+    const _rivalRanked = TEAMS.filter(t => t.id !== chosenTeamId)
+      .map(t => ({ t, intr: _faAIInterest(t.id, selected) }))
+      .filter(x => x.intr >= 0.1)
+      .sort((a, b) => b.intr - a.intr);
+    const suitors = _rivalRanked.length;
+    const rivalNames = _rivalRanked.slice(0, 3).map(x => x.t.name);
     const heatColor = suitors >= 6 ? "var(--red)" : suitors >= 3 ? "#e8a000" : heatGrade >= 80 ? "#e8a000" : "var(--border)";
     const ageStage = selected.age <= 25 ? "🌱 Ascending" : selected.age <= 27 ? "⬆ Young Prime"
                    : selected.age <= 30 ? "★ Prime" : selected.age <= 32 ? "⬇ Late Prime" : "↘ Declining";
@@ -6013,10 +6028,18 @@ function renderFrnFA(selectedKey) {
         else                    { lowMult=1.20; highMult=1.40; label="KNOCKOUT TERRITORY"; color="var(--red)"; }
         const lowAAV  = (dAAV * lowMult).toFixed(1);
         const highAAV = (dAAV * highMult).toFixed(1);
-        const yourMult = offer.aav / dAAV;
+        // Fit-aware stance: your EFFECTIVE bid is judged against your
+        // motivation-adjusted ask, so a good fit makes you competitive at a
+        // lower number than the raw range implies (and vice versa).
+        const yourMult = offer.aav / (dAAV * _motivMult);
         const stance = yourMult >= highMult * 0.98 ? `<span style="color:var(--green-lt);font-weight:700">YOU'RE ABOVE THE RANGE</span>`
                      : yourMult >= lowMult * 0.98 ? `<span style="color:var(--gold);font-weight:700">YOU'RE IN THE RANGE</span>`
                      : `<span style="color:var(--red);font-weight:700">YOU'LL GET OUTBID</span>`;
+        const fitNote = (_motivMult < 0.97) ? ` <span style="color:var(--green-lt);font-size:.55rem">· fit works for you</span>`
+                      : (_motivMult > 1.03) ? ` <span style="color:var(--red);font-size:.55rem">· fit works against you</span>` : "";
+        const rivalLine = rivalNames.length
+          ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.18rem">${suitors >= 5 ? "🔥" : "👀"} In on him: <b style="color:var(--blwhite)">${rivalNames.join(", ")}</b>${suitors > rivalNames.length ? ` +${suitors - rivalNames.length} more` : ""}</div>`
+          : "";
         return `<div style="padding:.42rem .55rem;background:var(--bg3);border-radius:4px;margin-top:.42rem;border:1px solid var(--border)">
           <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem">
             <span style="font-size:.55rem;letter-spacing:1px;color:var(--gold);font-weight:700">📈 BIDDING FORECAST</span>
@@ -6026,7 +6049,8 @@ function renderFrnFA(selectedKey) {
             Expected final: <b style="color:${color}">$${lowAAV}M–$${highAAV}M / yr</b>
             <span style="color:var(--gray);font-size:.55rem">· ${suitors} competing team${suitors!==1?"s":""}</span>
           </div>
-          <div style="font-size:.6rem">${stance}</div>
+          ${rivalLine}
+          <div style="font-size:.6rem;margin-top:.18rem">${stance}${fitNote}</div>
         </div>`;
       })()}
 
@@ -6499,7 +6523,12 @@ function _faAIInterest(teamId, fa) {
   const bestSame = same.sort((a,b) => b.overall - a.overall)[0];
   if (bestSame && bestSame.overall < fa.overall - 3) base *= 1.8;
   if (room < fa.demandedAAV) base *= 0.4;            // tight cap dampens
-  return Math.min(0.55, base);
+  // Motivation fit nudges pursuit — a team that satisfies the FA's motivation
+  // chases harder (a contender goes after a ring-chaser; a starting job draws
+  // the guy who wants snaps). ±30% swing.
+  const _fitSat = (typeof _faMotivationFit === "function") ? _faMotivationFit(fa, teamId).sat : 0;
+  base *= 1 + 0.30 * _fitSat;
+  return Math.max(0, Math.min(0.55, base));
 }
 
 // Decide what an AI bid would be given the current high. Returns
@@ -6544,6 +6573,7 @@ function _negKey(fa) { return (fa && (fa.pid || fa.name)) || ""; }
 // on FAs the user didn't bid on. Otherwise AI only counter-bids on FAs
 // already in negotiations.
 function _faAIBidRound(week, isInitial) {
+  _faContentionMemo = null; // rebuild league-contention once per bid round
   const negs = franchise.faNegotiations || {};
   const candidates = isInitial
     ? [...(franchise.freeAgents || []), ...Object.values(negs).map(n => n.fa)]
@@ -6603,6 +6633,7 @@ function _faAIBidRound(week, isInitial) {
 // week was the LAST week of the season, force-close all remaining
 // negotiations as unsigned.
 function _faResolveAfterWeek(week, isSeasonEnd) {
+  _faContentionMemo = null; // rebuild league-contention once per resolution pass
   const negs = franchise.faNegotiations || {};
   const myId = franchise.chosenTeamId;
   const newsSigned = [];
