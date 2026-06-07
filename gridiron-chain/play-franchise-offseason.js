@@ -18752,7 +18752,7 @@ function _renderDraftFloor() {
       return `<div class="frn-draft-trade-offer${expanded?" expanded":""}">
         <div class="frn-trade-offer-main">
           <div class="frn-trade-offer-info">
-            <div class="frn-trade-offer-team">Jump to <span style="color:#86e0a3">${o.pickLabel}</span> <span style="color:var(--gray);font-weight:400;letter-spacing:0">· from ${team?.city||""} ${team?.name||"?"}</span></div>
+            <div class="frn-trade-offer-team">Jump to <span style="color:#86e0a3">${o.pickLabel}</span> <span style="color:var(--gray);font-weight:400;letter-spacing:0">· from ${team?.city||""} ${team?.name||"?"}</span>${o.gmLabel?`<span style="color:#86e0a3;font-weight:600;font-size:.55rem;margin-left:.3rem" title="${o.gmLabel==='Hoarder'?'loves to trade down — fair price':o.gmLabel==='Win-Now'?'reluctant to move down — drives a hard bargain':'willing to move down'}">${o.gmIcon} ${o.gmLabel}</span>`:""}</div>
             <div class="frn-trade-offer-detail">you send <b style="color:var(--white)">${o.giveLabels.join(" + ")}</b></div>
           </div>
           ${expanded ? "" : `<button class="frn-trade-review-btn frn-tradeup-review" onclick="frnDraftReviewTradeUp('${o.id}')">REVIEW →</button>`}
@@ -21933,7 +21933,7 @@ function renderFrnDraft() {
       return `<div class="frn-draft-trade-offer${expanded?" expanded":""}">
         <div class="frn-trade-offer-main">
           <div class="frn-trade-offer-info">
-            <div class="frn-trade-offer-team">${team?.city||""} ${team?.name||"?"} <span style="color:var(--gray);font-weight:400;letter-spacing:0">want up</span></div>
+            <div class="frn-trade-offer-team">${team?.city||""} ${team?.name||"?"} <span style="color:var(--gray);font-weight:400;letter-spacing:0">want up</span>${o.gmLabel?`<span style="color:#e8a000;font-weight:600;font-size:.55rem;margin-left:.3rem" title="This GM ${o.gmLabel==='Win-Now'?'pushes the chips in':o.gmLabel==='Star Hunter'?'chases the elite':'is making a move'}">${o.gmIcon} ${o.gmLabel}</span>`:""}</div>
             <div class="frn-trade-offer-detail">eyeing <b style="color:var(--gold-lt)">${o.target}</b> · ${o.targetPos} — you get <b style="color:var(--green-lt)">${youGet}</b></div>
           </div>
           ${expanded ? "" : `<button class="frn-trade-review-btn" onclick="frnDraftReviewTrade('${o.id}')">REVIEW →</button>`}
@@ -22613,6 +22613,13 @@ function _genTradeDownOffers(shopping) {
     const target = _aiTopTarget(T, available);
     if (!target) continue;
     if (!shopping && _draftBoardScore(target) < eliteBar) continue; // not worth moving up
+    // GM personality — aggressive GMs (Win-Now / Star-Hunter) initiate move-ups;
+    // Hoarders / Stand-Pats rarely do (and only reluctantly when you shop).
+    // Deterministic per (team, pick) so the offer board is stable on re-render.
+    const gm = (typeof _teamGM === "function") ? _teamGM(T) : { tradeUp: 0.5, icon: "", label: "" };
+    const willRoll   = (_nameHash(`tu:${T}:${i}`, 7) % 1000) / 1000;
+    const willThresh = shopping ? Math.min(0.92, (gm.tradeUp ?? 0.5) + 0.30) : (gm.tradeUp ?? 0.5);
+    if (willRoll > willThresh) continue;
     const assets = _teamDraftAssets(T, i, swapIdx);  // their other picks (slots + future)
     const comp = _draftCoverGapAssets(assets, gap, shopping ? 0.8 : 1.0);
     if (!comp) continue;                             // can't cover the gap → no offer
@@ -22625,6 +22632,7 @@ function _genTradeDownOffers(shopping) {
       target: target.name, targetPos: target.position,
       myVal: Math.round(myVal), valueGiven: Math.round(valueGiven),
       getLabels: [swapLabel, ...comp.map(_assetLabel)],
+      gmIcon: gm.icon || "", gmLabel: gm.label || "",
     });
     if (offers.length >= 3) break;
   }
@@ -22701,7 +22709,13 @@ function _genTradeUpOptions() {
     if (T === myId || seen.has(T)) continue;
     const gap = _draftSlotValue(t + 1) - userNextVal;
     if (gap <= 0) continue;
-    const comp = _draftCoverGapAssets(myAssets, gap, 1.0); // user pays the full gap
+    // GM personality — Hoarders happily move down; Win-Now GMs won't (or charge
+    // a premium). Deterministic per (team, slot) so the option list is stable.
+    const gm = (typeof _teamGM === "function") ? _teamGM(T) : { tradeDown: 0.5, icon: "", label: "" };
+    const willRoll = (_nameHash(`td:${T}:${cur}:${t}`, 11) % 1000) / 1000;
+    if (willRoll > (gm.tradeDown ?? 0.5)) continue;        // this GM won't move down
+    const premium = 1 + (1 - (gm.tradeDown ?? 0.5)) * 0.20; // reluctant teams want more
+    const comp = _draftCoverGapAssets(myAssets, gap * premium, 1.0);
     if (!comp) continue;                                   // can't afford this jump
     seen.add(T);
     const tslot = d.pickOrder[t];
@@ -22712,6 +22726,7 @@ function _genTradeUpOptions() {
       giveLabels: [swapLabel, ...comp.map(_assetLabel)],
       cost: Math.round(userNextVal + comp.reduce((s, a) => s + _assetValue(a), 0)),
       targetVal: Math.round(_draftSlotValue(t + 1)),
+      gmIcon: gm.icon || "", gmLabel: gm.label || "",
     });
     if (options.length >= 3) break;
   }
