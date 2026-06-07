@@ -5349,6 +5349,112 @@ function _faPendingHitsByYear(fa, offer, years = 4) {
   return out;
 }
 
+// ── Free-agent motivations (the "people layer") ─────────────────────────────
+// Each FA wants something beyond money, and how well YOUR team satisfies it
+// bends what they'll accept from you: a contender can sign a ring-chaser for
+// less; a rebuilder pays a premium. This turns the cosmetic faStory into a
+// real force in both the accept-odds and the weekly winner-selection.
+const _FA_MOTIVATIONS = {
+  contender: { icon: "🏆", label: "Chase a ring",    want: "a contender",          metGood: "contender",        metBad: "rebuilding" },
+  money:     { icon: "💰", label: "Top dollar",      want: "the biggest contract", metGood: "highest bidder",   metBad: "lowball" },
+  role:      { icon: "🎯", label: "A starting job",  want: "a clear starting role",metGood: "clear starter",    metBad: "buried on the depth chart" },
+  scheme:    { icon: "🧩", label: "Scheme fit",      want: "a system that fits",   metGood: "scheme fit",       metBad: "scheme mismatch" },
+};
+const _FA_MOTIV_STORIES = {
+  contender: ["Wants one more shot at a ring", "Chasing a championship in his prime", "Ringless and running out of time", "Will take a discount for a real contender"],
+  money:     ["Coming off a career year — wants top-of-market", "Out to get paid, and he's earned it", "Betting on himself for the biggest deal", "Cap casualty looking to cash in"],
+  role:      ["Wants to be the guy, not a rotation piece", "Looking for a clear path to snaps", "Tired of splitting time — wants a starting job", "Believes he's a starter and wants to prove it"],
+  scheme:    ["Wants a system that plays to his strengths", "Looking for the right scheme fit", "Productive in the right role — fit matters", "Wants a coach who'll use him right"],
+};
+function _faWeightedPick(weights) {
+  let total = 0; for (const k in weights) total += weights[k];
+  let r = Math.random() * total;
+  for (const k in weights) { r -= weights[k]; if (r <= 0) return k; }
+  return Object.keys(weights)[0];
+}
+function _rollFAMotivation(p, tmpl) {
+  const age = p.age || 27, ovr = p.overall || 70;
+  const w = { contender: 1, money: 1, role: 1, scheme: 1 };
+  if (age >= 31)               w.contender += 2;    // vets chase rings
+  if (ovr >= 84)               w.money     += 1.5;  // stars want to get paid
+  if (ovr < 78 && age <= 28)   w.role      += 1.5;  // ascending guys want snaps
+  if (tmpl && (tmpl.kind === "vet_min" || tmpl.kind === "camp_body")) w.role += 1; // fringe want a job
+  const driver = _faWeightedPick(w);
+  const meta = _FA_MOTIVATIONS[driver];
+  const pool = _FA_MOTIV_STORIES[driver];
+  return {
+    driver,
+    weight: +(0.8 + Math.random() * 0.5).toFixed(2), // 0.8–1.3 intensity
+    icon: meta.icon, label: meta.label, want: meta.want,
+    story: pool[Math.floor(Math.random() * pool.length)],
+  };
+}
+
+// "Winning situation" proxy [0..1], LEAGUE-RELATIVE so there's always a spread
+// from rebuilder (→0, pays a premium) to contender (→1, gets a discount), even
+// early when absolute roster strength is similar. Top-22 roster strength as a
+// z-score across the league, blended with record when available.
+function _teamRosterStrength(teamId) {
+  const r = franchise.rosters?.[teamId] || [];
+  if (!r.length) return 70;
+  const top = r.slice().sort((a, b) => (b.overall||0) - (a.overall||0)).slice(0, 22);
+  return top.reduce((s, p) => s + (p.overall || 60), 0) / top.length;
+}
+function _teamContentionScore(teamId) {
+  const all = TEAMS.map(t => _teamRosterStrength(t.id));
+  const mean = all.reduce((a, b) => a + b, 0) / all.length;
+  const variance = all.reduce((a, b) => a + (b - mean) ** 2, 0) / all.length;
+  const sd = Math.sqrt(variance) || 1;
+  let s = 0.5 + (_teamRosterStrength(teamId) - mean) / (sd * 3); // ±1.5 SD → [0,1]
+  const st = franchise.standings?.[teamId];
+  if (st && (st.w != null) && (st.l != null)) {
+    const games = st.w + st.l + (st.t || 0);
+    if (games > 0) s = 0.5 * s + 0.5 * (st.w / games); // blend record once a season's played
+  }
+  return Math.max(0, Math.min(1, s));
+}
+
+// How well a team satisfies an FA's motivation. Returns satisfaction in
+// [-1 (poor) … +1 (great)] plus a display label.
+function _faMotivationFit(fa, teamId) {
+  const m = fa?.faMotivation;
+  if (!m) return { sat: 0, label: "", met: null };
+  const meta = _FA_MOTIVATIONS[m.driver] || {};
+  let sat = 0;
+  if (m.driver === "contender") {
+    sat = (_teamContentionScore(teamId) - 0.5) * 2;
+  } else if (m.driver === "role") {
+    const roster = franchise.rosters?.[teamId] || [];
+    const best = roster.filter(p => p.position === fa.position).sort((a, b) => b.overall - a.overall)[0];
+    if (!best || best.overall <= (fa.overall || 70) - 2)      sat = 1;   // clear starter
+    else if (best.overall >= (fa.overall || 70) + 2)          sat = -1;  // buried
+    else                                                       sat = 0;   // competition
+  } else if (m.driver === "scheme") {
+    const bonus = (typeof _draftSchemeBonus === "function") ? _draftSchemeBonus(teamId, fa.position) : 0;
+    sat = bonus > 0 ? 1 : 0; // fit = discount; otherwise neutral (no penalty)
+  } else { // money — pure auction, no fit discount/premium
+    sat = 0;
+  }
+  const met = sat > 0.25 ? (meta.metGood || "good fit") : sat < -0.25 ? (meta.metBad || "poor fit") : "neutral";
+  return { sat, label: met, driver: m.driver };
+}
+
+// Per-team effective-demand multiplier from motivation fit. <1 = they'll take
+// less from you (good fit); >1 = they want a premium (poor fit). Bounded ±~15%.
+function _faTeamDemandMult(fa, teamId) {
+  const m = fa?.faMotivation;
+  if (!m) return 1;
+  const { sat } = _faMotivationFit(fa, teamId);
+  const swing = 0.15 * (m.weight || 1);
+  return +(1 - sat * swing).toFixed(3);
+}
+// A bid's "value to the player" — bid AAV over the team's fit-adjusted demand.
+// The player signs with the highest-satisfaction bidder that clears threshold.
+function _faBidSatisfaction(fa, teamId, aav) {
+  const demand = Math.max(0.1, fa?.demandedAAV || 0);
+  return aav / (demand * _faTeamDemandMult(fa, teamId));
+}
+
 function _generateFAPool() {
   const taken = new Set();
   for (const r of Object.values(franchise.rosters)) r.forEach(p => taken.add(p.name));
@@ -5399,8 +5505,10 @@ function _generateFAPool() {
       p.demandedAAV   = Math.round(computeMarketValue(p, cap) * tmpl.demandMult * (0.90 + Math.random() * 0.20) * 10) / 10;
       p.demandedYears = tmpl.yearsMin + Math.floor(Math.random() * (tmpl.yearsMax - tmpl.yearsMin + 1));
 
-      // Story flavor — visible to user; doesn't change stats
-      p.faStory = pick(tmpl.stories);
+      // Motivation — a real driver that bends acceptance by team fit. The
+      // story is now derived from it so flavor and mechanic agree.
+      p.faMotivation = _rollFAMotivation(p, tmpl);
+      p.faStory = p.faMotivation.story;
       p.faKind  = tmpl.kind;  // internal — never displayed directly
 
       pool.push(p);
@@ -5649,7 +5757,11 @@ function renderFrnFA(selectedKey) {
     // so the UI shows "Likely · 80%" instead of NaN/Infinity.
     const dAavSafe = Math.max(0.1, selected.demandedAAV || 0);
     const dYrsSafe = Math.max(1,   selected.demandedYears || 1);
-    const score = (offer.aav / dAavSafe) * Math.min(offer.years / dYrsSafe, 1);
+    // Motivation bends the effective ask for YOUR team — a good fit (you're a
+    // contender / he'd start / scheme match) discounts it; a poor fit adds a
+    // premium. Same multiplier the weekly resolution uses, so odds = reality.
+    const _motivMult = _faTeamDemandMult(selected, chosenTeamId);
+    const score = (offer.aav / (dAavSafe * _motivMult)) * Math.min(offer.years / dYrsSafe, 1);
     const likelihood = score >= 1.05 ? "Very likely" : score >= 1.00 ? "Likely" : score >= 0.90 ? "Toss-up" : score >= 0.80 ? "Unlikely" : "Will reject";
     const lkColor = score >= 1.00 ? "var(--green-lt)" : score >= 0.90 ? "#e8a000" : "var(--red)";
     // Continuous accept-odds percentage for the bar visualization.
@@ -5737,6 +5849,28 @@ function renderFrnFA(selectedKey) {
       : null;
     const compareCardHtml = pinnedFA ? _faCompareCardHtml(pinnedFA, chosenTeamId, selFaKey) : "";
 
+    // Motivation block — what he wants + how YOUR situation rates + the ask
+    // adjustment it produces. _motivMult was computed above for the odds bar.
+    let motivHtml = "";
+    if (selected.faMotivation) {
+      const mv  = selected.faMotivation;
+      const mf  = _faMotivationFit(selected, chosenTeamId);
+      const pct = Math.round((_motivMult - 1) * 100); // + = premium, − = discount
+      const fitCol = mf.sat > 0.25 ? "var(--green-lt)" : mf.sat < -0.25 ? "var(--red)" : "var(--gray)";
+      const fitIco = mf.sat > 0.25 ? "✓" : mf.sat < -0.25 ? "✗" : "—";
+      const adj = pct < 0 ? `<b style="color:var(--green-lt)">−${Math.abs(pct)}% ask</b>`
+                : pct > 0 ? `<b style="color:var(--red)">+${pct}% ask</b>`
+                : `<b style="color:var(--gray)">no change</b>`;
+      const yourSituation = mv.driver === "money"
+        ? `He'll take the highest bid — fit doesn't move him.`
+        : `Your situation: <span style="color:${fitCol};font-weight:700">${fitIco} ${mf.label}</span> · ${adj}`;
+      motivHtml = `<div style="padding:.4rem .5rem;background:rgba(0,0,0,.15);border:1px solid var(--border);border-left:3px solid ${fitCol};border-radius:4px;margin-bottom:.45rem">
+        <div style="font-size:.53rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.18rem">MOTIVATION</div>
+        <div style="font-size:.72rem;font-weight:700">${mv.icon} Wants ${mv.want}</div>
+        <div style="font-size:.63rem;color:var(--gray);margin-top:.18rem">${yourSituation}</div>
+      </div>`;
+    }
+
     detailHtml = `<div class="frn-fa-detail">
       ${compareCardHtml}
 
@@ -5777,6 +5911,9 @@ function renderFrnFA(selectedKey) {
         <div style="font-size:.53rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.18rem">ROSTER FIT</div>
         <div style="font-size:.7rem;color:${fitColor};font-weight:${fit.upgrade||fit.compete?700:400}">${fitIcon} ${fit.label}</div>
       </div>
+
+      <!-- ③a Motivation -->
+      ${motivHtml}
 
       <!-- ③b Stats + Athletic Profile -->
       ${(()=>{
@@ -6475,20 +6612,18 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
     if (n.state !== "negotiating") continue;
     const name = n.fa.name; // display name — negKey is the pid-or-name lookup key
 
-    // Find highest bid (your + AI)
-    let highAav = 0, highYrs = 0, highId = null, highIsYou = false;
-    if (n.yourBid) {
-      if (n.yourBid.aav > highAav) {
-        highAav = n.yourBid.aav; highYrs = n.yourBid.years;
-        highId = myId; highIsYou = true;
-      }
-    }
-    for (const [tid, b] of Object.entries(n.aiBids)) {
-      if (b.aav > highAav) {
-        highAav = b.aav; highYrs = b.years;
-        highId = Number(tid); highIsYou = false;
-      }
-    }
+    // Pick the winner by VALUE TO THE PLAYER — bid over the team's fit-adjusted
+    // demand — not raw dollars. A contender (or a team where he'd start / fits
+    // the scheme) can beat a higher bid from a poor-fit team. "money"-motivated
+    // FAs have a flat multiplier, so they just go to the top bid. bestSat is the
+    // winner's satisfaction ratio (≥ threshold = he signs).
+    let highAav = 0, highYrs = 0, highId = null, highIsYou = false, bestSat = -Infinity;
+    const _consider = (tid, b, isYou) => {
+      const sat = _faBidSatisfaction(n.fa, tid, b.aav);
+      if (sat > bestSat) { bestSat = sat; highAav = b.aav; highYrs = b.years; highId = tid; highIsYou = isYou; }
+    };
+    if (n.yourBid) _consider(myId, n.yourBid, true);
+    for (const [tid, b] of Object.entries(n.aiBids)) _consider(Number(tid), b, false);
 
     // signFn is referenced from BOTH the stable-round branch and the
     // active-bidding else-branch below, so it must be hoisted out of
@@ -6551,7 +6686,7 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
       // Roster Builder HC lowers the acceptance threshold — FAs take less to play here.
       const _myHcSpec     = franchise.coaches?.[myId]?.hc?.specialtyTrait;
       const _acceptThresh = (highIsYou && _myHcSpec === "Roster Builder") ? 0.80 : 0.95;
-      if (highId != null && highAav >= n.fa.demandedAAV * _acceptThresh) {
+      if (highId != null && bestSat >= _acceptThresh) {
         signFn();
       } else {
         // FA didn't get a satisfactory offer this week — they lower
@@ -6574,8 +6709,9 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
           n.fa.demandDropsCount = (n.fa.demandDropsCount || 0) + 1;
           _pushNews({ type:"fa_demand_drop",
             label: `🆓📉 ${n.fa.position} ${name} drops asking $${prev.toFixed(1)}M → $${n.fa.demandedAAV.toFixed(1)}M${highId == null ? " (no offers)" : ""}` });
-          // Re-check sign threshold against the lowered demand
-          if (highId != null && highAav >= n.fa.demandedAAV * 0.95) signFn();
+          // Re-check sign threshold against the lowered demand (satisfaction
+          // shifts as demand drops).
+          if (highId != null && _faBidSatisfaction(n.fa, highId, highAav) >= 0.95) signFn();
         }
       }
     } else if (isSeasonEnd) {
@@ -6594,8 +6730,9 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
         n.fa.demandedAAV = driftedDemand;
         n.fa.demandDropsCount = (n.fa.demandDropsCount || 0) + 1;
       }
-      // If the standing high bid now clears 95% of the drifted demand → sign
-      if (highId != null && highAav >= n.fa.demandedAAV * 0.95) {
+      // If the standing high bid now clears 95% of the drifted (fit-adjusted)
+      // demand → sign
+      if (highId != null && _faBidSatisfaction(n.fa, highId, highAav) >= 0.95) {
         signFn();
       } else {
         n.raisedThisRound = false;
