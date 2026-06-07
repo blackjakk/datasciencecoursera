@@ -8779,6 +8779,36 @@
   }
   .frn-draft-best-row:hover { background: rgba(212,175,55,.08); }
 
+  /* Locker Room view (Roster → Locker Room) */
+  .frn-lr-mood-card {
+    padding: .6rem .75rem; margin-bottom: .6rem;
+    background: rgba(255,255,255,.02); border: 1px solid var(--border);
+    border-left: 2px solid var(--gold);
+  }
+  .frn-lr-meter { height: 8px; background: rgba(0,0,0,.4); border: 1px solid var(--border); overflow: hidden; }
+  .frn-lr-meter-fill { height: 100%; transition: width .3s ease; }
+  .frn-lr-alert {
+    padding: .5rem .65rem; margin-bottom: .6rem;
+    background: rgba(255,138,138,.06); border: 1px solid rgba(255,138,138,.3); border-left: 2px solid #ff8a8a;
+  }
+  .frn-lr-list-head {
+    font-size: .55rem; letter-spacing: 1px; color: var(--gold); font-weight: 700;
+    margin: .2rem 0 .3rem;
+  }
+  .frn-lr-rows { display: flex; flex-direction: column; }
+  .frn-lr-row {
+    display: grid; grid-template-columns: 1fr 2rem 2rem 6.5rem 1.4fr; gap: .4rem;
+    align-items: center; padding: .24rem .1rem;
+    border-bottom: 1px dashed rgba(255,255,255,.05); font-size: .63rem;
+  }
+  .frn-lr-row:last-child { border-bottom: none; }
+  .frn-lr-name { font-weight: 700; color: var(--white); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frn-lr-name:hover { color: var(--gold-lt); text-decoration: underline; }
+  .frn-lr-pos { color: var(--gold-lt); font-weight: 700; }
+  .frn-lr-ovr { color: var(--blwhite); font-weight: 700; text-align: center; }
+  .frn-lr-mood { font-weight: 700; }
+  .frn-lr-reason { color: var(--gray); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   /* Draft report card (Front Office → Draft Log) */
   .frn-drc-class {
     margin-bottom: .8rem; padding: .6rem .7rem;

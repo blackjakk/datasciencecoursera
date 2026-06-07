@@ -6460,6 +6460,7 @@ function _frnRenderActiveTab() {
 let _frnRosterSubTab = "depth";
 const _FRN_ROSTER_TABS = [
   { id: "depth",     label: "Depth Chart",    fn: () => typeof renderFrnDepthChart    === "function" && renderFrnDepthChart() },
+  { id: "locker",    label: "🛋 Locker Room", fn: () => typeof renderFrnLockerRoom    === "function" && renderFrnLockerRoom() },
   { id: "snaps",     label: "Snap Shares",    fn: () => typeof renderFrnSnapShares    === "function" && renderFrnSnapShares() },
   { id: "injuries",  label: "Injury Report",  fn: () => typeof renderFrnInjuryReport  === "function" && renderFrnInjuryReport() },
   { id: "ir",        label: "Injured Reserve",fn: () => typeof renderFrnInjuredReserve === "function" && renderFrnInjuredReserve() },
@@ -6515,6 +6516,68 @@ function renderFrnFrontOfficeHome() {
     `<button class="frn-subnav-btn${t.id===active.id?" active":""}" onclick="frnSetFOSubTab('${t.id}')">${t.label}</button>`
   ).join("");
   newEl.insertBefore(sub, newEl.firstChild);
+}
+
+// ── Locker Room view (live morale, mid-season + actionable) ─────────────────
+function renderFrnLockerRoom() {
+  const el = $("frnHomeContent");
+  if (!el) return;
+  const myId = franchise.chosenTeamId;
+  const roster = (franchise.rosters?.[myId] || []).slice();
+  if (!roster.length) { el.innerHTML = `<div style="padding:1rem;color:var(--gray)">No roster.</div>`; return; }
+  if (typeof _initMorale === "function") roster.forEach(p => _initMorale(p));
+  const tierOf = (m) => (typeof _moraleTier === "function") ? _moraleTier(m) : { icon: "😐", label: "—", color: "var(--gray)" };
+  const rank = (typeof _starterRankByPos === "function") ? _starterRankByPos(myId) : new Map();
+  const reasonOf = (p) => (typeof _moraleReason === "function") ? _moraleReason(p, myId, rank) : "";
+  const lr = (typeof _lockerRoom === "function") ? _lockerRoom(myId) : { captains: [], cancers: [], pairs: [] };
+  const esc = n => (n || "").replace(/'/g, "&#39;");
+
+  const avg = roster.reduce((s, p) => s + (p.morale ?? 62), 0) / roster.length;
+  const mood = tierOf(avg);
+  const moodPct = Math.round(Math.max(0, Math.min(100, avg)));
+  // Frustrated-or-worse (tier boundary at 50) starters/contributors need attention.
+  const disgruntled = roster.filter(p => (p.overall || 0) >= 78 && (p.morale ?? 62) < 50).sort((a, b) => (a.morale ?? 62) - (b.morale ?? 62));
+  const sorted = roster.slice().sort((a, b) => (a.morale ?? 62) - (b.morale ?? 62));
+
+  const row = (p) => {
+    const t = tierOf(p.morale ?? 62);
+    const tag = p.personality === "captain" ? `<span style="color:var(--gold);font-size:.52rem"> ⭐</span>`
+              : p.personality === "cancer"  ? `<span style="color:#ff8a8a;font-size:.52rem"> ☢</span>` : "";
+    return `<div class="frn-lr-row">
+      <span class="frn-lr-name" onclick="frnOpenPlayerCard('${esc(p.name)}')" title="Open ${esc(p.name)}">${p.name}${tag}</span>
+      <span class="frn-lr-pos">${p.position}</span>
+      <span class="frn-lr-ovr">${p.overall || 0}</span>
+      <span class="frn-lr-mood" style="color:${t.color}">${t.icon} ${t.label}</span>
+      <span class="frn-lr-reason">${reasonOf(p)}</span>
+    </div>`;
+  };
+
+  const leaders = [];
+  if (lr.captains.length) leaders.push(`<span style="color:var(--gold)">⭐ ${lr.captains.length} captain${lr.captains.length === 1 ? "" : "s"}</span>`);
+  if (lr.cancers.length)  leaders.push(`<span style="color:#ff8a8a">☢ ${lr.cancers.length} cancer${lr.cancers.length === 1 ? "" : "s"}</span>`);
+  if (lr.pairs.length)    leaders.push(`<span style="color:#86e0a3">🤝 ${lr.pairs.length} mentorship${lr.pairs.length === 1 ? "" : "s"}</span>`);
+
+  el.innerHTML = `<div style="padding:1rem;max-width:800px;margin:0 auto">
+    <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.5rem">
+      <span style="font-size:.95rem;font-weight:900;color:var(--gold)">🛋 LOCKER ROOM</span>
+      <span style="font-size:.62rem;color:var(--gray)">live team mood — updates every week from results, role &amp; contracts</span>
+    </div>
+    <div class="frn-lr-mood-card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.28rem">
+        <span style="font-size:.6rem;letter-spacing:1px;color:var(--gold);font-weight:700">TEAM MOOD</span>
+        <span style="font-size:.74rem;color:${mood.color};font-weight:700">${mood.icon} ${mood.label} · ${avg.toFixed(0)}</span>
+      </div>
+      <div class="frn-lr-meter"><div class="frn-lr-meter-fill" style="width:${moodPct}%;background:${mood.color}"></div></div>
+      ${leaders.length ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.35rem;display:flex;gap:.7rem">${leaders.join("")}</div>` : ""}
+    </div>
+    ${disgruntled.length ? `<div class="frn-lr-alert">
+      <div style="font-size:.6rem;letter-spacing:.8px;color:#ff8a8a;font-weight:700;margin-bottom:.3rem">⚠ NEEDS ATTENTION (${disgruntled.length})</div>
+      ${disgruntled.map(p => { const t = tierOf(p.morale); return `<div style="font-size:.64rem;margin-bottom:.14rem"><b style="cursor:pointer" onclick="frnOpenPlayerCard('${esc(p.name)}')">${p.name}</b> <span style="color:var(--gold-lt)">${p.position} ${p.overall}</span> · <span style="color:${t.color}">${t.icon} ${t.label}</span> <span style="color:var(--gray)">· ${reasonOf(p)}</span></div>`; }).join("")}
+      <div style="font-size:.56rem;color:var(--gray);margin-top:.3rem;font-style:italic">Play them, win games, or move them before it spreads.</div>
+    </div>` : `<div style="font-size:.6rem;color:#86e0a3;margin-bottom:.6rem">✓ No disgruntled stars — the room is in a good place.</div>`}
+    <div class="frn-lr-list-head">ROSTER MOOD · problems first</div>
+    <div class="frn-lr-rows">${sorted.map(row).join("")}</div>
+  </div>`;
 }
 
 // ── Draft report card (the scouting feedback loop) ──────────────────────────

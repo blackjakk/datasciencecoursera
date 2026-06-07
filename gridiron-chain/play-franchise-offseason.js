@@ -2865,6 +2865,94 @@ function _signReplacementForInjury(teamId, pos) {
   return true;
 }
 
+// ── Player morale (a live, dynamic locker-room state) ───────────────────────
+// Per-player 0–100, updated each week from team results + role + contract +
+// personality, mean-reverting to a baseline. GATE-SAFE: morale never feeds the
+// audited play engine — it modulates OFFSEASON development and drives trade
+// requests, and is surfaced in the Locker Room view so it's actionable.
+const MORALE_BASE = 62;
+function _initMorale(p) { if (typeof p.morale !== "number") p.morale = MORALE_BASE; return p.morale; }
+function _moraleTier(m) {
+  if (m >= 82) return { key: "thrilled",    label: "Thrilled",    icon: "🔥", color: "#86e0a3" };
+  if (m >= 68) return { key: "happy",       label: "Happy",       icon: "🙂", color: "var(--green-lt)" };
+  if (m >= 50) return { key: "content",     label: "Content",     icon: "😐", color: "var(--gold-lt)" };
+  if (m >= 35) return { key: "frustrated",  label: "Frustrated",  icon: "😕", color: "#e8a000" };
+  return                { key: "disgruntled", label: "Disgruntled", icon: "😡", color: "#ff8a8a" };
+}
+// Rough starter count per position — drives the role-expectation (a talented
+// player buried below this is unhappy he isn't playing).
+const _MORALE_STARTERS = { QB: 1, RB: 1, TE: 1, K: 1, P: 1, S: 2, WR: 3, OL: 5, DL: 4, LB: 3, CB: 3 };
+function _starterRankByPos(teamId) {
+  const roster = franchise.rosters?.[teamId] || [];
+  const byPos = {};
+  for (const p of roster) (byPos[p.position] ||= []).push(p);
+  const rank = new Map();
+  for (const pos in byPos) byPos[pos].sort((a, b) => (b.overall || 0) - (a.overall || 0)).forEach((p, i) => rank.set(p, i));
+  return rank;
+}
+function _teamWeekResult(teamId, w) {
+  const g = (franchise.schedule || []).find(x => x.week === w && x.played && (x.homeId === teamId || x.awayId === teamId));
+  if (!g) return null;
+  const my  = g.homeId === teamId ? g.homeScore : g.awayScore;
+  const opp = g.homeId === teamId ? g.awayScore : g.homeScore;
+  return my > opp ? "W" : my < opp ? "L" : "T";
+}
+function _teamStreak(teamId, w) { // signed: +n win streak / −n loss streak, back from week w
+  let s = 0, sign = 0;
+  for (let k = w; k >= 1; k--) {
+    const r = _teamWeekResult(teamId, k);
+    if (!r || r === "T") break;
+    const cur = r === "W" ? 1 : -1;
+    if (sign === 0) { sign = cur; s = cur; }
+    else if (cur === sign) s += cur;
+    else break;
+  }
+  return s;
+}
+// A short human reason for a player's current morale (used in the Locker Room).
+function _moraleReason(p, teamId, rank) {
+  const r = (rank || _starterRankByPos(teamId)).get(p) ?? 9;
+  const starters = _MORALE_STARTERS[p.position] ?? 2;
+  if (!(r < starters) && (p.overall || 0) >= 78) return "buried on the depth chart";
+  if (p.personality === "cancer") return "locker-room cancer";
+  if ((p.contract?.remaining ?? 2) <= 1 && (p.overall || 0) >= 80) return "playing for a new contract";
+  const m = p.morale ?? MORALE_BASE;
+  if (m >= 75) return "team's winning, he's playing";
+  if (m <= 35) return "losing and frustrated";
+  return r < starters ? "starting, doing his job" : "depth role";
+}
+function _updateMoraleForWeek(w) {
+  for (const t of TEAMS) {
+    const roster = franchise.rosters?.[t.id] || [];
+    if (!roster.length) continue;
+    const result = _teamWeekResult(t.id, w);
+    if (!result) continue; // bye / not played
+    const streak = _teamStreak(t.id, w);
+    const teamSwing = result === "W" ? 3 + Math.min(4, Math.max(0, streak - 1))
+                    : result === "L" ? -(3 + Math.min(4, Math.max(0, -streak - 1)))
+                    : 0;
+    const rank = _starterRankByPos(t.id);
+    for (const p of roster) {
+      _initMorale(p);
+      let d = teamSwing;
+      const r = rank.get(p) ?? 9;
+      const isStarter = r < (_MORALE_STARTERS[p.position] ?? 2);
+      if (!isStarter && (p.overall || 0) >= 78) d -= 2.5;   // talented + benched → ego hit
+      else if (isStarter) d += 0.6;                          // playing → content
+      if ((p.contract?.remaining ?? 2) <= 1 && (p.overall || 0) >= 80) d -= 0.8; // contract year
+      if (p.personality === "captain")        d = d * 0.6 + 0.5; // even-keeled, slight lift
+      else if (p.personality === "cancer")    d = d - 1.2;       // chronic drag
+      else if (p.personality === "quiet_pro") d *= 0.7;          // low volatility
+      d += (MORALE_BASE - p.morale) * 0.06;                      // mean-revert
+      p.morale = Math.max(5, Math.min(99, Math.round((p.morale + d) * 10) / 10));
+    }
+    // Cancer contagion — a genuinely unhappy cancer drags the room (except captains).
+    if (roster.some(p => p.personality === "cancer" && p.morale < 35)) {
+      for (const p of roster) if (p.personality !== "captain") p.morale = Math.max(5, +(p.morale - 0.8).toFixed(1));
+    }
+  }
+}
+
 function _runWeekEndResolution() {
   const w = franchise.week;
   if (franchise.faNegotiations && Object.keys(franchise.faNegotiations).length) {
@@ -2892,6 +2980,8 @@ function _runWeekEndResolution() {
   // Discipline pass — process ejections from this week (fines + suspensions)
   if (typeof _processWeeklyDiscipline === "function") _processWeeklyDiscipline(w);
   if (typeof _tickYipsForWeek === "function") _tickYipsForWeek();
+  // Morale — live locker-room state from this week's result + role + contract.
+  if (typeof _updateMoraleForWeek === "function") _updateMoraleForWeek(w);
   // Trade-block: unsolicited offers (no public ask) + price-tag offers
   // (public ask matched against AI inventories).
   if (w + 1 <= TRADE_DEADLINE_WEEK) {
