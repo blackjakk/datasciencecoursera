@@ -6519,6 +6519,47 @@ function renderFrnFrontOfficeHome() {
 }
 
 // ── Locker Room view (live morale, mid-season + actionable) ─────────────────
+// Agency actions — gate-safe (morale only). The user RESPONDS to morale instead
+// of just watching it: a team-wide meeting, a one-on-one, or a role promise
+// (a commitment that backfires if broken).
+function frnCaptainsMeeting() {
+  const myId = franchise.chosenTeamId;
+  if (franchise._captainsMeetingSeason === franchise.season) return; // once a season
+  franchise._captainsMeetingSeason = franchise.season;
+  const roster = franchise.rosters?.[myId] || [];
+  const caps = roster.filter(p => p.personality === "captain").length;
+  const bump = 4 + Math.min(6, caps * 2);
+  for (const p of roster) { if (typeof _initMorale === "function") _initMorale(p); p.morale = Math.min(99, +(((p.morale ?? 62) + bump)).toFixed(1)); }
+  if (typeof _pushNews === "function") _pushNews({ type: "morale", label: `📣 Captains' meeting — the room responds (+${bump} morale${caps ? `, ${caps} captain${caps > 1 ? "s" : ""} leading` : ""})` });
+  if (typeof saveFranchise === "function") saveFranchise();
+  renderFrnLockerRoom();
+}
+function frnLockerTalk(name) {
+  const myId = franchise.chosenTeamId;
+  const p = (franchise.rosters?.[myId] || []).find(x => x.name === name);
+  if (!p || p._talkedSeason === franchise.season) return;
+  p._talkedSeason = franchise.season;
+  if (typeof _initMorale === "function") _initMorale(p);
+  const culture = franchise.coaches?.[myId]?.hc?.cultureTrait;
+  let base = culture === "Players' Coach" ? 12 : culture === "Disciplinarian" ? 7 : 9;
+  base = Math.max(3, base - (p._brokenPromises || 0) * 3); // trust erosion from broken promises
+  p.morale = Math.min(99, +((p.morale + base)).toFixed(1));
+  if (p.morale >= 50 && p._wantsOut) { delete p._wantsOut; p._moraleLowWeeks = 0; }
+  if (typeof saveFranchise === "function") saveFranchise();
+  renderFrnLockerRoom();
+}
+function frnLockerPromise(name) {
+  const myId = franchise.chosenTeamId;
+  const p = (franchise.rosters?.[myId] || []).find(x => x.name === name);
+  if (!p || p._promise) return;
+  if (typeof _initMorale === "function") _initMorale(p);
+  const w = franchise.week || 1;
+  p._promise = { week: w, deadline: w + 4 };
+  p.morale = Math.min(99, +((p.morale + 15)).toFixed(1));
+  if (p._wantsOut) { delete p._wantsOut; p._moraleLowWeeks = 0; }
+  if (typeof saveFranchise === "function") saveFranchise();
+  renderFrnLockerRoom();
+}
 function renderFrnLockerRoom() {
   const el = $("frnHomeContent");
   if (!el) return;
@@ -6557,6 +6598,24 @@ function renderFrnLockerRoom() {
   if (lr.cancers.length)  leaders.push(`<span style="color:#ff8a8a">☢ ${lr.cancers.length} cancer${lr.cancers.length === 1 ? "" : "s"}</span>`);
   if (lr.pairs.length)    leaders.push(`<span style="color:#86e0a3">🤝 ${lr.pairs.length} mentorship${lr.pairs.length === 1 ? "" : "s"}</span>`);
 
+  const capMeetUsed = franchise._captainsMeetingSeason === franchise.season;
+  const capMeetBtn = `<button class="frn-lr-act" ${capMeetUsed ? "disabled" : `onclick="frnCaptainsMeeting()"`} title="${capMeetUsed ? "Already held this season" : "Team-wide morale bump — once per season, stronger with captains"}" style="${capMeetUsed ? "opacity:.4;cursor:not-allowed" : ""}">📣 Captains' Meeting</button>`;
+  // Active role promises (and their countdown).
+  const promised = roster.filter(p => p._promise);
+  const promiseLine = promised.length
+    ? `<div style="font-size:.58rem;color:var(--gold-lt);margin-top:.35rem">🎯 Promised a role: ${promised.map(p => `<b>${esc(p.name)}</b> <span style="color:var(--gray)">(${Math.max(0, (p._promise.deadline - (franchise.week || 1)))}wk to deliver)</span>`).join(" · ")}</div>`
+    : "";
+  // Per-player action buttons for the attention list.
+  const actBtns = (p) => {
+    const talked = p._talkedSeason === franchise.season;
+    const trust = (p._brokenPromises || 0) > 0 ? ` <span style="color:#ff8a8a;font-size:.52rem" title="${p._brokenPromises} broken promise(s) — talks land softer">trust ✗${p._brokenPromises}</span>` : "";
+    const talkBtn = `<button class="frn-lr-act" ${talked ? "disabled" : `onclick="frnLockerTalk('${esc(p.name)}')"`} title="${talked ? "Talked this season" : "One-on-one — once a season"}" style="${talked ? "opacity:.4;cursor:not-allowed" : ""}">🗣 Talk</button>`;
+    const promiseBtn = p._promise
+      ? `<span class="frn-lr-promise">🎯 promised · ${Math.max(0, (p._promise.deadline - (franchise.week || 1)))}wk</span>`
+      : `<button class="frn-lr-act" onclick="frnLockerPromise('${esc(p.name)}')" title="Promise a starting role — +morale now, but a 4-week commitment: deliver or it backfires">🎯 Promise role</button>`;
+    return `<span class="frn-lr-acts">${talkBtn}${promiseBtn}${trust}</span>`;
+  };
+
   el.innerHTML = `<div style="padding:1rem;max-width:800px;margin:0 auto">
     <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.5rem">
       <span style="font-size:.95rem;font-weight:900;color:var(--gold)">🛋 LOCKER ROOM</span>
@@ -6568,12 +6627,16 @@ function renderFrnLockerRoom() {
         <span style="font-size:.74rem;color:${mood.color};font-weight:700">${mood.icon} ${mood.label} · ${avg.toFixed(0)}</span>
       </div>
       <div class="frn-lr-meter"><div class="frn-lr-meter-fill" style="width:${moodPct}%;background:${mood.color}"></div></div>
-      ${leaders.length ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.35rem;display:flex;gap:.7rem">${leaders.join("")}</div>` : ""}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem;gap:.5rem;flex-wrap:wrap">
+        ${leaders.length ? `<div style="font-size:.58rem;color:var(--gray);display:flex;gap:.7rem">${leaders.join("")}</div>` : "<span></span>"}
+        ${capMeetBtn}
+      </div>
+      ${promiseLine}
     </div>
     ${disgruntled.length ? `<div class="frn-lr-alert">
       <div style="font-size:.6rem;letter-spacing:.8px;color:#ff8a8a;font-weight:700;margin-bottom:.3rem">⚠ NEEDS ATTENTION (${disgruntled.length})</div>
-      ${disgruntled.map(p => { const t = tierOf(p.morale); const wantsOut = p._wantsOut ? ` <span style="color:#ff8a8a;font-weight:800;font-size:.56rem;border:1px solid #ff8a8a;padding:.02rem .25rem">📢 WANTS OUT</span>` : ""; return `<div style="font-size:.64rem;margin-bottom:.14rem"><b style="cursor:pointer" onclick="frnOpenPlayerCard('${esc(p.name)}')">${p.name}</b> <span style="color:var(--gold-lt)">${p.position} ${p.overall}</span> · <span style="color:${t.color}">${t.icon} ${t.label}</span> <span style="color:var(--gray)">· ${reasonOf(p)}</span>${wantsOut}</div>`; }).join("")}
-      <div style="font-size:.56rem;color:var(--gray);margin-top:.3rem;font-style:italic">Play them, win games, or move them before it spreads.</div>
+      ${disgruntled.map(p => { const t = tierOf(p.morale); const wantsOut = p._wantsOut ? ` <span style="color:#ff8a8a;font-weight:800;font-size:.56rem;border:1px solid #ff8a8a;padding:.02rem .25rem">📢 WANTS OUT</span>` : ""; return `<div class="frn-lr-att-row"><div style="font-size:.64rem"><b style="cursor:pointer" onclick="frnOpenPlayerCard('${esc(p.name)}')">${p.name}</b> <span style="color:var(--gold-lt)">${p.position} ${p.overall}</span> · <span style="color:${t.color}">${t.icon} ${t.label}</span> <span style="color:var(--gray)">· ${reasonOf(p)}</span>${wantsOut}</div>${actBtns(p)}</div>`; }).join("")}
+      <div style="font-size:.56rem;color:var(--gray);margin-top:.3rem;font-style:italic">Talk to them, promise a role, win games — or move them before it spreads.</div>
     </div>` : `<div style="font-size:.6rem;color:#86e0a3;margin-bottom:.6rem">✓ No disgruntled stars — the room is in a good place.</div>`}
     <div class="frn-lr-list-head">ROSTER MOOD · problems first</div>
     <div class="frn-lr-rows">${sorted.map(row).join("")}</div>

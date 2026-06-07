@@ -8808,6 +8808,21 @@
   .frn-lr-ovr { color: var(--blwhite); font-weight: 700; text-align: center; }
   .frn-lr-mood { font-weight: 700; }
   .frn-lr-reason { color: var(--gray); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frn-lr-act {
+    font-size: .54rem; letter-spacing: .3px; font-weight: 700; font-family: inherit;
+    padding: .16rem .4rem; border: 1px solid var(--gold); background: rgba(245,197,66,.08);
+    color: var(--gold); cursor: pointer; white-space: nowrap;
+  }
+  .frn-lr-act:hover:not(:disabled) { background: rgba(245,197,66,.18); }
+  .frn-lr-att-row {
+    display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+    margin-bottom: .2rem; flex-wrap: wrap;
+  }
+  .frn-lr-acts { display: inline-flex; gap: .3rem; align-items: center; flex: 0 0 auto; }
+  .frn-lr-promise {
+    font-size: .54rem; font-weight: 700; color: var(--gold-lt);
+    border: 1px solid var(--gold-lt); padding: .14rem .4rem; background: rgba(245,197,66,.06);
+  }
 
   /* Draft report card (Front Office → Draft Log) */
   .frn-drc-class {

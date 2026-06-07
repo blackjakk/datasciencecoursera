@@ -2959,6 +2959,26 @@ function _updateMoraleForWeek(w) {
         p._moraleLowWeeks = 0;
         if (p._wantsOut) delete p._wantsOut;
       }
+      // Promise resolution — if you promised him a role, keeping it (he's
+      // starting) sustains him and resolves the promise; breaking it (still
+      // buried past the deadline) craters his morale and his trust in you.
+      if (p._promise) {
+        const promisedStarter = (rank.get(p) ?? 9) < (_MORALE_STARTERS[p.position] ?? 2);
+        if (promisedStarter) {
+          p.morale = Math.min(99, +(p.morale + 1.5).toFixed(1)); // you're keeping your word
+          if (w >= p._promise.deadline) {                         // delivered through the window
+            p.morale = Math.min(99, +(p.morale + 5).toFixed(1));
+            delete p._promise; if (p._wantsOut) delete p._wantsOut; p._moraleLowWeeks = 0;
+          }
+        } else if (w >= p._promise.deadline) {                    // broke the promise
+          p.morale = Math.max(5, +(p.morale - 20).toFixed(1));
+          p._brokenPromises = (p._brokenPromises || 0) + 1;
+          delete p._promise;
+          if (t.id === franchise.chosenTeamId && typeof _pushNews === "function") {
+            _pushNews({ type: "morale", label: `💔 ${p.position} ${p.name} feels betrayed — you promised him a role and left him buried` });
+          }
+        }
+      }
     }
     // Cancer contagion — a genuinely unhappy cancer drags the room (except captains).
     if (roster.some(p => p.personality === "cancer" && p.morale < 35)) {
