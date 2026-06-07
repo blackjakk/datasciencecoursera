@@ -2999,6 +2999,7 @@ function _runWeekEndResolution() {
   // Trade-block: unsolicited offers (no public ask) + price-tag offers
   // (public ask matched against AI inventories).
   if (w + 1 <= TRADE_DEADLINE_WEEK) {
+    if (typeof _refreshTradeBlockMorale === "function") _refreshTradeBlockMorale();
     _generateWeeklyAIOffers();
     _processBlockAsks();
     _generateAIvsAITrades();
@@ -14845,7 +14846,10 @@ function _playerTradeValue(p, opts = {}) {
     : 1.0;
   // 6. Injury haircut.
   const injMul = (p.injury?.weeksRemaining > 0) ? 0.4 : 1.0;
-  const v = (ovrBase * posMul * ageMul * yrsMul + contractDelta) * injMul;
+  // 7. Unhappy tax — a player who's publicly demanded out has no leverage;
+  //    everyone knows he's available, so his trade value dips.
+  const moraleMul = p._wantsOut ? 0.88 : 1.0;
+  const v = (ovrBase * posMul * ageMul * yrsMul + contractDelta) * injMul * moraleMul;
   return Math.max(0.5, Math.round(v * 10) / 10);
 }
 
@@ -15605,6 +15609,29 @@ function _seedAITradeBlocks() {
   }
 }
 
+// Weekly: a disgruntled AI player who's demanded out goes on the trade block —
+// shoppable by the user (at a discount, via the unhappy tax), with a one-time
+// wire note for notable names. The flag clears in the next offseason re-seed.
+function _refreshTradeBlockMorale() {
+  const myId = franchise.chosenTeamId;
+  for (const t of TEAMS) {
+    if (t.id === myId) continue;
+    for (const p of (franchise.rosters[t.id] || [])) {
+      if (p._wantsOut) {
+        if (!p.onTradeBlock) p.onTradeBlock = true;
+        if ((p.overall || 0) >= 84 && !p._wantOutNewsed) {
+          p._wantOutNewsed = true;
+          if (typeof _pushNews === "function") {
+            _pushNews({ type: "morale", label: `📢 ${getTeam(t.id)?.name || "?"} ${p.position} ${p.name} (${p.overall}) wants out — available via trade` });
+          }
+        }
+      } else if (p._wantOutNewsed) {
+        delete p._wantOutNewsed; // patched things up
+      }
+    }
+  }
+}
+
 // For each player on the user's block (or AI block where AI is shopping
 // AT us specifically), AI may submit a trade offer this week. Stored in
 // franchise.tradeOffers and surfaced in the week-end review + trade
@@ -15686,12 +15713,16 @@ function _generateWeeklyAIOffers() {
   // (_processBlockAsks). Players on the block with NO ask still get
   // unsolicited single-team feelers from this function.
   const blockedNoAsk = myRoster.filter(p => p.onTradeBlock && !p.blockAsk);
-  if (!blockedNoAsk.length) return;
+  // A disgruntled star draws unsolicited interest even if you never blocked him
+  // — AI teams sniff blood when your guy wants out.
+  const wantOutStars = myRoster.filter(p => p._wantsOut && !p.onTradeBlock && !p.blockAsk);
+  const targets = [...blockedNoAsk, ...wantOutStars];
+  if (!targets.length) return;
 
-  for (const p of blockedNoAsk) _generateAIOffersForBlockedPlayer(p);
+  for (const p of targets) _generateAIOffersForBlockedPlayer(p, { unsolicited: !!p._wantsOut && !p.onTradeBlock });
 }
 
-function _generateAIOffersForBlockedPlayer(p) {
+function _generateAIOffersForBlockedPlayer(p, opts = {}) {
   if (!franchise.tradeOffers) franchise.tradeOffers = [];
   const myId = franchise.chosenTeamId;
   // 1-2 AI teams per blocked player per round, weighted by team need
@@ -15733,6 +15764,7 @@ function _generateAIOffersForBlockedPlayer(p) {
       theyWant: [p.name],
       week: franchise.week,
       status: "pending",
+      unsolicited: !!opts.unsolicited,  // came in because the player wants out
     });
   }
 }
