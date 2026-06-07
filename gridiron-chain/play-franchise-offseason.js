@@ -3023,6 +3023,7 @@ function _runWeekEndResolution() {
     _generateWeeklyAIOffers();
     _processBlockAsks();
     _generateAIvsAITrades();
+    if (typeof _processDisgruntledAITrades === "function") _processDisgruntledAITrades();
   }
   // One-shot deadline-closed wire summary after the last trade-active
   // week. Counts league-wide trade entries posted this season for the
@@ -15649,6 +15650,76 @@ function _refreshTradeBlockMorale() {
         delete p._wantOutNewsed; // patched things up
       }
     }
+  }
+}
+
+// Weekly (pre-deadline): an AI team's disgruntled star actually gets DEALT — to
+// a needy contender, GM-archetype-weighted, for a fair (discounted) pick return.
+// The trade is a fresh start (morale resets; true cancers only partially). Capped
+// at one per week. The user's own players are never auto-traded — but if the user
+// dawdles on an available star, another team grabs him (the window closes).
+function _processDisgruntledAITrades() {
+  if (franchise.week > TRADE_DEADLINE_WEEK) return;
+  const myId = franchise.chosenTeamId;
+  const weeksLeft = TRADE_DEADLINE_WEEK - franchise.week;
+  const chance = weeksLeft <= 1 ? 0.70 : weeksLeft === 2 ? 0.45 : 0.28; // deadline-weighted
+  if (Math.random() > chance) return;
+
+  // AI-owned disgruntled stars with a tradeable contract.
+  const sellers = [];
+  for (const t of TEAMS) {
+    if (t.id === myId) continue;
+    for (const p of (franchise.rosters[t.id] || [])) {
+      if (p._wantsOut && (p.contract?.remaining || 0) >= 1) sellers.push({ teamId: t.id, p });
+    }
+  }
+  if (!sellers.length) return;
+  sellers.sort((a, b) => _playerTradeValue(b.p) - _playerTradeValue(a.p));
+  const deal = sellers[Math.floor(Math.random() * Math.min(3, sellers.length))];
+  const sellerId = deal.teamId, player = deal.p, pos = player.position;
+  const value = _playerTradeValue(player); // carries the ×0.88 unhappy tax
+
+  // Buyer: real need at pos + cap room, weighted by GM aggression + contention
+  // (Win-Now / Star-Hunter contenders are the natural landing spots).
+  const _room = (id) => ((typeof effectiveSalaryCap === "function" ? effectiveSalaryCap(id) : (franchise.salaryCap || SALARY_CAP_BASE)) - (typeof capUsedByTeam === "function" ? capUsedByTeam(id) : 0));
+  const buyers = TEAMS
+    .filter(t => t.id !== sellerId && t.id !== myId)
+    .map(t => {
+      const best = (franchise.rosters[t.id] || []).filter(x => x.position === pos).sort((a, b) => (b.overall || 0) - (a.overall || 0))[0]?.overall || 50;
+      const need = (player.overall || 0) - best;
+      const gm = (typeof _teamGM === "function") ? _teamGM(t.id) : { tradeUp: 0.5 };
+      const contention = (typeof _teamContentionScore === "function") ? _teamContentionScore(t.id) : 0.5;
+      return { t, need, room: _room(t.id), score: need + (gm.tradeUp || 0.5) * 6 + contention * 5 };
+    })
+    .filter(b => b.need >= 2 && b.room >= (player.contract?.aav || 0))
+    .sort((a, b) => b.score - a.score);
+  if (!buyers.length) return;
+  const buyer = buyers[0].t;
+
+  // Fair return: a pick whose round maps from the discounted value (+ an extra
+  // mid pick for a true elite). Buyer must own it.
+  const round1 = value >= 30 ? 1 : value >= 18 ? 2 : value >= 9 ? 3 : 4;
+  const owned = (franchise.picks || []).filter(pk => pk.currentOwnerId === buyer.id).sort((a, b) => a.round - b.round);
+  const pick1 = owned.find(pk => pk.round === round1) || owned.find(pk => pk.round >= round1) || owned[0];
+  if (!pick1) return;
+  const sendPicks = [pick1];
+  if (value >= 30) { const extra = owned.find(pk => pk.round >= 3 && pk !== pick1); if (extra) sendPicks.push(extra); }
+
+  // Execute.
+  const sRoster = franchise.rosters[sellerId];
+  const idx = sRoster.indexOf(player);
+  if (idx === -1) return;
+  sRoster.splice(idx, 1);
+  (franchise.rosters[buyer.id] || []).push(player);
+  for (const pk of sendPicks) pk.currentOwnerId = sellerId;
+  // Fresh start — change of scenery resolves the unhappiness (cancers only partly).
+  player.onTradeBlock = false; delete player._wantOutNewsed; delete player._wantsOut; player._moraleLowWeeks = 0;
+  if (typeof _initMorale === "function") _initMorale(player);
+  player.morale = player.personality === "cancer" ? 50 : 68;
+  player.systemYears = 0;
+  const pickStr = sendPicks.map(pk => `${pk.year} R${pk.round}`).join(" + ");
+  if (typeof _pushNews === "function") {
+    _pushNews({ type: "trade", label: `📰 ${getTeam(buyer.id)?.name || "?"} land disgruntled ${pos} ${player.name} (${player.overall}) from ${getTeam(sellerId)?.name || "?"} for ${pickStr}` });
   }
 }
 
