@@ -23407,6 +23407,31 @@ function _signUdfaTo(roster, prospect, rookieYear) {
 function _draftFinalize() {
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
   const d = franchise.draft;
+  // Snapshot the user's class into a persistent log so a report card can AGE it
+  // over future seasons — the scouting feedback loop. Captures the draft-day
+  // grade + whether we scouted him, to later judge if scouting paid off.
+  (() => {
+    const myId = franchise.chosenTeamId;
+    const myPicks = (d?.picks || []).filter(pk => pk.teamId === myId);
+    if (!myPicks.length) return;
+    const roster = franchise.rosters[myId] || [];
+    franchise.draftLog = franchise.draftLog || {};
+    franchise.draftLog[rookieYear] = {
+      season: franchise.season || 0,
+      picks: myPicks.map(pk => {
+        const pl = roster.find(p => p.name === pk.prospectName);
+        const cats = (typeof _draftScoutCategories === "function") ? _draftScoutCategories(pk.prospectName).length : 0;
+        return {
+          name: pk.prospectName, pid: pl?.pid, pos: pk.pos,
+          round: pk.round, pick: pk.pickInRound, isComp: !!pk.isComp,
+          ovrAtDraft: pl?.overall ?? null,
+          gradeAtDraft: (pl && typeof scoutGrade === "function") ? scoutGrade(pl) : null,
+          potentialAtDraft: pl?.potential ?? null,
+          scoutedCats: cats,
+        };
+      }),
+    };
+  })();
   // Pull from the in-class UDFA pool first (these were generated as part
   // of the draft class and have college profiles, knock notes, potential
   // rolls — much richer than the legacy synthetic UDFAs). When the pool

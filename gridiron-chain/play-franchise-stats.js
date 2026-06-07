@@ -6495,6 +6495,7 @@ const _FRN_FO_TABS = [
   { id: "scouting", label: "🎓 College Scout", fn: () => typeof renderFrnScoutingBoard === "function" && renderFrnScoutingBoard() },
   { id: "coaches",  label: "Coaches",     fn: () => typeof renderFrnCoachingStaff  === "function" && renderFrnCoachingStaff() },
   { id: "cap",      label: "Cap Sheet",   fn: () => typeof renderFrnAnalytics      === "function" && renderFrnAnalytics("mysheet") },
+  { id: "draftlog", label: "📋 Draft Log", fn: () => typeof renderFrnDraftReportCard === "function" && renderFrnDraftReportCard() },
 ];
 function frnSetFOSubTab(id) {
   if (!_FRN_FO_TABS.some(t => t.id === id)) return;
@@ -6514,6 +6515,119 @@ function renderFrnFrontOfficeHome() {
     `<button class="frn-subnav-btn${t.id===active.id?" active":""}" onclick="frnSetFOSubTab('${t.id}')">${t.label}</button>`
   ).join("");
   newEl.insertBefore(sub, newEl.firstChild);
+}
+
+// ── Draft report card (the scouting feedback loop) ──────────────────────────
+// Ages each past class the user drafted: where is each pick now, and did the
+// pick — and the scouting spent on him — pan out? Round → "a hit at this slot"
+// overall, tuned to the league OVR distribution (mean ~77).
+const _DRAFT_ROUND_EXPECT = { 1: 82, 2: 78, 3: 74, 4: 71, 5: 68, 6: 65, 7: 63, 0: 60 };
+function _draftReportVerdict(pick, cur, seasonsSince) {
+  const exp = _DRAFT_ROUND_EXPECT[pick.round] ?? 72;
+  if (seasonsSince <= 0) {
+    return { key: "tbd", label: "JUST DRAFTED", icon: "🆕", color: "var(--gray)", note: "too early to judge" };
+  }
+  if (!cur.found) {
+    return pick.round >= 6
+      ? { key: "depth", label: "OUT", icon: "—", color: "var(--gray)", note: "out of the league — a late dart that missed" }
+      : { key: "bust", label: "BUST", icon: "✗", color: "#ff8a8a", note: "washed out of the league" };
+  }
+  const o = cur.overall || 0;
+  if ((cur.age || 25) <= 24 && seasonsSince <= 2 && o < exp) {
+    return { key: "dev", label: "DEVELOPING", icon: "⏳", color: "var(--gold-lt)", note: `age ${cur.age}, ${o} OVR — still cooking` };
+  }
+  if (o >= exp + 6) return { key: "steal", label: "STEAL",  icon: "💎", color: "#86e0a3", note: `${o} OVR — well above a R${pick.round} hit` };
+  if (o >= exp - 3) return { key: "hit",   label: "HIT",    icon: "✓",  color: "var(--green-lt)", note: `${o} OVR — solid for the slot` };
+  return                { key: "bust",  label: "BUST",   icon: "✗",  color: "#ff8a8a", note: `${o} OVR — below the R${pick.round} bar` };
+}
+function renderFrnDraftReportCard() {
+  const el = $("frnHomeContent");
+  if (!el) return;
+  const log = franchise.draftLog || {};
+  const years = Object.keys(log).map(Number).sort((a, b) => b - a); // newest class first
+  const curSeason = franchise.season || 0;
+  if (!years.length) {
+    el.innerHTML = `<div style="padding:1.2rem;max-width:680px;margin:0 auto">
+      <div style="font-size:.95rem;font-weight:900;color:var(--gold);margin-bottom:.4rem">📋 DRAFT REPORT CARD</div>
+      <div style="color:var(--gray);font-size:.74rem;line-height:1.5">No draft history yet. Your classes appear here after your first draft and
+      <b style="color:var(--gold-lt)">age over the seasons</b> — so you can see whether a pick (and the scouting you spent on him) actually panned out:
+      the 3rd-round <b style="color:#86e0a3">steal</b> you found, or the reach that <b style="color:#ff8a8a">busted</b>.</div>
+    </div>`;
+    return;
+  }
+  const byPid = {}, byName = {};
+  for (const [tid, r] of Object.entries(franchise.rosters || {})) for (const p of (r || [])) {
+    if (p.pid != null) byPid[p.pid] = { p, tid: Number(tid) };
+    if (!byName[p.name]) byName[p.name] = { p, tid: Number(tid) };
+  }
+  const myId = franchise.chosenTeamId;
+  const findNow = (pick) => {
+    const hit = (pick.pid != null && byPid[pick.pid]) || byName[pick.name];
+    if (!hit) return { found: false };
+    return { found: true, overall: hit.p.overall, age: hit.p.age, teamId: hit.tid, onMyTeam: hit.tid === myId };
+  };
+  const esc = n => (n || "").replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+
+  const classesHtml = years.map(year => {
+    const cls = log[year];
+    const seasonsSince = curSeason - (cls.season ?? curSeason);
+    let scouted = 0, scoutedHit = 0, steals = 0, hits = 0, busts = 0, devs = 0;
+    const rows = (cls.picks || []).map(pick => {
+      const cur = findNow(pick);
+      const v = _draftReportVerdict(pick, cur, seasonsSince);
+      if (v.key === "steal") steals++; else if (v.key === "hit") hits++; else if (v.key === "bust") busts++; else if (v.key === "dev") devs++;
+      const wasScouted = (pick.scoutedCats || 0) > 0;
+      if (wasScouted && seasonsSince > 0) { scouted++; if (v.key === "steal" || v.key === "hit") scoutedHit++; }
+      const gradeStr = (pick.gradeAtDraft != null && typeof gradeLabel === "function") ? gradeLabel(pick.gradeAtDraft) : "—";
+      const whereNow = !cur.found ? `<span style="color:var(--gray)">—</span>`
+        : cur.onMyTeam ? `<span style="color:var(--gold-lt)">your roster</span>`
+        : `<span style="color:var(--gray)">${getTeam(cur.teamId)?.name || "?"}</span>`;
+      return `<div class="frn-drc-row">
+        <span class="frn-drc-slot">R${pick.round}.${pick.pick}${pick.isComp ? "c" : ""}</span>
+        <span class="frn-drc-name" onclick="frnOpenPlayerCard('${esc(pick.name)}')" title="Open ${esc(pick.name)}">${pick.name}</span>
+        <span class="frn-drc-pos">${pick.pos}</span>
+        <span class="frn-drc-grade" title="Draft-day scout grade">${gradeStr}</span>
+        <span class="frn-drc-scout" title="${wasScouted ? pick.scoutedCats + ' scouting report(s) spent' : 'not scouted'}">${wasScouted ? `🔍${pick.scoutedCats}` : ""}</span>
+        <span class="frn-drc-now">${whereNow}</span>
+        <span class="frn-drc-verdict" style="color:${v.color}" title="${v.note}">${v.icon} ${v.label}</span>
+      </div>`;
+    }).join("");
+
+    let gradeChip = `<span style="color:var(--gray);font-size:.62rem">TBD</span>`;
+    if (seasonsSince > 0) {
+      const graded = steals + hits + busts + devs;
+      const score = graded ? (steals * 2 + hits * 1 + devs * 0.5 - busts * 1) / graded : 0;
+      const g = score >= 1.2 ? ["A", "#f5c542"] : score >= 0.8 ? ["B", "#86e0a3"] : score >= 0.4 ? ["C", "#e0b078"] : score >= 0 ? ["D", "#ff9b9b"] : ["F", "#ff6b6b"];
+      gradeChip = `<span style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.4rem;color:${g[1]};letter-spacing:.5px">${g[0]}</span>`;
+    }
+    const scoutLine = (seasonsSince > 0 && scouted > 0)
+      ? `<div style="font-size:.62rem;color:var(--gray);margin-top:.3rem">🔍 Scouting payoff: <b style="color:${scoutedHit >= Math.ceil(scouted * 0.66) ? "#86e0a3" : "#e0b078"}">${scoutedHit}/${scouted}</b> scouted picks panned out</div>`
+      : "";
+    const summary = seasonsSince > 0
+      ? `<span style="color:#86e0a3">💎 ${steals}</span> · <span style="color:var(--green-lt)">✓ ${hits}</span> · <span style="color:var(--gold-lt)">⏳ ${devs}</span> · <span style="color:#ff8a8a">✗ ${busts}</span>`
+      : `<span style="color:var(--gray)">just drafted — check back next season</span>`;
+
+    return `<div class="frn-drc-class">
+      <div class="frn-drc-class-head">
+        <div>
+          <span style="font-size:.8rem;font-weight:900;color:var(--gold)">Class of ${year}</span>
+          <span style="font-size:.6rem;color:var(--gray);margin-left:.4rem">${(cls.picks || []).length} picks · ${seasonsSince === 0 ? "this offseason" : seasonsSince + " season" + (seasonsSince === 1 ? "" : "s") + " ago"}</span>
+        </div>
+        <div style="text-align:right">${gradeChip}</div>
+      </div>
+      <div style="font-size:.64rem;margin-bottom:.35rem">${summary}</div>
+      <div class="frn-drc-rows">${rows}</div>
+      ${scoutLine}
+    </div>`;
+  }).join("");
+
+  el.innerHTML = `<div style="padding:1rem;max-width:760px;margin:0 auto">
+    <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.5rem">
+      <span style="font-size:.95rem;font-weight:900;color:var(--gold)">📋 DRAFT REPORT CARD</span>
+      <span style="font-size:.6rem;color:var(--gray)">did the pick — and the scouting — pan out?</span>
+    </div>
+    ${classesHtml}
+  </div>`;
 }
 
 // League tab — sub-nav across the league context (standings, stat
