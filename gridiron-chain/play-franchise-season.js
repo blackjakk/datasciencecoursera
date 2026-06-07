@@ -5789,7 +5789,14 @@ function renderFrnFA(selectedKey) {
       .filter(x => x.intr >= 0.1)
       .sort((a, b) => b.intr - a.intr);
     const suitors = _rivalRanked.length;
-    const rivalNames = _rivalRanked.slice(0, 3).map(x => x.t.name);
+    const rivalNames = _rivalRanked.slice(0, 3).map(x => `${x.t.name} ${_teamGM(x.t.id).icon}`);
+    // Biggest threat = the most aggressive interested GM (most likely to overpay).
+    const _threat = _rivalRanked.slice()
+      .sort((a, b) => _teamGM(b.t.id).faAgg - _teamGM(a.t.id).faAgg)[0];
+    const threatGM = _threat ? _teamGM(_threat.t.id) : null;
+    const threatLine = (threatGM && threatGM.faAgg >= 1.05)
+      ? `<div style="font-size:.57rem;color:#e8a000;margin-top:.14rem">⚠ ${_threat.t.name}'s GM is a <b>${threatGM.icon} ${threatGM.label}</b> — ${threatGM.blurb}</div>`
+      : "";
     const heatColor = suitors >= 6 ? "var(--red)" : suitors >= 3 ? "#e8a000" : heatGrade >= 80 ? "#e8a000" : "var(--border)";
     const ageStage = selected.age <= 25 ? "🌱 Ascending" : selected.age <= 27 ? "⬆ Young Prime"
                    : selected.age <= 30 ? "★ Prime" : selected.age <= 32 ? "⬇ Late Prime" : "↘ Declining";
@@ -6050,6 +6057,7 @@ function renderFrnFA(selectedKey) {
             <span style="color:var(--gray);font-size:.55rem">· ${suitors} competing team${suitors!==1?"s":""}</span>
           </div>
           ${rivalLine}
+          ${threatLine}
           <div style="font-size:.6rem;margin-top:.18rem">${stance}${fitNote}</div>
         </div>`;
       })()}
@@ -6506,6 +6514,39 @@ function frnFAProcessOffers() {
 }
 
 // Probability that a given AI team enters / counter-bids on a given FA.
+// ── GM archetypes (the other half of the people layer) ──────────────────────
+// Each AI team's GM has a persistent personality that bends how they bid in FA
+// and trade in the draft — so the market is a room full of characters, not one
+// calculator. The user can read these tendencies and exploit them: sell high to
+// a Win-Now GM, trade down with a Hoarder, find value a Star-Hunter ignores.
+//   faAgg    — FA bid ceiling + pursuit aggression (0.8 disciplined … 1.2 reckless)
+//   faStar   — extra pursuit of ELITE FAs specifically
+//   tradeUp  — draft willingness to move UP (mortgage to climb)
+//   tradeDown— draft willingness to move DOWN (stockpile)
+//   future   — how they value FUTURE picks (0.7 win-now … 1.25 hoarder)
+const _GM_ARCHETYPES = {
+  win_now:     { label: "Win-Now",     icon: "🎰", blurb: "pushes the chips in — overpays and trades up",  faAgg: 1.20, faStar: 1.05, tradeUp: 0.90, tradeDown: 0.30, future: 0.70 },
+  hoarder:     { label: "Hoarder",     icon: "🗃", blurb: "stockpiles picks — loves to trade down",         faAgg: 0.85, faStar: 0.90, tradeUp: 0.20, tradeDown: 0.95, future: 1.25 },
+  value_hawk:  { label: "Value Hawk",  icon: "📊", blurb: "disciplined — won't overpay",                    faAgg: 0.80, faStar: 0.85, tradeUp: 0.40, tradeDown: 0.65, future: 1.05 },
+  star_hunter: { label: "Star Hunter", icon: "⭐", blurb: "chases the elite — aggressive for stars",         faAgg: 1.10, faStar: 1.60, tradeUp: 0.80, tradeDown: 0.40, future: 0.85 },
+  stand_pat:   { label: "Stand Pat",   icon: "🛡", blurb: "steady — rarely makes a splash",                 faAgg: 0.95, faStar: 1.00, tradeUp: 0.35, tradeDown: 0.50, future: 1.00 },
+};
+function _ensureGMArchetypes() {
+  if (franchise._gmArchetypes) return;
+  const keys = Object.keys(_GM_ARCHETYPES);
+  // Seeded, balanced round-robin over a deterministic shuffle: every league
+  // gets a good mix, and a given playthrough is stable.
+  let r = (((franchise.chosenTeamId || 1) * 2654435761) >>> 0) || 1;
+  const rng = () => (r = (r * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const ids = TEAMS.map(t => t.id);
+  for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+  const map = {};
+  ids.forEach((tid, i) => { map[tid] = keys[i % keys.length]; });
+  franchise._gmArchetypes = map;
+}
+function _teamGMKey(teamId) { _ensureGMArchetypes(); return franchise._gmArchetypes[teamId]; }
+function _teamGM(teamId)    { return _GM_ARCHETYPES[_teamGMKey(teamId)] || _GM_ARCHETYPES.stand_pat; }
+
 function _faAIInterest(teamId, fa) {
   const cap   = effectiveSalaryCap(teamId);
   const used  = capUsedByTeam(teamId);
@@ -6528,6 +6569,11 @@ function _faAIInterest(teamId, fa) {
   // the guy who wants snaps). ±30% swing.
   const _fitSat = (typeof _faMotivationFit === "function") ? _faMotivationFit(fa, teamId).sat : 0;
   base *= 1 + 0.30 * _fitSat;
+  // GM personality — Star-Hunters chase the elite hard; aggressive GMs pursue
+  // more broadly; disciplined GMs less.
+  const _gm = _teamGM(teamId);
+  if (grade >= 82) base *= _gm.faStar;     // star bias applies only to the upper tier
+  base *= 0.85 + 0.15 * _gm.faAgg;         // mild overall aggression tilt
   return Math.max(0, Math.min(0.55, base));
 }
 
@@ -6546,7 +6592,9 @@ function _faAIBidAmount(teamId, fa, currentHighAav) {
   const bestSame = same.sort((a,b) => b.overall - a.overall)[0];
   const bigNeed = !bestSame || bestSame.overall < fa.overall - 5;
   const ampleRoom = room >= demand * 1.6;
-  const goNuclear = bigNeed && ampleRoom && Math.random() < 0.08;
+  // GM personality drives how high they'll go and how likely they blow it up.
+  const gm = _teamGM(teamId);
+  const goNuclear = bigNeed && ampleRoom && Math.random() < 0.08 * gm.faAgg;
   // Knockout war: any team that has already bid in this neg and has
   // sunk-cost commitment will fight past their normal ceiling.
   const neg = franchise.faNegotiations?.[_negKey(fa)];
@@ -6555,6 +6603,7 @@ function _faAIBidAmount(teamId, fa, currentHighAav) {
     && ((neg.aiBids?.[teamId]?.aav || 0) >= demand * FA_KNOCKOUT_MULT * 0.7);
   let ceilMul = goNuclear ? 1.7 : 1.35;
   if (isWarParticipant) ceilMul = 2.1;
+  ceilMul *= gm.faAgg;       // Win-Now GMs push higher; disciplined GMs cap lower
   const ceil  = Math.min(demand * ceilMul, room);
   if (floor > ceil) return null;
   // Nuclear / war bids skew toward the top of the range so they actually escalate
