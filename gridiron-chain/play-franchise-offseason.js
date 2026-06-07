@@ -2945,6 +2945,20 @@ function _updateMoraleForWeek(w) {
       else if (p.personality === "quiet_pro") d *= 0.7;          // low volatility
       d += (MORALE_BASE - p.morale) * 0.06;                      // mean-revert
       p.morale = Math.max(5, Math.min(99, Math.round((p.morale + d) * 10) / 10));
+      // Trade request — a good player stewing at rock-bottom for ~3 weeks asks
+      // out. Recovers if morale climbs back. The signal; the user acts on it.
+      if ((p.overall || 0) >= 80 && p.morale < 30) {
+        p._moraleLowWeeks = (p._moraleLowWeeks || 0) + 1;
+        if (p._moraleLowWeeks === 3 && !p._wantsOut) {
+          p._wantsOut = true;
+          if (t.id === franchise.chosenTeamId && typeof _pushNews === "function") {
+            _pushNews({ type: "morale", label: `📢 ${p.position} ${p.name} wants out — unhappy in the locker room` });
+          }
+        }
+      } else if (p.morale >= 50) {
+        p._moraleLowWeeks = 0;
+        if (p._wantsOut) delete p._wantsOut;
+      }
     }
     // Cancer contagion — a genuinely unhappy cancer drags the room (except captains).
     if (roster.some(p => p.personality === "cancer" && p.morale < 35)) {
@@ -11521,6 +11535,11 @@ function runFrnOffseason() {
       }
       // Targeted mentorship — a paired mentee gets an extra, named boost.
       if (_menteeNames.has(p.name)) { coachBoost *= MENTOR_DEV_BOOST; p._mentoredThisOffseason = true; }
+      // Morale modulates dev — a happy player maximizes his coaching; a
+      // miserable one checks out. Bounded ~0.92×–1.08× (gate-safe: dev only).
+      if (typeof p.morale === "number") {
+        coachBoost *= 0.92 + Math.max(0, Math.min(1, (p.morale - 30) / 50)) * 0.16;
+      }
       coachBoost *= cancerPenalty; // team-wide drain from locker-room cancers
       // Retune step 6 (valve 1 / coach compounding cap): the full multiplier
       // stack (HC Player Developer 1.35 × coachable 1.25 × FO up to 1.6 ×

@@ -6572,7 +6572,7 @@ function renderFrnLockerRoom() {
     </div>
     ${disgruntled.length ? `<div class="frn-lr-alert">
       <div style="font-size:.6rem;letter-spacing:.8px;color:#ff8a8a;font-weight:700;margin-bottom:.3rem">⚠ NEEDS ATTENTION (${disgruntled.length})</div>
-      ${disgruntled.map(p => { const t = tierOf(p.morale); return `<div style="font-size:.64rem;margin-bottom:.14rem"><b style="cursor:pointer" onclick="frnOpenPlayerCard('${esc(p.name)}')">${p.name}</b> <span style="color:var(--gold-lt)">${p.position} ${p.overall}</span> · <span style="color:${t.color}">${t.icon} ${t.label}</span> <span style="color:var(--gray)">· ${reasonOf(p)}</span></div>`; }).join("")}
+      ${disgruntled.map(p => { const t = tierOf(p.morale); const wantsOut = p._wantsOut ? ` <span style="color:#ff8a8a;font-weight:800;font-size:.56rem;border:1px solid #ff8a8a;padding:.02rem .25rem">📢 WANTS OUT</span>` : ""; return `<div style="font-size:.64rem;margin-bottom:.14rem"><b style="cursor:pointer" onclick="frnOpenPlayerCard('${esc(p.name)}')">${p.name}</b> <span style="color:var(--gold-lt)">${p.position} ${p.overall}</span> · <span style="color:${t.color}">${t.icon} ${t.label}</span> <span style="color:var(--gray)">· ${reasonOf(p)}</span>${wantsOut}</div>`; }).join("")}
       <div style="font-size:.56rem;color:var(--gray);margin-top:.3rem;font-style:italic">Play them, win games, or move them before it spreads.</div>
     </div>` : `<div style="font-size:.6rem;color:#86e0a3;margin-bottom:.6rem">✓ No disgruntled stars — the room is in a good place.</div>`}
     <div class="frn-lr-list-head">ROSTER MOOD · problems first</div>
