@@ -608,7 +608,7 @@ def build_html(picks):
 
 
 def main():
-    picks = json.loads((Path('/tmp/mock_draft_picks.json')).read_text())
+    picks = json.loads((ROOT / "data" / "mock_draft_picks.json").read_text())
     html = build_html(picks)
 
     import os

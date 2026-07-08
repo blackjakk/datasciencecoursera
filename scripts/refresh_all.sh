@@ -1,46 +1,38 @@
 #!/usr/bin/env bash
 # MONEYLEAGUE data + report pipeline orchestrator.
 #
-# Rebuilds every artifact from current data. Idempotent — safe to re-run.
+# Rebuilds artifacts from current data. Idempotent — safe to re-run.
 #
 # Usage:
-#   scripts/refresh_all.sh              # everything: fetch + derive + sim + reports
-#   scripts/refresh_all.sh derive       # skip external fetches (faster)
-#   scripts/refresh_all.sh sim          # only simulator + mock PDF
-#   scripts/refresh_all.sh reports      # only PDFs (assumes derived data is fresh)
-#   scripts/refresh_all.sh helper       # only draft helper bundle
+#   scripts/refresh_all.sh                 # everything + verify
+#   scripts/refresh_all.sh derive          # one stage
+#   scripts/refresh_all.sh sim reports     # multiple stages, run in order given
+#   scripts/refresh_all.sh verify          # just the invariant checks
+#
+# Stages: fetch | derive | sim | reports | helper | verify | all
 #
 # Pipeline (dependency order):
 #
-#   LAYER 1 — External fetches (rarely change; manual triggers)
-#     fetch_sleeper.sh           -> data/sleeper/*
-#     fetch_fantasypros.py       -> data/rankings_fantasypros.json
-#     fetch_fantasycalc.py       -> data/rankings_fantasycalc.json
-#
-#   LAYER 2 — Derived data (cheap; safe to re-run anytime)
-#     build_players_csv.py       -> data/players_2026.csv
-#     build_pick_value.py        -> data/pick_value.json
-#     build_2026_keepers.py      -> data/keepers_2026.json
-#     build_manager_tendencies.py-> data/manager_tendencies.json
-#     build_historical_draft_skill.py -> data/historical_draft_skill.json
-#
-#   LAYER 3 — Simulator (slow ~30s; needs derived data)
-#     build_mock_draft_sim.py    -> /tmp/mock_draft_picks.json
-#                                   data/mc_summary_all.json
-#
-#   LAYER 4 — Reports (slow ~30s each; need everything upstream)
-#     build_power_rankings.py    -> data/MONEYLEAGUE_POWER_RANKINGS.pdf
-#     build_preseason_2026.py    -> data/MONEYLEAGUE_2026_PRESEASON.pdf
-#     build_mock_draft_report.py -> data/MONEYLEAGUE_2026_MOCK.pdf
-#     build_draft_helper_data.py -> docs/draft_helper/data.json
-#     (regenerate standalone.html from index.html + data.json)
+#   LAYER 1 — fetch: external pulls (Sleeper, FantasyPros, FantasyCalc)
+#   LAYER 2 — derive: players csv, pick value, keepers, tendencies, skill
+#   LAYER 3 — sim: mock draft + Monte Carlo  -> data/mock_draft_picks.json,
+#                                               data/mc_summary_all.json
+#   LAYER 4 — reports: 3 PDFs + draft helper bundle + standalone.html
+#   LAYER 5 — verify: invariant checks on all outputs (exit 1 on failure)
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-STAGE="${1:-all}"
 log() { printf "\n\033[1;36m▶ %s\033[0m\n" "$1"; }
-skip() { printf "\n\033[2m  (skip: %s)\033[0m\n" "$1"; }
+
+ensure_player_catalog() {
+  # 14MB Sleeper player catalog is not in git; derive-layer scripts need it.
+  if [ ! -f data/sleeper/players_nfl.json ]; then
+    log "players_nfl.json missing — fetching from Sleeper"
+    curl -sS --fail --retry 3 --retry-delay 2 \
+      https://api.sleeper.app/v1/players/nfl -o data/sleeper/players_nfl.json
+  fi
+}
 
 # ---------- LAYER 1: external fetches ----------
 do_fetch() {
@@ -54,6 +46,7 @@ do_fetch() {
 
 # ---------- LAYER 2: derived data ----------
 do_derive() {
+  ensure_player_catalog
   log "Rebuild players_2026.csv from Sleeper projections"
   python3 scripts/build_players_csv.py
   log "Rebuild empirical pick-value chart"
@@ -68,7 +61,8 @@ do_derive() {
 
 # ---------- LAYER 3: simulator ----------
 do_sim() {
-  log "Run mock draft sim + Monte Carlo (50 sims)"
+  ensure_player_catalog
+  log "Run mock draft sim + Monte Carlo"
   python3 scripts/build_mock_draft_sim.py
 }
 
@@ -85,34 +79,11 @@ do_reports() {
 
 # ---------- Draft helper ----------
 do_helper() {
+  ensure_player_catalog
   log "Refresh draft helper data bundle"
   python3 scripts/build_draft_helper_data.py
   log "Rebuild standalone.html (data inlined)"
-  python3 -c "
-from pathlib import Path
-html = Path('docs/draft_helper/index.html').read_text()
-data = Path('docs/draft_helper/data.json').read_text()
-needle = 'const DATA_URL = \"data.json\";\nlet DATA = null;'
-replacement = f'const EMBEDDED_DATA = {data};\nconst DATA_URL = null;\nlet DATA = null;'
-html = html.replace(needle, replacement)
-old_init = '''(async function init() {
-  const resp = await fetch(DATA_URL);
-  DATA = await resp.json();
-  loadStateFromURL();         // first restore any user picks from URL
-  applyKeepersAtStart();      // then place all remaining keepers
-  recomputeCursor();          // cursor = first slot without a player
-  refresh();'''
-new_init = '''(async function init() {
-  DATA = EMBEDDED_DATA;
-  loadStateFromURL();
-  applyKeepersAtStart();
-  recomputeCursor();
-  refresh();'''
-html = html.replace(old_init, new_init)
-out = Path('docs/draft_helper/standalone.html')
-out.write_text(html)
-print(f'Wrote {out} ({len(html):,} bytes)')
-"
+  python3 scripts/build_standalone_helper.py
   # Mirror into football-sim branch's draft_helper/ for htmlpreview hosting
   if [ -d "draft_helper" ]; then
     cp docs/draft_helper/*.html docs/draft_helper/data.json draft_helper/
@@ -120,14 +91,31 @@ print(f'Wrote {out} ({len(html):,} bytes)')
   fi
 }
 
-case "$STAGE" in
-  all)      do_fetch; do_derive; do_sim; do_reports ;;
-  fetch)    do_fetch ;;
-  derive)   do_derive ;;
-  sim)      do_sim ;;
-  reports)  do_reports ;;
-  helper)   do_helper ;;
-  *)        echo "unknown stage: $STAGE"; exit 1 ;;
-esac
+# ---------- LAYER 5: verification ----------
+do_verify() {
+  log "Verify output invariants"
+  python3 scripts/verify_outputs.py
+}
 
-log "Done. ($STAGE)"
+run_stage() {
+  case "$1" in
+    all)      do_fetch; do_derive; do_sim; do_reports; do_verify ;;
+    fetch)    do_fetch ;;
+    derive)   do_derive ;;
+    sim)      do_sim ;;
+    reports)  do_reports ;;
+    helper)   do_helper ;;
+    verify)   do_verify ;;
+    *)        echo "unknown stage: $1 (want: fetch|derive|sim|reports|helper|verify|all)"; exit 1 ;;
+  esac
+}
+
+if [ $# -eq 0 ]; then
+  run_stage all
+else
+  for stage in "$@"; do
+    run_stage "$stage"
+  done
+fi
+
+log "Done. (${*:-all})"

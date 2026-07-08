@@ -32,7 +32,7 @@ TRADED_PICKS_JSON = ROOT / "data" / "sleeper" / "league_1245039290518360064" / "
 FP_RANKINGS = ROOT / "data" / "rankings_fantasypros.json"
 TENDENCIES_JSON = ROOT / "data" / "manager_tendencies.json"
 
-PICKS_OUT = Path("/tmp/mock_draft_picks.json")
+PICKS_OUT = ROOT / "data" / "mock_draft_picks.json"
 MC_OUT = ROOT / "data" / "mc_summary_all.json"
 
 # Predicted 2026 draft slot -> roster_id (matches build_mock_draft_report.py)
@@ -41,7 +41,7 @@ PREDICTED_SLOT_TO_RID = {
     7: 7, 8: 1, 9: 8, 10: 3, 11: 10, 12: 11,
 }
 
-N_SIMS = 50
+N_SIMS = 300  # ±5% noise on a 50% event at n=300 (was 50 → ±14%)
 MC_TEMPERATURE = 0.25       # Monte Carlo: some variance for honest distributions
 DISPLAY_TEMPERATURE = 0.0   # Displayed board: greedy / no reaches
 TOP_K = 15

@@ -1,3 +1,10 @@
-streamlit>=1.30
-pandas>=2.0
+# MONEYLEAGUE pipeline dependencies.
+#   pip install -r requirements.txt
+#   playwright install chromium   (skip if PLAYWRIGHT_BROWSERS_PATH is provisioned)
+matplotlib>=3.8
+numpy>=1.26
 openpyxl>=3.1
+networkx>=3.0        # trade-network chart in build_power_rankings.py
+playwright>=1.40     # PDF rendering (Chromium)
+pandas>=2.0          # web/app.py + analysis scripts
+streamlit>=1.30      # web/app.py (optional, local UI only)

@@ -83,11 +83,19 @@
   .stat strong { color: var(--text); }
   .keeper-row { font-style: italic; opacity: 0.7; }
   .next-pick-info { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .live-box { display: flex; align-items: center; gap: 8px; }
+  .live-btn { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+  .live-btn.on { background: var(--danger); border-color: var(--danger); animation: pulse 1.4s infinite; }
+  .live-status { font-size: 11px; color: rgba(255,255,255,0.85); max-width: 220px; }
 </style>
 </head>
 <body>
 <header>
   <div class="title">BRIAN'S 2026 DRAFT HELPER · slot 6</div>
+  <div class="live-box">
+    <button id="live-btn" class="live-btn">GO LIVE</button>
+    <span id="live-status" class="live-status"></span>
+  </div>
   <div id="clock" class="clock">loading…</div>
 </header>
 
@@ -163,9 +171,152 @@ let cursor = 0;               // index into DATA.schedule
     renderPlayerList();
   }));
   document.getElementById("undo").addEventListener("click", undo);
+  document.getElementById("live-btn").addEventListener("click", toggleLive);
   // Persist state via URL hash so refresh doesn't lose picks
   window.addEventListener("hashchange", () => { if (!suppressHashChange) loadStateFromURL(); });
+  // Resume live mode if a draft ID was saved this browser
+  if (localStorage.getItem("sleeper_draft_id")) {
+    setLiveStatus("saved draft ID found — press GO LIVE to resume");
+  }
 })();
+
+// ---------- LIVE MODE (Sleeper draft auto-sync) ----------
+// Polls api.sleeper.app (CORS-open) every 15s and marks picks automatically.
+// On connect it rebuilds the schedule from the REAL draft order + traded
+// picks, replacing our predicted order, and drops predicted keeper
+// placements (real keeper picks arrive through the picks feed instead).
+let liveTimer = null;
+let liveDraftId = null;
+
+function setLiveStatus(msg) {
+  document.getElementById("live-status").textContent = msg;
+}
+
+async function toggleLive() {
+  const btn = document.getElementById("live-btn");
+  if (liveTimer) {                       // turn OFF
+    clearInterval(liveTimer);
+    liveTimer = null;
+    btn.textContent = "GO LIVE";
+    btn.classList.remove("on");
+    setLiveStatus("live sync stopped");
+    return;
+  }
+  const saved = localStorage.getItem("sleeper_draft_id") || "";
+  const id = prompt("Sleeper draft ID (from the draft room URL):", saved);
+  if (!id) return;
+  liveDraftId = id.trim();
+  localStorage.setItem("sleeper_draft_id", liveDraftId);
+  setLiveStatus("connecting…");
+  try {
+    await rebuildScheduleFromSleeper(liveDraftId);
+  } catch (e) {
+    setLiveStatus("couldn't load draft — check the ID");
+    return;
+  }
+  btn.textContent = "LIVE";
+  btn.classList.add("on");
+  await livePoll();
+  liveTimer = setInterval(livePoll, 15000);
+}
+
+async function rebuildScheduleFromSleeper(draftId) {
+  const draft = await (await fetch(`https://api.sleeper.app/v1/draft/${draftId}`)).json();
+  const traded = await (await fetch(`https://api.sleeper.app/v1/draft/${draftId}/traded_picks`)).json();
+  const s2r = draft.slot_to_roster_id;
+  if (!s2r) throw new Error("draft has no slot_to_roster_id yet");
+
+  // Real order replaces prediction: remap manager slots + my_team_idx.
+  for (const m of DATA.managers) {
+    const realSlot = Object.keys(s2r).find(slot => s2r[slot] === m.roster_id);
+    if (realSlot) { m.slot = +realSlot; m.team_idx = +realSlot - 1; }
+  }
+  const me = DATA.managers.find(m => m.roster_id === 9);
+  if (me) DATA.my_team_idx = me.team_idx;
+
+  // Traded-pick overrides: (round, original roster_id) -> current owner rid.
+  const overrides = {};
+  for (const t of (Array.isArray(traded) ? traded : [])) {
+    overrides[`${t.round}:${t.roster_id}`] = t.owner_id;
+  }
+  const rid2slot = {};
+  for (const slot of Object.keys(s2r)) rid2slot[s2r[slot]] = +slot;
+
+  // Wipe every assignment (predicted keepers included) and re-derive
+  // ownership. Real picks — keepers too — arrive via the picks feed.
+  pickOrder = [];
+  drafted = new Set();
+  for (const p of DATA.schedule) {
+    delete p.player; delete p.is_keeper;
+    const origSlot = p.round % 2 === 1 ? p.pick_in_round : 13 - p.pick_in_round;
+    const origRid = s2r[origSlot];
+    const ownerRid = overrides[`${p.round}:${origRid}`] || origRid;
+    p.slot = rid2slot[ownerRid];
+    p.team_idx = rid2slot[ownerRid] - 1;
+  }
+  recomputeCursor();
+  saveStateToURL();
+  refresh();
+}
+
+async function livePoll() {
+  if (!liveDraftId) return;
+  let picks;
+  try {
+    picks = await (await fetch(`https://api.sleeper.app/v1/draft/${liveDraftId}/picks`)).json();
+  } catch (e) {
+    setLiveStatus("poll failed — retrying in 15s");
+    return;
+  }
+  if (!Array.isArray(picks)) { setLiveStatus("unexpected response"); return; }
+  let changed = false;
+  for (const pk of picks) {
+    const slot = DATA.schedule.find(s => s.overall === pk.pick_no);
+    if (!slot || slot.player) continue;
+    const mgr = DATA.managers.find(m => m.roster_id === pk.roster_id);
+    if (mgr) { slot.team_idx = mgr.team_idx; slot.slot = mgr.slot; }
+    const nm = matchSleeperPick(pk);
+    if (!nm) continue;
+    slot.player = nm;
+    slot.is_keeper = !!pk.is_keeper;
+    pickOrder.push(slot);
+    drafted.add(nm);
+    changed = true;
+  }
+  if (changed) { recomputeCursor(); saveStateToURL(); refresh(); }
+  const next = DATA.schedule[cursor];
+  setLiveStatus(`synced ${picks.length}/204 · ${next ? "pick #" + next.overall + " on the clock" : "draft over"}`);
+}
+
+function matchSleeperPick(pk) {
+  const md = pk.metadata || {};
+  const pos = (md.position || "").toUpperCase();
+  const raw = `${md.first_name || ""} ${md.last_name || ""}`.trim();
+  if (pos === "DEF" || pos === "DST") {
+    const d = DATA.players.find(p => (p.pos === "DEF" || p.pos === "DST") && p.team === pk.player_id);
+    if (d) return d.name;
+  } else {
+    const key = normName(raw);
+    let cands = DATA.players.filter(p => normName(p.name) === key);
+    if (cands.length > 1 && pos) cands = cands.filter(p => p.pos === pos);
+    if (cands.length) return cands[0].name;
+  }
+  // Unknown player (deep bench / not in our pool): synthesize an entry so
+  // the slot still fills and the cursor never wedges on a gap.
+  if (!raw) return null;
+  DATA.players.push({
+    name: raw, pos: pos || "?", team: md.team || pk.player_id || "",
+    adp: 999, proj: 0, vbd: 0, age: null, years_exp: null, injury: "",
+  });
+  return raw;
+}
+
+function normName(s) {
+  return (s || "").toLowerCase()
+    .replace(/[.'-]/g, "")
+    .replace(/\s+(jr|sr|ii|iii|iv|v)$/, "")
+    .replace(/\s+/g, " ").trim();
+}
 
 // ---------- KEEPERS ----------
 function applyKeepersAtStart() {

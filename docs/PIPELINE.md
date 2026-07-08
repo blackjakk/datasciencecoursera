@@ -5,21 +5,24 @@ Single entrypoint: `scripts/refresh_all.sh`. Idempotent — re-run any stage any
 ## Quick reference
 
 ```bash
-# Everything (fetch -> derive -> sim -> reports + helper). ~3-5 min.
+# One-time setup on a fresh machine
+pip install -r requirements.txt
+
+# Everything (fetch -> derive -> sim -> reports -> verify). ~5 min.
 scripts/refresh_all.sh
 
-# Skip slow external fetches (use cached Sleeper/FP/FC data).
-scripts/refresh_all.sh derive
-
-# Just the simulator + mock board (after derive).
-scripts/refresh_all.sh sim
-
-# Just the PDFs + draft helper (assumes derived data is fresh).
-scripts/refresh_all.sh reports
-
-# Just the draft helper bundle (cheap; do this when projections shift).
-scripts/refresh_all.sh helper
+# Stages compose, run in the order given:
+scripts/refresh_all.sh derive                 # skip external fetches
+scripts/refresh_all.sh sim reports verify     # rebuild sim + PDFs, then check
+scripts/refresh_all.sh helper                 # just the draft helper bundle
+scripts/refresh_all.sh verify                 # just the invariant checks
 ```
+
+`verify` runs ~22 invariant checks (17 picks/team, 2-3 QBs, traded picks
+applied, all keepers placed, MC slot counts, helper bundle consistency,
+PDFs non-trivial). It exits non-zero on failure — run it after ANY rebuild
+before trusting the outputs. Missing `data/sleeper/players_nfl.json` (14MB,
+not in git) is auto-fetched by any stage that needs it.
 
 ## Pipeline diagram
 
@@ -42,7 +45,7 @@ scripts/refresh_all.sh helper
                  │
                  ▼
    ┌────────────────────────────────────┐
-   │ build_mock_draft_sim.py             │ → /tmp/mock_draft_picks.json       LAYER 3 (~30s)
+   │ build_mock_draft_sim.py             │ → data/mock_draft_picks.json      LAYER 3 (~50s)
    │                                     │ → data/mc_summary_all.json
    └─────────────┬──────────────────────┘
                  │
@@ -91,7 +94,7 @@ scripts/refresh_all.sh helper
 
 | Script | Inputs | Output |
 |---|---|---|
-| `build_mock_draft_sim.py` | players, keepers, tendencies, traded picks | `mock_draft_picks.json` (1 greedy sim) + `mc_summary_all.json` (50 MC sims) |
+| `build_mock_draft_sim.py` | players, keepers, tendencies, traded picks | `mock_draft_picks.json` (1 greedy sim) + `mc_summary_all.json` (300 MC sims) |
 
 ### Layer 4 — final artifacts
 
@@ -125,9 +128,29 @@ After rollover: `scripts/refresh_all.sh` rebuilds everything from scratch.
 Lives at `docs/draft_helper/`:
 - `index.html` — single-page draft assistant (fetches `data.json`)
 - `data.json` — players + keepers + schedule + tendencies
-- `standalone.html` — same as index.html but with `data.json` inlined; useful for htmlpreview.github.io or `file://` loading
+- `standalone.html` — same as index.html but with `data.json` inlined
+  (built by `scripts/build_standalone_helper.py`, which fails loudly if
+  index.html's structure drifts); use for htmlpreview.github.io or `file://`
 
 Refresh: `scripts/refresh_all.sh helper`. URL bar state survives refresh.
+
+### LIVE mode (draft-day auto-sync)
+
+Press **GO LIVE** in the header and paste the Sleeper draft ID (the long
+number in the draft room URL). The helper then:
+
+1. Pulls the REAL draft order + traded picks from Sleeper and rebuilds the
+   schedule — the predicted order and predicted keeper placements are
+   discarded in favor of live truth (keepers arrive through the picks feed).
+2. Polls `api.sleeper.app/v1/draft/<id>/picks` every 15 seconds and marks
+   picks automatically — no manual clicking.
+3. Unknown deep-bench players are synthesized into the pool so the sync
+   never wedges on a name mismatch.
+
+The draft ID is remembered in the browser (localStorage); if the page
+reloads mid-draft, press GO LIVE again and it reconnects. Verified
+end-to-end against the complete 2025 draft (204/204 picks matched,
+attribution + Brian's roster + slot remap all correct).
 
 ## Troubleshooting
 

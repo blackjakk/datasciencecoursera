@@ -119,8 +119,11 @@ def load_players() -> list[dict]:
             "years_exp": meta.get("years_exp"),
             "injury": meta.get("injury_status") or "",
         })
-    # Keep only players with positive projection or VBD > -50
-    out = [p for p in out if p["vbd"] > -100]
+    # Keep the pool DEEP: live-sync marks every real Sleeper pick against this
+    # list, and managers draft bench-tier players well below replacement. The
+    # old vbd > -100 cutoff (381 players) left ~25 of 204 real 2025 picks
+    # unmatchable. Draftable = has an ADP or projects >= 20 pts.
+    out = [p for p in out if p["adp"] < 999 or p["proj"] >= 20]
     out.sort(key=lambda p: -p["vbd"])
     return out
 
