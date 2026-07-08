@@ -2170,12 +2170,29 @@ def build_html():
     return "\n".join(h)
 
 
-CHROMIUM_EXEC = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+def _find_chromium() -> str | None:
+    """Locate a Chromium binary across environments.
+
+    Order: CHROMIUM_EXEC env var -> any /opt/pw-browsers install (remote
+    sandbox, version-agnostic) -> None, which lets Playwright resolve its
+    own managed browser (CI after `playwright install chromium`).
+    """
+    import glob
+    import os
+    env = os.environ.get("CHROMIUM_EXEC")
+    if env and Path(env).exists():
+        return env
+    hits = sorted(glob.glob("/opt/pw-browsers/chromium-*/chrome-linux/chrome"))
+    if hits:
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "/opt/pw-browsers")
+        return hits[-1]
+    return None
+
+
+CHROMIUM_EXEC = _find_chromium()
 
 
 def _render_pdf_playwright(html: str, out_path: Path):
-    import os
-    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/opt/pw-browsers"
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROMIUM_EXEC,
