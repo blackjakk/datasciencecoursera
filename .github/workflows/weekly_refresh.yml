@@ -1,0 +1,70 @@
+name: Weekly MONEYLEAGUE refresh
+
+# Refreshes projections/ADP/keepers, re-runs the mock sim, re-renders the
+# PDFs and draft helper, verifies invariants, and pushes — every Tuesday
+# morning through draft season.
+#
+# NOTE: GitHub only fires `schedule` triggers from the DEFAULT branch, so
+# the weekly cadence activates once this file lands on master. Until then
+# (and any time in between) it can be run manually from the Actions tab
+# via workflow_dispatch.
+
+on:
+  schedule:
+    - cron: "23 13 * * 2"   # Tuesdays 13:23 UTC (~9:23am ET)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/trusting-hamilton-3MNt9
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Install Chromium for PDF rendering
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run full pipeline (fetch -> derive -> sim -> reports -> verify)
+        run: scripts/refresh_all.sh
+
+      - name: Commit & push refreshed artifacts
+        run: |
+          git config user.name "moneyleague-refresh-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes this week."
+            exit 0
+          fi
+          git commit -m "Weekly refresh: $(date -u +%Y-%m-%d)"
+          git push origin claude/trusting-hamilton-3MNt9
+
+      - name: Sync draft helper to the Pages branch
+        run: |
+          git fetch origin claude/football-sim-blockchain-game-b3sdq
+          git checkout claude/football-sim-blockchain-game-b3sdq
+          for f in index.html data.json standalone.html; do
+            git show claude/trusting-hamilton-3MNt9:docs/draft_helper/$f > draft_helper/$f
+          done
+          git add draft_helper/
+          if git diff --cached --quiet; then
+            echo "Helper unchanged."
+            exit 0
+          fi
+          git commit -m "Weekly refresh: sync draft helper $(date -u +%Y-%m-%d)"
+          git push origin claude/football-sim-blockchain-game-b3sdq
