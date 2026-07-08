@@ -41,3 +41,11 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+.claude/
+
+# Node deps installed locally for the UX snapshot harness (Playwright + http-server).
+# Should not be tracked — installed via npm install when needed.
+node_modules/
+
+# Local UX harness outputs (Playwright screenshots)
+gridiron-chain/_tmp_ux/
