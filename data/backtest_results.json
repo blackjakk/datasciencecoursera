@@ -1,0 +1,426 @@
+[
+  {
+    "year": 2023,
+    "tool_bestball": 1953.4,
+    "real_bestball": 1714.8,
+    "edge": 238.6,
+    "decisions": [
+      {
+        "overall": 10,
+        "round": 1,
+        "actual_pick": "Nick Chubb",
+        "actual_pos": "RB",
+        "actual_season_pts": 21.1,
+        "tool_pick": "Ja'Marr Chase",
+        "tool_pos": "WR",
+        "tool_season_pts": 212.7
+      },
+      {
+        "overall": 15,
+        "round": 2,
+        "actual_pick": "Joe Burrow",
+        "actual_pos": "QB",
+        "actual_season_pts": 153.2,
+        "tool_pick": "Justin Jefferson",
+        "tool_pos": "WR",
+        "tool_season_pts": 168.2
+      },
+      {
+        "overall": 34,
+        "round": 3,
+        "actual_pick": "Jahmyr Gibbs",
+        "actual_pos": "RB",
+        "actual_season_pts": 216.1,
+        "tool_pick": "Tony Pollard",
+        "tool_pos": "RB",
+        "tool_season_pts": 195.1
+      },
+      {
+        "overall": 39,
+        "round": 4,
+        "actual_pick": "Amari Cooper",
+        "actual_pos": "WR",
+        "actual_season_pts": 191.0,
+        "tool_pick": "Anthony Richardson",
+        "tool_pos": "QB",
+        "tool_season_pts": 73.7
+      },
+      {
+        "overall": 58,
+        "round": 5,
+        "actual_pick": "Derek Carr",
+        "actual_pos": "QB",
+        "actual_season_pts": 249.1,
+        "tool_pick": "Alvin Kamara",
+        "tool_pos": "RB",
+        "tool_season_pts": 195.5
+      },
+      {
+        "overall": 63,
+        "round": 6,
+        "actual_pick": "Cam Akers",
+        "actual_pos": "RB",
+        "actual_season_pts": 41.2,
+        "tool_pick": "Brandon Aiyuk",
+        "tool_pos": "WR",
+        "tool_season_pts": 211.7
+      },
+      {
+        "overall": 106,
+        "round": 9,
+        "actual_pick": "Kadarius Toney",
+        "actual_pos": "WR",
+        "actual_season_pts": 39.5,
+        "tool_pick": "Michael Mayer",
+        "tool_pos": "TE",
+        "tool_season_pts": 57.9
+      },
+      {
+        "overall": 111,
+        "round": 10,
+        "actual_pick": "Tank Bigsby",
+        "actual_pos": "RB",
+        "actual_season_pts": 22.3,
+        "tool_pick": "Sam Howell",
+        "tool_pos": "QB",
+        "tool_season_pts": 278.0
+      },
+      {
+        "overall": 130,
+        "round": 11,
+        "actual_pick": "Romeo Doubs",
+        "actual_pos": "WR",
+        "actual_season_pts": 144.9,
+        "tool_pick": "Jacoby Brissett",
+        "tool_pos": "QB",
+        "tool_season_pts": 22.9
+      },
+      {
+        "overall": 154,
+        "round": 13,
+        "actual_pick": "K.J. Osborn",
+        "actual_pos": "WR",
+        "actual_season_pts": 96.0,
+        "tool_pick": "Chase Brown",
+        "tool_pos": "RB",
+        "tool_season_pts": 46.5
+      },
+      {
+        "overall": 159,
+        "round": 14,
+        "actual_pick": "Jeff Wilson",
+        "actual_pos": "RB",
+        "actual_season_pts": 34.3,
+        "tool_pick": "Devin Singletary",
+        "tool_pos": "RB",
+        "tool_season_pts": 152.3
+      },
+      {
+        "overall": 178,
+        "round": 15,
+        "actual_pick": "Philadelphia Eagles",
+        "actual_pos": "DEF",
+        "actual_season_pts": 109.0,
+        "tool_pick": "Evan McPherson",
+        "tool_pos": "K",
+        "tool_season_pts": 135.0
+      },
+      {
+        "overall": 183,
+        "round": 16,
+        "actual_pick": "Evan McPherson",
+        "actual_pos": "K",
+        "actual_season_pts": 135.0,
+        "tool_pick": "New England Patriots",
+        "tool_pos": "DEF",
+        "tool_season_pts": 118.0
+      },
+      {
+        "overall": 202,
+        "round": 17,
+        "actual_pick": "Chuba Hubbard",
+        "actual_pos": "RB",
+        "actual_season_pts": 163.0,
+        "tool_pick": "Gerald Everett",
+        "tool_pos": "TE",
+        "tool_season_pts": 85.6
+      }
+    ]
+  },
+  {
+    "year": 2024,
+    "tool_bestball": 2310.4,
+    "real_bestball": 2048.8,
+    "edge": 261.7,
+    "decisions": [
+      {
+        "overall": 5,
+        "round": 1,
+        "actual_pick": "CeeDee Lamb",
+        "actual_pos": "WR",
+        "actual_season_pts": 212.9,
+        "tool_pick": "Tyreek Hill",
+        "tool_pos": "WR",
+        "tool_season_pts": 177.7
+      },
+      {
+        "overall": 8,
+        "round": 1,
+        "actual_pick": "Ja'Marr Chase",
+        "actual_pos": "WR",
+        "actual_season_pts": 339.5,
+        "tool_pick": "Breece Hall",
+        "tool_pos": "RB",
+        "tool_season_pts": 212.4
+      },
+      {
+        "overall": 13,
+        "round": 2,
+        "actual_pick": "Jahmyr Gibbs",
+        "actual_pos": "RB",
+        "actual_season_pts": 336.9,
+        "tool_pick": "Lamar Jackson",
+        "tool_pos": "QB",
+        "tool_season_pts": 434.4
+      },
+      {
+        "overall": 29,
+        "round": 3,
+        "actual_pick": "Trevor Lawrence",
+        "actual_pos": "QB",
+        "actual_season_pts": 152.2,
+        "tool_pick": "Davante Adams",
+        "tool_pos": "WR",
+        "tool_season_pts": 198.8
+      },
+      {
+        "overall": 33,
+        "round": 3,
+        "actual_pick": "Cooper Kupp",
+        "actual_pos": "WR",
+        "actual_season_pts": 141.5,
+        "tool_pick": "Josh Jacobs",
+        "tool_pos": "RB",
+        "tool_season_pts": 275.1
+      },
+      {
+        "overall": 37,
+        "round": 4,
+        "actual_pick": "Dalton Kincaid",
+        "actual_pos": "TE",
+        "actual_season_pts": 78.8,
+        "tool_pick": "Malik Nabers",
+        "tool_pos": "WR",
+        "tool_season_pts": 219.1
+      },
+      {
+        "overall": 44,
+        "round": 4,
+        "actual_pick": "Amari Cooper",
+        "actual_pos": "WR",
+        "actual_season_pts": 100.7,
+        "tool_pick": "Matthew Stafford",
+        "tool_pos": "QB",
+        "tool_season_pts": 222.6
+      },
+      {
+        "overall": 53,
+        "round": 5,
+        "actual_pick": "Zay Flowers",
+        "actual_pos": "WR",
+        "actual_season_pts": 172.5,
+        "tool_pick": "George Kittle",
+        "tool_pos": "TE",
+        "tool_season_pts": 197.6
+      },
+      {
+        "overall": 116,
+        "round": 10,
+        "actual_pick": "MarShawn Lloyd",
+        "actual_pos": "RB",
+        "actual_season_pts": 2.3,
+        "tool_pick": "Drake Maye",
+        "tool_pos": "QB",
+        "tool_season_pts": 187.1
+      },
+      {
+        "overall": 125,
+        "round": 11,
+        "actual_pick": "Dontayvion Wicks",
+        "actual_pos": "WR",
+        "actual_season_pts": 91.0,
+        "tool_pick": "Khalil Shakir",
+        "tool_pos": "WR",
+        "tool_season_pts": 144.5
+      },
+      {
+        "overall": 188,
+        "round": 16,
+        "actual_pick": "Kansas City Chiefs",
+        "actual_pos": "DEF",
+        "actual_season_pts": 111.0,
+        "tool_pick": "Harrison Butker",
+        "tool_pos": "K",
+        "tool_season_pts": 94.0
+      },
+      {
+        "overall": 197,
+        "round": 17,
+        "actual_pick": "Jason Sanders",
+        "actual_pos": "K",
+        "actual_season_pts": 160.0,
+        "tool_pick": "Tampa Bay Buccaneers",
+        "tool_pos": "DEF",
+        "tool_season_pts": 112.0
+      }
+    ]
+  },
+  {
+    "year": 2025,
+    "tool_bestball": 1445.3,
+    "real_bestball": 1599.6,
+    "edge": -154.4,
+    "decisions": [
+      {
+        "overall": 33,
+        "round": 3,
+        "actual_pick": "Tyreek Hill",
+        "actual_pos": "WR",
+        "actual_season_pts": 43.0,
+        "tool_pick": "Tyreek Hill",
+        "tool_pos": "WR",
+        "tool_season_pts": 43.0
+      },
+      {
+        "overall": 40,
+        "round": 4,
+        "actual_pick": "David Montgomery",
+        "actual_pos": "RB",
+        "actual_season_pts": 154.9,
+        "tool_pick": "Justin Herbert",
+        "tool_pos": "QB",
+        "tool_season_pts": 299.9
+      },
+      {
+        "overall": 64,
+        "round": 6,
+        "actual_pick": "Cam Ward",
+        "actual_pos": "QB",
+        "actual_season_pts": 193.7,
+        "tool_pick": "Joe Mixon",
+        "tool_pos": "RB",
+        "tool_season_pts": 0.0
+      },
+      {
+        "overall": 81,
+        "round": 7,
+        "actual_pick": "Jerry Jeudy",
+        "actual_pos": "WR",
+        "actual_season_pts": 95.7,
+        "tool_pick": "Jordan Addison",
+        "tool_pos": "WR",
+        "tool_season_pts": 114.1
+      },
+      {
+        "overall": 88,
+        "round": 8,
+        "actual_pick": "Kyle Pitts",
+        "actual_pos": "TE",
+        "actual_season_pts": 166.8,
+        "tool_pick": "Austin Ekeler",
+        "tool_pos": "RB",
+        "tool_season_pts": 10.6
+      },
+      {
+        "overall": 95,
+        "round": 8,
+        "actual_pick": "Jacory Croskey-Merritt",
+        "actual_pos": "RB",
+        "actual_season_pts": 135.8,
+        "tool_pick": "Matthew Stafford",
+        "tool_pos": "QB",
+        "tool_season_pts": 358.4
+      },
+      {
+        "overall": 105,
+        "round": 9,
+        "actual_pick": "Deebo Samuel",
+        "actual_pos": "WR",
+        "actual_season_pts": 152.2,
+        "tool_pick": "Deebo Samuel",
+        "tool_pos": "WR",
+        "tool_season_pts": 152.2
+      },
+      {
+        "overall": 112,
+        "round": 10,
+        "actual_pick": "Colston Loveland",
+        "actual_pos": "TE",
+        "actual_season_pts": 136.1,
+        "tool_pick": "Isaiah Likely",
+        "tool_pos": "TE",
+        "tool_season_pts": 48.2
+      },
+      {
+        "overall": 136,
+        "round": 12,
+        "actual_pick": "Kyle Williams",
+        "actual_pos": "WR",
+        "actual_season_pts": 44.2,
+        "tool_pick": "Isaac Guerendo",
+        "tool_pos": "RB",
+        "tool_season_pts": 1.0
+      },
+      {
+        "overall": 160,
+        "round": 14,
+        "actual_pick": "Roschon Johnson",
+        "actual_pos": "RB",
+        "actual_season_pts": 1.7,
+        "tool_pick": "Cedric Tillman",
+        "tool_pos": "WR",
+        "tool_season_pts": 49.5
+      },
+      {
+        "overall": 184,
+        "round": 16,
+        "actual_pick": "Dont'e Thornton",
+        "actual_pos": "WR",
+        "actual_season_pts": 18.5,
+        "tool_pick": "Chris Boswell",
+        "tool_pos": "K",
+        "tool_season_pts": 144.0
+      },
+      {
+        "overall": 195,
+        "round": 17,
+        "actual_pick": "Will Shipley",
+        "actual_pos": "RB",
+        "actual_season_pts": 13.0,
+        "tool_pick": "San Francisco 49ers",
+        "tool_pos": "DEF",
+        "tool_season_pts": 89.0
+      },
+      {
+        "overall": 196,
+        "round": 17,
+        "actual_pick": "Troy Franklin",
+        "actual_pos": "WR",
+        "actual_season_pts": 144.6,
+        "tool_pick": "Evan Engram",
+        "tool_pos": "TE",
+        "tool_season_pts": 77.8
+      },
+      {
+        "overall": 201,
+        "round": 17,
+        "actual_pick": "Houston Texans",
+        "actual_pos": "DEF",
+        "actual_season_pts": 166.0,
+        "tool_pick": "Harrison Butker",
+        "tool_pos": "K",
+        "tool_season_pts": 140.0
+      }
+    ]
+  }
+]
