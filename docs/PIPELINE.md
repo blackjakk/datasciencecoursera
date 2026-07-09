@@ -197,3 +197,23 @@ attribution + Brian's roster + slot remap all correct).
 - `scripts/optimize_my_keepers.py` — simulate the full draft under every
   keeper-set combination (paired-seed MC) and rank them.
   → data/keeper_optimizer_results.json
+
+## Data provenance warning: 2023 Sleeper draft feed
+
+2023 was the league's first Sleeper season. Brian (commissioner) entered
+all 204 picks himself, placed by ROUND for keeper-cost tracking, then
+allocated players to the correct rosters afterward. Consequences:
+
+- `picked_by` is Brian's user_id on every 2023 pick — meaningless.
+- `roster_id` reflects the entry slot, not the real owner — wrong on
+  194/204 picks. NEVER use Sleeper roster attribution for 2023.
+- Round placement and board order ARE trustworthy (that was the point
+  of the manual entry).
+- Real pick ownership lives in the MONEY_LEAGUE.xlsx cell-color overlay
+  (`fantasy_draft/xlsx_drafts.py`), which is the league's source of
+  truth. 2024 has ~17 attribution mismatches (traded picks); 2025 is
+  fully clean and has real is_keeper flags.
+
+Anything attributing historical picks to managers must join xlsx
+ownership on (round, slot) — see backtest_recommender.py and
+build_manager_tendencies.py for the pattern.
