@@ -165,11 +165,30 @@ def tool_pick(team: Team, league: LeagueConfig, avail: list[Player],
     return max(pool, key=lambda p: (p.vbd, p.projection))
 
 
+def brian_pick_numbers(year: int) -> set[int]:
+    """Brian's pick numbers from the xlsx color overlay — the league's
+    source of truth for pick ownership. Sleeper's 2023 feed attributes by
+    ORIGINAL slot owner and is wrong on 194/204 picks (pre-migration pick
+    trades never made it into Sleeper); the xlsx colors record who
+    actually made each pick."""
+    from fantasy_draft.team_identity import manager_for_xlsx_nickname
+    from fantasy_draft.xlsx_drafts import load_xlsx_drafts
+    drafts = load_xlsx_drafts(str(ROOT / "data" / "historical" / "MONEY_LEAGUE.xlsx"))
+    out: set[int] = set()
+    for xp in drafts.get(year, []):
+        m = manager_for_xlsx_nickname(xp.manager_nickname)
+        if m and m["id"] == "brian_bigguap":
+            pir = xp.slot if xp.round % 2 == 1 else 13 - xp.slot
+            out.add((xp.round - 1) * 12 + pir)
+    return out
+
+
 def backtest_year(year: int, league: LeagueConfig) -> dict:
     ldir, did = SEASONS[year]
     picks = sorted(
         json.loads((ROOT / ldir / f"draft_{did}_picks.json").read_text()),
         key=lambda p: p["pick_no"])
+    brian_picks = brian_pick_numbers(year)
     players, by_pid = load_period_players(year)
     compute_vbd(players, league)
     actual = load_actual_points(year)
@@ -203,7 +222,7 @@ def backtest_year(year: int, league: LeagueConfig) -> dict:
     for pk in picks:
         pid = str(pk["player_id"])
         p = by_pid.get(pid)
-        is_brian = pk["roster_id"] == MY_RID
+        is_brian = pk["pick_no"] in brian_picks
         is_keeper = pk["pick_no"] in implicit_keeper_picks
 
         if is_brian:

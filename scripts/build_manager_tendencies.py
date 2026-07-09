@@ -34,36 +34,41 @@ def main():
     mgr_first: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     league_first: dict[str, list[int]] = defaultdict(list)
 
-    # Franchise handoffs: rid 10 changed humans in 2025 (wvw5022 -> Josh).
-    # Behavior belongs to PEOPLE, not roster slots — attributing the old
-    # owner's 2023-24 drafts to Josh contaminates his tendency profile.
-    HANDOFF_EXCLUDE = {(2023, 10), (2024, 10)}
+    # OWNERSHIP comes from the xlsx color overlay — the league's source of
+    # truth for who actually made each pick. Sleeper's feed attributes by
+    # original slot and is wrong on 194/204 picks in 2023 (pre-migration
+    # pick trades never reached Sleeper). Player POSITION still comes from
+    # Sleeper metadata, joined on (round, slot) -> pick_no; the join is
+    # name-validated at 91-95% (misses are spelling variants).
+    # Nicknames also identify HUMANS, which handles the rid-10 franchise
+    # handoff (old owner's seasons resolve to the old owner, not Josh).
+    from fantasy_draft.team_identity import manager_for_xlsx_nickname
+    from fantasy_draft.xlsx_drafts import load_xlsx_drafts
+    xlsx_drafts = load_xlsx_drafts(
+        str(Path(__file__).resolve().parent.parent
+            / "data" / "historical" / "MONEY_LEAGUE.xlsx"))
 
     for year, ldir, did in LEAGUES:
         picks = json.loads(Path(f"{ldir}/draft_{did}_picks.json").read_text())
-        rosters = json.loads(Path(f"{ldir}/rosters.json").read_text())
-        rid_to_mgr = {}
-        for r in rosters:
-            if (int(year), r['roster_id']) in HANDOFF_EXCLUDE:
-                continue
-            m = manager_for_sleeper_roster(r['roster_id'])
+        by_pick_no = {p["pick_no"]: p for p in picks}
+        owner_by_pick_no: dict[int, str] = {}
+        for xp in xlsx_drafts.get(int(year), []):
+            pir = xp.slot if xp.round % 2 == 1 else 13 - xp.slot
+            m = manager_for_xlsx_nickname(xp.manager_nickname)
             if m:
-                rid_to_mgr[r['roster_id']] = m['id']
+                owner_by_pick_no[(xp.round - 1) * 12 + pir] = m["id"]
 
-        # Per (rid, pos) -> earliest round in this year
-        seen_mgr_pos: set[tuple[int, str]] = set()
+        seen_mgr_pos: set[tuple[str, str]] = set()
         for p in sorted(picks, key=lambda x: x['pick_no']):
-            rid = p['roster_id']
             pos = (p.get('metadata') or {}).get('position', '').upper()
             if not pos or pos not in POSITIONS:
                 continue
-            if (rid, pos) in seen_mgr_pos:
+            mgr = owner_by_pick_no.get(p['pick_no'])
+            if not mgr or (mgr, pos) in seen_mgr_pos:
                 continue
-            seen_mgr_pos.add((rid, pos))
-            mgr = rid_to_mgr.get(rid)
+            seen_mgr_pos.add((mgr, pos))
             league_first[pos].append(p['round'])
-            if mgr:
-                mgr_first[mgr][pos].append(p['round'])
+            mgr_first[mgr][pos].append(p['round'])
 
     # League averages
     league_avg = {pos: sum(rs) / len(rs) for pos, rs in league_first.items() if rs}
