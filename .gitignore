@@ -53,3 +53,10 @@ data/sleeper/projections_*.json
 data/sleeper/league_*/_draft_ids.txt
 data/keepers_2026_override.json
 .yahoo_cookies*
+
+# Weekly-regenerated PDFs live on the latest-artifacts GitHub Release,
+# not in git (they'd add ~11MB of binary history per week).
+data/MONEYLEAGUE_2026_MOCK.pdf
+data/MONEYLEAGUE_2026_PRESEASON.pdf
+data/MONEYLEAGUE_POWER_RANKINGS.pdf
+data/WEEKLY_MOVERS.md

@@ -362,22 +362,16 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
         print(f"  iter {it+1}: {len(selected_names)} keepers selected")
 
     # Build the output records.
+    #   carryover:   selected top-4-positive per team (the prediction)
+    #   forced_drop: yr3 cap hits (documentation)
+    #   alternate:   next-best positive-net candidates per team (up to 3) —
+    #                the Monte Carlo samples these to model keeper uncertainty
     out: list[dict] = []
     selected_set = selected_names
     seen = set()
-    for c in candidates:
-        is_selected = c["player_name"] in selected_set
-        is_forced = c["years_kept"] >= MAX_YEARS
-        # Only emit:
-        #   1. selected carryovers (top-4-positive per team)
-        #   2. forced_drops (yr3 cap)
-        if not (is_selected or is_forced):
-            continue
-        key = (c["team_idx"], c["player_name"])
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append({
+
+    def _record(c: dict, status: str) -> dict:
+        return {
             "team_idx": c["team_idx"],
             "roster_id": c["roster_id"],
             "player_name": c["player_name"],
@@ -386,13 +380,43 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
             "forfeit_round": c["forfeit_round"],
             "effective_forfeit_round": c.get("effective_forfeit_round", c["forfeit_round"]),
             "years_kept": c["years_kept"],
-            "status": "forced_drop" if is_forced else "carryover",
+            "status": status,
             "net_vbd": c.get("net_vbd"),
             "raw_vbd": c.get("raw_vbd"),
             "pick_value_baseline": c.get("pick_value_baseline"),
             "adp": c.get("adp"),
             "is_waiver": c.get("is_waiver"),
-        })
+        }
+
+    for c in candidates:
+        is_selected = c["player_name"] in selected_set
+        is_forced = c["years_kept"] >= MAX_YEARS
+        if not (is_selected or is_forced):
+            continue
+        key = (c["team_idx"], c["player_name"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(_record(c, "forced_drop" if is_forced else "carryover"))
+
+    # Alternates: per team, the best unselected, cap-eligible, positive-net
+    # candidates. These are the plausible "keeps X instead" scenarios.
+    by_team_alt: dict[int, list[dict]] = defaultdict(list)
+    for c in candidates:
+        if c["player_name"] in selected_set:
+            continue
+        if c["years_kept"] >= MAX_YEARS:
+            continue
+        if (c.get("net_vbd") or 0) <= 0:
+            continue
+        if (c["team_idx"], c["player_name"]) in seen:
+            continue
+        by_team_alt[c["team_idx"]].append(c)
+    for team_idx, alts in by_team_alt.items():
+        alts.sort(key=lambda c: -(c.get("net_vbd") or 0))
+        for c in alts[:3]:
+            seen.add((c["team_idx"], c["player_name"]))
+            out.append(_record(c, "alternate"))
     return out
 
 

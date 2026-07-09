@@ -23,11 +23,12 @@ from fantasy_draft.team_identity import all_managers, manager_for_sleeper_roster
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "draft_helper" / "data.json"
 
+SEASON_CFG = json.loads((ROOT / "configs" / "season_2026.json").read_text())
 PREDICTED_SLOT_TO_RID = {
-    1: 6, 2: 12, 3: 5, 4: 4, 5: 2, 6: 9,
-    7: 7, 8: 1, 9: 8, 10: 3, 11: 10, 12: 11,
+    int(k): v for k, v in SEASON_CFG["slot_to_roster_id"].items()
 }
-MY_SLOT = 6  # Brian
+_RID_TO_SLOT = {rid: slot for slot, rid in PREDICTED_SLOT_TO_RID.items()}
+MY_SLOT = _RID_TO_SLOT[SEASON_CFG["my_roster_id"]]  # Brian
 ROUNDS = 17
 
 # ---------- players: csv + FP overlay + Sleeper VBD ----------
@@ -171,17 +172,36 @@ def load_tendencies() -> dict:
     return json.loads((ROOT / "data" / "manager_tendencies.json").read_text())
 
 
+def attach_survival(players: list[dict]) -> int:
+    """Attach Monte Carlo draft-position quantiles (11 values: percentiles
+    0,10,...,100 of the overall pick where the player left the board) from
+    mc_summary_all.json. Players with no entry were never drafted in any
+    sim — the helper treats them as always-available."""
+    mc_path = ROOT / "data" / "mc_summary_all.json"
+    if not mc_path.exists():
+        return 0
+    survival = json.loads(mc_path.read_text()).get("survival", {})
+    attached = 0
+    for p in players:
+        q = survival.get(p["name"])
+        if q:
+            p["svq"] = q
+            attached += 1
+    return attached
+
+
 def main():
     players = load_players()
     keepers = load_keepers()
     managers = load_managers()
     schedule = build_pick_schedule()
     tendencies = load_tendencies()
+    n_sv = attach_survival(players)
+    print(f"Attached survival curves to {n_sv} players")
 
     # Traded 2026 picks (override Pick.team_idx by ownership)
     traded = json.loads(
-        (ROOT / "data" / "sleeper" / "league_1245039290518360064"
-         / "traded_picks.json").read_text()
+        (ROOT / SEASON_CFG["league_dir"] / "traded_picks.json").read_text()
     )
     rid_to_slot = {rid: slot for slot, rid in PREDICTED_SLOT_TO_RID.items()}
     overrides = {}

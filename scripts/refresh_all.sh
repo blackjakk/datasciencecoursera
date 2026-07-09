@@ -53,6 +53,12 @@ do_derive() {
   python3 scripts/build_pick_value.py
   log "Predict 2026 keepers"
   python3 scripts/build_2026_keepers.py
+  # Once the league's keeper deadline passes, write the REAL keepers to
+  # data/keepers_2026_actual.json (same schema) — it overrides the model.
+  if [ -f data/keepers_2026_actual.json ]; then
+    log "keepers_2026_actual.json found — overriding predictions with actual keepers"
+    cp data/keepers_2026_actual.json data/keepers_2026.json
+  fi
   log "Extract per-manager draft tendencies"
   python3 scripts/build_manager_tendencies.py
   log "Compute historical draft skill"
@@ -75,6 +81,8 @@ do_reports() {
   log "Render 2026 Mock Draft PDF"
   python3 scripts/build_mock_draft_report.py
   do_helper
+  log "Summarize week-over-week movers"
+  python3 scripts/build_weekly_movers.py
 }
 
 # ---------- Draft helper ----------

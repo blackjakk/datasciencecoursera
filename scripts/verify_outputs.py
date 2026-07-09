@@ -82,6 +82,24 @@ def main() -> None:
     print("Monte Carlo summary:")
     per_team = mc.get("per_team", {})
     check("MC has all 12 teams", len(per_team) == 12, f"got {len(per_team)}")
+    survival = mc.get("survival", {})
+    check("MC survival quantiles for 200+ players", len(survival) >= 200,
+          f"got {len(survival)}")
+    bad_q = [nm for nm, q in survival.items()
+             if len(q) != 11 or any(q[i] > q[i + 1] for i in range(10))]
+    check("survival quantiles are 11-point and monotonic", not bad_q,
+          f"bad: {bad_q[:3]}")
+    # A keeper on a team with NO alternates is kept in every scenario, so
+    # they're never draftable — quantiles must be all-zero. (Teams WITH
+    # alternates legitimately release a keeper in ~30% of sims.)
+    alt_rids = {k["roster_id"] for k in keepers if k.get("status") == "alternate"}
+    fixed_keeper = next((k["player_name"] for k in keepers
+                         if k.get("status") == "carryover"
+                         and k["roster_id"] not in alt_rids), None)
+    if fixed_keeper and fixed_keeper in survival:
+        check(f"always-kept keeper ({fixed_keeper}) shows gone-from-start",
+              max(survival[fixed_keeper]) == 0,
+              f"quantiles: {survival[fixed_keeper]}")
     slot_counts = []
     for ti, data in per_team.items():
         n = sum(len(s) if isinstance(s, list) else 1
@@ -100,6 +118,9 @@ def main() -> None:
           {k["player_name"] for k in helper["keepers"]} == expected_keepers)
     check("helper has 300+ players", len(helper["players"]) >= 300,
           f"got {len(helper['players'])}")
+    n_svq = sum(1 for p in helper["players"] if p.get("svq"))
+    check("helper players carry survival quantiles (200+)", n_svq >= 200,
+          f"got {n_svq}")
     kyle_helper_r1 = sum(1 for p in helper["schedule"]
                          if p["round"] == 1 and p["team_idx"] == 2)
     check("helper schedule reflects trades (Kyle 3 R1s)",

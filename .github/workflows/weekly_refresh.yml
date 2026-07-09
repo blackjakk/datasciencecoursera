@@ -2,8 +2,11 @@ name: Weekly MONEYLEAGUE refresh
 
 # Refreshes projections/ADP/keepers, re-runs the mock sim, re-renders the
 # PDFs and draft helper, verifies invariants, and pushes — every Tuesday
-# morning through draft season. The project lives on master; the helper is
-# additionally synced to the Pages branch that serves it.
+# morning through draft season.
+#
+# PDFs are NOT committed (they'd add ~11MB of binary history weekly);
+# they're uploaded to the rolling "latest-artifacts" release instead:
+#   https://github.com/blackjakk/datasciencecoursera/releases/tag/latest-artifacts
 #
 # Run manually anytime from the Actions tab (workflow_dispatch).
 
@@ -14,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: weekly-refresh
@@ -38,7 +42,7 @@ jobs:
       - name: Run full pipeline (fetch -> derive -> sim -> reports -> verify)
         run: scripts/refresh_all.sh
 
-      - name: Commit & push refreshed artifacts
+      - name: Commit & push refreshed artifacts (movers summary as body)
         run: |
           git config user.name "moneyleague-refresh-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -47,8 +51,23 @@ jobs:
             echo "No changes this week."
             exit 0
           fi
-          git commit -m "Weekly refresh: $(date -u +%Y-%m-%d)"
+          git commit -m "Weekly refresh: $(date -u +%Y-%m-%d)" \
+                     -m "$(cat data/WEEKLY_MOVERS.md 2>/dev/null || echo 'movers summary unavailable')"
           git push origin master
+
+      - name: Publish PDFs to the rolling latest-artifacts release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest-artifacts >/dev/null 2>&1 || \
+            gh release create latest-artifacts \
+              --title "Latest MONEYLEAGUE artifacts" \
+              --notes "Auto-updated by the weekly refresh workflow. Always current."
+          gh release upload latest-artifacts \
+            data/MONEYLEAGUE_2026_MOCK.pdf \
+            data/MONEYLEAGUE_2026_PRESEASON.pdf \
+            data/MONEYLEAGUE_POWER_RANKINGS.pdf \
+            --clobber
 
       - name: Sync draft helper to the Pages branch
         run: |
@@ -64,3 +83,15 @@ jobs:
           fi
           git commit -m "Weekly refresh: sync draft helper $(date -u +%Y-%m-%d)"
           git push origin claude/football-sim-blockchain-game-b3sdq
+
+      - name: Open an issue if the run failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "Weekly refresh failed: $(date -u +%Y-%m-%d)" \
+            --body "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          A verify-stage failure usually means an upstream data change broke an invariant (renamed player, Sleeper API change, keeper rules drift). Check the run log's 'Verify output invariants' step first." \
+            || echo "issue creation failed (probably already open)"

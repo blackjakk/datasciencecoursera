@@ -1,0 +1,19 @@
+{
+  "season": 2026,
+  "_notes": [
+    "Single source of truth for season-specific facts. Scripts load this",
+    "instead of hardcoding slot maps. When Sleeper posts the REAL 2026",
+    "draft order, update slot_to_roster_id and set order_is_confirmed=true.",
+    "When keepers lock, write data/keepers_2026_actual.json (same format as",
+    "keepers_2026.json) - the pipeline will prefer it over the prediction."
+  ],
+  "order_is_confirmed": false,
+  "slot_to_roster_id": {
+    "1": 6, "2": 12, "3": 5, "4": 4, "5": 2, "6": 9,
+    "7": 7, "8": 1, "9": 8, "10": 3, "11": 10, "12": 11
+  },
+  "my_roster_id": 9,
+  "draft_rounds": 17,
+  "league_dir": "data/sleeper/league_1245039290518360064",
+  "roster_handoffs": {"2025:10": "josh_wildboy"}
+}

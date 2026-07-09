@@ -18,11 +18,38 @@ scripts/refresh_all.sh helper                 # just the draft helper bundle
 scripts/refresh_all.sh verify                 # just the invariant checks
 ```
 
-`verify` runs ~22 invariant checks (17 picks/team, 2-3 QBs, traded picks
-applied, all keepers placed, MC slot counts, helper bundle consistency,
-PDFs non-trivial). It exits non-zero on failure — run it after ANY rebuild
-before trusting the outputs. Missing `data/sleeper/players_nfl.json` (14MB,
-not in git) is auto-fetched by any stage that needs it.
+`verify` runs ~25 invariant checks (17 picks/team, 2-3 QBs, traded picks
+applied, all keepers placed, MC slot counts + survival quantiles, helper
+bundle consistency, PDFs non-trivial). It exits non-zero on failure — run
+it after ANY rebuild before trusting the outputs. Missing
+`data/sleeper/players_nfl.json` (14MB, not in git) is auto-fetched by any
+stage that needs it.
+
+## Season facts live in configs/season_2026.json
+
+Draft order (slot → roster_id), Brian's roster_id, league data dir, and
+round count are read from `configs/season_2026.json` by the sim, the mock
+report, and the draft-helper builder. When Sleeper posts the REAL 2026
+order, edit that one file. When keepers lock, write
+`data/keepers_2026_actual.json` (same schema as keepers_2026.json) — the
+derive stage copies it over the model's prediction automatically.
+
+## Keeper-scenario Monte Carlo + survival curves
+
+`build_2026_keepers.py` also emits per-team `alternate` records (next-best
+positive-net candidates). Each of the 300 MC sims samples a keeper
+scenario: ~30% of the time a team swaps its weakest predicted keeper for
+an alternate. The sim publishes per-player draft-position quantiles
+(`survival` in mc_summary_all.json), which the draft helper renders as
+"Next✓" — the probability each player survives to your next pick.
+
+## Weekly artifacts
+
+- PDFs are **not committed** — the weekly workflow uploads them to the
+  rolling release: `releases/tag/latest-artifacts` (always current).
+- The bot's commit body is `data/WEEKLY_MOVERS.md` — ADP movers of a
+  round+ and keeper-prediction changes vs the prior week.
+- A failed weekly run auto-opens a GitHub issue with a link to the run.
 
 ## Pipeline diagram
 

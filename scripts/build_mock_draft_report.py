@@ -39,28 +39,15 @@ CHROMIUM_EXEC = bpr.CHROMIUM_EXEC
 #   12th (last)             = Brian    -> R1.6
 # Playoff teams take picks 7-12 in reverse finish (champ last):
 #   6th = Eric, 5th = Tim, 4th = Brower, 3rd = Ankur, 2nd = Josh, 1st = Trevor
+_SEASON_CFG = json.loads((ROOT / "configs" / "season_2026.json").read_text())
 PREDICTED_SLOT_TO_RID = {
-    1: 6,    # Lem (consolation champ → 7th place)
-    2: 12,   # Coop (consolation runner-up → 8th)
-    3: 5,    # Kyle (consolation 3rd → 9th)
-    4: 4,    # Troy (10th)
-    5: 2,    # Donnie (11th)
-    6: 9,    # Brian (12th — last place)
-    7: 7,    # Eric (playoff 6th)
-    8: 1,    # Tim (playoff 5th)
-    9: 8,    # Brower (playoff 4th)
-    10: 3,   # Ankur (playoff 3rd)
-    11: 10,  # Josh (runner-up)
-    12: 11,  # Trevor (champion)
+    int(k): v for k, v in _SEASON_CFG["slot_to_roster_id"].items()
 }
-
-# Default Sleeper placeholder
-SLEEPER_PLACEHOLDER_SLOT_TO_RID = {1: 6, 2: 2, 3: 7, 4: 11, 5: 5, 6: 1,
-                                    7: 10, 8: 8, 9: 9, 10: 3, 11: 4, 12: 12}
-
-# Use predicted order
 SLOT_TO_RID = PREDICTED_SLOT_TO_RID
-ROSTER_HANDOFFS = {(2025, 10): "josh_wildboy"}
+ROSTER_HANDOFFS = {
+    tuple(int(x) for x in k.split(":")): v
+    for k, v in _SEASON_CFG.get("roster_handoffs", {}).items()
+}
 
 POS_COLORS = {
     "QB": "#dc2626", "RB": "#0891b2", "WR": "#2d6a4f",

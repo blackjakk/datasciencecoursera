@@ -26,26 +26,26 @@ from fantasy_draft.vbd import compute_vbd  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAGUE_CFG = ROOT / "configs" / "my_league.json"
+SEASON_CFG = json.loads((ROOT / "configs" / "season_2026.json").read_text())
 PLAYERS_CSV = ROOT / "data" / "players_2026.csv"
 KEEPERS_JSON = ROOT / "data" / "keepers_2026.json"
-TRADED_PICKS_JSON = ROOT / "data" / "sleeper" / "league_1245039290518360064" / "traded_picks.json"
+TRADED_PICKS_JSON = ROOT / SEASON_CFG["league_dir"] / "traded_picks.json"
 FP_RANKINGS = ROOT / "data" / "rankings_fantasypros.json"
 TENDENCIES_JSON = ROOT / "data" / "manager_tendencies.json"
 
 PICKS_OUT = ROOT / "data" / "mock_draft_picks.json"
 MC_OUT = ROOT / "data" / "mc_summary_all.json"
 
-# Predicted 2026 draft slot -> roster_id (matches build_mock_draft_report.py)
+# Draft slot -> roster_id from the season config (single source of truth).
 PREDICTED_SLOT_TO_RID = {
-    1: 6, 2: 12, 3: 5, 4: 4, 5: 2, 6: 9,
-    7: 7, 8: 1, 9: 8, 10: 3, 11: 10, 12: 11,
+    int(k): v for k, v in SEASON_CFG["slot_to_roster_id"].items()
 }
 
 N_SIMS = 300  # ±5% noise on a 50% event at n=300 (was 50 → ±14%)
 MC_TEMPERATURE = 0.25       # Monte Carlo: some variance for honest distributions
 DISPLAY_TEMPERATURE = 0.0   # Displayed board: greedy / no reaches
 TOP_K = 15
-MY_RID = 9  # Brian — bottom of consolation
+MY_RID = SEASON_CFG["my_roster_id"]
 
 # Per-manager tendency bias: when a manager's typical first-pick round for a
 # position is approaching, boost that position's score. Strength = max bonus
@@ -286,21 +286,24 @@ def simulate_full_draft_with_tendencies(
     return out
 
 
-def build_draft() -> tuple[Draft, list, int]:
+def load_inputs():
+    """League config + player pool with FP overlay + VBD."""
     league = LeagueConfig.load(LEAGUE_CFG)
     players = load_players(PLAYERS_CSV)
     n_promoted = _apply_fp_overlay(players)
     print(f"FP overlay applied: {n_promoted} players promoted to FP positional rank")
     compute_vbd(players, league)
+    return league, players
 
-    # Roster IDs filtered to those we have a slot for.
+
+def build_skeleton(league) -> Draft:
+    """Empty draft with 2026 traded-pick ownership applied. Cheap — safe to
+    rebuild per Monte Carlo sim so keeper sets can vary."""
     rid_to_slot = {rid: slot for slot, rid in PREDICTED_SLOT_TO_RID.items()}
-    # team_idx = slot - 1
     team_names = [f"Slot {i+1}" for i in range(12)]
     league.draft_order = list(range(12))  # slot N -> team_idx N-1
     draft = Draft.new(league, team_names)
 
-    # Apply 2026 traded picks: reassign Pick.team_idx by ownership.
     # traded_picks entries: {season, round, roster_id (original owner),
     # owner_id (current owner — also a roster_id, NOT a Sleeper user_id)}.
     traded = json.loads(TRADED_PICKS_JSON.read_text())
@@ -317,16 +320,15 @@ def build_draft() -> tuple[Draft, list, int]:
         new_rid = overrides.get((pick.round_num, orig_rid), orig_rid)
         new_slot = rid_to_slot[new_rid]
         pick.team_idx = new_slot - 1
+    return draft
 
-    # Apply keepers: each keeper -> assign player to roster + mark Pick at the
-    # forfeit_round for that team as the keeper pick (consumes that round).
-    keepers = json.loads(KEEPERS_JSON.read_text())
+
+def apply_keeper_set(draft: Draft, players: list, keeper_records: list[dict]) -> None:
+    """Place a set of keeper records onto the draft (marks Picks + rosters)."""
+    rid_to_slot = {rid: slot for slot, rid in PREDICTED_SLOT_TO_RID.items()}
     name_to_player = {_norm(p.name): p for p in players}
-    # Track which (round, team_idx) is consumed by a keeper for that team.
     consumed: set[tuple[int, int]] = set()
-    for k in keepers:
-        if k.get("status") != "carryover":
-            continue
+    for k in keeper_records:
         rid = k["roster_id"]
         slot = rid_to_slot.get(rid)
         if slot is None:
@@ -336,9 +338,8 @@ def build_draft() -> tuple[Draft, list, int]:
         if player is None:
             continue
         forfeit_rnd = int(k.get("effective_forfeit_round") or k.get("forfeit_round") or 0)
-        if forfeit_rnd <= 0 or forfeit_rnd > league.rounds:
+        if forfeit_rnd <= 0 or forfeit_rnd > draft.league.rounds:
             continue
-        # Find this team's pick in forfeit_rnd that isn't already a keeper.
         target = next((p for p in draft.picks
                        if p.round_num == forfeit_rnd and p.team_idx == team_idx
                        and (p.round_num, p.team_idx) not in consumed
@@ -350,6 +351,39 @@ def build_draft() -> tuple[Draft, list, int]:
         consumed.add((forfeit_rnd, team_idx))
         draft.teams[team_idx].add(player)
 
+
+# Probability a manager deviates from the predicted keeper set in a given
+# Monte Carlo sim (swaps their weakest keeper for one of their alternates).
+KEEPER_SWAP_PROB = 0.30
+
+
+def sample_keeper_set(carryover: list[dict], alternates_by_rid: dict,
+                      rng: random.Random) -> list[dict]:
+    """One plausible keeper scenario: mostly the prediction, but each team
+    with alternates swaps its lowest-net keeper ~30% of the time."""
+    by_rid: dict[int, list[dict]] = defaultdict(list)
+    for k in carryover:
+        by_rid[k["roster_id"]].append(k)
+    out: list[dict] = []
+    for rid, keeps in by_rid.items():
+        keeps = list(keeps)
+        alts = alternates_by_rid.get(rid, [])
+        if alts and len(keeps) > 0 and rng.random() < KEEPER_SWAP_PROB:
+            weakest = min(keeps, key=lambda k: k.get("net_vbd") or 0)
+            keeps.remove(weakest)
+            keeps.append(rng.choice(alts))
+        out.extend(keeps)
+    return out
+
+
+def build_draft() -> tuple[Draft, list, int]:
+    """Canonical draft: skeleton + the PREDICTED keeper set."""
+    league, players = load_inputs()
+    draft = build_skeleton(league)
+    keepers = json.loads(KEEPERS_JSON.read_text())
+    apply_keeper_set(draft, players,
+                     [k for k in keepers if k.get("status") == "carryover"])
+    rid_to_slot = {rid: slot for slot, rid in PREDICTED_SLOT_TO_RID.items()}
     my_team_idx = rid_to_slot[MY_RID] - 1
     return draft, players, my_team_idx
 
@@ -374,7 +408,15 @@ def _pick_to_dict(fp, players_by_name) -> dict:
 
 
 def main():
-    draft, players, my_team_idx = build_draft()
+    league, players = load_inputs()
+    draft = build_skeleton(league)
+    apply_keeper_set(
+        draft, players,
+        [k for k in json.loads(KEEPERS_JSON.read_text())
+         if k.get("status") == "carryover"],
+    )
+    rid_to_slot_map = {rid: slot for slot, rid in PREDICTED_SLOT_TO_RID.items()}
+    my_team_idx = rid_to_slot_map[MY_RID] - 1
     players_by_name = {_norm(p.name): p for p in players}
 
     # Per-manager tendency model (from 2023-2025 historical drafts).
@@ -410,20 +452,43 @@ def main():
     # Monte Carlo across N_SIMS — collect totals + pick distribution per team.
     # Track each pick by (team_idx, round, seq_within_round) so trades that
     # give a team multiple picks in one round show up as separate rows.
+    #
+    # KEEPER UNCERTAINTY: each sim samples a keeper scenario — mostly the
+    # predicted set, but ~30% of the time a team swaps its weakest keeper for
+    # one of its alternates (from keepers_2026.json status="alternate"). The
+    # draft skeleton is rebuilt per sim so keeper slots can move.
+    #
+    # SURVIVAL: per player, track the overall pick at which they left the
+    # board in each sim (keepers = gone from pick 1, undrafted = never), so we
+    # can publish P(available at the start of each round).
+    all_keepers = json.loads(KEEPERS_JSON.read_text())
+    carryover = [k for k in all_keepers if k.get("status") == "carryover"]
+    alternates_by_rid: dict[int, list[dict]] = defaultdict(list)
+    for k in all_keepers:
+        if k.get("status") == "alternate":
+            alternates_by_rid[k["roster_id"]].append(k)
+    print(f"Keeper scenarios: {len(carryover)} predicted + "
+          f"{sum(len(v) for v in alternates_by_rid.values())} alternates "
+          f"across {len(alternates_by_rid)} teams (swap p={KEEPER_SWAP_PROB})")
+
     per_team_totals: dict[int, list[float]] = {ti: [] for ti in range(12)}
-    # per_team_round_seq_picks[ti][rnd][seq] -> Counter of player_name
     per_team_round_seq_picks: dict[int, dict[int, dict[int, Counter]]] = {
         ti: defaultdict(lambda: defaultdict(Counter)) for ti in range(12)
     }
-    # Per-team per-sim full roster: {ti: [ [(rnd, seq, player_name), ...], ... ]}
     per_team_sim_rosters: dict[int, list[list[tuple[int, int, str]]]] = {
         ti: [] for ti in range(12)
     }
+    # survival_gone[name] = list of "gone at overall" per sim (999 = undrafted)
+    survival_gone: dict[str, list[int]] = defaultdict(list)
+
     mc_rng = random.Random(7)
     for sim_idx in range(N_SIMS):
         sim_rng = random.Random(mc_rng.randint(0, 10**9))
+        keeper_set = sample_keeper_set(carryover, alternates_by_rid, sim_rng)
+        sim_draft = build_skeleton(league)
+        apply_keeper_set(sim_draft, players, keeper_set)
         sim_full = simulate_full_draft_with_tendencies(
-            draft, players, my_team_idx,
+            sim_draft, players, my_team_idx,
             temperature=MC_TEMPERATURE, top_k=TOP_K, rng=sim_rng,
             mgr_expected=mgr_expected, league_first=league_first,
             team_idx_to_mgr=team_idx_to_mgr,
@@ -431,6 +496,7 @@ def main():
         team_totals = defaultdict(float)
         team_picks: dict[int, list[tuple[int, int, str]]] = defaultdict(list)
         round_seq_counter: dict[tuple[int, int], int] = defaultdict(int)
+        drafted_this_sim: set[str] = set()
         for fp in sorted(sim_full, key=lambda x: x.overall):
             p = players_by_name.get(_norm(fp.player_name))
             if p:
@@ -440,9 +506,34 @@ def main():
             round_seq_counter[key] += 1
             per_team_round_seq_picks[fp.team_idx][fp.round_num][seq][fp.player_name] += 1
             team_picks[fp.team_idx].append((fp.round_num, seq, fp.player_name))
+            # Keepers were never draftable in this sim; regular picks leave
+            # the board at their overall.
+            survival_gone[fp.player_name].append(
+                0 if fp.is_keeper else fp.overall)
+            drafted_this_sim.add(fp.player_name)
         for ti, tot in team_totals.items():
             per_team_totals[ti].append(tot)
             per_team_sim_rosters[ti].append(team_picks[ti])
+        # Players never drafted this sim: available throughout. Only track
+        # names we've ever seen drafted (others default to always-available).
+        for nm in list(survival_gone.keys()):
+            if nm not in drafted_this_sim:
+                survival_gone[nm].append(999)
+
+    # Survival as draft-position QUANTILES (0th, 10th, ..., 100th percentile
+    # of the overall pick where the player left the board; keeper=0,
+    # undrafted=999). Quantiles beat per-round curves because they stay
+    # accurate inside round 1, where linear round-interpolation badly
+    # overstates elite players' availability (Bijan at pick 6 is ~10%
+    # available, not 62%). Client: P(avail at pick N) = 1 - F(N) via linear
+    # interpolation over the 11 quantile points.
+    survival: dict[str, list[int]] = {}
+    for nm, gone_list in survival_gone.items():
+        s = sorted(gone_list)
+        n = len(s)
+        q = [s[min(n - 1, round(f * (n - 1)))] for f in
+             (i / 10 for i in range(11))]
+        survival[nm] = q
 
     per_team_out = {}
     for ti in range(12):
@@ -494,13 +585,16 @@ def main():
 
     out = {
         "n_sims": N_SIMS,
+        "keeper_swap_prob": KEEPER_SWAP_PROB,
         "team_idx_to_mid_slot": {
             str((slot - 1)): slot for slot in PREDICTED_SLOT_TO_RID
         },
         "per_team": per_team_out,
+        "survival": survival,
     }
     MC_OUT.write_text(json.dumps(out, indent=2))
-    print(f"Wrote {MC_OUT} ({len(per_team_out)} teams x {N_SIMS} sims)")
+    print(f"Wrote {MC_OUT} ({len(per_team_out)} teams x {N_SIMS} sims, "
+          f"{len(survival)} survival curves)")
 
 
 if __name__ == "__main__":
