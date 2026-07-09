@@ -62,6 +62,33 @@ def main():
     rep = {r["round"]: r for r in
            mc["per_team"][str(my_ti)].get("representative_roster", [])}
 
+    # Positional deadlines: median pick by which the Nth-best player at each
+    # position is GONE (last of the top-N to leave, median across sims).
+    # Players kept in most scenarios have median 0 and rank among the top-N
+    # as "gone from the start" — correct for deadline purposes.
+    survival = mc.get("survival", {})
+    my_overalls = {pk["overall"]: pk["round"] for pk in my_picks}
+    deadlines = []
+    for pos, marks in [("QB", [6, 12, 18, 24]), ("RB", [6, 12, 24]),
+                       ("WR", [12, 24, 36]), ("TE", [3, 6])]:
+        ranked = sorted(
+            (p for p in players if p["pos"] == pos and p["vbd"] > -60),
+            key=lambda p: -p["vbd"])
+        chips = []
+        for m in marks:
+            if m > len(ranked):
+                continue
+            medians = [survival.get(p["name"], [999]*11)[5] for p in ranked[:m]]
+            gone = max(md for md in medians if md < 900) if any(md < 900 for md in medians) else None
+            if gone is None or gone < 1:
+                continue
+            rnd = (gone - 1) // 12 + 1
+            # Flag when the deadline lands near one of Brian's picks
+            near = next((f" ≈ your R{r}" for o, r in my_overalls.items()
+                         if abs(o - gone) <= 6), "")
+            chips.append((f"{pos}{m}", gone, rnd, near))
+        deadlines.append((pos, chips))
+
     cards = []
     for pk in my_picks:
         overall, rnd = pk["overall"], pk["round"]
@@ -75,7 +102,7 @@ def main():
             if sv >= 0.25 and p["vbd"] > -40:
                 avail.append((p, sv))
         avail.sort(key=lambda t: -(t[0]["vbd"]))
-        menu = avail[:6]
+        menu = avail[:5]
 
         # Long shot: best-VBD player with 5-25% survival (the faller to watch)
         shots = [(p, survival_at(p.get("svq"), overall)) for p in players
@@ -92,11 +119,11 @@ def main():
     h = ["""<html><head><meta charset="utf-8"><style>
     @font-face { font-family:'Bebas Neue'; src: url('data/fonts/BebasNeue-Regular.ttf'); }
     * { box-sizing: border-box; margin: 0; }
-    body { font: 8.5pt/1.25 'Inter','Segoe UI',sans-serif; color: #1a1d24; padding: 14px 18px; }
+    body { font: 8pt/1.2 'Inter','Segoe UI',sans-serif; color: #1a1d24; padding: 14px 18px; }
     h1 { font-family:'Bebas Neue'; font-size: 21pt; letter-spacing: 1px; }
     .sub { color: #667; font-size: 8pt; margin: 2px 0 8px; }
-    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
-    .card { border: 1px solid #d8dce2; border-radius: 6px; padding: 5px 7px; break-inside: avoid; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+    .card { border: 1px solid #d8dce2; border-radius: 6px; padding: 3px 6px; break-inside: avoid; }
     .card h2 { font-family:'Bebas Neue'; font-size: 11.5pt; letter-spacing: .5px; display: flex; justify-content: space-between; align-items: baseline; }
     .card h2 .keep { font-family: Inter; font-size: 6.5pt; color: #667; font-weight: 400; }
     .sim { font-size: 7pt; color: #0369a1; margin: 1px 0 3px; }
@@ -108,7 +135,9 @@ def main():
     .hi { color: #16a34a; } .mid { color: #d97706; } .lo { color: #dc2626; }
     .shot { font-size: 7pt; color: #9a3412; margin-top: 2px; font-style: italic; }
     .legend { font-size: 7.5pt; color: #556; margin-top: 8px; }
-    .kbanner { background: #f1f5f9; border-radius: 5px; padding: 4px 8px; font-size: 8pt; margin-bottom: 8px; }
+    .kbanner { background: #f1f5f9; border-radius: 5px; padding: 4px 8px; font-size: 8pt; margin-bottom: 5px; }
+    .deadlines { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 5px; padding: 4px 8px; font-size: 7.6pt; margin-bottom: 7px; }
+    .urgent { color: #dc2626; font-weight: 700; }
     </style></head><body>"""]
     h.append(f"<h1>BRIAN'S ROUND-BY-ROUND MENU · 2026</h1>")
     h.append(f'<div class="sub">P(available) at YOUR exact pick, from 300 keeper-scenario Monte Carlo sims · '
@@ -116,6 +145,18 @@ def main():
     h.append('<div class="kbanner"><b>Keepers (locked):</b> Colston Loveland R8 · Luther Burden R9 · '
              'Alec Pierce R14 · Christian Watson R15 &nbsp;|&nbsp; '
              '<b>Doctrine:</b> RB/QB early → Price R5-R6 → BPA mid → rookie stashes R16-R17, stream K/DEF</div>')
+    # Deadline strip
+    h.append('<div class="deadlines"><b>POSITION DEADLINES</b> (median pick the Nth-best is GONE): ')
+    strip_bits = []
+    for pos, chips in deadlines:
+        c = POS_COLORS.get(pos, "#888")
+        chip_txt = " · ".join(
+            f'{label} by <b>#{gone} (R{rnd})</b>'
+            f'{f"<span class=urgent>{near}</span>" if near else ""}'
+            for label, gone, rnd, near in chips)
+        strip_bits.append(f'<span style="color:{c};font-weight:700">{pos}</span> {chip_txt}')
+    h.append(" &nbsp;|&nbsp; ".join(strip_bits))
+    h.append('</div>')
     h.append('<div class="grid">')
     for pk, menu, long_shot, sim_call, keep in cards:
         h.append(f'<div class="card"><h2>R{pk["round"]} · #{pk["overall"]}'
