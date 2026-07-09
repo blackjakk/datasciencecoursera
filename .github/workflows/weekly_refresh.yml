@@ -67,6 +67,7 @@ jobs:
             data/MONEYLEAGUE_2026_MOCK.pdf \
             data/MONEYLEAGUE_2026_PRESEASON.pdf \
             data/MONEYLEAGUE_POWER_RANKINGS.pdf \
+            data/MONEYLEAGUE_2026_ROUND_MENU.pdf \
             --clobber
 
       - name: Sync draft helper to the Pages branch

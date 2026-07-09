@@ -81,6 +81,8 @@ do_reports() {
   log "Render 2026 Mock Draft PDF"
   python3 scripts/build_mock_draft_report.py
   do_helper
+  log "Render Round-by-Round Menu one-pager"
+  python3 scripts/build_round_menu.py
   log "Summarize week-over-week movers"
   python3 scripts/build_weekly_movers.py
 }
