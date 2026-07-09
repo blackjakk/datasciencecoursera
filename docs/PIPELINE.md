@@ -188,3 +188,12 @@ attribution + Brian's roster + slot remap all correct).
 | PDF render fails with playwright errors | `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` should be set; reinstall: `playwright install chromium` |
 | Wrong keepers showing in mock | Manually edit `data/keepers_2026.json` then `refresh_all.sh sim reports` |
 | Mock board has reaches | Display sim uses `DISPLAY_TEMPERATURE=0.0` (greedy). Change in `build_mock_draft_sim.py` if needed. |
+
+## Analysis tools (run on demand)
+
+- `scripts/backtest_recommender.py` — replay 2023-2025 real drafts, tool
+  vs real-Brian, scored by actual season points. Period-honest (ADP-only
+  knowledge, implicit-keeper detection). → data/backtest_results.json
+- `scripts/optimize_my_keepers.py` — simulate the full draft under every
+  keeper-set combination (paired-seed MC) and rank them.
+  → data/keeper_optimizer_results.json
