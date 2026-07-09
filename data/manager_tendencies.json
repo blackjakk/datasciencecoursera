@@ -383,44 +383,6 @@
         "n_samples": 3
       }
     },
-    "josh_wildboy": {
-      "QB": {
-        "delta_rounds": -0.72,
-        "manager_first_avg": 3.0,
-        "league_first_avg": 3.72,
-        "n_samples": 3
-      },
-      "RB": {
-        "delta_rounds": -1.19,
-        "manager_first_avg": 1.67,
-        "league_first_avg": 2.86,
-        "n_samples": 3
-      },
-      "WR": {
-        "delta_rounds": -1.33,
-        "manager_first_avg": 1.33,
-        "league_first_avg": 2.67,
-        "n_samples": 3
-      },
-      "TE": {
-        "delta_rounds": 1.22,
-        "manager_first_avg": 8.33,
-        "league_first_avg": 7.12,
-        "n_samples": 3
-      },
-      "K": {
-        "delta_rounds": 1.59,
-        "manager_first_avg": 17.0,
-        "league_first_avg": 15.41,
-        "n_samples": 1
-      },
-      "DEF": {
-        "delta_rounds": -1.71,
-        "manager_first_avg": 13.0,
-        "league_first_avg": 14.71,
-        "n_samples": 2
-      }
-    },
     "coop": {
       "QB": {
         "delta_rounds": -1.72,
@@ -457,6 +419,44 @@
         "manager_first_avg": 14.0,
         "league_first_avg": 14.71,
         "n_samples": 3
+      }
+    },
+    "josh_wildboy": {
+      "QB": {
+        "delta_rounds": 1.28,
+        "manager_first_avg": 5.0,
+        "league_first_avg": 3.72,
+        "n_samples": 1
+      },
+      "RB": {
+        "delta_rounds": 0.14,
+        "manager_first_avg": 3.0,
+        "league_first_avg": 2.86,
+        "n_samples": 1
+      },
+      "WR": {
+        "delta_rounds": -1.67,
+        "manager_first_avg": 1.0,
+        "league_first_avg": 2.67,
+        "n_samples": 1
+      },
+      "TE": {
+        "delta_rounds": 1.88,
+        "manager_first_avg": 9.0,
+        "league_first_avg": 7.12,
+        "n_samples": 1
+      },
+      "K": {
+        "delta_rounds": 1.59,
+        "manager_first_avg": 17.0,
+        "league_first_avg": 15.41,
+        "n_samples": 1
+      },
+      "DEF": {
+        "delta_rounds": -0.71,
+        "manager_first_avg": 14.0,
+        "league_first_avg": 14.71,
+        "n_samples": 1
       }
     }
   }

@@ -34,11 +34,18 @@ def main():
     mgr_first: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     league_first: dict[str, list[int]] = defaultdict(list)
 
+    # Franchise handoffs: rid 10 changed humans in 2025 (wvw5022 -> Josh).
+    # Behavior belongs to PEOPLE, not roster slots — attributing the old
+    # owner's 2023-24 drafts to Josh contaminates his tendency profile.
+    HANDOFF_EXCLUDE = {(2023, 10), (2024, 10)}
+
     for year, ldir, did in LEAGUES:
         picks = json.loads(Path(f"{ldir}/draft_{did}_picks.json").read_text())
         rosters = json.loads(Path(f"{ldir}/rosters.json").read_text())
         rid_to_mgr = {}
         for r in rosters:
+            if (int(year), r['roster_id']) in HANDOFF_EXCLUDE:
+                continue
             m = manager_for_sleeper_roster(r['roster_id'])
             if m:
                 rid_to_mgr[r['roster_id']] = m['id']
