@@ -14,7 +14,20 @@
       "fp_pos_rank": "RB1",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        1,
+        2,
+        2,
+        2,
+        3,
+        3,
+        6,
+        8,
+        10,
+        27
+      ]
     },
     {
       "name": "Ja'Marr Chase",
@@ -27,7 +40,20 @@
       "fp_pos_rank": "WR1",
       "age": 26,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        1,
+        3,
+        4,
+        4,
+        4,
+        5,
+        5,
+        7,
+        10,
+        18
+      ]
     },
     {
       "name": "Puka Nacua",
@@ -40,7 +66,20 @@
       "fp_pos_rank": "WR2",
       "age": 25,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Jahmyr Gibbs",
@@ -53,7 +92,20 @@
       "fp_pos_rank": "RB2",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        2,
+        2,
+        3,
+        6,
+        6,
+        8,
+        10,
+        13,
+        14,
+        29
+      ]
     },
     {
       "name": "Josh Allen",
@@ -66,7 +118,20 @@
       "fp_pos_rank": "QB1",
       "age": 30,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        1,
+        1,
+        4,
+        8,
+        9,
+        9,
+        10,
+        13,
+        16,
+        29
+      ]
     },
     {
       "name": "Jaxon Smith-Njigba",
@@ -79,7 +144,20 @@
       "fp_pos_rank": "WR3",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Christian McCaffrey",
@@ -92,7 +170,20 @@
       "fp_pos_rank": "RB3",
       "age": 30,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        2,
+        5,
+        6,
+        8,
+        13,
+        14,
+        16,
+        20,
+        24,
+        34
+      ]
     },
     {
       "name": "Jonathan Taylor",
@@ -105,7 +196,20 @@
       "fp_pos_rank": "RB4",
       "age": 27,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        3,
+        6,
+        8,
+        10,
+        13,
+        14,
+        19,
+        23,
+        26,
+        45
+      ]
     },
     {
       "name": "Amon-Ra St. Brown",
@@ -118,7 +222,20 @@
       "fp_pos_rank": "WR4",
       "age": 26,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        4,
+        5,
+        5,
+        7,
+        8,
+        10,
+        11,
+        14,
+        17,
+        35
+      ]
     },
     {
       "name": "James Cook",
@@ -131,7 +248,20 @@
       "fp_pos_rank": null,
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        6,
+        8,
+        13,
+        14,
+        17,
+        22,
+        24,
+        28,
+        32,
+        50
+      ]
     },
     {
       "name": "CeeDee Lamb",
@@ -144,7 +274,20 @@
       "fp_pos_rank": "WR5",
       "age": 27,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        4,
+        5,
+        7,
+        7,
+        10,
+        11,
+        13,
+        17,
+        21,
+        45
+      ]
     },
     {
       "name": "Ashton Jeanty",
@@ -157,7 +300,20 @@
       "fp_pos_rank": "RB6",
       "age": 22,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        3,
+        8,
+        13,
+        15,
+        20,
+        24,
+        29,
+        32,
+        34,
+        49
+      ]
     },
     {
       "name": "De'Von Achane",
@@ -170,7 +326,20 @@
       "fp_pos_rank": "RB7",
       "age": 24,
       "years_exp": 3,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Chase Brown",
@@ -183,7 +352,20 @@
       "fp_pos_rank": "RB9",
       "age": 26,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Saquon Barkley",
@@ -196,7 +378,20 @@
       "fp_pos_rank": "RB8",
       "age": 29,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        8,
+        14,
+        19,
+        24,
+        26,
+        29,
+        32,
+        34,
+        39,
+        70
+      ]
     },
     {
       "name": "Justin Jefferson",
@@ -209,7 +404,20 @@
       "fp_pos_rank": "WR6",
       "age": 27,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        5,
+        7,
+        10,
+        12,
+        16,
+        18,
+        21,
+        24,
+        29,
+        63
+      ]
     },
     {
       "name": "Drake London",
@@ -222,7 +430,20 @@
       "fp_pos_rank": "WR7",
       "age": 24,
       "years_exp": 4,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        1,
+        5,
+        7,
+        10,
+        13,
+        16,
+        18,
+        21,
+        23,
+        31,
+        53
+      ]
     },
     {
       "name": "George Pickens",
@@ -235,7 +456,20 @@
       "fp_pos_rank": "WR10",
       "age": 25,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        5,
+        7,
+        12,
+        16,
+        17,
+        20,
+        23,
+        27,
+        35,
+        56
+      ]
     },
     {
       "name": "A.J. Brown",
@@ -248,7 +482,20 @@
       "fp_pos_rank": "WR9",
       "age": 29,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        5,
+        9,
+        12,
+        16,
+        17,
+        18,
+        22,
+        27,
+        38,
+        66
+      ]
     },
     {
       "name": "Trey McBride",
@@ -261,7 +508,20 @@
       "fp_pos_rank": "TE2",
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Brock Bowers",
@@ -274,7 +534,20 @@
       "fp_pos_rank": "TE1",
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        31,
+        42,
+        42,
+        44,
+        47,
+        50,
+        50,
+        53,
+        55,
+        65,
+        87
+      ]
     },
     {
       "name": "Lamar Jackson",
@@ -287,7 +560,20 @@
       "fp_pos_rank": "QB2",
       "age": 29,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        3,
+        9,
+        12,
+        15,
+        19,
+        21,
+        23,
+        27,
+        33,
+        65
+      ]
     },
     {
       "name": "Nico Collins",
@@ -300,7 +586,20 @@
       "fp_pos_rank": "WR8",
       "age": 27,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        12,
+        21,
+        66
+      ]
     },
     {
       "name": "Drake Maye",
@@ -313,7 +612,20 @@
       "fp_pos_rank": "QB3",
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Joe Burrow",
@@ -326,7 +638,20 @@
       "fp_pos_rank": "QB4",
       "age": 29,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        8,
+        10,
+        15,
+        19,
+        23,
+        26,
+        29,
+        33,
+        40,
+        68
+      ]
     },
     {
       "name": "Justin Herbert",
@@ -339,7 +664,20 @@
       "fp_pos_rank": "QB7",
       "age": 28,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        9,
+        12,
+        19,
+        21,
+        25,
+        27,
+        30,
+        33,
+        40,
+        65
+      ]
     },
     {
       "name": "Trevor Lawrence",
@@ -352,7 +690,20 @@
       "fp_pos_rank": "QB9",
       "age": 26,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        9,
+        15,
+        20,
+        22,
+        25,
+        29,
+        31,
+        36,
+        42,
+        62
+      ]
     },
     {
       "name": "Omarion Hampton",
@@ -365,7 +716,20 @@
       "fp_pos_rank": "RB10",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        10,
+        15,
+        23,
+        28,
+        32,
+        34,
+        37,
+        41,
+        48,
+        67
+      ]
     },
     {
       "name": "Chris Olave",
@@ -378,7 +742,20 @@
       "fp_pos_rank": "WR11",
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        7,
+        16,
+        22,
+        49
+      ]
     },
     {
       "name": "Rashee Rice",
@@ -391,7 +768,20 @@
       "fp_pos_rank": "WR12",
       "age": 26,
       "years_exp": 3,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        4,
+        7,
+        12,
+        16,
+        18,
+        22,
+        26,
+        32,
+        39,
+        45,
+        81
+      ]
     },
     {
       "name": "Davante Adams",
@@ -404,7 +794,20 @@
       "fp_pos_rank": "WR24",
       "age": 33,
       "years_exp": 12,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        11,
+        28,
+        38,
+        42,
+        45,
+        51,
+        55,
+        60,
+        70,
+        81,
+        143
+      ]
     },
     {
       "name": "Christian Watson",
@@ -417,7 +820,20 @@
       "fp_pos_rank": "WR27",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Jayden Daniels",
@@ -430,7 +846,20 @@
       "fp_pos_rank": "QB5",
       "age": 25,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        8,
+        10,
+        15,
+        19,
+        23,
+        26,
+        30,
+        33,
+        39,
+        59
+      ]
     },
     {
       "name": "Jalen Hurts",
@@ -443,7 +872,20 @@
       "fp_pos_rank": "QB6",
       "age": 27,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        9,
+        12,
+        18,
+        20,
+        23,
+        26,
+        30,
+        33,
+        37,
+        63
+      ]
     },
     {
       "name": "Kenneth Walker",
@@ -456,7 +898,20 @@
       "fp_pos_rank": null,
       "age": 25,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        14,
+        22,
+        27,
+        30,
+        34,
+        37,
+        40,
+        44,
+        50,
+        70
+      ]
     },
     {
       "name": "Caleb Williams",
@@ -469,7 +924,20 @@
       "fp_pos_rank": "QB8",
       "age": 24,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        12,
+        18,
+        21,
+        23,
+        25,
+        30,
+        33,
+        36,
+        44,
+        75
+      ]
     },
     {
       "name": "Jaxson Dart",
@@ -482,7 +950,20 @@
       "fp_pos_rank": "QB11",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        12,
+        19,
+        23,
+        27,
+        31,
+        33,
+        36,
+        39,
+        45,
+        68
+      ]
     },
     {
       "name": "Dak Prescott",
@@ -495,7 +976,20 @@
       "fp_pos_rank": "QB10",
       "age": 32,
       "years_exp": 10,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        1,
+        10,
+        15,
+        20,
+        24,
+        28,
+        31,
+        35,
+        41,
+        48,
+        75
+      ]
     },
     {
       "name": "Tetairoa McMillan",
@@ -508,7 +1002,20 @@
       "fp_pos_rank": "WR14",
       "age": 23,
       "years_exp": 1,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        4,
+        7,
+        16,
+        18,
+        21,
+        24,
+        28,
+        35,
+        39,
+        47,
+        76
+      ]
     },
     {
       "name": "Jeremiyah Love",
@@ -521,7 +1028,20 @@
       "fp_pos_rank": "RB13",
       "age": 21,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        8,
+        23,
+        28,
+        32,
+        34,
+        37,
+        41,
+        47,
+        52,
+        78
+      ]
     },
     {
       "name": "Derrick Henry",
@@ -534,7 +1054,20 @@
       "fp_pos_rank": "RB11",
       "age": 32,
       "years_exp": 10,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        10,
+        19,
+        26,
+        30,
+        32,
+        34,
+        39,
+        44,
+        51,
+        73
+      ]
     },
     {
       "name": "Tee Higgins",
@@ -547,7 +1080,20 @@
       "fp_pos_rank": "WR15",
       "age": 27,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        4,
+        11,
+        17,
+        18,
+        21,
+        24,
+        28,
+        39,
+        46,
+        56,
+        98
+      ]
     },
     {
       "name": "Zay Flowers",
@@ -560,7 +1106,20 @@
       "fp_pos_rank": "WR16",
       "age": 25,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        4,
+        11,
+        17,
+        20,
+        24,
+        31,
+        37,
+        41,
+        50,
+        60,
+        82
+      ]
     },
     {
       "name": "Colston Loveland",
@@ -573,7 +1132,20 @@
       "fp_pos_rank": "TE3",
       "age": 22,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Breece Hall",
@@ -586,7 +1158,20 @@
       "fp_pos_rank": "RB15",
       "age": 25,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        25,
+        30,
+        34,
+        37,
+        40,
+        45,
+        48,
+        52,
+        63,
+        82
+      ]
     },
     {
       "name": "Travis Etienne",
@@ -599,7 +1184,20 @@
       "fp_pos_rank": null,
       "age": 27,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        32,
+        45,
+        83
+      ]
     },
     {
       "name": "Malik Nabers",
@@ -612,7 +1210,20 @@
       "fp_pos_rank": "WR17",
       "age": 22,
       "years_exp": 2,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        4,
+        16,
+        20,
+        23,
+        27,
+        35,
+        40,
+        44,
+        50,
+        59,
+        93
+      ]
     },
     {
       "name": "Josh Jacobs",
@@ -625,7 +1236,20 @@
       "fp_pos_rank": "RB16",
       "age": 28,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        2,
+        20,
+        32,
+        34,
+        37,
+        43,
+        47,
+        50,
+        54,
+        65,
+        93
+      ]
     },
     {
       "name": "Kyren Williams",
@@ -638,7 +1262,20 @@
       "fp_pos_rank": "RB14",
       "age": 25,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Garrett Wilson",
@@ -651,7 +1288,20 @@
       "fp_pos_rank": "WR18",
       "age": 25,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        4,
+        16,
+        18,
+        25,
+        29,
+        36,
+        39,
+        42,
+        52,
+        60,
+        103
+      ]
     },
     {
       "name": "DeVonta Smith",
@@ -664,7 +1314,20 @@
       "fp_pos_rank": "WR13",
       "age": 27,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        4,
+        5,
+        11,
+        16,
+        17,
+        21,
+        26,
+        31,
+        39,
+        45,
+        81
+      ]
     },
     {
       "name": "Bo Nix",
@@ -677,7 +1340,20 @@
       "fp_pos_rank": "QB14",
       "age": 26,
       "years_exp": 2,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Brock Purdy",
@@ -690,7 +1366,20 @@
       "fp_pos_rank": "QB12",
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        1,
+        13,
+        19,
+        24,
+        27,
+        31,
+        35,
+        37,
+        43,
+        50,
+        70
+      ]
     },
     {
       "name": "Luther Burden",
@@ -703,7 +1392,20 @@
       "fp_pos_rank": null,
       "age": 22,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        4,
+        32,
+        52,
+        96
+      ]
     },
     {
       "name": "Ladd McConkey",
@@ -716,7 +1418,20 @@
       "fp_pos_rank": "WR19",
       "age": 24,
       "years_exp": 2,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        4,
+        16,
+        22,
+        29,
+        38,
+        41,
+        47,
+        52,
+        60,
+        72,
+        126
+      ]
     },
     {
       "name": "Emeka Egbuka",
@@ -729,7 +1444,20 @@
       "fp_pos_rank": "WR20",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        7,
+        17,
+        24,
+        35,
+        39,
+        44,
+        47,
+        54,
+        64,
+        76,
+        141
+      ]
     },
     {
       "name": "Jaylen Waddle",
@@ -742,7 +1470,20 @@
       "fp_pos_rank": "WR21",
       "age": 27,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        7,
+        17,
+        26,
+        36,
+        41,
+        44,
+        48,
+        53,
+        62,
+        70,
+        123
+      ]
     },
     {
       "name": "Carnell Tate",
@@ -755,7 +1496,20 @@
       "fp_pos_rank": "WR30",
       "age": 21,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        25,
+        39,
+        44,
+        50,
+        54,
+        60,
+        66,
+        73,
+        82,
+        96,
+        999
+      ]
     },
     {
       "name": "Terry McLaurin",
@@ -768,7 +1522,20 @@
       "fp_pos_rank": "WR22",
       "age": 30,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        11,
+        23,
+        29,
+        39,
+        41,
+        45,
+        51,
+        56,
+        65,
+        74,
+        110
+      ]
     },
     {
       "name": "Javonte Williams",
@@ -781,7 +1548,20 @@
       "fp_pos_rank": "RB17",
       "age": 26,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Tyler Warren",
@@ -794,7 +1574,20 @@
       "fp_pos_rank": "TE4",
       "age": 24,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        42,
+        50,
+        53,
+        55,
+        67,
+        68,
+        73,
+        77,
+        84,
+        93,
+        119
+      ]
     },
     {
       "name": "Jared Goff",
@@ -807,7 +1600,20 @@
       "fp_pos_rank": "QB16",
       "age": 31,
       "years_exp": 10,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        9,
+        25,
+        30,
+        35,
+        36,
+        43,
+        46,
+        51,
+        59,
+        66,
+        85
+      ]
     },
     {
       "name": "Patrick Mahomes",
@@ -820,7 +1626,20 @@
       "fp_pos_rank": null,
       "age": 30,
       "years_exp": 9,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        9,
+        22,
+        29,
+        35,
+        36,
+        42,
+        46,
+        52,
+        59,
+        67,
+        99
+      ]
     },
     {
       "name": "Kyler Murray",
@@ -833,7 +1652,20 @@
       "fp_pos_rank": "QB17",
       "age": 28,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        12,
+        24,
+        29,
+        35,
+        36,
+        43,
+        48,
+        53,
+        60,
+        67,
+        94
+      ]
     },
     {
       "name": "Harold Fannin",
@@ -846,7 +1678,20 @@
       "fp_pos_rank": null,
       "age": 21,
       "years_exp": 1,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Tucker Kraft",
@@ -859,7 +1704,20 @@
       "fp_pos_rank": "TE5",
       "age": 25,
       "years_exp": 3,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        66,
+        73,
+        130
+      ]
     },
     {
       "name": "Sam LaPorta",
@@ -872,7 +1730,20 @@
       "fp_pos_rank": "TE8",
       "age": 25,
       "years_exp": 3,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Jameson Williams",
@@ -885,7 +1756,20 @@
       "fp_pos_rank": "WR25",
       "age": 25,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Cam Skattebo",
@@ -898,7 +1782,20 @@
       "fp_pos_rank": "RB19",
       "age": 24,
       "years_exp": 1,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "D'Andre Swift",
@@ -911,7 +1808,20 @@
       "fp_pos_rank": "RB22",
       "age": 27,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        19,
+        34,
+        44,
+        48,
+        53,
+        59,
+        65,
+        70,
+        77,
+        85,
+        120
+      ]
     },
     {
       "name": "Quinshon Judkins",
@@ -924,7 +1834,20 @@
       "fp_pos_rank": "RB21",
       "age": 22,
       "years_exp": 1,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        12,
+        34,
+        39,
+        45,
+        51,
+        54,
+        63,
+        66,
+        72,
+        81,
+        109
+      ]
     },
     {
       "name": "Jordan Love",
@@ -937,7 +1860,20 @@
       "fp_pos_rank": "QB18",
       "age": 27,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        15,
+        28,
+        33,
+        37,
+        43,
+        48,
+        53,
+        59,
+        65,
+        69,
+        87
+      ]
     },
     {
       "name": "Matthew Stafford",
@@ -950,7 +1886,20 @@
       "fp_pos_rank": "QB15",
       "age": 38,
       "years_exp": 17,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        9,
+        19,
+        27,
+        31,
+        35,
+        38,
+        44,
+        48,
+        54,
+        65,
+        84
+      ]
     },
     {
       "name": "Bucky Irving",
@@ -963,7 +1912,20 @@
       "fp_pos_rank": "RB20",
       "age": 23,
       "years_exp": 2,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Mike Evans",
@@ -976,7 +1938,20 @@
       "fp_pos_rank": "WR26",
       "age": 32,
       "years_exp": 12,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        16,
+        35,
+        41,
+        45,
+        48,
+        54,
+        65,
+        72,
+        82,
+        92,
+        131
+      ]
     },
     {
       "name": "DJ Moore",
@@ -989,7 +1964,20 @@
       "fp_pos_rank": "WR28",
       "age": 29,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        16,
+        31,
+        41,
+        45,
+        50,
+        54,
+        60,
+        70,
+        76,
+        89,
+        137
+      ]
     },
     {
       "name": "Courtland Sutton",
@@ -1002,7 +1990,20 @@
       "fp_pos_rank": "WR34",
       "age": 30,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        28,
+        52,
+        59,
+        66,
+        70,
+        75,
+        78,
+        88,
+        95,
+        106,
+        999
+      ]
     },
     {
       "name": "Makai Lemon",
@@ -1015,7 +2016,20 @@
       "fp_pos_rank": "WR40",
       "age": 22,
       "years_exp": 0,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        41,
+        60,
+        72,
+        76,
+        82,
+        85,
+        92,
+        98,
+        106,
+        134,
+        999
+      ]
     },
     {
       "name": "Jakobi Meyers",
@@ -1028,7 +2042,20 @@
       "fp_pos_rank": "WR42",
       "age": 29,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        45,
+        60,
+        73,
+        77,
+        83,
+        92,
+        97,
+        102,
+        112,
+        130,
+        999
+      ]
     },
     {
       "name": "Quentin Johnston",
@@ -1041,7 +2068,20 @@
       "fp_pos_rank": "WR43",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        45,
+        68,
+        73,
+        78,
+        88,
+        93,
+        98,
+        103,
+        112,
+        136,
+        999
+      ]
     },
     {
       "name": "Rome Odunze",
@@ -1054,7 +2094,20 @@
       "fp_pos_rank": "WR29",
       "age": 24,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        25,
+        40,
+        44,
+        50,
+        54,
+        60,
+        67,
+        72,
+        81,
+        95,
+        999
+      ]
     },
     {
       "name": "Houston Texans",
@@ -1067,7 +2120,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        97,
+        97,
+        120,
+        120,
+        131,
+        131,
+        134,
+        143,
+        146,
+        153,
+        158
+      ]
     },
     {
       "name": "Seattle Seahawks",
@@ -1080,7 +2146,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        131,
+        134,
+        135,
+        143,
+        146,
+        146,
+        155,
+        155,
+        156,
+        157,
+        164
+      ]
     },
     {
       "name": "Brian Thomas",
@@ -1093,7 +2172,20 @@
       "fp_pos_rank": null,
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        27,
+        42,
+        51,
+        55,
+        60,
+        69,
+        73,
+        78,
+        87,
+        99,
+        999
+      ]
     },
     {
       "name": "Alec Pierce",
@@ -1106,7 +2198,20 @@
       "fp_pos_rank": "WR32",
       "age": 26,
       "years_exp": 4,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Denver Broncos",
@@ -1119,7 +2224,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        135,
+        146,
+        153,
+        155,
+        156,
+        157,
+        157,
+        159,
+        160,
+        161,
+        167
+      ]
     },
     {
       "name": "DK Metcalf",
@@ -1132,7 +2250,20 @@
       "fp_pos_rank": "WR33",
       "age": 28,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        25,
+        42,
+        52,
+        56,
+        60,
+        66,
+        73,
+        78,
+        87,
+        99,
+        199
+      ]
     },
     {
       "name": "Kyle Pitts",
@@ -1145,7 +2276,20 @@
       "fp_pos_rank": null,
       "age": 25,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        42,
+        55,
+        67,
+        68,
+        73,
+        78,
+        88,
+        93,
+        98,
+        108,
+        999
+      ]
     },
     {
       "name": "Baker Mayfield",
@@ -1158,7 +2302,20 @@
       "fp_pos_rank": "QB19",
       "age": 31,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        25,
+        33,
+        36,
+        45,
+        50,
+        56,
+        64,
+        67,
+        69,
+        78,
+        106
+      ]
     },
     {
       "name": "Brandon Aubrey",
@@ -1171,7 +2328,20 @@
       "fp_pos_rank": null,
       "age": 31,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        150,
+        157,
+        157,
+        157,
+        158,
+        158,
+        158,
+        158,
+        159,
+        161,
+        167
+      ]
     },
     {
       "name": "Philadelphia Eagles",
@@ -1184,7 +2354,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        143,
+        157,
+        159,
+        160,
+        161,
+        161,
+        161,
+        164,
+        165,
+        166,
+        189
+      ]
     },
     {
       "name": "Tyler Shough",
@@ -1197,7 +2380,20 @@
       "fp_pos_rank": "QB20",
       "age": 26,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        27,
+        35,
+        43,
+        49,
+        54,
+        59,
+        65,
+        68,
+        72,
+        84,
+        115
+      ]
     },
     {
       "name": "Malik Willis",
@@ -1210,7 +2406,20 @@
       "fp_pos_rank": "QB21",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        30,
+        39,
+        48,
+        53,
+        60,
+        65,
+        68,
+        70,
+        78,
+        89,
+        131
+      ]
     },
     {
       "name": "TreVeyon Henderson",
@@ -1223,7 +2432,20 @@
       "fp_pos_rank": "RB23",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        19,
+        39,
+        47,
+        51,
+        55,
+        63,
+        67,
+        72,
+        78,
+        86,
+        120
+      ]
     },
     {
       "name": "David Montgomery",
@@ -1236,7 +2458,20 @@
       "fp_pos_rank": "RB24",
       "age": 29,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        26,
+        41,
+        50,
+        62,
+        64,
+        68,
+        73,
+        77,
+        84,
+        95,
+        140
+      ]
     },
     {
       "name": "Ka'imi Fairbairn",
@@ -1249,7 +2484,20 @@
       "fp_pos_rank": null,
       "age": 32,
       "years_exp": 10,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        156,
+        158,
+        158,
+        159,
+        161,
+        161,
+        162,
+        164,
+        164,
+        165,
+        168
+      ]
     },
     {
       "name": "Baltimore Ravens",
@@ -1262,7 +2510,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        157,
+        161,
+        164,
+        165,
+        165,
+        166,
+        167,
+        167,
+        168,
+        189,
+        999
+      ]
     },
     {
       "name": "Marvin Harrison",
@@ -1275,7 +2536,20 @@
       "fp_pos_rank": null,
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        37,
+        52,
+        60,
+        67,
+        73,
+        78,
+        86,
+        93,
+        100,
+        113,
+        999
+      ]
     },
     {
       "name": "Jordyn Tyson",
@@ -1288,7 +2562,20 @@
       "fp_pos_rank": "WR36",
       "age": 21,
       "years_exp": 0,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        37,
+        53,
+        60,
+        67,
+        72,
+        75,
+        82,
+        89,
+        95,
+        109,
+        999
+      ]
     },
     {
       "name": "Travis Kelce",
@@ -1301,7 +2588,20 @@
       "fp_pos_rank": "TE9",
       "age": 36,
       "years_exp": 13,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        53,
+        66,
+        70,
+        75,
+        78,
+        87,
+        92,
+        96,
+        106,
+        113,
+        999
+      ]
     },
     {
       "name": "Jason Myers",
@@ -1314,7 +2614,20 @@
       "fp_pos_rank": null,
       "age": 35,
       "years_exp": 11,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        158,
+        161,
+        162,
+        164,
+        164,
+        165,
+        165,
+        166,
+        167,
+        168,
+        999
+      ]
     },
     {
       "name": "Los Angeles Rams",
@@ -1327,7 +2640,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        160,
+        165,
+        167,
+        167,
+        168,
+        186,
+        195,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Cam Little",
@@ -1340,7 +2666,20 @@
       "fp_pos_rank": null,
       "age": 22,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        159,
+        164,
+        165,
+        166,
+        167,
+        167,
+        168,
+        175,
+        189,
+        999,
+        999
+      ]
     },
     {
       "name": "New England Patriots",
@@ -1353,7 +2692,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        164,
+        168,
+        186,
+        188,
+        195,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Dalton Kincaid",
@@ -1366,7 +2718,20 @@
       "fp_pos_rank": "TE10",
       "age": 26,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        53,
+        68,
+        73,
+        84,
+        87,
+        93,
+        96,
+        101,
+        109,
+        138,
+        999
+      ]
     },
     {
       "name": "George Kittle",
@@ -1379,7 +2744,20 @@
       "fp_pos_rank": "TE11",
       "age": 32,
       "years_exp": 9,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        42,
+        68,
+        87,
+        120,
+        141,
+        168,
+        197,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Will Reichard",
@@ -1392,7 +2770,20 @@
       "fp_pos_rank": null,
       "age": 25,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        161,
+        166,
+        167,
+        168,
+        175,
+        187,
+        190,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Minnesota Vikings",
@@ -1405,7 +2796,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        165,
+        186,
+        188,
+        195,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Chris Boswell",
@@ -1418,7 +2822,20 @@
       "fp_pos_rank": null,
       "age": 35,
       "years_exp": 12,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        162,
+        173,
+        178,
+        184,
+        189,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Michael Wilson",
@@ -1431,7 +2848,20 @@
       "fp_pos_rank": "WR39",
       "age": 26,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Chris Godwin",
@@ -1444,7 +2874,20 @@
       "fp_pos_rank": null,
       "age": 30,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        38,
+        60,
+        67,
+        75,
+        82,
+        88,
+        93,
+        98,
+        108,
+        126,
+        999
+      ]
     },
     {
       "name": "Bhayshul Tuten",
@@ -1457,7 +2900,20 @@
       "fp_pos_rank": "RB25",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Chuba Hubbard",
@@ -1470,7 +2926,20 @@
       "fp_pos_rank": "RB28",
       "age": 27,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Jadarian Price",
@@ -1483,7 +2952,20 @@
       "fp_pos_rank": "RB26",
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        27,
+        45,
+        52,
+        63,
+        65,
+        69,
+        76,
+        83,
+        92,
+        106,
+        148
+      ]
     },
     {
       "name": "Cameron Dicker",
@@ -1496,7 +2978,20 @@
       "fp_pos_rank": null,
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        167,
+        175,
+        182,
+        187,
+        190,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Evan McPherson",
@@ -1509,7 +3004,20 @@
       "fp_pos_rank": null,
       "age": 26,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        175,
+        184,
+        187,
+        191,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Tyler Loop",
@@ -1522,7 +3030,20 @@
       "fp_pos_rank": null,
       "age": 24,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        175,
+        184,
+        187,
+        190,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jake Ferguson",
@@ -1535,7 +3056,20 @@
       "fp_pos_rank": "TE12",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Chase McLaughlin",
@@ -1548,7 +3082,20 @@
       "fp_pos_rank": null,
       "age": 30,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        175,
+        184,
+        189,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jake Bates",
@@ -1561,7 +3108,20 @@
       "fp_pos_rank": null,
       "age": 27,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        175,
+        184,
+        187,
+        192,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Kansas City Chiefs",
@@ -1574,7 +3134,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        188,
+        193,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jacksonville Jaguars",
@@ -1587,7 +3160,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        186,
+        189,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "C.J. Stroud",
@@ -1600,7 +3186,20 @@
       "fp_pos_rank": "QB22",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        40,
+        53,
+        59,
+        65,
+        67,
+        69,
+        73,
+        78,
+        85,
+        94,
+        134
+      ]
     },
     {
       "name": "Jaylen Warren",
@@ -1613,7 +3212,20 @@
       "fp_pos_rank": "RB27",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        30,
+        45,
+        54,
+        63,
+        65,
+        70,
+        75,
+        81,
+        88,
+        99,
+        146
+      ]
     },
     {
       "name": "Tony Pollard",
@@ -1626,7 +3238,20 @@
       "fp_pos_rank": "RB29",
       "age": 29,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        34,
+        59,
+        64,
+        70,
+        75,
+        81,
+        83,
+        88,
+        96,
+        105,
+        153
+      ]
     },
     {
       "name": "Rico Dowdle",
@@ -1639,7 +3264,20 @@
       "fp_pos_rank": "RB31",
       "age": 28,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Dallas Goedert",
@@ -1652,7 +3290,20 @@
       "fp_pos_rank": "TE14",
       "age": 31,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "J.K. Dobbins",
@@ -1665,7 +3316,20 @@
       "fp_pos_rank": "RB35",
       "age": 27,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        63,
+        76,
+        84,
+        89,
+        111,
+        123,
+        139,
+        141,
+        148,
+        153,
+        160
+      ]
     },
     {
       "name": "Wan'Dale Robinson",
@@ -1678,7 +3342,20 @@
       "fp_pos_rank": "WR44",
       "age": 25,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Brenton Strange",
@@ -1691,7 +3368,20 @@
       "fp_pos_rank": "TE18",
       "age": 25,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        66,
+        85,
+        106,
+        126,
+        148,
+        166,
+        197,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Isaiah Likely",
@@ -1704,7 +3394,20 @@
       "fp_pos_rank": "TE13",
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        53,
+        68,
+        87,
+        135,
+        152,
+        168,
+        199,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Matthew Golden",
@@ -1717,7 +3420,20 @@
       "fp_pos_rank": "WR55",
       "age": 22,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        82,
+        94,
+        96,
+        100,
+        103,
+        108,
+        112,
+        124,
+        137,
+        999,
+        999
+      ]
     },
     {
       "name": "Harrison Mevis",
@@ -1730,7 +3446,20 @@
       "fp_pos_rank": null,
       "age": 24,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        175,
+        184,
+        190,
+        192,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Green Bay Packers",
@@ -1743,7 +3472,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        186,
+        193,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Chicago Bears",
@@ -1756,7 +3498,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        186,
+        188,
+        195,
+        201,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Tyler Bass",
@@ -1769,7 +3524,20 @@
       "fp_pos_rank": null,
       "age": 29,
       "years_exp": 6,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        173,
+        180,
+        184,
+        190,
+        192,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Pittsburgh Steelers",
@@ -1782,7 +3550,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        186,
+        189,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Los Angeles Chargers",
@@ -1795,7 +3576,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        186,
+        193,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Cleveland Browns",
@@ -1808,7 +3602,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        186,
+        189,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Buffalo Bills",
@@ -1821,7 +3628,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        186,
+        193,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Oronde Gadsden",
@@ -1834,7 +3654,20 @@
       "fp_pos_rank": null,
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        55,
+        125,
+        166,
+        999
+      ]
     },
     {
       "name": "Mark Andrews",
@@ -1847,7 +3680,20 @@
       "fp_pos_rank": "TE15",
       "age": 30,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        53,
+        68,
+        87,
+        120,
+        141,
+        156,
+        178,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jordan Addison",
@@ -1860,7 +3706,20 @@
       "fp_pos_rank": "WR45",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        52,
+        69,
+        77,
+        82,
+        89,
+        94,
+        97,
+        106,
+        116,
+        141,
+        999
+      ]
     },
     {
       "name": "Josh Downs",
@@ -1873,7 +3732,20 @@
       "fp_pos_rank": "WR48",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        55,
+        77,
+        82,
+        90,
+        94,
+        99,
+        106,
+        113,
+        131,
+        162,
+        999
+      ]
     },
     {
       "name": "Juwan Johnson",
@@ -1886,7 +3758,20 @@
       "fp_pos_rank": "TE16",
       "age": 29,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Chig Okonkwo",
@@ -1899,7 +3784,20 @@
       "fp_pos_rank": "TE20",
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        66,
+        85,
+        115,
+        140,
+        149,
+        193,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Pat Freiermuth",
@@ -1912,7 +3810,20 @@
       "fp_pos_rank": "TE26",
       "age": 27,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        84,
+        119,
+        141,
+        148,
+        162,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Ricky Pearsall",
@@ -1925,7 +3836,20 @@
       "fp_pos_rank": "WR46",
       "age": 25,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        60,
+        88,
+        106,
+        999
+      ]
     },
     {
       "name": "Parker Washington",
@@ -1938,7 +3862,20 @@
       "fp_pos_rank": "WR38",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Indianapolis Colts",
@@ -1951,7 +3888,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        186,
+        193,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Detroit Lions",
@@ -1964,7 +3914,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        188,
+        195,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Xavier Worthy",
@@ -1977,7 +3940,20 @@
       "fp_pos_rank": "WR49",
       "age": 23,
       "years_exp": 2,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        64,
+        82,
+        88,
+        92,
+        95,
+        98,
+        108,
+        112,
+        130,
+        197,
+        999
+      ]
     },
     {
       "name": "Jayden Higgins",
@@ -1990,7 +3966,20 @@
       "fp_pos_rank": "WR50",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        64,
+        84,
+        90,
+        95,
+        99,
+        103,
+        108,
+        113,
+        124,
+        147,
+        999
+      ]
     },
     {
       "name": "Eddy Pineiro",
@@ -2003,7 +3992,20 @@
       "fp_pos_rank": null,
       "age": 30,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        180,
+        187,
+        190,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Atlanta Falcons",
@@ -2016,7 +4018,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        188,
+        195,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Michael Pittman",
@@ -2029,7 +4044,20 @@
       "fp_pos_rank": null,
       "age": 28,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        64,
+        83,
+        92,
+        95,
+        98,
+        103,
+        108,
+        113,
+        125,
+        186,
+        999
+      ]
     },
     {
       "name": "Khalil Shakir",
@@ -2042,7 +4070,20 @@
       "fp_pos_rank": "WR51",
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        65,
+        88,
+        93,
+        96,
+        100,
+        105,
+        110,
+        115,
+        126,
+        149,
+        999
+      ]
     },
     {
       "name": "Jalen Coker",
@@ -2055,7 +4096,20 @@
       "fp_pos_rank": "WR54",
       "age": 24,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Harrison Butker",
@@ -2068,7 +4122,20 @@
       "fp_pos_rank": null,
       "age": 30,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        175,
+        184,
+        190,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Wil Lutz",
@@ -2081,7 +4148,20 @@
       "fp_pos_rank": null,
       "age": 32,
       "years_exp": 10,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        175,
+        182,
+        187,
+        192,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Cairo Santos",
@@ -2094,7 +4174,20 @@
       "fp_pos_rank": null,
       "age": 34,
       "years_exp": 12,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        178,
+        184,
+        190,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "New York Giants",
@@ -2107,7 +4200,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        188,
+        195,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Romeo Doubs",
@@ -2120,7 +4226,20 @@
       "fp_pos_rank": "WR52",
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        78,
+        86,
+        93,
+        96,
+        100,
+        105,
+        110,
+        116,
+        126,
+        999,
+        999
+      ]
     },
     {
       "name": "KC Concepcion",
@@ -2133,7 +4252,20 @@
       "fp_pos_rank": "WR53",
       "age": 21,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        82,
+        88,
+        95,
+        98,
+        101,
+        105,
+        112,
+        119,
+        143,
+        999,
+        999
+      ]
     },
     {
       "name": "Blake Grupe",
@@ -2146,7 +4278,20 @@
       "fp_pos_rank": null,
       "age": 27,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        180,
+        184,
+        190,
+        192,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Tampa Bay Buccaneers",
@@ -2159,7 +4304,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        189,
+        195,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Carolina Panthers",
@@ -2172,7 +4330,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        181,
+        189,
+        196,
+        201,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "San Francisco 49ers",
@@ -2185,7 +4356,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        184,
+        195,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Dallas Cowboys",
@@ -2198,7 +4382,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        188,
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Cincinnati Bengals",
@@ -2211,7 +4408,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        193,
+        201,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Andy Borregales",
@@ -2224,7 +4434,20 @@
       "fp_pos_rank": null,
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        180,
+        184,
+        190,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Nick Folk",
@@ -2237,7 +4460,20 @@
       "fp_pos_rank": null,
       "age": 41,
       "years_exp": 19,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        173,
+        184,
+        187,
+        191,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Daniel Carlson",
@@ -2250,7 +4486,20 @@
       "fp_pos_rank": null,
       "age": 31,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        184,
+        189,
+        191,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Hunter Henry",
@@ -2263,7 +4512,20 @@
       "fp_pos_rank": "TE19",
       "age": 31,
       "years_exp": 10,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Rhamondre Stevenson",
@@ -2276,7 +4538,20 @@
       "fp_pos_rank": "RB30",
       "age": 28,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        52,
+        63,
+        70,
+        76,
+        82,
+        89,
+        95,
+        105,
+        116,
+        158
+      ]
     },
     {
       "name": "Zane Gonzalez",
@@ -2289,7 +4564,20 @@
       "fp_pos_rank": null,
       "age": 31,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        175,
+        187,
+        191,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Charlie Smyth",
@@ -2302,7 +4590,20 @@
       "fp_pos_rank": null,
       "age": 25,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        184,
+        190,
+        192,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Washington Commanders",
@@ -2315,7 +4616,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        198,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jason Sanders",
@@ -2328,7 +4642,20 @@
       "fp_pos_rank": null,
       "age": 30,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        187,
+        191,
+        192,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Ryan Fitzgerald",
@@ -2341,7 +4668,20 @@
       "fp_pos_rank": null,
       "age": 25,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        190,
+        192,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Omar Cooper",
@@ -2354,7 +4694,20 @@
       "fp_pos_rank": null,
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        82,
+        96,
+        99,
+        103,
+        108,
+        112,
+        115,
+        125,
+        138,
+        999,
+        999
+      ]
     },
     {
       "name": "Rashid Shaheed",
@@ -2367,7 +4720,20 @@
       "fp_pos_rank": "WR56",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        82,
+        97,
+        99,
+        102,
+        108,
+        110,
+        115,
+        126,
+        138,
+        999,
+        999
+      ]
     },
     {
       "name": "Jake Moody",
@@ -2380,7 +4746,20 @@
       "fp_pos_rank": null,
       "age": 26,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        192,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Dalton Schultz",
@@ -2393,7 +4772,20 @@
       "fp_pos_rank": "TE21",
       "age": 29,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        84,
+        97,
+        139,
+        152,
+        199,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Kenyon Sadiq",
@@ -2406,7 +4798,20 @@
       "fp_pos_rank": "TE22",
       "age": 21,
       "years_exp": 0,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        77,
+        87,
+        135,
+        146,
+        159,
+        199,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jake Elliott",
@@ -2445,7 +4850,20 @@
       "fp_pos_rank": "RB32",
       "age": 25,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        52,
+        63,
+        76,
+        83,
+        86,
+        106,
+        123,
+        139,
+        146,
+        150,
+        162
+      ]
     },
     {
       "name": "Kyle Monangai",
@@ -2458,7 +4876,20 @@
       "fp_pos_rank": "RB33",
       "age": 24,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        63,
+        69,
+        84,
+        94,
+        118,
+        136,
+        146,
+        150,
+        158
+      ]
     },
     {
       "name": "Chad Ryland",
@@ -2497,7 +4928,20 @@
       "fp_pos_rank": "QB23",
       "age": 24,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        68,
+        70,
+        74,
+        76,
+        78,
+        84,
+        86,
+        89,
+        94,
+        103,
+        147
+      ]
     },
     {
       "name": "Daniel Jones",
@@ -2510,7 +4954,20 @@
       "fp_pos_rank": "QB25",
       "age": 29,
       "years_exp": 7,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        75,
+        77,
+        82,
+        84,
+        85,
+        88,
+        92,
+        94,
+        100,
+        109,
+        153
+      ]
     },
     {
       "name": "Miami Dolphins",
@@ -2575,7 +5032,20 @@
       "fp_pos_rank": "TE23",
       "age": 29,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        84,
+        87,
+        125,
+        148,
+        162,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "AJ Barner",
@@ -2588,7 +5058,20 @@
       "fp_pos_rank": "TE24",
       "age": 24,
       "years_exp": 2,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Jauan Jennings",
@@ -2601,7 +5084,20 @@
       "fp_pos_rank": "WR59",
       "age": 28,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Jalen McMillan",
@@ -2614,7 +5110,20 @@
       "fp_pos_rank": "WR61",
       "age": 24,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        96,
+        99,
+        103,
+        108,
+        110,
+        113,
+        119,
+        126,
+        138,
+        999,
+        999
+      ]
     },
     {
       "name": "Las Vegas Raiders",
@@ -2640,7 +5149,20 @@
       "fp_pos_rank": "RB34",
       "age": 25,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "name": "Aaron Jones",
@@ -2653,7 +5175,20 @@
       "fp_pos_rank": null,
       "age": 31,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        59,
+        64,
+        77,
+        85,
+        98,
+        120,
+        135,
+        140,
+        148,
+        152,
+        160
+      ]
     },
     {
       "name": "Sam Darnold",
@@ -2666,7 +5201,20 @@
       "fp_pos_rank": "QB24",
       "age": 29,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        77,
+        90,
+        136
+      ]
     },
     {
       "name": "New York Jets",
@@ -2692,7 +5240,20 @@
       "fp_pos_rank": "WR60",
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        95,
+        99,
+        103,
+        108,
+        112,
+        116,
+        124,
+        131,
+        159,
+        999,
+        999
+      ]
     },
     {
       "name": "Jerry Jeudy",
@@ -2705,7 +5266,20 @@
       "fp_pos_rank": "WR58",
       "age": 27,
       "years_exp": 6,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        82,
+        97,
+        100,
+        103,
+        108,
+        112,
+        116,
+        130,
+        147,
+        999,
+        999
+      ]
     },
     {
       "name": "Tre Tucker",
@@ -2718,7 +5292,20 @@
       "fp_pos_rank": "WR65",
       "age": 25,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        105,
+        111,
+        113,
+        119,
+        125,
+        131,
+        137,
+        149,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Bryce Young",
@@ -2731,7 +5318,20 @@
       "fp_pos_rank": "QB26",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        77,
+        83,
+        84,
+        86,
+        88,
+        90,
+        93,
+        95,
+        103,
+        109,
+        150
+      ]
     },
     {
       "name": "Matt Gay",
@@ -2757,7 +5357,20 @@
       "fp_pos_rank": "TE27",
       "age": 29,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        106,
+        143,
+        149,
+        166,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Mason Taylor",
@@ -2770,7 +5383,20 @@
       "fp_pos_rank": "TE35",
       "age": 22,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        149,
+        167,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jake Tonges",
@@ -2783,7 +5409,20 @@
       "fp_pos_rank": "TE38",
       "age": 27,
       "years_exp": 4,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        160,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Noah Gray",
@@ -2822,7 +5461,20 @@
       "fp_pos_rank": "QB27",
       "age": 33,
       "years_exp": 10,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        86,
+        89,
+        90,
+        93,
+        93,
+        94,
+        99,
+        101,
+        106,
+        111,
+        156
+      ]
     },
     {
       "name": "Adonai Mitchell",
@@ -2835,7 +5487,20 @@
       "fp_pos_rank": "WR62",
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        97,
+        101,
+        103,
+        109,
+        111,
+        116,
+        126,
+        135,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Tez Johnson",
@@ -2861,7 +5526,20 @@
       "fp_pos_rank": null,
       "age": 26,
       "years_exp": 3,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        0,
+        0,
+        77,
+        94,
+        110,
+        123,
+        136,
+        140,
+        148,
+        152,
+        167
+      ]
     },
     {
       "name": "Deebo Samuel",
@@ -2874,7 +5552,20 @@
       "fp_pos_rank": null,
       "age": 30,
       "years_exp": 7,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        97,
+        105,
+        110,
+        113,
+        116,
+        126,
+        135,
+        147,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Travis Hunter",
@@ -2887,7 +5578,20 @@
       "fp_pos_rank": "WR63",
       "age": 23,
       "years_exp": 1,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        97,
+        109,
+        110,
+        115,
+        124,
+        130,
+        137,
+        147,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Trey Smack",
@@ -2913,7 +5617,20 @@
       "fp_pos_rank": "WR64",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        99,
+        110,
+        112,
+        115,
+        123,
+        128,
+        135,
+        147,
+        166,
+        999,
+        999
+      ]
     },
     {
       "name": "Troy Franklin",
@@ -2926,7 +5643,20 @@
       "fp_pos_rank": "WR67",
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        108,
+        113,
+        116,
+        124,
+        130,
+        135,
+        147,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Malachi Fields",
@@ -2952,7 +5682,20 @@
       "fp_pos_rank": "TE29",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        106,
+        147,
+        152,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Gunnar Helm",
@@ -2965,7 +5708,20 @@
       "fp_pos_rank": "TE25",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        77,
+        87,
+        140,
+        149,
+        162,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jacory Croskey-Merritt",
@@ -2978,7 +5734,20 @@
       "fp_pos_rank": "RB39",
       "age": 25,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        82,
+        87,
+        97,
+        112,
+        120,
+        126,
+        140,
+        147,
+        150,
+        153,
+        158
+      ]
     },
     {
       "name": "Rachaad White",
@@ -2991,7 +5760,20 @@
       "fp_pos_rank": "RB38",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        81,
+        86,
+        94,
+        111,
+        123,
+        136,
+        140,
+        146,
+        150,
+        153,
+        167
+      ]
     },
     {
       "name": "Kenneth Gainwell",
@@ -3004,7 +5786,20 @@
       "fp_pos_rank": null,
       "age": null,
       "years_exp": null,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        85,
+        89,
+        106,
+        119,
+        125,
+        136,
+        140,
+        147,
+        150,
+        153,
+        158
+      ]
     },
     {
       "name": "Jordan Mason",
@@ -3017,7 +5812,20 @@
       "fp_pos_rank": "RB40",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        85,
+        97,
+        111,
+        120,
+        125,
+        139,
+        141,
+        148,
+        150,
+        153,
+        160
+      ]
     },
     {
       "name": "Tre' Harris",
@@ -3030,7 +5838,20 @@
       "fp_pos_rank": "WR68",
       "age": 24,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        109,
+        113,
+        118,
+        124,
+        130,
+        135,
+        139,
+        149,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Isaac TeSlaa",
@@ -3043,7 +5864,20 @@
       "fp_pos_rank": "WR69",
       "age": 24,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        110,
+        115,
+        119,
+        126,
+        131,
+        137,
+        147,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jaylin Noel",
@@ -3056,7 +5890,20 @@
       "fp_pos_rank": "WR72",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        115,
+        123,
+        125,
+        130,
+        135,
+        138,
+        155,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Calvin Ridley",
@@ -3069,7 +5916,20 @@
       "fp_pos_rank": "WR70",
       "age": 31,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        110,
+        115,
+        119,
+        125,
+        130,
+        136,
+        149,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Devaughn Vele",
@@ -3108,7 +5968,20 @@
       "fp_pos_rank": "WR71",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        112,
+        124,
+        125,
+        131,
+        136,
+        138,
+        158,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Dontayvion Wicks",
@@ -3121,7 +5994,20 @@
       "fp_pos_rank": "WR81",
       "age": 25,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        135,
+        147,
+        156,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Darnell Mooney",
@@ -3134,7 +6020,20 @@
       "fp_pos_rank": "WR73",
       "age": 28,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        115,
+        126,
+        131,
+        136,
+        139,
+        159,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Kyle Williams",
@@ -3186,7 +6085,20 @@
       "fp_pos_rank": "TE30",
       "age": 27,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        140,
+        152,
+        162,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Evan Engram",
@@ -3199,7 +6111,20 @@
       "fp_pos_rank": "TE32",
       "age": 31,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        148,
+        166,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Stefon Diggs",
@@ -3212,7 +6137,20 @@
       "fp_pos_rank": "WR74",
       "age": 32,
       "years_exp": 11,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        118,
+        126,
+        131,
+        135,
+        138,
+        155,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jayden Reed",
@@ -3225,7 +6163,20 @@
       "fp_pos_rank": "WR47",
       "age": 26,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        54,
+        74,
+        81,
+        86,
+        92,
+        96,
+        99,
+        108,
+        113,
+        147,
+        999
+      ]
     },
     {
       "name": "Ted Hurst",
@@ -3238,7 +6189,20 @@
       "fp_pos_rank": null,
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        120,
+        131,
+        135,
+        137,
+        147,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Eli Stowers",
@@ -3251,7 +6215,20 @@
       "fp_pos_rank": "TE31",
       "age": 23,
       "years_exp": 0,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        120,
+        152,
+        162,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Terrance Ferguson",
@@ -3264,7 +6241,20 @@
       "fp_pos_rank": "TE28",
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        0,
+        0,
+        135,
+        148,
+        166,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Theo Johnson",
@@ -3277,7 +6267,20 @@
       "fp_pos_rank": "TE34",
       "age": 25,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        146,
+        162,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Mike Gesicki",
@@ -3290,7 +6293,20 @@
       "fp_pos_rank": "TE37",
       "age": 30,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        159,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "De'Zhaun Stribling",
@@ -3303,7 +6319,20 @@
       "fp_pos_rank": "WR75",
       "age": 23,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        123,
+        134,
+        137,
+        141,
+        155,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Tyrone Tracy",
@@ -3316,7 +6345,20 @@
       "fp_pos_rank": null,
       "age": 26,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        106,
+        119,
+        123,
+        136,
+        139,
+        140,
+        146,
+        148,
+        150,
+        153,
+        161
+      ]
     },
     {
       "name": "Brandon McManus",
@@ -3342,7 +6384,20 @@
       "fp_pos_rank": "WR82",
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        134,
+        147,
+        156,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Jalen Nailor",
@@ -3355,7 +6410,20 @@
       "fp_pos_rank": "WR77",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        126,
+        137,
+        141,
+        159,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Rashod Bateman",
@@ -3368,7 +6436,20 @@
       "fp_pos_rank": "WR83",
       "age": 26,
       "years_exp": 5,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        137,
+        149,
+        162,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Tyquan Thornton",
@@ -3394,7 +6475,20 @@
       "fp_pos_rank": "RB43",
       "age": 25,
       "years_exp": 3,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        111,
+        119,
+        123,
+        136,
+        139,
+        141,
+        146,
+        148,
+        150,
+        153,
+        160
+      ]
     },
     {
       "name": "Isiah Pacheco",
@@ -3407,7 +6501,20 @@
       "fp_pos_rank": "RB47",
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        181,
+        183,
+        183,
+        185,
+        185,
+        185,
+        185,
+        191,
+        191,
+        193,
+        194
+      ]
     },
     {
       "name": "Tank Dell",
@@ -3420,7 +6527,20 @@
       "fp_pos_rank": "WR84",
       "age": 26,
       "years_exp": 3,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        138,
+        155,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Brandon Aiyuk",
@@ -3433,7 +6553,20 @@
       "fp_pos_rank": "WR85",
       "age": 28,
       "years_exp": 6,
-      "injury": "DNR"
+      "injury": "DNR",
+      "svq": [
+        147,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Cooper Kupp",
@@ -3446,7 +6579,20 @@
       "fp_pos_rank": "WR86",
       "age": 33,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        149,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Antonio Williams",
@@ -3472,7 +6618,20 @@
       "fp_pos_rank": "WR79",
       "age": 24,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        131,
+        138,
+        141,
+        155,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Zachariah Branch",
@@ -3498,7 +6657,20 @@
       "fp_pos_rank": "WR76",
       "age": 25,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        124,
+        135,
+        138,
+        147,
+        162,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Keon Coleman",
@@ -3602,7 +6774,20 @@
       "fp_pos_rank": "TE33",
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        143,
+        156,
+        166,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Chris Brazzell",
@@ -3654,7 +6839,20 @@
       "fp_pos_rank": "WR66",
       "age": 26,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        105,
+        111,
+        115,
+        119,
+        130,
+        135,
+        143,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Elijah Arroyo",
@@ -3680,7 +6878,20 @@
       "fp_pos_rank": "RB44",
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        125,
+        136,
+        139,
+        140,
+        143,
+        146,
+        148,
+        150,
+        152,
+        153,
+        160
+      ]
     },
     {
       "name": "Tyjae Spears",
@@ -3693,7 +6904,20 @@
       "fp_pos_rank": "RB48",
       "age": 25,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        182,
+        185,
+        186,
+        191,
+        191,
+        193,
+        194,
+        194,
+        194,
+        194,
+        196
+      ]
     },
     {
       "name": "Ben Sauls",
@@ -3758,7 +6982,20 @@
       "fp_pos_rank": "TE36",
       "age": 26,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        152,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Michael Mayer",
@@ -3784,7 +7021,20 @@
       "fp_pos_rank": "QB29",
       "age": 35,
       "years_exp": 13,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        180,
+        182,
+        182,
+        183,
+        183,
+        183,
+        183,
+        185,
+        185,
+        185,
+        197
+      ]
     },
     {
       "name": "Darius Slayton",
@@ -3808,7 +7058,7 @@
       "vbd": -77.1,
       "fp_rank": 322,
       "fp_pos_rank": "TE49",
-      "age": 22,
+      "age": 21,
       "years_exp": 0,
       "injury": ""
     },
@@ -4031,7 +7281,20 @@
       "fp_pos_rank": "RB46",
       "age": 25,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        178,
+        181,
+        181,
+        181,
+        182,
+        182,
+        182,
+        183,
+        183,
+        183,
+        185
+      ]
     },
     {
       "name": "Ja'Kobi Lane",
@@ -4265,7 +7528,20 @@
       "fp_pos_rank": "QB30",
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        191,
+        199,
+        199,
+        201,
+        202,
+        204,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Aaron Rodgers",
@@ -4278,7 +7554,20 @@
       "fp_pos_rank": "QB28",
       "age": 42,
       "years_exp": 21,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        95,
+        99,
+        100,
+        100,
+        103,
+        106,
+        108,
+        111,
+        113,
+        134,
+        158
+      ]
     },
     {
       "name": "Darren Waller",
@@ -4304,7 +7593,20 @@
       "fp_pos_rank": null,
       "age": 27,
       "years_exp": 4,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        183,
+        193,
+        194,
+        194,
+        194,
+        194,
+        196,
+        196,
+        196,
+        196,
+        199
+      ]
     },
     {
       "name": "Dylan Sampson",
@@ -4317,7 +7619,20 @@
       "fp_pos_rank": "RB49",
       "age": 21,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        191,
+        194,
+        196,
+        196,
+        196,
+        197,
+        197,
+        197,
+        197,
+        199,
+        200
+      ]
     },
     {
       "name": "Jonathon Brooks",
@@ -4330,7 +7645,20 @@
       "fp_pos_rank": "RB45",
       "age": 22,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        158,
+        168,
+        178,
+        178,
+        178,
+        178,
+        178,
+        181,
+        181,
+        182,
+        183
+      ]
     },
     {
       "name": "Tahj Brooks",
@@ -4551,7 +7879,20 @@
       "fp_pos_rank": "RB52",
       "age": 30,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        196,
+        199,
+        200,
+        200,
+        200,
+        200,
+        201,
+        201,
+        201,
+        202,
+        203
+      ]
     },
     {
       "name": "Justice Hill",
@@ -4577,7 +7918,20 @@
       "fp_pos_rank": null,
       "age": 23,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        200,
+        200,
+        201,
+        202,
+        202,
+        202,
+        202,
+        202,
+        203,
+        203,
+        204
+      ]
     },
     {
       "name": "Tank Bigsby",
@@ -4590,7 +7944,20 @@
       "fp_pos_rank": "RB53",
       "age": 23,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        201,
+        202,
+        202,
+        203,
+        203,
+        203,
+        203,
+        204,
+        204,
+        204,
+        999
+      ]
     },
     {
       "name": "Konata Mumpfield",
@@ -4616,7 +7983,20 @@
       "fp_pos_rank": "RB54",
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        202,
+        203,
+        204,
+        204,
+        204,
+        204,
+        204,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Keaton Mitchell",
@@ -4629,7 +8009,20 @@
       "fp_pos_rank": "RB50",
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        194,
+        197,
+        197,
+        197,
+        199,
+        199,
+        199,
+        200,
+        200,
+        200,
+        202
+      ]
     },
     {
       "name": "Olamide Zaccheaus",
@@ -4655,7 +8048,20 @@
       "fp_pos_rank": "RB56",
       "age": 27,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        204,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Kimani Vidal",
@@ -4837,7 +8243,20 @@
       "fp_pos_rank": "RB55",
       "age": 22,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        203,
+        204,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Ray Davis",
@@ -5706,7 +9125,7 @@
       "vbd": -119.1,
       "fp_rank": 439,
       "fp_pos_rank": "TE80",
-      "age": 27,
+      "age": 26,
       "years_exp": 3,
       "injury": ""
     },
@@ -5771,7 +9190,7 @@
       "vbd": -119.3,
       "fp_rank": 461,
       "fp_pos_rank": "TE87",
-      "age": 26,
+      "age": 25,
       "years_exp": 3,
       "injury": "IR"
     },
@@ -6421,7 +9840,7 @@
       "vbd": -132.5,
       "fp_rank": 271,
       "fp_pos_rank": "RB92",
-      "age": 22,
+      "age": 21,
       "years_exp": 1,
       "injury": ""
     },
@@ -6878,7 +10297,20 @@
       "fp_pos_rank": "QB32",
       "age": 28,
       "years_exp": 6,
-      "injury": ""
+      "injury": "",
+      "svq": [
+        200,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Michael Penix",
@@ -6891,7 +10323,20 @@
       "fp_pos_rank": null,
       "age": 26,
       "years_exp": 2,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "svq": [
+        203,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999,
+        999
+      ]
     },
     {
       "name": "Austin Ekeler",
