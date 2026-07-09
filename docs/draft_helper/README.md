@@ -4,7 +4,7 @@ Single-page draft assistant. Open `index.html` in any browser — works offline.
 
 ## Live URL (after GitHub Pages enable)
 
-`https://blackjakk.github.io/datasciencecoursera/draft_helper/`
+`https://blackjakk.github.io/MONEYLEAGUE/draft_helper/`
 
 ## Features
 

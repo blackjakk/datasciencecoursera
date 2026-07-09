@@ -6,7 +6,7 @@ name: Weekly MONEYLEAGUE refresh
 #
 # PDFs are NOT committed (they'd add ~11MB of binary history weekly);
 # they're uploaded to the rolling "latest-artifacts" release instead:
-#   https://github.com/blackjakk/datasciencecoursera/releases/tag/latest-artifacts
+#   https://github.com/blackjakk/MONEYLEAGUE/releases/tag/latest-artifacts
 #
 # Run manually anytime from the Actions tab (workflow_dispatch).
 
