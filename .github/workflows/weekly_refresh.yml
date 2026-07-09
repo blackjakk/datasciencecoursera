@@ -2,12 +2,10 @@ name: Weekly MONEYLEAGUE refresh
 
 # Refreshes projections/ADP/keepers, re-runs the mock sim, re-renders the
 # PDFs and draft helper, verifies invariants, and pushes — every Tuesday
-# morning through draft season.
+# morning through draft season. The project lives on master; the helper is
+# additionally synced to the Pages branch that serves it.
 #
-# NOTE: GitHub only fires `schedule` triggers from the DEFAULT branch, so
-# the weekly cadence activates once this file lands on master. Until then
-# (and any time in between) it can be run manually from the Actions tab
-# via workflow_dispatch.
+# Run manually anytime from the Actions tab (workflow_dispatch).
 
 on:
   schedule:
@@ -26,8 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: claude/trusting-hamilton-3MNt9
 
       - uses: actions/setup-python@v5
         with:
@@ -52,14 +48,14 @@ jobs:
             exit 0
           fi
           git commit -m "Weekly refresh: $(date -u +%Y-%m-%d)"
-          git push origin claude/trusting-hamilton-3MNt9
+          git push origin master
 
       - name: Sync draft helper to the Pages branch
         run: |
           git fetch origin claude/football-sim-blockchain-game-b3sdq
           git checkout claude/football-sim-blockchain-game-b3sdq
           for f in index.html data.json standalone.html; do
-            git show claude/trusting-hamilton-3MNt9:docs/draft_helper/$f > draft_helper/$f
+            git show master:docs/draft_helper/$f > draft_helper/$f
           done
           git add draft_helper/
           if git diff --cached --quiet; then
