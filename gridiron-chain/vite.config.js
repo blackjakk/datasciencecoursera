@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import { resolve } from "path";
 
 export default defineConfig(({ command }) => ({
-  base: command === "build" ? "/datasciencecoursera/" : "/",
+  base: command === "build" ? "/MONEYLEAGUE/" : "/",
   plugins: [react()],
   define: {
     global: "globalThis",
