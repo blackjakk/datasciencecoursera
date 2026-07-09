@@ -1,0 +1,173 @@
+"""Fetch season-long fantasy projections from Sleeper.
+
+Sleeper exposes projections at api.sleeper.com (not api.sleeper.app — different
+host). The payload includes per-player stat projections and pre-computed
+fantasy points under three scoring systems (`pts_std`, `pts_ppr`, `pts_half_ppr`),
+which makes plugging into any league trivial.
+
+No auth needed. Cache to disk; refresh weekly is plenty for draft prep.
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+import time
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+from .players import Player
+
+
+SLEEPER_PROJ_BASE = "https://api.sleeper.com/projections/nfl"
+
+# Sleeper position list to request.
+DEFAULT_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"]
+
+# Scoring -> field name in Sleeper's stats payload.
+SCORING_FIELDS = {
+    "standard": "pts_std",
+    "ppr": "pts_ppr",
+    "half_ppr": "pts_half_ppr",
+    # Sleeper doesn't expose a separate "superflex" points field — the
+    # scoring is the same as half-PPR, just a different ADP. We re-use
+    # pts_half_ppr and pick adp_2qb instead.
+    "superflex": "pts_half_ppr",
+    "2qb": "pts_half_ppr",
+}
+
+
+def fetch_sleeper_projections(
+    season: int,
+    positions: list[str] | None = None,
+    cache_path: str | Path | None = "data/sleeper_projections.json",
+    ttl_days: int = 7,
+) -> list[dict]:
+    """Fetch season-long projections; cached to disk for ttl_days."""
+    positions = positions or DEFAULT_POSITIONS
+    cache = Path(cache_path) if cache_path else None
+    if cache and cache.exists() and (time.time() - cache.stat().st_mtime) < ttl_days * 86400:
+        with open(cache, encoding="utf-8") as f:
+            return json.load(f)
+
+    params = [("season_type", "regular"), ("order_by", "adp_half_ppr")]
+    for pos in positions:
+        params.append(("position[]", pos))
+    url = f"{SLEEPER_PROJ_BASE}/{season}?{urllib.parse.urlencode(params)}"
+
+    # Sleeper rejects requests without a browser-ish User-Agent (403).
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = json.loads(resp.read())
+
+    if cache:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    return data
+
+
+def projections_to_players(
+    raw: list[dict],
+    scoring: str = "half_ppr",
+) -> list[Player]:
+    """Convert a Sleeper projections payload into Player objects.
+
+    The Sleeper payload nests player metadata inside each entry's `player`
+    field, and projections in `stats`. ADP from the half-PPR ordering is
+    also included where Sleeper has computed it.
+    """
+    if scoring not in SCORING_FIELDS:
+        raise ValueError(f"scoring must be one of {list(SCORING_FIELDS)}")
+    points_field = SCORING_FIELDS[scoring]
+    # For superflex/2QB leagues, prefer adp_2qb over the single-QB ADP.
+    # Half-PPR ADP undersells top QBs by 3-6 rounds (e.g. Jalen Hurts ADP
+    # ~68 single-QB vs ~12 in 2QB) — the recommender needs the right anchor.
+    adp_field = {
+        "standard": "adp_std",
+        "ppr": "adp_ppr",
+        "half_ppr": "adp_half_ppr",
+        "superflex": "adp_2qb",
+        "2qb": "adp_2qb",
+    }[scoring]
+
+    out: list[Player] = []
+    for i, row in enumerate(raw, start=1):
+        meta = row.get("player") or {}
+        stats = row.get("stats") or {}
+        name = (meta.get("full_name")
+                or f"{meta.get('first_name', '').strip()} {meta.get('last_name', '').strip()}".strip())
+        if not name:
+            continue
+        position = (meta.get("position") or "").upper()
+        team = (meta.get("team") or "").upper()
+        # ADP - Sleeper often puts ADP in `stats` rather than top-level.
+        adp = stats.get(adp_field) or row.get(adp_field) or 999.0
+        try:
+            adp = float(adp)
+        except (TypeError, ValueError):
+            adp = 999.0
+        projection = float(stats.get(points_field) or 0.0)
+        out.append(Player(
+            name=name,
+            position=position,
+            team=team,
+            adp=adp,
+            projection=projection,
+            bye=int(meta.get("bye_week") or 0),
+            rank_overall=i,
+        ))
+
+    # Sleeper returns several different NFL players who share a name (e.g.
+    # three "Josh Johnson"s). Downstream code (apply_keepers, draft.available,
+    # the simulator's Counter) keys on name; duplicates cause wrong-player
+    # matches and inflate availability probabilities above 100%. Dedupe by
+    # name, keeping the highest-projection version (the "real" player rather
+    # than a UDFA namesake) and disambiguating any remaining ties with team.
+    out.sort(key=lambda p: -p.projection)
+    seen: dict[str, Player] = {}
+    deduped: list[Player] = []
+    for p in out:
+        if p.name in seen:
+            # Promote remaining same-name players to "Name (TEAM)" so they
+            # remain in the pool but no longer collide.
+            other = seen[p.name]
+            uniq = f"{p.name} ({p.team or p.position})"
+            p = Player(name=uniq, position=p.position, team=p.team, adp=p.adp,
+                       projection=p.projection, bye=p.bye, tier=p.tier,
+                       rank_overall=p.rank_overall, rank_position=p.rank_position)
+            seen[uniq] = p
+        else:
+            seen[p.name] = p
+        deduped.append(p)
+    # Restore ADP order so rank_overall stays meaningful.
+    deduped.sort(key=lambda p: p.adp)
+    for i, p in enumerate(deduped, start=1):
+        p.rank_overall = i
+    return deduped
+
+
+def write_players_csv(players: list[Player], path: str | Path) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "name", "position", "team", "adp", "projection",
+            "bye", "tier", "rank_overall", "rank_position",
+        ])
+        for p in players:
+            writer.writerow([
+                p.name, p.position, p.team, p.adp, p.projection,
+                p.bye, p.tier, p.rank_overall, p.rank_position,
+            ])
+
+
+def load_projections_from_cache(
+    cache_path: str | Path = "data/sleeper_projections.json",
+    scoring: str = "half_ppr",
+) -> list[Player]:
+    with open(cache_path, encoding="utf-8") as f:
+        raw = json.load(f)
+    return projections_to_players(raw, scoring=scoring)

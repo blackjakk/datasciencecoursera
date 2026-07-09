@@ -1,0 +1,201 @@
+name,position,team,adp,projection,bye,tier,rank_overall,rank_position
+Christian McCaffrey,RB,SF,1.5,330,9,1,1,1
+CeeDee Lamb,WR,DAL,2.5,310,7,1,2,1
+Tyreek Hill,WR,MIA,3.0,305,6,1,3,2
+Ja'Marr Chase,WR,CIN,3.5,300,12,1,4,3
+Breece Hall,RB,NYJ,4.5,290,12,1,5,2
+Bijan Robinson,RB,ATL,5.5,285,12,1,6,3
+Justin Jefferson,WR,MIN,6.0,295,6,1,7,4
+Amon-Ra St. Brown,WR,DET,7.0,285,5,1,8,5
+Jonathan Taylor,RB,IND,8.5,265,14,2,9,4
+Jahmyr Gibbs,RB,DET,9.0,260,5,2,10,5
+A.J. Brown,WR,PHI,10.5,275,5,2,11,6
+Garrett Wilson,WR,NYJ,12.0,270,12,2,12,7
+Puka Nacua,WR,LAR,12.5,265,6,2,13,8
+Saquon Barkley,RB,PHI,13.5,255,5,2,14,6
+Drake London,WR,ATL,15.0,255,12,2,15,9
+Marvin Harrison Jr.,WR,ARI,16.0,245,11,2,16,10
+Derrick Henry,RB,BAL,17.0,245,14,2,17,7
+De'Von Achane,RB,MIA,18.0,235,6,3,18,8
+Chris Olave,WR,NO,19.0,240,12,3,19,11
+Davante Adams,WR,LV,20.0,235,10,3,20,12
+Nico Collins,WR,HOU,21.5,235,14,3,21,13
+Brandon Aiyuk,WR,SF,22.0,230,9,3,22,14
+Travis Etienne,RB,JAX,23.5,225,12,3,23,9
+Kyren Williams,RB,LAR,24.0,225,6,3,24,10
+Mike Evans,WR,TB,25.0,225,11,3,25,15
+Cooper Kupp,WR,LAR,26.0,225,6,3,26,16
+Stefon Diggs,WR,HOU,27.5,220,14,3,27,17
+Isiah Pacheco,RB,KC,28.0,220,6,3,28,11
+Patrick Mahomes,QB,KC,29.0,360,6,1,29,1
+Josh Allen,QB,BUF,30.0,355,12,1,30,2
+Jalen Hurts,QB,PHI,30.5,360,5,1,31,3
+Sam LaPorta,TE,DET,32.0,205,5,1,32,1
+Travis Kelce,TE,KC,33.0,200,6,1,33,2
+James Cook,RB,BUF,34.0,210,12,4,34,12
+Tee Higgins,WR,CIN,35.0,210,12,4,35,18
+Deebo Samuel,WR,SF,36.0,205,9,4,36,19
+DJ Moore,WR,CHI,37.5,205,7,4,37,20
+DK Metcalf,WR,SEA,38.0,200,10,4,38,21
+Lamar Jackson,QB,BAL,39.0,355,14,1,39,4
+Anthony Richardson,QB,IND,40.0,335,14,2,40,5
+Josh Jacobs,RB,GB,41.0,210,10,4,41,13
+Joe Mixon,RB,HOU,42.0,205,14,4,42,14
+Rachaad White,RB,TB,43.0,200,11,4,43,15
+Aaron Jones,RB,MIN,44.0,200,6,4,44,16
+James Conner,RB,ARI,45.0,195,11,5,45,17
+Mark Andrews,TE,BAL,46.0,180,14,2,46,3
+Trey McBride,TE,ARI,47.0,180,11,2,47,4
+George Kittle,TE,SF,48.0,175,9,2,48,5
+Kyler Murray,QB,ARI,49.0,335,11,2,49,6
+Joe Burrow,QB,CIN,50.0,330,12,2,50,7
+Jordan Love,QB,GB,51.0,325,10,2,51,8
+Jayden Daniels,QB,WAS,52.0,320,14,2,52,9
+Caleb Williams,QB,CHI,53.0,310,7,2,53,10
+Terry McLaurin,WR,WAS,54.0,195,14,4,54,22
+Amari Cooper,WR,CLE,55.0,190,10,5,55,23
+Jaylen Waddle,WR,MIA,56.0,195,6,5,56,24
+Calvin Ridley,WR,TEN,57.0,190,5,5,57,25
+George Pickens,WR,PIT,58.0,190,9,5,58,26
+Christian Kirk,WR,JAX,59.0,180,12,5,59,27
+Diontae Johnson,WR,CAR,60.0,175,11,5,60,28
+Zay Flowers,WR,BAL,61.0,180,14,5,61,29
+Jaylen Warren,RB,PIT,62.0,180,9,5,62,18
+Tony Pollard,RB,TEN,63.0,180,5,5,63,19
+David Montgomery,RB,DET,64.0,180,5,5,64,20
+Najee Harris,RB,PIT,65.0,180,9,5,65,21
+Brock Bowers,TE,LV,66.0,160,10,3,66,6
+Kyle Pitts,TE,ATL,67.0,150,12,3,67,7
+Evan Engram,TE,JAX,68.0,150,12,3,68,8
+Dak Prescott,QB,DAL,69.0,310,7,2,69,11
+Tua Tagovailoa,QB,MIA,70.0,300,6,3,70,12
+C.J. Stroud,QB,HOU,71.0,310,14,2,71,13
+Justin Herbert,QB,LAC,72.0,295,5,3,72,14
+Brian Robinson,RB,WAS,73.0,170,14,5,73,22
+Zack Moss,RB,CIN,74.0,165,12,5,74,23
+D'Andre Swift,RB,CHI,75.0,170,7,5,75,24
+Raheem Mostert,RB,MIA,76.0,160,6,5,76,25
+Rhamondre Stevenson,RB,NE,77.0,170,14,5,77,26
+Jordan Mason,RB,SF,78.0,160,9,5,78,27
+Tank Dell,WR,HOU,79.0,170,14,5,79,30
+Romeo Doubs,WR,GB,80.0,160,10,5,80,31
+Jameson Williams,WR,DET,81.0,160,5,5,81,32
+Courtland Sutton,WR,DEN,82.0,160,14,5,82,33
+Jakobi Meyers,WR,LV,83.0,150,10,6,83,34
+Khalil Shakir,WR,BUF,84.0,150,12,6,84,35
+Keon Coleman,WR,BUF,85.0,150,12,6,85,36
+Rome Odunze,WR,CHI,86.0,160,7,5,86,37
+Xavier Worthy,WR,KC,87.0,155,6,5,87,38
+Brian Thomas Jr.,WR,JAX,88.0,160,12,5,88,39
+Ladd McConkey,WR,LAC,89.0,150,5,6,89,40
+Hollywood Brown,WR,KC,90.0,140,6,6,90,41
+Dallas Goedert,TE,PHI,91.0,140,5,4,91,9
+David Njoku,TE,CLE,92.0,140,10,4,92,10
+T.J. Hockenson,TE,MIN,93.0,140,6,4,93,11
+Jake Ferguson,TE,DAL,94.0,140,7,4,94,12
+Jared Goff,QB,DET,95.0,290,5,3,95,15
+Trevor Lawrence,QB,JAX,96.0,290,12,3,96,16
+Aaron Rodgers,QB,NYJ,97.0,280,12,4,97,17
+Matthew Stafford,QB,LAR,98.0,275,6,4,98,18
+Brock Purdy,QB,SF,99.0,290,9,3,99,19
+Tyjae Spears,RB,TEN,100.0,150,5,6,100,28
+Devin Singletary,RB,NYG,101.0,140,11,6,101,29
+Chuba Hubbard,RB,CAR,102.0,140,11,6,102,30
+Gus Edwards,RB,LAC,103.0,130,5,6,103,31
+Austin Ekeler,RB,WAS,104.0,135,14,6,104,32
+Ezekiel Elliott,RB,DAL,105.0,130,7,6,105,33
+Roschon Johnson,RB,CHI,106.0,125,7,6,106,34
+Tyler Allgeier,RB,ATL,107.0,125,12,6,107,35
+Jaylen Wright,RB,MIA,108.0,120,6,7,108,36
+Trey Benson,RB,ARI,109.0,120,11,7,109,37
+Bucky Irving,RB,TB,110.0,120,11,7,110,38
+Adonai Mitchell,WR,IND,111.0,130,14,6,111,42
+Jordan Addison,WR,MIN,112.0,140,6,6,112,43
+Wan'Dale Robinson,WR,NYG,113.0,130,11,6,113,44
+Mike Williams,WR,NYJ,114.0,125,12,6,114,45
+Joshua Palmer,WR,LAC,115.0,120,5,6,115,46
+DeMario Douglas,WR,NE,116.0,120,14,6,116,47
+Curtis Samuel,WR,BUF,117.0,115,12,7,117,48
+Adam Thielen,WR,CAR,118.0,115,11,7,118,49
+Darnell Mooney,WR,ATL,119.0,120,12,7,119,50
+Tyler Lockett,WR,SEA,120.0,120,10,7,120,51
+Jonnu Smith,TE,MIA,121.0,120,6,5,121,13
+Cade Otton,TE,TB,122.0,110,11,5,122,14
+Dalton Schultz,TE,HOU,123.0,115,14,5,123,15
+Pat Freiermuth,TE,PIT,124.0,110,9,5,124,16
+Justin Fields,QB,PIT,125.0,265,9,4,125,20
+Geno Smith,QB,SEA,126.0,260,10,4,126,21
+Russell Wilson,QB,PIT,127.0,255,9,4,127,22
+Derek Carr,QB,NO,128.0,250,12,5,128,23
+Kirk Cousins,QB,ATL,129.0,265,12,4,129,24
+Baker Mayfield,QB,TB,130.0,260,11,4,130,25
+Bryce Young,QB,CAR,131.0,240,11,5,131,26
+Will Levis,QB,TEN,132.0,235,5,5,132,27
+Daniel Jones,QB,NYG,133.0,235,11,5,133,28
+Justice Hill,RB,BAL,134.0,110,14,7,134,39
+Chase Brown,RB,CIN,135.0,115,12,7,135,40
+Tyler Conklin,TE,NYJ,136.0,100,12,6,136,17
+Hunter Henry,TE,NE,137.0,100,14,6,137,18
+Cole Kmet,TE,CHI,138.0,110,7,5,138,19
+Mike Gesicki,TE,CIN,139.0,90,12,6,139,20
+Justin Tucker,K,BAL,140.0,150,14,1,140,1
+Harrison Butker,K,KC,141.0,148,6,1,141,2
+Jake Elliott,K,PHI,142.0,145,5,1,142,3
+Brandon Aubrey,K,DAL,143.0,145,7,1,143,4
+Tyler Bass,K,BUF,144.0,140,12,2,144,5
+Younghoe Koo,K,ATL,145.0,140,12,2,145,6
+Jason Sanders,K,MIA,146.0,135,6,2,146,7
+Chris Boswell,K,PIT,147.0,135,9,2,147,8
+Cameron Dicker,K,LAC,148.0,135,5,2,148,9
+Greg Joseph,K,NYG,149.0,130,11,3,149,10
+49ers,DEF,SF,150.0,150,9,1,150,1
+Cowboys,DEF,DAL,151.0,148,7,1,151,2
+Ravens,DEF,BAL,152.0,148,14,1,152,3
+Browns,DEF,CLE,153.0,145,10,1,153,4
+Bills,DEF,BUF,154.0,145,12,1,154,5
+Jets,DEF,NYJ,155.0,140,12,2,155,6
+Eagles,DEF,PHI,156.0,140,5,2,156,7
+Steelers,DEF,PIT,157.0,140,9,2,157,8
+Chiefs,DEF,KC,158.0,135,6,2,158,9
+Dolphins,DEF,MIA,159.0,135,6,2,159,10
+Bengals,DEF,CIN,160.0,130,12,3,160,11
+Packers,DEF,GB,161.0,130,10,3,161,12
+Lions,DEF,DET,162.0,130,5,3,162,13
+Saints,DEF,NO,163.0,125,12,3,163,14
+Broncos,DEF,DEN,164.0,125,14,3,164,15
+Texans,DEF,HOU,165.0,125,14,3,165,16
+Buccaneers,DEF,TB,166.0,120,11,3,166,17
+Falcons,DEF,ATL,167.0,120,12,4,167,18
+Vikings,DEF,MIN,168.0,120,6,4,168,19
+Seahawks,DEF,SEA,169.0,115,10,4,169,20
+Roman Wilson,WR,PIT,170.0,90,9,8,170,52
+Malachi Corley,WR,NYJ,171.0,90,12,8,171,53
+Ricky Pearsall,WR,SF,172.0,90,9,8,172,54
+Ja'Lynn Polk,WR,NE,173.0,90,14,8,173,55
+Troy Franklin,WR,DEN,174.0,90,14,8,174,56
+Xavier Legette,WR,CAR,175.0,90,11,8,175,57
+Jermaine Burton,WR,CIN,176.0,85,12,8,176,58
+Devontez Walker,WR,BAL,177.0,85,14,8,177,59
+Audric Estime,RB,DEN,178.0,90,14,8,178,41
+Blake Corum,RB,LAR,179.0,90,6,8,179,42
+Ray Davis,RB,BUF,180.0,90,12,8,180,43
+MarShawn Lloyd,RB,GB,181.0,85,10,8,181,44
+Isaac Guerendo,RB,SF,182.0,85,9,8,182,45
+Tyrone Tracy,RB,NYG,183.0,85,11,8,183,46
+Dylan Laube,RB,LV,184.0,80,10,8,184,47
+Will Shipley,RB,PHI,185.0,80,5,8,185,48
+Braelon Allen,RB,NYJ,186.0,85,12,8,186,49
+Kimani Vidal,RB,LAC,187.0,80,5,8,187,50
+Sam Howell,QB,SEA,188.0,200,10,6,188,29
+Joe Flacco,QB,IND,189.0,180,14,7,189,30
+Drake Maye,QB,NE,190.0,210,14,6,190,31
+Bo Nix,QB,DEN,191.0,215,14,6,191,32
+Michael Penix Jr.,QB,ATL,192.0,200,12,7,192,33
+Mason Rudolph,QB,TEN,193.0,170,5,8,193,34
+Jacoby Brissett,QB,NE,194.0,170,14,8,194,35
+Gardner Minshew,QB,LV,195.0,170,10,8,195,36
+Andy Dalton,QB,CAR,196.0,165,11,8,196,37
+Jameis Winston,QB,CLE,197.0,165,10,8,197,38
+Colby Parkinson,TE,LAR,198.0,80,6,7,198,21
+Ben Sinnott,TE,WAS,199.0,75,14,8,199,22
+Luke Musgrave,TE,GB,200.0,80,10,7,200,23

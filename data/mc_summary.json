@@ -1,0 +1,203 @@
+{
+  "n_sims": 50,
+  "brian_total_proj": {
+    "mean": 2519.2215999999994,
+    "min": 2327.46,
+    "max": 2769.3799999999997,
+    "p25": 2450.86,
+    "p50": 2509.12,
+    "p75": 2587.8000000000006
+  },
+  "brian_pick_distribution": {
+    "1": {
+      "Bijan Robinson": 39,
+      "Jahmyr Gibbs": 8,
+      "Christian McCaffrey": 3
+    },
+    "2": {
+      "Jonathan Taylor": 16,
+      "Jahmyr Gibbs": 16,
+      "Christian McCaffrey": 12,
+      "James Cook": 3,
+      "Kenneth Walker": 2
+    },
+    "3": {
+      "Fernando Mendoza": 45,
+      "Jaxson Dart": 4,
+      "Jayden Daniels": 1
+    },
+    "4": {
+      "Carnell Tate": 11,
+      "Jordyn Tyson": 11,
+      "Jeremiyah Love": 7,
+      "Tyler Warren": 5,
+      "TreVeyon Henderson": 5
+    },
+    "5": {
+      "Jaxson Dart": 15,
+      "Tyler Warren": 11,
+      "Cam Ward": 6,
+      "TreVeyon Henderson": 5,
+      "Tetairoa McMillan": 2
+    },
+    "6": {
+      "Quinshon Judkins": 12,
+      "Makai Lemon": 11,
+      "Brian Thomas": 7,
+      "RJ Harvey": 6,
+      "Rome Odunze": 5
+    },
+    "7": {
+      "Jayden Higgins": 48,
+      "Emeka Egbuka": 1,
+      "Makai Lemon": 1
+    },
+    "10": {
+      "Omar Cooper": 27,
+      "Denzel Boston": 15,
+      "KC Concepcion": 7,
+      "Jonah Coleman": 1
+    },
+    "11": {
+      "Denzel Boston": 11,
+      "Jonah Coleman": 7,
+      "Matthew Golden": 6,
+      "Emmett Johnson": 6,
+      "Kenyon Sadiq": 6
+    },
+    "12": {
+      "Mike Washington": 34,
+      "Travis Hunter": 3,
+      "Kenyon Sadiq": 2,
+      "Dylan Sampson": 2,
+      "Mason Taylor": 2
+    },
+    "13": {
+      "Mason Taylor": 9,
+      "Pat Bryant": 8,
+      "Braelon Allen": 7,
+      "Eli Stowers": 5,
+      "Kimani Vidal": 5
+    },
+    "16": {
+      "Nicholas Singleton": 24,
+      "Kaytron Allen": 11,
+      "Devin Neal": 7,
+      "Demond Claiborne": 2,
+      "Ja'Kobi Lane": 1
+    },
+    "17": {
+      "Garrett Nussmeier": 37,
+      "Ty Simpson": 4,
+      "Devin Neal": 3,
+      "Eli Stowers": 2,
+      "Demond Claiborne": 2
+    }
+  },
+  "availability_at_brian_picks": {
+    "6": {
+      "Saquon Barkley": 46,
+      "Ashton Jeanty": 43,
+      "Omarion Hampton": 41,
+      "Christian McCaffrey": 39,
+      "Kenneth Walker": 39,
+      "Bijan Robinson": 39
+    },
+    "19": {
+      "Breece Hall": 43,
+      "Derrick Henry": 41,
+      "Saquon Barkley": 40,
+      "Jeremiyah Love": 37,
+      "TreVeyon Henderson": 32,
+      "Omarion Hampton": 29
+    },
+    "30": {
+      "Jaxson Dart": 40,
+      "Trevor Lawrence": 40,
+      "Patrick Mahomes": 39,
+      "Lamar Jackson": 38,
+      "Justin Herbert": 38,
+      "Caleb Williams": 37
+    },
+    "43": {
+      "Tyler Warren": 33,
+      "RJ Harvey": 20,
+      "Terry McLaurin": 19,
+      "TreVeyon Henderson": 18,
+      "Mike Evans": 18,
+      "Brock Bowers": 17
+    },
+    "54": {
+      "Jordan Love": 32,
+      "Dak Prescott": 28,
+      "Brock Purdy": 24,
+      "Justin Herbert": 23,
+      "Trevor Lawrence": 20,
+      "Josh Allen": 19
+    },
+    "67": {
+      "Michael Pittman": 42,
+      "Quentin Johnston": 38,
+      "Jordan Addison": 34,
+      "Stefon Diggs": 32,
+      "Marvin Harrison": 29,
+      "Chris Godwin": 29
+    },
+    "78": {
+      "Michael Pittman": 35,
+      "Jayden Reed": 35,
+      "Stefon Diggs": 35,
+      "Romeo Doubs": 33,
+      "Xavier Worthy": 31,
+      "Quentin Johnston": 29
+    },
+    "115": {
+      "Antonio Williams": 49,
+      "Denzel Boston": 42,
+      "Deebo Samuel": 36,
+      "Tyreek Hill": 34,
+      "Omar Cooper": 32,
+      "James Conner": 13
+    },
+    "126": {
+      "Matthew Golden": 27,
+      "Jerry Jeudy": 27,
+      "Deebo Samuel": 23,
+      "Tyjae Spears": 21,
+      "Tyreek Hill": 18,
+      "Antonio Williams": 18
+    },
+    "139": {
+      "Kimani Vidal": 34,
+      "Jonathon Brooks": 34,
+      "Chris Rodriguez": 33,
+      "Mike Washington": 30,
+      "Braelon Allen": 25,
+      "Tyjae Spears": 17
+    },
+    "150": {
+      "Isiah Pacheco": 38,
+      "Chris Rodriguez": 34,
+      "Tank Bigsby": 34,
+      "Keaton Mitchell": 33,
+      "Jonathon Brooks": 26,
+      "Kimani Vidal": 23
+    },
+    "187": {
+      "Najee Harris": 36,
+      "Kaleb Johnson": 36,
+      "Jaylen Wright": 33,
+      "Devin Neal": 31,
+      "Nicholas Singleton": 28,
+      "Demond Claiborne": 25
+    },
+    "198": {
+      "Garrett Nussmeier": 37,
+      "Jake Tonges": 23,
+      "Cade Otton": 18,
+      "Kaleb Johnson": 14,
+      "Kendre Miller": 14,
+      "Brashard Smith": 13
+    }
+  }
+}

@@ -1,0 +1,435 @@
+"""Build the canonical 2026 keepers file from 2025 ENDING ROSTERS + 2026
+projections (the roster-wide approach).
+
+Pipeline:
+  1. Walk every player on every team's 2025 end-of-season roster
+     (data/sleeper/league_<2025>/rosters.json).
+  2. Determine each candidate's prior_round:
+       - drafted in 2025 -> the round they were drafted in
+       - waiver / undrafted pickup -> 19 (so 2026 cost = R17, the last
+         round; per league rule "waiver = R17+2")
+  3. Cross-reference MONEY_LEAGUE.xlsx 2025 keeper tags to get years_kept
+     (so we can fire the 3-year cap correctly).
+  4. Compute each candidate's 2026 net VBD = post-keeper VBD minus the
+     expected VBD of the player you'd otherwise draft at the forfeit
+     round. Iterate 2 passes so replacement levels converge after
+     picking keepers.
+  5. For each team, take the top max_keepers candidates with net VBD > 0
+     and prior_round >= 3 (R1/R2 picks ineligible: forfeit_round would
+     be <= 0).
+  6. Emit data/keepers_2026.json -- the top-4-positive per team as
+     "carryover", plus all yr3 cap hits as "forced_drop" for
+     documentation.
+
+`status` is one of:
+  - "carryover":   in the top-4-positive set for this team; will be applied.
+  - "forced_drop": yr3 keepers hitting the 3-year cap; cannot be kept.
+"""
+from __future__ import annotations
+
+import json
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from fantasy_draft.draft import Draft  # noqa: E402
+from fantasy_draft.keepers import Keeper, apply_keepers  # noqa: E402
+from fantasy_draft.name_aliases import resolve_xlsx_name  # noqa: E402
+from fantasy_draft.players import load_players  # noqa: E402
+from fantasy_draft.projections import load_projections_from_cache  # noqa: E402
+from fantasy_draft.sleeper_offline import league_from_offline  # noqa: E402
+from fantasy_draft.trades import apply_trades, load_trades_from_sleeper_dump  # noqa: E402
+from fantasy_draft.vbd import compute_vbd_post_keepers  # noqa: E402
+from fantasy_draft.xlsx_history import load_keepers_for_year, normalize_name  # noqa: E402
+
+
+# Resolve paths relative to the project root, not the caller's cwd. The
+# Streamlit app imports this module from web/app.py with cwd = repo root,
+# but on Windows the streamlit launcher can shift cwd; absolute paths keep
+# both 'python scripts/...' and the override panel working.
+_ROOT = Path(__file__).resolve().parent.parent
+XLSX_PATH = _ROOT / "data" / "historical" / "MONEY_LEAGUE.xlsx"
+SEASON_2025 = _ROOT / "data" / "sleeper" / "league_1245039290518360064"
+PICKS_PATH = SEASON_2025 / "draft_1245039290522550272_picks.json"
+ROSTERS_PATH = SEASON_2025 / "rosters.json"
+CATALOG_PATH = _ROOT / "data" / "sleeper" / "players_nfl.json"
+PROJ_CACHE = _ROOT / "data" / "sleeper_projections_2026.json"
+OUT_PATH = _ROOT / "data" / "keepers_2026.json"
+PICK_VALUE_PATH = _ROOT / "data" / "pick_value.json"
+
+WAIVER_PRIOR_ROUND = 17   # league rule: waivers count as R17 (last round) for
+                          # keepers; the -2 penalty makes the cost R15.
+ROUND_PENALTY = 2
+MAX_KEEPERS = 4
+MAX_YEARS = 3
+
+
+def _canonical_for_player(player_meta: dict, name_to_canonical: dict[str, str]) -> str:
+    """Resolve a Sleeper player catalog entry to a 2026-projections canonical name."""
+    nm = player_meta.get("full_name") or (
+        f"{player_meta.get('first_name', '').strip()} "
+        f"{player_meta.get('last_name', '').strip()}"
+    ).strip()
+    if not nm:
+        return ""
+    return name_to_canonical.get(normalize_name(nm), nm)
+
+
+def _build_candidates() -> list[dict]:
+    """For each (team, player) pair on the 2025 ending roster, build a
+    candidate dict with everything needed to score it as a 2026 keeper."""
+    rosters = json.loads(ROSTERS_PATH.read_text(encoding="utf-8"))
+    picks = json.loads(PICKS_PATH.read_text(encoding="utf-8"))
+    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    proj = load_projections_from_cache(PROJ_CACHE, scoring="superflex")
+    name_to_canonical = {normalize_name(p.name): p.name for p in proj}
+
+    # Map player_id -> 2025 draft pick (for prior_round) and keep position.
+    pick_by_pid: dict[str, dict] = {str(p["player_id"]): p for p in picks}
+
+    # xlsx 2025 tags for years_kept tracking. resolve_xlsx_name first so we
+    # match the canonical Sleeper name.
+    xlsx_keepers = load_keepers_for_year(XLSX_PATH, 2025)
+    years_kept_by_canonical: dict[str, int] = {}
+    for k in xlsx_keepers:
+        canon = resolve_xlsx_name(k.player_name) or k.player_name
+        years_kept_by_canonical[normalize_name(canon)] = k.years_kept
+
+    candidates: list[dict] = []
+    for r in rosters:
+        roster_id = int(r["roster_id"])
+        team_idx = roster_id - 1
+        for pid in (r.get("players") or []):
+            pid = str(pid)
+            cat_entry = catalog.get(pid)
+            if not cat_entry:
+                continue
+            pos = cat_entry.get("position")
+            # League rule: K and DEF are not keeper-eligible
+            if pos not in ("QB", "RB", "WR", "TE"):
+                continue
+            canonical = _canonical_for_player(cat_entry, name_to_canonical)
+            if not canonical:
+                continue
+
+            # prior_round: from 2025 draft pick OR waiver default.
+            if pid in pick_by_pid:
+                prior_round = int(pick_by_pid[pid]["round"])
+            else:
+                prior_round = WAIVER_PRIOR_ROUND
+
+            forfeit_round = prior_round - ROUND_PENALTY
+            if forfeit_round < 1:
+                # R1 or R2 picks: not eligible (cost would be 0 or negative).
+                continue
+
+            years_kept = years_kept_by_canonical.get(normalize_name(canonical), 0)
+
+            candidates.append({
+                "team_idx": team_idx,
+                "roster_id": roster_id,
+                "player_id": pid,
+                "player_name": canonical,
+                "position": pos,
+                "prior_round": prior_round,
+                "forfeit_round": forfeit_round,
+                "years_kept": years_kept,
+                "is_waiver": pid not in pick_by_pid,
+            })
+    return candidates
+
+
+def _load_pick_value() -> tuple[dict[int, float], dict[int, dict[str, float]]]:
+    """Load empirical pick value chart. Returns (round->mean_vbd_blind,
+    round->{pos: mean_vbd_position_aware})."""
+    if not PICK_VALUE_PATH.exists():
+        sys.exit(f"ERROR: {PICK_VALUE_PATH} missing. Run "
+                 f"scripts/build_pick_value.py first.")
+    raw = json.loads(PICK_VALUE_PATH.read_text(encoding="utf-8"))
+    blind = {int(r): d["mean_vbd"] for r, d in raw["by_round"].items()}
+    position_aware: dict[int, dict[str, float]] = {}
+    for r, per_pos in raw["by_round_position"].items():
+        position_aware[int(r)] = {pos: d["mean_vbd"] for pos, d in per_pos.items()}
+    return blind, position_aware
+
+
+def _load_adp_baselines() -> tuple[dict[int, float], dict[int, dict[str, float]]]:
+    """ADP-based forward-looking baselines: mean projected VBD per round.
+
+    For each player with ADP + projection, compute VBD as pts above
+    positional replacement (per pick_value.json replacement_ranks_used),
+    then bucket into 12-team round. Round baseline = mean VBD of players
+    whose ADP falls in that round.
+
+    Forward-looking opportunity cost: "if I forfeit this pick, the player
+    I'd draft has this much VBD on average."
+    """
+    from collections import defaultdict
+    proj = json.loads(PROJ_CACHE.read_text(encoding="utf-8"))
+    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    pv_raw = json.loads(PICK_VALUE_PATH.read_text(encoding="utf-8"))
+    replacement_ranks = pv_raw.get("replacement_ranks_used", {})
+
+    # 1. Group projections by position, rank within each, find replacement pts
+    by_pos: dict[str, list[tuple[str, float]]] = defaultdict(list)
+    for p in proj:
+        pid = p.get("player_id")
+        if not pid:
+            continue
+        s = p.get("stats") or {}
+        pts = s.get("pts_half_ppr", 0)
+        if pts <= 0:
+            continue
+        pos = (catalog.get(pid) or {}).get("position", "?")
+        by_pos[pos].append((pid, pts))
+    replacement_pts: dict[str, float] = {}
+    for pos, lst in by_pos.items():
+        lst.sort(key=lambda x: -x[1])
+        rank = replacement_ranks.get(pos, max(len(lst) // 3, 12))
+        replacement_pts[pos] = lst[rank - 1][1] if rank <= len(lst) else 0
+
+    # 2. Compute VBD per player, bucket by ADP round
+    pid_pos: dict[str, str] = {pid: (catalog.get(pid) or {}).get("position", "?")
+                                for pid, _ in (lp for lst in by_pos.values() for lp in lst)}
+    by_round: dict[int, list[float]] = defaultdict(list)
+    by_round_pos: dict[int, dict[str, list[float]]] = defaultdict(
+        lambda: defaultdict(list))
+    for p in proj:
+        pid = p.get("player_id")
+        if not pid:
+            continue
+        s = p.get("stats") or {}
+        adp = s.get("adp_half_ppr", 999)
+        pts = s.get("pts_half_ppr", 0)
+        if adp >= 999 or pts <= 0:
+            continue
+        pick = int(adp)
+        if pick < 1:
+            continue
+        rnd = (pick - 1) // 12 + 1
+        if not 1 <= rnd <= 17:
+            continue
+        pos = pid_pos.get(pid, "?")
+        vbd = pts - replacement_pts.get(pos, 0)
+        by_round[rnd].append(vbd)
+        by_round_pos[rnd][pos].append(vbd)
+    round_mean = {rnd: sum(v) / len(v) for rnd, v in by_round.items() if v}
+    pos_mean: dict[int, dict[str, float]] = {}
+    for rnd, per_pos in by_round_pos.items():
+        pos_mean[rnd] = {pos: sum(v) / len(v) for pos, v in per_pos.items()
+                          if len(v) >= 2}
+    return round_mean, pos_mean
+
+
+def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dict]:
+    """Compute net VBD for each candidate, pick top-MAX_KEEPERS positive per
+    team. Iterates so replacement levels stabilize after the first selection.
+
+    Uses the EMPIRICAL pick-value chart (mean VBD actually delivered by
+    historical players drafted at each round/position) as the comparison
+    baseline instead of a current-year projection-based VBD curve. The
+    position-aware variant is used so a keeper QB at R5 is judged against
+    "what R5 QBs typically deliver" rather than the round-blind average.
+
+    Returns the final keeper records (carryover + forced_drop)."""
+    cfg = league_from_offline(str(_ROOT / "data" / "sleeper"),
+                               round_penalty=ROUND_PENALTY,
+                               max_years_consecutive=MAX_YEARS)
+    players = load_players(str(_ROOT / "data" / "players_2026.csv"))
+
+    # ADP-based baselines (forward-looking opportunity cost) — replaces
+    # the historical pick_value chart that was producing wrong recs
+    # (e.g. saying Loveland TE3 was a worse R8 keeper than the average
+    # historical R8 TE bargain like 2024 McBride).
+    adp_round_mean, adp_round_pos_mean = _load_adp_baselines()
+    pv_blind, pv_position_aware = _load_pick_value()  # kept as fallback
+
+    def _baseline_for(round_num: int, position: str) -> float:
+        """Mean projected 2026 pts for a player with ADP in this round.
+        Use position-aware where sample is non-trivial; else round-blind."""
+        per_pos = adp_round_pos_mean.get(round_num) or {}
+        if position in per_pos and len(per_pos) > 0:
+            # Use position-aware only if there are enough players in that
+            # position at that round (>=2 samples). Otherwise fall to blind.
+            return per_pos[position]
+        if round_num in adp_round_mean:
+            return adp_round_mean[round_num]
+        # Fallback to historical pick_value chart for rounds beyond ADP coverage
+        per_pos_hist = pv_position_aware.get(round_num) or {}
+        if position in per_pos_hist:
+            return per_pos_hist[position]
+        return pv_blind.get(round_num, 0.0)
+
+    # Start with no keepers selected.
+    selected_names: set[str] = set()
+
+    trades = [t for t in load_trades_from_sleeper_dump(str(_ROOT / "data" / "sleeper"))
+              if t.season == 2026]
+
+    # Picks-owned per team per round, post-trade only — computed once from a
+    # CLEAN draft so iterative keeper application doesn't shrink it.
+    clean = Draft.new(cfg)
+    apply_trades(clean, trades)
+    picks_owned: dict[int, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+    for pk in clean.picks:
+        picks_owned[pk.team_idx][pk.round_num] += 1
+
+    for it in range(n_iterations):
+        draft = Draft.new(cfg)
+        apply_trades(draft, trades)
+        applied = []
+        for nm in selected_names:
+            cand = next((c for c in candidates if c["player_name"] == nm), None)
+            if cand is None:
+                continue
+            applied.append(Keeper(
+                team_idx=cand["team_idx"],
+                player_name=nm,
+                prior_round=cand["prior_round"],
+                years_kept=cand["years_kept"],
+            ))
+        apply_keepers(draft, players, applied)
+        kept = {p.player.name for p in draft.picks if p.is_keeper and p.player}
+        _, replacement_proj = compute_vbd_post_keepers(players, cfg, keeper_names=kept)
+        kept_lc = {n.lower() for n in kept}
+        for p in players:
+            if p.name.lower() in kept_lc:
+                p.vbd = p.projection - replacement_proj.get(p.position, 0.0)
+        pbn = {p.name.lower(): p for p in players}
+
+        # Score every candidate using EMPIRICAL pick value at forfeit round.
+        for c in candidates:
+            p = pbn.get(c["player_name"].lower())
+            if p is None:
+                c["net_vbd"] = None
+                continue
+            baseline = _baseline_for(c["forfeit_round"], c["position"])
+            c["net_vbd"] = round(p.vbd - baseline, 1)
+            c["raw_vbd"] = round(p.vbd, 1)
+            c["pick_value_baseline"] = round(baseline, 1)
+            c["adp"] = p.adp
+
+        # Per-team collision-aware selection. League rule: two keepers at the
+        # same forfeit_round can't share one pick — the lower-VBD keeper bumps
+        # UP one round (more expensive). Unless the team owns multiple picks
+        # at that round (trade), in which case both can pay natural cost.
+        new_selected: set[str] = set()
+        for c in candidates:
+            c["effective_forfeit_round"] = c["forfeit_round"]
+        by_team: dict[int, list[dict]] = defaultdict(list)
+        for c in candidates:
+            by_team[c["team_idx"]].append(c)
+        for team_idx, cands in by_team.items():
+            owned = picks_owned.get(team_idx, {})
+            used: dict[int, int] = defaultdict(int)
+            ranked = sorted(
+                (c for c in cands
+                 if c["years_kept"] < MAX_YEARS
+                 and c.get("raw_vbd") is not None),
+                key=lambda c: -c["raw_vbd"],
+            )
+            selected_for_team = 0
+            for c in ranked:
+                if selected_for_team >= MAX_KEEPERS:
+                    break
+                natural = c["forfeit_round"]
+                chosen = None
+                for r in range(natural, 0, -1):
+                    if used[r] < owned.get(r, 0):
+                        chosen = r
+                        break
+                if chosen is None:
+                    continue
+                baseline = _baseline_for(chosen, c["position"])
+                p = pbn.get(c["player_name"].lower())
+                if p is None:
+                    continue
+                net_at_chosen = round(p.vbd - baseline, 1)
+                if net_at_chosen <= 0:
+                    continue
+                used[chosen] += 1
+                c["effective_forfeit_round"] = chosen
+                c["net_vbd"] = net_at_chosen
+                c["pick_value_baseline"] = round(baseline, 1)
+                new_selected.add(c["player_name"])
+                selected_for_team += 1
+
+        if new_selected == selected_names:
+            break
+        selected_names = new_selected
+        print(f"  iter {it+1}: {len(selected_names)} keepers selected")
+
+    # Build the output records.
+    out: list[dict] = []
+    selected_set = selected_names
+    seen = set()
+    for c in candidates:
+        is_selected = c["player_name"] in selected_set
+        is_forced = c["years_kept"] >= MAX_YEARS
+        # Only emit:
+        #   1. selected carryovers (top-4-positive per team)
+        #   2. forced_drops (yr3 cap)
+        if not (is_selected or is_forced):
+            continue
+        key = (c["team_idx"], c["player_name"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "team_idx": c["team_idx"],
+            "roster_id": c["roster_id"],
+            "player_name": c["player_name"],
+            "position": c["position"],
+            "prior_round": c["prior_round"],
+            "forfeit_round": c["forfeit_round"],
+            "effective_forfeit_round": c.get("effective_forfeit_round", c["forfeit_round"]),
+            "years_kept": c["years_kept"],
+            "status": "forced_drop" if is_forced else "carryover",
+            "net_vbd": c.get("net_vbd"),
+            "raw_vbd": c.get("raw_vbd"),
+            "pick_value_baseline": c.get("pick_value_baseline"),
+            "adp": c.get("adp"),
+            "is_waiver": c.get("is_waiver"),
+        })
+    return out
+
+
+def main():
+    candidates = _build_candidates()
+    print(f"Built {len(candidates)} keeper candidates across all 12 rosters.")
+    records = _score_and_select(candidates)
+
+    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    OUT_PATH.write_text(json.dumps(records, indent=2))
+
+    carryover = [r for r in records if r["status"] == "carryover"]
+    forced = [r for r in records if r["status"] == "forced_drop"]
+    by_team: dict[int, list[dict]] = defaultdict(list)
+    for r in records:
+        by_team[r["team_idx"]].append(r)
+
+    print(f"\nWrote {OUT_PATH} with {len(records)} records "
+          f"({len(carryover)} carryover, {len(forced)} forced drops).")
+    print("\nPer-team selected keepers:")
+    for idx in sorted(by_team):
+        recs = sorted(by_team[idx], key=lambda r: -(r.get("net_vbd") or 0))
+        carry = [r for r in recs if r["status"] == "carryover"]
+        forced_team = [r for r in recs if r["status"] == "forced_drop"]
+        def _cost(r):
+            eff = r.get("effective_forfeit_round", r["forfeit_round"])
+            return f"R{eff}" + ("↑" if eff != r["forfeit_round"] else "")
+        kn = ", ".join(f"{r['player_name']}({_cost(r)}, "
+                        f"{r.get('net_vbd', 0):+.0f})" for r in carry)
+        fn = ", ".join(f"{r['player_name']}" for r in forced_team)
+        total = sum(r.get("net_vbd") or 0 for r in carry)
+        print(f"  roster {idx+1:>2}: {len(carry)} KEEP, total {total:+.0f}")
+        if kn:
+            print(f"             {kn}")
+        if fn:
+            print(f"             FORCED: {fn}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,429 @@
+[
+  {
+    "season": 2018,
+    "date_str": "Nov 8, 10:26 am",
+    "sides": [
+      {
+        "received_team": "Arnold Palmer Lite",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 8, 10:26 am",
+        "received_players": [
+          {
+            "name": "Carson Wentz",
+            "nfl_team": "Min",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 10
+          },
+          {
+            "round": 11
+          }
+        ]
+      },
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 8, 10:26 am",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 3
+          },
+          {
+            "round": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2018,
+    "date_str": "Oct 31, 9:04 pm",
+    "sides": [
+      {
+        "received_team": "Arnold Palmer Lite",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 31, 9:04 pm",
+        "received_players": [
+          {
+            "name": "Emmanuel Sanders",
+            "nfl_team": "Buf",
+            "pos": "WR"
+          },
+          {
+            "name": "Adrian Peterson",
+            "nfl_team": "Sea",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 14
+          },
+          {
+            "round": 18
+          }
+        ]
+      },
+      {
+        "received_team": "The Mandingo...",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 31, 9:04 pm",
+        "received_players": [
+          {
+            "name": "Mohamed Sanu",
+            "nfl_team": "Mia",
+            "pos": "WR"
+          },
+          {
+            "name": "Nyheim Miller-Hines",
+            "nfl_team": "LAC",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 2
+          },
+          {
+            "round": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2018,
+    "date_str": "Oct 30, 9:40 am",
+    "sides": [
+      {
+        "received_team": "Mrs. Doubtfire",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 30, 9:40 am",
+        "received_players": [
+          {
+            "name": "Jameis Winston",
+            "nfl_team": "NYG",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 5
+          }
+        ]
+      },
+      {
+        "received_team": "Land of the Freemans",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 30, 9:40 am",
+        "received_players": [
+          {
+            "name": "Russell Wilson",
+            "nfl_team": "NYG",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2018,
+    "date_str": "Oct 30, 8:10 am",
+    "sides": [
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 30, 8:10 am",
+        "received_players": [
+          {
+            "name": "Tre'Quan Smith",
+            "nfl_team": "Det",
+            "pos": "WR"
+          },
+          {
+            "name": "Deshaun Watson",
+            "nfl_team": "Cle",
+            "pos": "QB"
+          },
+          {
+            "name": "Sterling Shepard",
+            "nfl_team": "TB",
+            "pos": "WR"
+          },
+          {
+            "name": "Ito Smith",
+            "nfl_team": "Dal",
+            "pos": "RB"
+          },
+          {
+            "name": "Evan Engram",
+            "nfl_team": "Den",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 3
+          },
+          {
+            "round": 7
+          },
+          {
+            "round": 11
+          },
+          {
+            "round": 15
+          }
+        ]
+      },
+      {
+        "received_team": "Land of the Freemans",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 30, 8:10 am",
+        "received_players": [
+          {
+            "name": "Keenan Allen",
+            "nfl_team": "LAC",
+            "pos": "WR"
+          },
+          {
+            "name": "Dalvin Cook",
+            "nfl_team": "Dal",
+            "pos": "RB"
+          },
+          {
+            "name": "Cam Newton",
+            "nfl_team": "Car",
+            "pos": "QB"
+          },
+          {
+            "name": "Latavius Murray",
+            "nfl_team": "Buf",
+            "pos": "RB"
+          },
+          {
+            "name": "DeAndre Hopkins",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 5
+          },
+          {
+            "round": 7
+          },
+          {
+            "round": 8
+          },
+          {
+            "round": 11
+          },
+          {
+            "round": 12
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2018,
+    "date_str": "Oct 23, 8:08 am",
+    "sides": [
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 23, 8:08 am",
+        "received_players": [
+          {
+            "name": "Geronimo Allison",
+            "nfl_team": "Atl",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 4
+          },
+          {
+            "round": 11
+          }
+        ]
+      },
+      {
+        "received_team": "Barkley\u2019s Biddies",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 23, 8:08 am",
+        "received_players": [
+          {
+            "name": "George Kittle",
+            "nfl_team": "SF",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 9
+          },
+          {
+            "round": 19
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2018,
+    "date_str": "Oct 21, 10:21 pm",
+    "sides": [
+      {
+        "received_team": "The Dream Team",
+        "initiator": "",
+        "date_str": "Oct 21, 10:21 pm",
+        "received_players": [
+          {
+            "name": "Rodney Smith",
+            "nfl_team": "Car",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 2
+          }
+        ]
+      },
+      {
+        "received_team": "Kareem Hunt did 9/11",
+        "initiator": "",
+        "date_str": "Oct 21, 10:21 pm",
+        "received_players": [
+          {
+            "name": "James Conner",
+            "nfl_team": "Ari",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 17
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2018,
+    "date_str": "Oct 21, 12:49 pm",
+    "sides": [
+      {
+        "received_team": "Mrs. Doubtfire",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 21, 12:49 pm",
+        "received_players": [
+          {
+            "name": "Doug Martin",
+            "nfl_team": "LV",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Land of the Freemans",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 21, 12:49 pm",
+        "received_players": [
+          {
+            "name": "Sammy Watkins",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2018,
+    "date_str": "Oct 19, 3:45 pm",
+    "sides": [
+      {
+        "received_team": "Mrs. Doubtfire",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 19, 3:45 pm",
+        "received_players": [
+          {
+            "name": "Blake Bortles",
+            "nfl_team": "GB",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 19, 3:45 pm",
+        "received_players": [
+          {
+            "name": "Isaiah Crowell",
+            "nfl_team": "LV",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2018,
+    "date_str": "Sep 13, 5:32 pm",
+    "sides": [
+      {
+        "received_team": "LEMVP & Associates",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 13, 5:32 pm",
+        "received_players": [
+          {
+            "name": "Trey Burton",
+            "nfl_team": "Ind",
+            "pos": "TE"
+          },
+          {
+            "name": "T.J. Yeldon",
+            "nfl_team": "Buf",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Land of the Freemans",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 13, 5:32 pm",
+        "received_players": [
+          {
+            "name": "Travis Kelce",
+            "nfl_team": "KC",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  }
+]

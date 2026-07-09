@@ -1,0 +1,543 @@
+[
+  {
+    "season": 2019,
+    "date_str": "Nov 9, 6:31 pm",
+    "sides": [
+      {
+        "received_team": "Guap Gang",
+        "initiator": "",
+        "date_str": "Nov 9, 6:31 pm",
+        "received_players": [
+          {
+            "name": "Ronald Jones",
+            "nfl_team": "Dal",
+            "pos": "RB"
+          },
+          {
+            "name": "Julio Jones",
+            "nfl_team": "Phi",
+            "pos": "WR"
+          },
+          {
+            "name": "Carson Wentz",
+            "nfl_team": "Min",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Weird Flex but OK",
+        "initiator": "",
+        "date_str": "Nov 9, 6:31 pm",
+        "received_players": [
+          {
+            "name": "James Conner",
+            "nfl_team": "Ari",
+            "pos": "RB"
+          },
+          {
+            "name": "Case Keenum",
+            "nfl_team": "Chi",
+            "pos": "QB"
+          },
+          {
+            "name": "A.J. Green",
+            "nfl_team": "Ari",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Nov 5, 12:11 pm",
+    "sides": [
+      {
+        "received_team": "Guap Gang",
+        "initiator": "",
+        "date_str": "Nov 5, 12:11 pm",
+        "received_players": [
+          {
+            "name": "Chris Carson",
+            "nfl_team": "Sea",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Barry Sandals",
+        "initiator": "",
+        "date_str": "Nov 5, 12:11 pm",
+        "received_players": [
+          {
+            "name": "Adam Thielen",
+            "nfl_team": "Pit",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 18, 12:50 pm",
+    "sides": [
+      {
+        "received_team": "Troll Toll",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 12:50 pm",
+        "received_players": [
+          {
+            "name": "Jimmy Garoppolo",
+            "nfl_team": "LAR",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          }
+        ]
+      },
+      {
+        "received_team": "No Chubby Strippers",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 12:50 pm",
+        "received_players": [
+          {
+            "name": "Kyler Murray",
+            "nfl_team": "Min",
+            "pos": "QB"
+          },
+          {
+            "name": "Christian McCaffrey",
+            "nfl_team": "SF",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 18, 12:23 pm",
+    "sides": [
+      {
+        "received_team": "Carli Lloyd Banks",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 12:23 pm",
+        "received_players": [
+          {
+            "name": "Greg Olsen",
+            "nfl_team": "Sea",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          },
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "No Chubby Strippers",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 12:23 pm",
+        "received_players": [
+          {
+            "name": "Jimmy Garoppolo",
+            "nfl_team": "LAR",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 9
+          },
+          {
+            "round": 10
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 15, 11:16 am",
+    "sides": [
+      {
+        "received_team": "Carli Lloyd Banks",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 15, 11:16 am",
+        "received_players": [
+          {
+            "name": "Mitchell Trubisky",
+            "nfl_team": "Ten",
+            "pos": "QB"
+          },
+          {
+            "name": "Demarcus Robinson",
+            "nfl_team": "SF",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 15, 11:16 am",
+        "received_players": [
+          {
+            "name": "Leonard Fournette",
+            "nfl_team": "Buf",
+            "pos": "RB"
+          },
+          {
+            "name": "Drew Brees",
+            "nfl_team": "NO",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 13, 4:26 pm",
+    "sides": [
+      {
+        "received_team": "Figgy",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 13, 4:26 pm",
+        "received_players": [
+          {
+            "name": "Saquon Barkley",
+            "nfl_team": "Phi",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 17
+          }
+        ]
+      },
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 13, 4:26 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 12, 9:44 pm",
+    "sides": [
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 12, 9:44 pm",
+        "received_players": [
+          {
+            "name": "Kenny Golladay",
+            "nfl_team": "NYG",
+            "pos": "WR"
+          },
+          {
+            "name": "Devonta Freeman",
+            "nfl_team": "Bal",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      },
+      {
+        "received_team": "Terror Squad",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 12, 9:44 pm",
+        "received_players": [
+          {
+            "name": "Le'Veon Bell",
+            "nfl_team": "TB",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 7,
+            "originally_from": "Barry Sandals"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 9, 2:01 pm",
+    "sides": [
+      {
+        "received_team": "Trevor\u2019s Semifinals",
+        "initiator": "",
+        "date_str": "Oct 9, 2:01 pm",
+        "received_players": [
+          {
+            "name": "Kirk Cousins",
+            "nfl_team": "LV",
+            "pos": "QB"
+          },
+          {
+            "name": "Mike Williams",
+            "nfl_team": "Pit",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Guap Gang",
+        "initiator": "",
+        "date_str": "Oct 9, 2:01 pm",
+        "received_players": [
+          {
+            "name": "Adam Thielen",
+            "nfl_team": "Pit",
+            "pos": "WR"
+          },
+          {
+            "name": "Case Keenum",
+            "nfl_team": "Chi",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 8, 4:15 pm",
+    "sides": [
+      {
+        "received_team": "Carli Lloyd Banks",
+        "initiator": "",
+        "date_str": "Oct 8, 4:15 pm",
+        "received_players": [
+          {
+            "name": "Frank Gore",
+            "nfl_team": "NYJ",
+            "pos": "RB"
+          },
+          {
+            "name": "Corey Davis",
+            "nfl_team": "NYJ",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          }
+        ]
+      },
+      {
+        "received_team": "Guap Gang",
+        "initiator": "",
+        "date_str": "Oct 8, 4:15 pm",
+        "received_players": [
+          {
+            "name": "Tyler Lockett",
+            "nfl_team": "LV",
+            "pos": "WR"
+          },
+          {
+            "name": "Todd Gurley",
+            "nfl_team": "Atl",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 8, 12:34 pm",
+    "sides": [
+      {
+        "received_team": "Barry Sandals",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 8, 12:34 pm",
+        "received_players": [
+          {
+            "name": "Daniel Jones",
+            "nfl_team": "Ind",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 8, 12:34 pm",
+        "received_players": [
+          {
+            "name": "Matthew Stafford",
+            "nfl_team": "LAR",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 1, 11:44 am",
+    "sides": [
+      {
+        "received_team": "Trevor\u2019s Semifinals",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 1, 11:44 am",
+        "received_players": [
+          {
+            "name": "Austin Ekeler",
+            "nfl_team": "Was",
+            "pos": "RB"
+          },
+          {
+            "name": "Case Keenum",
+            "nfl_team": "Chi",
+            "pos": "QB"
+          },
+          {
+            "name": "Allen Robinson",
+            "nfl_team": "Det",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 3
+          }
+        ]
+      },
+      {
+        "received_team": "Terror Squad",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 1, 11:44 am",
+        "received_players": [
+          {
+            "name": "Davante Adams",
+            "nfl_team": "LAR",
+            "pos": "WR"
+          },
+          {
+            "name": "Dalvin Cook",
+            "nfl_team": "Dal",
+            "pos": "RB"
+          },
+          {
+            "name": "Matt Ryan",
+            "nfl_team": "Ind",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 7
+          },
+          {
+            "round": 15
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Sep 24, 6:09 pm",
+    "sides": [
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 24, 6:09 pm",
+        "received_players": [
+          {
+            "name": "Saquon Barkley",
+            "nfl_team": "Phi",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 7
+          },
+          {
+            "round": 16
+          }
+        ]
+      },
+      {
+        "received_team": "Barry Sandals",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 24, 6:09 pm",
+        "received_players": [
+          {
+            "name": "Chris Carson",
+            "nfl_team": "Sea",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          },
+          {
+            "round": 15
+          }
+        ]
+      }
+    ]
+  }
+]

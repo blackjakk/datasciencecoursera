@@ -1,0 +1,196 @@
+{
+  "generated_at": "2026-05-23T23:42:50+00:00",
+  "source": "data/historical/MONEY_LEAGUE.xlsx",
+  "retention_by_position": {
+    "QB": {
+      "yr1_count": 19,
+      "yr1_to_yr2_pct": 47.36842105263158,
+      "yr2_count": 9,
+      "yr2_to_yr3_pct": 44.44444444444444,
+      "hit_cap_count": 5
+    },
+    "RB": {
+      "yr1_count": 38,
+      "yr1_to_yr2_pct": 23.68421052631579,
+      "yr2_count": 16,
+      "yr2_to_yr3_pct": 31.25,
+      "hit_cap_count": 8
+    },
+    "WR": {
+      "yr1_count": 48,
+      "yr1_to_yr2_pct": 29.166666666666668,
+      "yr2_count": 22,
+      "yr2_to_yr3_pct": 36.36363636363637,
+      "hit_cap_count": 13
+    },
+    "TE": {
+      "yr1_count": 13,
+      "yr1_to_yr2_pct": 46.15384615384615,
+      "yr2_count": 3,
+      "yr2_to_yr3_pct": 0.0,
+      "hit_cap_count": 2
+    }
+  },
+  "post_cap_dropoff": {
+    "total_capped": 29,
+    "fates": {
+      "undrafted_next_year": 5,
+      "redrafted_same_round": 2,
+      "redrafted_later": 4,
+      "redrafted_earlier": 18
+    },
+    "earlier_round_distribution": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      5,
+      5,
+      6,
+      8
+    ],
+    "examples_redrafted_earlier": [
+      {
+        "year": 2024,
+        "player": "Amon-Ra St. Brown",
+        "position": "WR",
+        "kept_round": 11,
+        "next_year_round": 2
+      },
+      {
+        "year": 2022,
+        "player": "A.J. Brown",
+        "position": "WR",
+        "kept_round": 11,
+        "next_year_round": 2
+      },
+      {
+        "year": 2022,
+        "player": "Mark Andrews",
+        "position": "TE",
+        "kept_round": 11,
+        "next_year_round": 3
+      },
+      {
+        "year": 2021,
+        "player": "Nick Chubb",
+        "position": "RB",
+        "kept_round": 8,
+        "next_year_round": 3
+      },
+      {
+        "year": 2021,
+        "player": "George Kittle",
+        "position": "TE",
+        "kept_round": 8,
+        "next_year_round": 5
+      },
+      {
+        "year": 2021,
+        "player": "James Conner",
+        "position": "RB",
+        "kept_round": 13,
+        "next_year_round": 5
+      },
+      {
+        "year": 2020,
+        "player": "JuJu Smith-Schuster",
+        "position": "WR",
+        "kept_round": 13,
+        "next_year_round": 8
+      },
+      {
+        "year": 2019,
+        "player": "Michael Thomas",
+        "position": "WR",
+        "kept_round": 6,
+        "next_year_round": 1
+      },
+      {
+        "year": 2019,
+        "player": "Davante Adams",
+        "position": "WR",
+        "kept_round": 12,
+        "next_year_round": 1
+      },
+      {
+        "year": 2019,
+        "player": "Tyreek Hill",
+        "position": "WR",
+        "kept_round": 13,
+        "next_year_round": 1
+      },
+      {
+        "year": 2018,
+        "player": "David Johnson",
+        "position": "RB",
+        "kept_round": 7,
+        "next_year_round": 1
+      },
+      {
+        "year": 2018,
+        "player": "Devonta Freeman",
+        "position": "RB",
+        "kept_round": 7,
+        "next_year_round": 2
+      },
+      {
+        "year": 2017,
+        "player": "Deandre Hopkins",
+        "position": "WR",
+        "kept_round": 4,
+        "next_year_round": 1
+      },
+      {
+        "year": 2017,
+        "player": "Mike Evans",
+        "position": "WR",
+        "kept_round": 3,
+        "next_year_round": 2
+      },
+      {
+        "year": 2017,
+        "player": "Odell Beckham Jr",
+        "position": "WR",
+        "kept_round": 11,
+        "next_year_round": 2
+      }
+    ]
+  },
+  "forced_drops_2026": [
+    {
+      "player": "Geno Smith",
+      "position": "QB",
+      "prior_round": 11,
+      "historical_redraft_earlier_pct": 62.1,
+      "historical_undrafted_pct": 17.2,
+      "median_earlier_round": 2
+    },
+    {
+      "player": "Brock Purdy",
+      "position": "QB",
+      "prior_round": 11,
+      "historical_redraft_earlier_pct": 62.1,
+      "historical_undrafted_pct": 17.2,
+      "median_earlier_round": 2
+    },
+    {
+      "player": "Jordan Love",
+      "position": "QB",
+      "prior_round": 11,
+      "historical_redraft_earlier_pct": 62.1,
+      "historical_undrafted_pct": 17.2,
+      "median_earlier_round": 2
+    }
+  ]
+}

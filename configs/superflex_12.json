@@ -1,0 +1,28 @@
+{
+  "name": "Superflex 12-team PPR (keeper)",
+  "num_teams": 12,
+  "rounds": 17,
+  "snake": true,
+  "roster": [
+    {"name": "QB", "count": 1},
+    {"name": "RB", "count": 2},
+    {"name": "WR", "count": 3},
+    {"name": "TE", "count": 1},
+    {"name": "FLEX", "count": 1},
+    {"name": "SUPERFLEX", "count": 1},
+    {"name": "K", "count": 1},
+    {"name": "DEF", "count": 1},
+    {"name": "BENCH", "count": 8}
+  ],
+  "scoring": {
+    "reception": 0.5
+  },
+  "keepers": {
+    "enabled": true,
+    "max_keepers_per_team": 4,
+    "round_penalty": 2,
+    "undrafted_keeper_round": 17,
+    "too_early_policy": "not_eligible",
+    "max_years_consecutive": 3
+  }
+}

@@ -1,0 +1,588 @@
+[
+  {
+    "season": 2017,
+    "date_str": "Oct 26, 5:47 pm",
+    "sides": [
+      {
+        "received_team": "Baking Dabs",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 26, 5:47 pm",
+        "received_players": [
+          {
+            "name": "Davante Adams",
+            "nfl_team": "LAR",
+            "pos": "WR"
+          },
+          {
+            "name": "Philip Rivers",
+            "nfl_team": "Ind",
+            "pos": "QB"
+          },
+          {
+            "name": "Isaiah Crowell",
+            "nfl_team": "LV",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 3
+          }
+        ]
+      },
+      {
+        "received_team": "The Mandingo...",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 26, 5:47 pm",
+        "received_players": [
+          {
+            "name": "Mark Ingram II",
+            "nfl_team": "NO",
+            "pos": "RB"
+          },
+          {
+            "name": "Doug Baldwin",
+            "nfl_team": "Sea",
+            "pos": "WR"
+          },
+          {
+            "name": "Tom Brady",
+            "nfl_team": "TB",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 4
+          },
+          {
+            "round": 16
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 24, 8:10 am",
+    "sides": [
+      {
+        "received_team": "Fuck the Process",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 24, 8:10 am",
+        "received_players": [
+          {
+            "name": "Devonta Freeman",
+            "nfl_team": "Bal",
+            "pos": "RB"
+          },
+          {
+            "name": "Marcus Mariota",
+            "nfl_team": "Was",
+            "pos": "QB"
+          },
+          {
+            "name": "A.J. Green",
+            "nfl_team": "Ari",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          },
+          {
+            "round": 11,
+            "originally_from": "Baking Dabs"
+          },
+          {
+            "round": 13,
+            "originally_from": "RIP August Ames"
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 24, 8:10 am",
+        "received_players": [
+          {
+            "name": "Chris Thompson",
+            "nfl_team": "SF",
+            "pos": "RB"
+          },
+          {
+            "name": "C.J. Beathard",
+            "nfl_team": "Det",
+            "pos": "QB"
+          },
+          {
+            "name": "Eric Decker",
+            "nfl_team": "Ten",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 3
+          },
+          {
+            "round": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 24, 8:10 am",
+    "sides": [
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 24, 8:10 am",
+        "received_players": [
+          {
+            "name": "E.J. Manuel",
+            "nfl_team": "LV",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 8
+          },
+          {
+            "round": 14
+          }
+        ]
+      },
+      {
+        "received_team": "Mrs. Doubtfire",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 24, 8:10 am",
+        "received_players": [
+          {
+            "name": "Antonio Brown",
+            "nfl_team": "TB",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 10
+          },
+          {
+            "round": 12
+          },
+          {
+            "round": 19
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 12, 6:33 pm",
+    "sides": [
+      {
+        "received_team": "RIP August Ames",
+        "initiator": "",
+        "date_str": "Oct 12, 6:33 pm",
+        "received_players": [
+          {
+            "name": "Matt Cassel",
+            "nfl_team": "Det",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 9
+          }
+        ]
+      },
+      {
+        "received_team": "Mrs. Doubtfire",
+        "initiator": "",
+        "date_str": "Oct 12, 6:33 pm",
+        "received_players": [
+          {
+            "name": "Brian Hoyer",
+            "nfl_team": "LV",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 18
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 10, 11:41 am",
+    "sides": [
+      {
+        "received_team": "RIP August Ames",
+        "initiator": "",
+        "date_str": "Oct 10, 11:41 am",
+        "received_players": [
+          {
+            "name": "Odell Beckham Jr.",
+            "nfl_team": "Mia",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 9
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "",
+        "date_str": "Oct 10, 11:41 am",
+        "received_players": [
+          {
+            "name": "A.J. Green",
+            "nfl_team": "Ari",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 13
+          },
+          {
+            "round": 19
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 10, 9:20 am",
+    "sides": [
+      {
+        "received_team": "Arnold Palmer Lite",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 10, 9:20 am",
+        "received_players": [
+          {
+            "name": "Kerwynn Williams",
+            "nfl_team": "Ari",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          }
+        ]
+      },
+      {
+        "received_team": "Mrs. Doubtfire",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 10, 9:20 am",
+        "received_players": [
+          {
+            "name": "LeGarrette Blount",
+            "nfl_team": "Det",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 10, 9:20 am",
+    "sides": [
+      {
+        "received_team": "RIP August Ames",
+        "initiator": "",
+        "date_str": "Oct 10, 9:20 am",
+        "received_players": [
+          {
+            "name": "Brian Hoyer",
+            "nfl_team": "LV",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "",
+        "date_str": "Oct 10, 9:20 am",
+        "received_players": [
+          {
+            "name": "Jay Cutler",
+            "nfl_team": "Mia",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 10, 9:20 am",
+    "sides": [
+      {
+        "received_team": "Baking Dabs",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 10, 9:20 am",
+        "received_players": [
+          {
+            "name": "JuJu Smith-Schuster",
+            "nfl_team": "KC",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          },
+          {
+            "round": 5
+          }
+        ]
+      },
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 10, 9:20 am",
+        "received_players": [
+          {
+            "name": "DeAndre Hopkins",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 18
+          },
+          {
+            "round": 19
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 6, 12:45 pm",
+    "sides": [
+      {
+        "received_team": "RIP August Ames",
+        "initiator": "",
+        "date_str": "Oct 6, 12:45 pm",
+        "received_players": [
+          {
+            "name": "Ben Roethlisberger",
+            "nfl_team": "Pit",
+            "pos": "QB"
+          },
+          {
+            "name": "Mitchell Trubisky",
+            "nfl_team": "Ten",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Deez Hos Ain't Royal",
+        "initiator": "",
+        "date_str": "Oct 6, 12:45 pm",
+        "received_players": [
+          {
+            "name": "Matt Ryan",
+            "nfl_team": "Ind",
+            "pos": "QB"
+          },
+          {
+            "name": "Will Fuller V",
+            "nfl_team": "Mia",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 5, 1:41 pm",
+    "sides": [
+      {
+        "received_team": "Arnold Palmer Lite",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 5, 1:41 pm",
+        "received_players": [
+          {
+            "name": "Carson Palmer",
+            "nfl_team": "Ari",
+            "pos": "QB"
+          },
+          {
+            "name": "LeGarrette Blount",
+            "nfl_team": "Det",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 2
+          }
+        ]
+      },
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 5, 1:41 pm",
+        "received_players": [
+          {
+            "name": "Drew Brees",
+            "nfl_team": "NO",
+            "pos": "QB"
+          },
+          {
+            "name": "Le'Veon Bell",
+            "nfl_team": "TB",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 18
+          },
+          {
+            "round": 19
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 3, 5:23 pm",
+    "sides": [
+      {
+        "received_team": "Baking Dabs",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 3, 5:23 pm",
+        "received_players": [
+          {
+            "name": "Cam Newton",
+            "nfl_team": "Car",
+            "pos": "QB"
+          },
+          {
+            "name": "DeAndre Hopkins",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 3, 5:23 pm",
+        "received_players": [
+          {
+            "name": "Marcus Mariota",
+            "nfl_team": "Was",
+            "pos": "QB"
+          },
+          {
+            "name": "Antonio Brown",
+            "nfl_team": "TB",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 11
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Sep 12, 9:14 pm",
+    "sides": [
+      {
+        "received_team": "RIP August Ames",
+        "initiator": "",
+        "date_str": "Sep 12, 9:14 pm",
+        "received_players": [
+          {
+            "name": "Emmanuel Sanders",
+            "nfl_team": "Buf",
+            "pos": "WR"
+          },
+          {
+            "name": "Matt Ryan",
+            "nfl_team": "Ind",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "",
+        "date_str": "Sep 12, 9:14 pm",
+        "received_players": [
+          {
+            "name": "DeAndre Hopkins",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          },
+          {
+            "name": "Eli Manning",
+            "nfl_team": "NYG",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  }
+]

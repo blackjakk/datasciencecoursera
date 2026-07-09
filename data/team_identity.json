@@ -1,0 +1,343 @@
+{
+  "_comment": "Maps each league member to their team names.",
+  "managers": {
+    "brian_bigguap": {
+      "canonical_name": "Brian (Big Guap)",
+      "sleeper_roster_id": 9,
+      "sleeper_display_name": "bigguap69",
+      "xlsx_nicknames": [
+        "Brian",
+        "Big Guap 69",
+        "Bgu"
+      ],
+      "yahoo_team_names": {
+        "2018": "Kareem Hunt did 9/11",
+        "2019": "Guap Gang",
+        "2020": "Guap Gang",
+        "2021": "Guap Gang",
+        "2014": "PillowBoy Posse",
+        "2015": "RIP Brittney Murphy",
+        "2022": "The pigeon outside Lems window",
+        "2017": "RIP August Ames",
+        "2016": "Sunday Scaries",
+        "2012": "THIS SINBAD HOUSE",
+        "2013": "PEDs 'til I DDT",
+        "2011": "Bibi Jones Gangbang"
+      },
+      "confidence": "high"
+    },
+    "trevor_bergerboy": {
+      "canonical_name": "Trevor (BergerBoy)",
+      "sleeper_roster_id": 11,
+      "sleeper_display_name": "tjt5055",
+      "xlsx_nicknames": [
+        "Trevor",
+        "Berger Boy Briga"
+      ],
+      "yahoo_team_names": {
+        "2015": "BergerBoy Brigade",
+        "2016": "BergerBoy Brigade",
+        "2017": "BergerBoy Brigade",
+        "2018": "BergerBoy Brigade",
+        "2019": "BergerBoy Brigade",
+        "2020": "BergerBoy Brigade",
+        "2021": "BergerBoy Brigade",
+        "2022": "BergerBoy Brigade",
+        "2014": "BergerBoy Brigade",
+        "2013": "Mud Monkeys",
+        "2012": "Kelce's Beard Cheese",
+        "2011": "Reno Mahe 911"
+      },
+      "confidence": "high — Brian confirms Trevor had Kelce's Beard Cheese 2012 and Mud Monkeys 2013"
+    },
+    "kyle_figgy": {
+      "canonical_name": "Kyle (Figgy)",
+      "sleeper_roster_id": 5,
+      "sleeper_display_name": "kylefiggy",
+      "xlsx_nicknames": [
+        "Figgy"
+      ],
+      "yahoo_team_names": {
+        "2015": "ButtersBottomBitches",
+        "2016": "Trust the Process",
+        "2019": "Figgy",
+        "2020": "Figgy",
+        "2021": "Figgy",
+        "2022": "Figgy",
+        "_note": "From 2019 onward Figgy used his nickname as team_name. 2015-2018 used silly one-off names.",
+        "2011": "Figgy",
+        "2012": "Figgy",
+        "2013": "Figgy",
+        "2014": "ButtersBottomBitches",
+        "2017": "Trust the Process",
+        "2018": "Barkley\u2019s Biddies"
+      },
+      "confidence": "high_from_2019"
+    },
+    "lem": {
+      "canonical_name": "Lem (LEMVP)",
+      "sleeper_roster_id": 6,
+      "sleeper_display_name": "LEMVP",
+      "xlsx_nicknames": [
+        "Lem"
+      ],
+      "yahoo_team_names": {
+        "2015": "LEMVP & Associates",
+        "2018": "LEMVP & Associates",
+        "2022": "The Washington Football Team",
+        "2013": "LEMVP & Associates",
+        "2014": "LEMVP & Associates",
+        "2020": "#1 Pokemon Master",
+        "2021": "#1 Pokemon Master",
+        "2019": "Trevor\u2019s Semifinals",
+        "2017": "Baking Dabs",
+        "2016": "Raichu a Love Song",
+        "2011": "Rushinators",
+        "2012": "Rushinators"
+      },
+      "confidence": "high"
+    },
+    "brower_barry": {
+      "canonical_name": "Brower (Barry)",
+      "sleeper_roster_id": 8,
+      "sleeper_display_name": "kbrower",
+      "xlsx_nicknames": [
+        "Brower"
+      ],
+      "yahoo_team_names": {
+        "2019": "Barry Sandals",
+        "2020": "Barry Sandals",
+        "2021": "Barry Sandals",
+        "2022": "Barry Sandals",
+        "_note": "Brower joined the league in 2019 (not in FF2015-2018 xlsx) and used 'Barry Sandals' consistently."
+      },
+      "confidence": "high"
+    },
+    "ankur_patel": {
+      "canonical_name": "Ankur (Patel)",
+      "sleeper_roster_id": 3,
+      "sleeper_display_name": "apatel185",
+      "xlsx_nicknames": [
+        "Ankur"
+      ],
+      "yahoo_team_names": {
+        "2022": "Hail Koo",
+        "_note": "Ankur joined late (FF2022 payment row '0.0' dues = new member). Only 1 Yahoo year before Sleeper migration.",
+        "2021": "Zero Win Percentage"
+      },
+      "confidence": "high"
+    },
+    "troy_mullings": {
+      "canonical_name": "Troy (Mullings)",
+      "sleeper_roster_id": 4,
+      "sleeper_display_name": "troymullings",
+      "xlsx_nicknames": [
+        "Troy"
+      ],
+      "yahoo_team_names": {
+        "2015": "Tyrodasaurus Rex",
+        "2016": "Tyrodasaurus Rex",
+        "2019": "Terror Squad",
+        "2020": "Terror Squad",
+        "2021": "Terror Squad",
+        "2017": "The Mandingo...",
+        "2018": "The Mandingo...",
+        "2022": "Cadillac Crippling Crusaders",
+        "2014": "Sammetius Watkinutus",
+        "2013": "Byrd's Nest"
+      },
+      "confidence": "high"
+    },
+    "nark": {
+      "canonical_name": "Nark (aka 'Dave', left after 2016)",
+      "sleeper_roster_id": null,
+      "sleeper_display_name": "(not in Sleeper era \u2014 left before 2023 migration)",
+      "xlsx_nicknames": [
+        "Dave (Nark)",
+        "Nark"
+      ],
+      "yahoo_team_names": {
+        "2011": "The Danny O'Shea's",
+        "2012": "The Danny O'Shea's",
+        "2013": "The Danny O'Shea's",
+        "2014": "The Danny O'Shea's",
+        "2015": "The Danny O'Shea's",
+        "2016": "Arnold Palmer Lite"
+      },
+      "confidence": "high",
+      "_disambiguation_note": "TWO different 'Daves' in league history: this Nark/Dave left after 2016, and Dave-aka-Wang joined in 2013 and stayed through 2024. They overlapped 2013-2016 \u2014 could be conflated in casual chat but are distinct in Yahoo data (different team_ids + team_names)."
+    },
+    "eric_m": {
+      "canonical_name": "Eric (Mattesich)",
+      "sleeper_roster_id": 7,
+      "sleeper_display_name": "emattessich",
+      "xlsx_nicknames": [
+        "Eric"
+      ],
+      "yahoo_team_names": {
+        "2015": "Deez Hos Ain't Royal",
+        "2016": "Deez Hos Ain't Royal",
+        "2017": "Deez Hos Ain't Royal",
+        "2018": "Deez Hos Ain't Royal",
+        "2020": "Wet Ass Posluzny",
+        "2021": "Wet Ass Posluzny",
+        "2022": "Wet Ass Posluzny",
+        "2014": "Deez Hos Ain't Royal",
+        "2019": "Sam Darnolds a Slut",
+        "2011": "LockOut w my CockOut",
+        "2012": "LockOut w my CockOut",
+        "2013": "Gu's Ricemobile"
+      },
+      "confidence": "high"
+    },
+    "tim_breswick": {
+      "canonical_name": "Tim (Breswick)",
+      "sleeper_roster_id": 1,
+      "sleeper_display_name": "TBreswick",
+      "xlsx_nicknames": [
+        "Tim"
+      ],
+      "yahoo_team_names": {
+        "2019": "Weird Flex but OK",
+        "2020": "Weird Flex but OK",
+        "2021": "Weird Flex but OK",
+        "2022": "Weird Flex but OK",
+        "2017": "Arnold Palmer Lite",
+        "2018": "Arnold Palmer Lite"
+      },
+      "confidence": "high"
+    },
+    "josh_wildboy": {
+      "canonical_name": "Josh (Wi1dboy, took over Dave's roster in 2025)",
+      "sleeper_roster_id": 10,
+      "sleeper_display_name": "Wi1dboy (2025) / wvw5022 (2023-2024 = Dave)",
+      "xlsx_nicknames": [
+        "Josh"
+      ],
+      "previous_owner": {
+        "nickname": "Dave",
+        "xlsx_nicknames": [
+          "Dave"
+        ],
+        "active_seasons": "2017-2024 (xlsx); 2023-2024 (Sleeper rid 10 as wvw5022 / 'Dave on Montgomery Ave')",
+        "yahoo_team_names_guess": {
+          "2017": "Fuck the Process? (slot 7 in FF2017 = Dave)",
+          "_note": "Dave first appears FF2017. Yahoo team_names 2018+ unknown \u2014 could be 'Land of the Freemans' 2018, 'The Dream Team' 2019-2022 (the only persistent Yahoo team across those years that hasn't been claimed)."
+        }
+      },
+      "yahoo_team_names": {
+        "_note": "Josh joined 2025; no Yahoo history."
+      },
+      "confidence": "high"
+    },
+    "donnie": {
+      "canonical_name": "Donnie",
+      "sleeper_roster_id": 2,
+      "sleeper_display_name": "dibach215",
+      "xlsx_nicknames": [
+        "Donnie",
+        "Mrs Doubtfire",
+        "Mrs Doubtfir"
+      ],
+      "yahoo_team_names": {
+        "2015": "Big Don's Cuties",
+        "2020": "Don\u2019s Special Guys",
+        "_note": "Donnie was in FF2015-2016 xlsx (likely left, then returned 2022+). 'Don's Special Guys' 2020 and 'Big Don's Cuties' 2015 both contain 'Don' which fits.",
+        "2017": "Mrs. Doubtfire",
+        "2018": "Mrs. Doubtfire",
+        "2022": "Tom Hanks",
+        "2021": "Moaning Myrtle",
+        "2019": "Carli Lloyd Banks",
+        "2014": "Jville Jizz",
+        "2016": "Bing Bong Brothers"
+      },
+      "confidence": "medium"
+    },
+    "coop": {
+      "canonical_name": "Coop",
+      "sleeper_roster_id": 12,
+      "sleeper_display_name": "BigDickNicholas",
+      "xlsx_nicknames": [
+        "Coop"
+      ],
+      "yahoo_team_names": {
+        "2011": "Dirty Old Men",
+        "2012": "Dirty Old Men",
+        "2013": "Dirty Old Men",
+        "2014": "Dirty Old Men",
+        "2015": "Dirty Old Men",
+        "2016": "Dirty Old Men",
+        "2017": "The Dream Team",
+        "2018": "The Dream Team",
+        "2019": "The Dream Team",
+        "2020": "The Dream Team",
+        "2021": "The Dream Team",
+        "2022": "The Dream Team"
+      },
+      "confidence": "high — Brian confirms Dirty Old Men was always Coop"
+    },
+    "dave_aka_wang": {
+      "canonical_name": "Dave (aka Wang, replaced by Josh in 2025)",
+      "sleeper_roster_id": null,
+      "sleeper_display_name": "(replaced by Josh in 2025)",
+      "xlsx_nicknames": [
+        "Dave",
+        "Wang"
+      ],
+      "yahoo_team_names": {
+        "2015": "LeGarratte Blunt",
+        "2016": "Joffrey Sucks",
+        "2017": "Fuck the Process",
+        "2019": "No Chubby Strippers",
+        "2014": "LeGarratte Blunt",
+        "2022": "Community Day Lamb",
+        "2021": "Walking Off Like Antonio",
+        "2020": "Waiting For 2021",
+        "2018": "Land of the Freemans",
+        "2013": "BrownsToTheSuperBowl"
+      },
+      "confidence": "high \u2014 Dave and Wang are the same person per league owner"
+    },
+    "notebooks_left": {
+      "canonical_name": "Jimmy Notebooks (one-year guy, 2019 only)",
+      "sleeper_roster_id": null,
+      "sleeper_display_name": "(left league)",
+      "xlsx_nicknames": [
+        "Notebooks",
+        "Jimmy Notebooks"
+      ],
+      "yahoo_team_names": {
+        "2019": "Troll Toll"
+      },
+      "confidence": "high \u2014 Brian confirms Jimmy Notebooks, 2019 only"
+    },
+    "nick_lewis_left": {
+      "canonical_name": "Nick Lewis (2013 only + brief 2020 return)",
+      "sleeper_roster_id": null,
+      "sleeper_display_name": "(left league)",
+      "xlsx_nicknames": [
+        "Nick Lewis"
+      ],
+      "yahoo_team_names": {
+        "2013": "Mr. Y. Mirosho",
+        "2020": "LewLew Ferrari"
+      },
+      "confidence": "high"
+    },
+    "jp_former": {
+      "canonical_name": "JP (founding member, left after 2012)",
+      "sleeper_roster_id": null,
+      "sleeper_display_name": "(left before 2013)",
+      "xlsx_nicknames": [
+        "JP",
+        "Z"
+      ],
+      "yahoo_team_names": {
+        "2011": "HOLD MA DICK",
+        "2012": "Nut up or shut up"
+      },
+      "confidence": "high \u2014 Brian confirms JP had HOLD MA DICK (2011) and Nut up or shut up (2012)",
+      "_note": "Previously labeled 'Z' in xlsx; actual name is JP."
+    }
+  }
+}
