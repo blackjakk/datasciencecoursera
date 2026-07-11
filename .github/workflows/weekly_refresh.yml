@@ -74,7 +74,7 @@ jobs:
         run: |
           git fetch origin claude/football-sim-blockchain-game-b3sdq
           git checkout claude/football-sim-blockchain-game-b3sdq
-          for f in index.html data.json standalone.html; do
+          for f in index.html data.json standalone.html ml.css; do
             git show master:docs/draft_helper/$f > draft_helper/$f
           done
           git add draft_helper/

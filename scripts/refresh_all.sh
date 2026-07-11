@@ -92,13 +92,15 @@ do_reports() {
 # ---------- Draft helper ----------
 do_helper() {
   ensure_player_catalog
+  log "Sync design-system CSS into the helper"
+  cp design/ml.css docs/draft_helper/ml.css
   log "Refresh draft helper data bundle"
   python3 scripts/build_draft_helper_data.py
   log "Rebuild standalone.html (data inlined)"
   python3 scripts/build_standalone_helper.py
   # Mirror into football-sim branch's draft_helper/ for htmlpreview hosting
   if [ -d "draft_helper" ]; then
-    cp docs/draft_helper/*.html docs/draft_helper/data.json draft_helper/
+    cp docs/draft_helper/*.html docs/draft_helper/data.json docs/draft_helper/ml.css draft_helper/
     echo "Synced to draft_helper/ (football-sim branch path)"
   fi
 }
