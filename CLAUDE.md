@@ -48,7 +48,9 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
 + `design/tokens.py`. ALL UI (helper, 4 PDF builders, matplotlib) consumes
 it. `scripts/check_design_system.py` (inside verify) fails on raw hex,
 duplicate palettes, hand-edited generated files. Use the `design-review`
-skill for any UI diff. Catalog: docs/DESIGN_SYSTEM.md.
+skill for any UI diff. Catalog: docs/DESIGN_SYSTEM.md. **Intent/aesthetic
+doctrine: DESIGN.md (repo root) — read before building ANY UI**; it is
+hex-free by rule (RAW HEX scan covers it) so it can't fork from tokens.
 
 ## Accessibility (July 2026 hardening — enforced)
 Helper is WCAG 2.1 AA: keyboard-draftable (roving tabindex, focus

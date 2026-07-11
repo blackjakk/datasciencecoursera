@@ -35,8 +35,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Files subject to the RAW HEX scan (the design-system consumers).
+# Files subject to the RAW HEX scan (the design-system consumers, plus
+# DESIGN.md — the intent doc references tokens by NAME so it can't fork
+# from tokens.json the way prose design docs usually rot).
 HEX_SCAN_TARGETS = [
+    "DESIGN.md",
     "docs/draft_helper/index.html",
     "scripts/build_power_rankings.py",
     "scripts/build_preseason_2026.py",
@@ -131,7 +134,7 @@ def check_raw_hex() -> list[str]:
         if not p.exists():
             out.append(f"RAW HEX {rel}: file missing")
             continue
-        kind = "html" if p.suffix == ".html" else "py"
+        kind = "py" if p.suffix == ".py" else "html"  # .md scans as html
         out.extend(scan_hex(p.read_text(), kind, rel))
     return out
 

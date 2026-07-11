@@ -7,9 +7,16 @@ description: Review UI changes for MONEYLEAGUE design-system compliance. Use whe
 
 Every UI surface in this repo consumes ONE design system, single-sourced from
 `design/tokens.json`. Your job is to verify a UI diff cannot drift from it.
-Reference: `docs/DESIGN_SYSTEM.md`.
+Reference: `docs/DESIGN_SYSTEM.md` (catalog) and `DESIGN.md` (intent).
 
 ## Procedure
+
+0. **Read `DESIGN.md` first** (repo root) — the intent layer. Judge the diff
+   against its doctrine, not just the mechanical rules below: color must
+   carry meaning, flat surfaces (no shadows/gradients outside the masthead),
+   density-with-rhythm, component decision rules, the "off-brand — reject
+   on sight" list. A diff can pass every check below and still be
+   off-brand; that is a **request changes**.
 
 1. **Run the enforcement check first**:
 
