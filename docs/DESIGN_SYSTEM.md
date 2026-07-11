@@ -41,32 +41,74 @@ verify run.
 
 ## Token catalog (`design/tokens.json`)
 
+All color values below are **WCAG 2.1 AA verified** (July 2026 a11y audit,
+measured ratios in the tables). Don't change a value without re-measuring —
+`scratchpad`-era math lives on in docs/A11Y_AUDIT.md.
+
 ### color.position — one color per position, everywhere
-`QB #dc2626 · RB #0891b2 · WR #16a34a · TE #f59e0b · K #9a3412 · DEF #525252`
+`QB #dc2626 · RB #0e7490 · WR #15803d · TE #f59e0b · K #9a3412 · DEF #6b6b6b`
 CSS: `--ml-pos-qb` ... `--ml-pos-def`. Python: `POS_COLORS` (includes a
-`DST` alias for `DEF`).
+`DST` alias for `DEF`). RB/WR/DEF were darkened/lightened (from
+`#0891b2`/`#16a34a`/`#525252`) so badge text hits 4.5:1 — see the on-color
+polarity table below before adding any badge.
+
+### color.position_text — on-badge text polarity overrides
+Text color used on a position badge/filter chip when white fails AA.
+Currently only `TE: #000` (white on `#f59e0b` = 2.15 ✗, black = 9.78 ✓).
+The builder defaults every other position to `#fff`.
 
 ### color.semantic — meaning colors, themed light/dark
 | token | light | dark | CSS var |
 | --- | --- | --- | --- |
-| success | `#16a34a` | `#4ade80` | `--ml-success` |
-| warn | `#d97706` | `#f59e0b` | `--ml-warn` |
-| danger | `#dc2626` | `#ef4444` | `--ml-danger` |
+| success | `#15803d` | `#4ade80` | `--ml-success` |
+| warn | `#b45309` | `#f59e0b` | `--ml-warn` |
+| danger | `#c81e1e` | `#f87171` | `--ml-danger` |
 | info | `#0369a1` | `#60a5fa` | `--ml-info` |
 | keeper | `#0369a1` | `#60a5fa` | `--ml-keeper` |
+| focus | `#0369a1` | `#7dd3fc` | `--ml-focus` |
+
+All semantic *text* colors are ≥4.5:1 on every surface they appear on,
+including `panel2` (the previous light success/warn/danger and dark danger
+failed there). `focus` drives the global `:focus-visible` ring (≥3:1
+against bg/panel2 in both themes: dark 11.67/9.80, light 5.93).
 
 ### color.surface — page scaffolding, themed
-`bg`, `panel`, `panel2`, `border`, `row`, `text`, `muted` for both `dark`
-(helper) and `light` (reports). CSS vars: `--ml-bg`, `--ml-panel`,
-`--ml-panel2`, `--ml-border`, `--ml-row`, `--ml-text`, `--ml-muted` —
-values switch automatically with `data-theme`. Python: `SURFACE_LIGHT`,
-`SURFACE_DARK`.
+`bg`, `panel`, `panel2`, `border`, `border_strong`, `row`, `text`, `muted`
+for both `dark` (helper) and `light` (reports). CSS vars: `--ml-bg`,
+`--ml-panel`, `--ml-panel2`, `--ml-border`, `--ml-border-strong`,
+`--ml-row`, `--ml-text`, `--ml-muted` — values switch automatically with
+`data-theme`. Python: `SURFACE_LIGHT`, `SURFACE_DARK`.
+
+- `border_strong` (dark `#66707d`, light `#767f8b`) is the **interactive
+  control boundary** — WCAG 1.4.11 needs ≥3:1 for UI component boundaries
+  (measured: dark 3.57 vs panel / 3.25 vs panel2; light 4.05 vs white /
+  3.70 vs panel2). Used by `.ml-input`, `.ml-btn`, `.ml-filter`.
+- `border` (subtle) stays on `.ml-panel` / `.ml-card` — **decorative
+  container outlines are exempt from 1.4.11** (audit C22): panel structure
+  is conveyed by headings and spacing, the border is aesthetic only. Do not
+  "fix" panel borders to `border_strong`; do not use plain `border` on
+  anything a user must locate to operate.
+- light `muted` is `#5d6673` (was `#66707d`, which was 4.48 on `row`).
+
+### color.highlight — row-tint overlays, themed
+| token | dark | light | CSS var |
+| --- | --- | --- | --- |
+| target | `rgba(74,222,128,.16)` | `rgba(21,128,61,.10)` | `--ml-target-tint` |
+| mine | `rgba(74,222,128,.18)` | `rgba(21,128,61,.12)` | `--ml-mine-tint` |
+
+Used by the helper for Brian-target rows and "my pick" history rows.
+Tints are intentionally subtle and therefore **must never be the only
+signal** — pair with a non-color cue (the helper uses a ★ glyph / the
+manager name). Python: `HIGHLIGHT`.
 
 ### color.banner / color.brand / color.chart
 - banner: `warn_bg`, `warn_border` (light values; dark equivalents are baked
   into the dark block) → `--ml-banner-warn-bg`, `--ml-banner-warn-border`.
-- brand: `header_a #14b8a6`, `header_b #0891b2` → `--ml-brand-a`,
-  `--ml-brand-b` (header gradient).
+- brand: `header_a #0f766e`, `header_b #0e7490` → `--ml-brand-a`,
+  `--ml-brand-b` (header gradient; darkened from `#14b8a6`/`#0891b2` so
+  white text passes), plus `on_brand #ffffff` → `--ml-on-brand` — the ONLY
+  text color allowed on the brand gradient, both themes (5.47 / 5.36).
+  Never put `--ml-text` on the gradient (light theme renders dark-on-dark).
 - chart: `grid`, `grid_strong` — matplotlib grid lines via `mpl_style()`.
 
 ### color.palette — general-purpose named colors (Python `PALETTE`)
@@ -91,6 +133,61 @@ report colors a franchise identically.
 ## Component catalog (`design/ml.css`)
 
 Every class, with a usage snippet. All of them theme automatically.
+
+### A11y utilities
+
+```html
+<span class="ml-visually-hidden">Draft </span>      <!-- SR-only text -->
+<button class="ml-btn--bare">Bijan Robinson</button> <!-- text-look button -->
+```
+
+- **Global focus ring** — ml.css ships
+  `:focus-visible { outline: 2px solid var(--ml-focus); outline-offset: 1px; }`.
+  Never suppress it (`outline: none`) and never add per-component focus
+  styles; every interactive element gets a visible ring for free.
+- `.ml-visually-hidden` — standard clip pattern; text readable by screen
+  readers, invisible on screen. Use it for SR-only labels, live-region
+  text, and expanding abbreviations.
+- `.ml-btn--bare` — resets a `<button>` to inherit surrounding text style
+  (background/border/padding stripped, `font: inherit`, `cursor: pointer`).
+  Use it to make table-row / card content a real focusable button without
+  changing its look (draft-a-player rows, rec cards).
+
+### Media adaptations (baked into ml.css — no page CSS needed)
+
+- `@media (prefers-reduced-motion: reduce)` — kills the `ml-pulse`
+  animation on `.ml-btn--on`, `.ml-clock--me`, `.ml-clock--soon`; the solid
+  background-color state still conveys the status.
+- `@media (pointer: coarse)` — touch targets: `.ml-btn`/`.ml-filter` and
+  `.ml-input` get `min-height: 40px` (+ `8px 12px` padding on buttons);
+  `.ml-table td` gains vertical padding so rows are tappable (~40px).
+- Font sizes are **rem** (root-16px equivalents of the old px values:
+  0.875/0.8125/0.75/0.6875/0.625/0.5625rem) so browser/OS text-size
+  settings actually scale the UI. Exception: `.ml-table--compact` keeps
+  `7.6pt` — print/PDF density is a physical-unit context.
+
+### On-color text polarity (measured — pick from this table, never guess)
+
+Whether text on a colored chip is white or black is decided by measured
+contrast, per theme. The builder emits these; light-theme flips are
+`[data-theme="light"]` overrides.
+
+| Surface | dark theme | light theme | measured (dark / light) |
+| --- | --- | --- | --- |
+| QB `#dc2626` | white | white | 4.83 (black fails 4.35) |
+| RB `#0e7490`, WR `#15803d`, K `#9a3412`, DEF `#6b6b6b` | white | white | 5.36 / 5.02 / 7.31 / 5.33 |
+| TE `#f59e0b` (badge + filter) | **black** | **black** | 9.78 (white fails 2.15) |
+| keeper (`#60a5fa` / `#0369a1`) | **black** | **white** | 8.26 (white fails 2.54) / 5.93 (black fails 3.54) |
+| rookie (warn: `#f59e0b` / `#b45309`) | **black** | **white** | 9.78 / 5.02 (black fails 4.18) |
+| injury + `.ml-btn--on` (danger: `#f87171` / `#c81e1e`) | **black** | **white** | 7.59 / 5.74 |
+| `.ml-filter.active` + `.ml-clock--me` (success: `#4ade80` / `#15803d`) | **black** | **white** | 12.05 / 5.02 (black fails 4.19) |
+| `.ml-clock--soon` (warn) | **black** | **white** | 9.78 / 5.02 |
+| brand gradient (header, `.ml-clock`, `.ml-btn--hdr`) | `--ml-on-brand` (white) | `--ml-on-brand` (white) | 5.47–9.7 |
+
+Adding a new badge/chip? Compute both polarities against its background in
+BOTH themes (4.5:1 for the ≤16px badge text) and add a
+`color.position_text` entry or a light-theme override in the builder
+accordingly.
 
 ### Layout primitives
 ```html
@@ -152,7 +249,7 @@ Every class, with a usage snippet. All of them theme automatically.
 from design.tokens import (
     POS_COLORS, MANAGER_COLORS, PALETTE,          # dicts of hex strings
     SEMANTIC_LIGHT, SEMANTIC_DARK,                 # themed meaning colors
-    SURFACE_LIGHT, SURFACE_DARK, BANNER, BRAND, CHART,
+    SURFACE_LIGHT, SURFACE_DARK, HIGHLIGHT, BANNER, BRAND, CHART,
     FONT_DISPLAY, FONT_BODY, FONT_DIR,
     mgr_color,          # mgr_color(manager_id) -> stable hex, gray fallback
     report_base_css,    # ml.css + light report defaults; append layout-only rules

@@ -7,6 +7,18 @@ Emits (commit all of these together):
   design/tokens.py — Python constants + report_base_css() + mpl_style()
 
 Both files carry DO-NOT-EDIT headers; they are build products.
+
+Accessibility invariants baked in (see docs/DESIGN_SYSTEM.md for measured
+WCAG ratios — do not change these without re-measuring):
+  - every on-color text pairing (badges, filters, clock states) is emitted
+    per-theme so both themes meet 4.5:1;
+  - interactive controls (.ml-btn/.ml-input/.ml-filter) use the
+    border_strong token (>=3:1 boundary, WCAG 1.4.11); decorative panels
+    keep the subtle border (documented exemption);
+  - global :focus-visible ring from the focus token;
+  - font sizes are rem so browser text-size settings work;
+  - prefers-reduced-motion kills the ml-pulse animation;
+  - (pointer: coarse) enforces >=40px touch targets.
 """
 from __future__ import annotations
 
@@ -17,9 +29,11 @@ HERE = Path(__file__).resolve().parent
 T = json.loads((HERE / "tokens.json").read_text())
 
 POS = T["color"]["position"]
+POS_TEXT = T["color"]["position_text"]  # on-badge text overrides; default #fff
 SEM = T["color"]["semantic"]
 DARK = T["color"]["surface"]["dark"]
 LIGHT = T["color"]["surface"]["light"]
+HL = T["color"]["highlight"]
 BAN = T["color"]["banner"]
 CHART = T["color"]["chart"]
 BRAND = T["color"]["brand"]
@@ -27,20 +41,29 @@ TYPE = T["typography"]
 RAD = T["radius"]
 
 
+def _pos_fg(k: str) -> str:
+    """Text color on a position badge/filter chip (C20 polarity table)."""
+    return POS_TEXT.get(k, "#fff")
+
+
 def build_css() -> str:
     pos_vars_dark = "\n".join(f"  --ml-pos-{k.lower()}: {v};" for k, v in POS.items())
     sem_dark = "\n".join(f"  --ml-{k}: {v['dark']};" for k, v in SEM.items())
     sem_light = "\n".join(f"  --ml-{k}: {v['light']};" for k, v in SEM.items())
-    surf = lambda s: "\n".join(f"  --ml-{k}: {v};" for k, v in s.items())
+    surf = lambda s: "\n".join(
+        f"  --ml-{k.replace('_', '-')}: {v};" for k, v in s.items())
+    hl = lambda theme: "\n".join(
+        f"  --ml-{k}-tint: {v[theme]};" for k, v in HL.items())
 
     pos_badges = "\n".join(
-        f'.ml-badge--{k.lower()} {{ background: var(--ml-pos-{k.lower()}); color: #fff; }}'
+        f'.ml-badge--{k.lower()} {{ background: var(--ml-pos-{k.lower()});'
+        f' color: {_pos_fg(k)}; }}'
         for k in POS)
     pos_text = "\n".join(
         f'.ml-pos-{k.lower()} {{ color: var(--ml-pos-{k.lower()}); }}' for k in POS)
     pos_filters = "\n".join(
         f'.ml-filter--{k.lower()}.active {{ background: var(--ml-pos-{k.lower()});'
-        f' border-color: var(--ml-pos-{k.lower()}); color: #fff; }}'
+        f' border-color: var(--ml-pos-{k.lower()}); color: {_pos_fg(k)}; }}'
         for k in POS)
 
     return f"""/* ============================================================
@@ -52,24 +75,38 @@ def build_css() -> str:
 {surf(DARK)}
 {pos_vars_dark}
 {sem_dark}
+{hl('dark')}
   --ml-banner-warn-bg: #2a2115;
   --ml-banner-warn-border: #7c5a2b;
   --ml-font-display: {TYPE['display']};
   --ml-font-body: {TYPE['body']};
   --ml-r-sm: {RAD['sm']}; --ml-r-md: {RAD['md']}; --ml-r-lg: {RAD['lg']};
   --ml-brand-a: {BRAND['header_a']}; --ml-brand-b: {BRAND['header_b']};
+  --ml-on-brand: {BRAND['on_brand']};
 }}
 [data-theme="light"] {{
 {surf(LIGHT)}
 {sem_light}
+{hl('light')}
   --ml-banner-warn-bg: {BAN['warn_bg']};
   --ml-banner-warn-border: {BAN['warn_border']};
 }}
 
+/* ---------- a11y utilities ---------- */
+:focus-visible {{ outline: 2px solid var(--ml-focus); outline-offset: 1px; }}
+.ml-visually-hidden {{ position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0);
+  clip-path: inset(50%); white-space: nowrap; border: 0; }}
+.ml-btn--bare {{ background: none; border: 0; padding: 0; color: inherit;
+  font: inherit; text-align: left; cursor: pointer; }}
+
 /* ---------- primitives ---------- */
+/* .ml-panel/.ml-card borders are decorative container outlines — exempt
+   from WCAG 1.4.11 (structure is conveyed by headings/spacing). Interactive
+   controls below use --ml-border-strong instead. */
 .ml-panel {{ background: var(--ml-panel); border: 1px solid var(--ml-border);
   border-radius: var(--ml-r-lg); padding: 10px; }}
-.ml-panel > h2, .ml-h-label {{ margin: 0 0 8px; font-size: 12px; font-weight: 700;
+.ml-panel > h2, .ml-h-label {{ margin: 0 0 8px; font-size: 0.75rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1px; color: var(--ml-muted); }}
 .ml-card {{ border: 1px solid var(--ml-border); border-radius: var(--ml-r-md);
   padding: 4px 7px; background: var(--ml-panel); break-inside: avoid; }}
@@ -77,56 +114,63 @@ def build_css() -> str:
 
 /* ---------- badges & chips ---------- */
 .ml-badge {{ display: inline-block; padding: 1px 5px; border-radius: var(--ml-r-sm);
-  font-size: 10px; font-weight: 700; color: #fff; min-width: 24px; text-align: center; }}
+  font-size: 0.625rem; font-weight: 700; color: #fff; min-width: 24px; text-align: center; }}
 {pos_badges}
-.ml-badge--dst {{ background: var(--ml-pos-def); color: #fff; }}
+.ml-badge--dst {{ background: var(--ml-pos-def); color: {_pos_fg('DEF')}; }}
 .ml-badge--keeper {{ background: var(--ml-keeper); color: #000; padding: 1px 4px;
-  font-size: 9px; min-width: 0; }}
+  font-size: 0.5625rem; min-width: 0; }}
 .ml-badge--rookie {{ background: var(--ml-warn); color: #000; padding: 1px 4px;
-  font-size: 9px; min-width: 0; }}
-.ml-badge--injury {{ background: var(--ml-danger); color: #fff; padding: 1px 4px;
-  font-size: 9px; min-width: 0; }}
+  font-size: 0.5625rem; min-width: 0; }}
+.ml-badge--injury {{ background: var(--ml-danger); color: #000; padding: 1px 4px;
+  font-size: 0.5625rem; min-width: 0; }}
+[data-theme="light"] .ml-badge--keeper {{ color: #fff; }}
+[data-theme="light"] .ml-badge--rookie {{ color: #fff; }}
+[data-theme="light"] .ml-badge--injury {{ color: #fff; }}
 {pos_text}
 .ml-stat {{ background: var(--ml-panel2); padding: 3px 8px; border-radius: 4px;
-  font-size: 11px; color: var(--ml-muted); }}
+  font-size: 0.6875rem; color: var(--ml-muted); }}
 .ml-stat strong {{ color: var(--ml-text); }}
 
 /* ---------- buttons & inputs ---------- */
-.ml-btn {{ background: var(--ml-panel2); border: 1px solid var(--ml-border);
+.ml-btn {{ background: var(--ml-panel2); border: 1px solid var(--ml-border-strong);
   color: var(--ml-text); padding: 4px 10px; border-radius: var(--ml-r-md);
-  cursor: pointer; font-size: 12px; }}
+  cursor: pointer; font-size: 0.75rem; }}
 .ml-btn:hover {{ filter: brightness(1.2); }}
-.ml-btn--hdr {{ background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.3);
-  color: #fff; padding: 6px 12px; font-weight: 700; letter-spacing: .5px; }}
+.ml-btn--hdr {{ background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.65);
+  color: var(--ml-on-brand); padding: 6px 12px; font-weight: 700; letter-spacing: .5px; }}
 .ml-btn--on {{ background: var(--ml-danger); border-color: var(--ml-danger);
-  color: #fff; animation: ml-pulse 1.4s infinite; }}
-.ml-input {{ background: var(--ml-panel2); border: 1px solid var(--ml-border);
+  color: #000; animation: ml-pulse 1.4s infinite; }}
+[data-theme="light"] .ml-btn--on {{ color: #fff; }}
+.ml-input {{ background: var(--ml-panel2); border: 1px solid var(--ml-border-strong);
   color: var(--ml-text); padding: 6px 10px; border-radius: var(--ml-r-md);
-  font-size: 14px; }}
-.ml-filter {{ background: var(--ml-panel2); border: 1px solid var(--ml-border);
+  font-size: 0.875rem; }}
+.ml-filter {{ background: var(--ml-panel2); border: 1px solid var(--ml-border-strong);
   color: var(--ml-text); padding: 4px 9px; border-radius: var(--ml-r-md);
-  cursor: pointer; font-size: 12px; font-weight: 700; }}
+  cursor: pointer; font-size: 0.75rem; font-weight: 700; }}
 .ml-filter.active {{ background: var(--ml-success); color: #000;
   border-color: var(--ml-success); }}
+[data-theme="light"] .ml-filter.active {{ color: #fff; }}
 {pos_filters}
 
 /* ---------- status / clock ---------- */
 @keyframes ml-pulse {{ 0%,100% {{ box-shadow: 0 0 0 0 rgba(74,222,128,.6); }}
   50% {{ box-shadow: 0 0 0 8px rgba(74,222,128,0); }} }}
-.ml-clock {{ font-weight: 700; font-size: 13px; padding: 6px 10px;
-  border-radius: 6px; background: rgba(0,0,0,0.35); }}
+.ml-clock {{ font-weight: 700; font-size: 0.8125rem; padding: 6px 10px;
+  border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--ml-on-brand); }}
 .ml-clock--me {{ background: var(--ml-success); color: #000;
   animation: ml-pulse 1.4s infinite; }}
 .ml-clock--soon {{ background: var(--ml-warn); color: #000;
   animation: ml-pulse 1.4s infinite; }}
+[data-theme="light"] .ml-clock--me {{ color: #fff; }}
+[data-theme="light"] .ml-clock--soon {{ color: #fff; }}
 .ml-sv-hi {{ color: var(--ml-success); font-weight: 700; }}
 .ml-sv-mid {{ color: var(--ml-warn); font-weight: 700; }}
 .ml-sv-lo {{ color: var(--ml-danger); font-weight: 700; }}
 
 /* ---------- tables ---------- */
-.ml-table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+.ml-table {{ width: 100%; border-collapse: collapse; font-size: 0.8125rem; }}
 .ml-table th {{ text-align: left; padding: 4px 6px; color: var(--ml-muted);
-  font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+  font-size: 0.6875rem; text-transform: uppercase; letter-spacing: .5px;
   border-bottom: 1px solid var(--ml-border); position: sticky; top: 0;
   background: var(--ml-panel); z-index: 1; }}
 .ml-table td {{ padding: 6px; border-bottom: 1px solid var(--ml-row); }}
@@ -141,6 +185,16 @@ def build_css() -> str:
   padding: 4px 8px; }}
 .ml-note {{ color: var(--ml-muted); font-size: .85em; }}
 .ml-urgent {{ color: var(--ml-danger); font-weight: 700; }}
+
+/* ---------- media adaptations ---------- */
+@media (prefers-reduced-motion: reduce) {{
+  .ml-btn--on, .ml-clock--me, .ml-clock--soon {{ animation: none; }}
+}}
+@media (pointer: coarse) {{
+  .ml-btn, .ml-filter {{ min-height: 40px; padding: 8px 12px; }}
+  .ml-input {{ min-height: 40px; }}
+  .ml-table td {{ padding-top: 10px; padding-bottom: 10px; }}
+}}
 """
 
 
@@ -166,6 +220,8 @@ SEMANTIC_DARK = {json.dumps({k: v["dark"] for k, v in SEM.items()}, indent=4)}
 
 SURFACE_LIGHT = {json.dumps(LIGHT, indent=4)}
 SURFACE_DARK = {json.dumps(DARK, indent=4)}
+
+HIGHLIGHT = {json.dumps(HL, indent=4)}
 
 BANNER = {json.dumps(BAN, indent=4)}
 CHART = {json.dumps(CHART, indent=4)}

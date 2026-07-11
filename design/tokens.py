@@ -9,11 +9,11 @@ from __future__ import annotations
 
 POS_COLORS = {
     "QB": "#dc2626",
-    "RB": "#0891b2",
-    "WR": "#16a34a",
+    "RB": "#0e7490",
+    "WR": "#15803d",
     "TE": "#f59e0b",
     "K": "#9a3412",
-    "DEF": "#525252"
+    "DEF": "#6b6b6b"
 }
 POS_COLORS["DST"] = POS_COLORS["DEF"]
 
@@ -51,18 +51,20 @@ PALETTE = {
 }
 
 SEMANTIC_LIGHT = {
-    "success": "#16a34a",
-    "warn": "#d97706",
-    "danger": "#dc2626",
+    "success": "#15803d",
+    "warn": "#b45309",
+    "danger": "#c81e1e",
     "info": "#0369a1",
-    "keeper": "#0369a1"
+    "keeper": "#0369a1",
+    "focus": "#0369a1"
 }
 SEMANTIC_DARK = {
     "success": "#4ade80",
     "warn": "#f59e0b",
-    "danger": "#ef4444",
+    "danger": "#f87171",
     "info": "#60a5fa",
-    "keeper": "#60a5fa"
+    "keeper": "#60a5fa",
+    "focus": "#7dd3fc"
 }
 
 SURFACE_LIGHT = {
@@ -70,18 +72,31 @@ SURFACE_LIGHT = {
     "panel": "#ffffff",
     "panel2": "#f1f5f9",
     "border": "#d8dce2",
+    "border_strong": "#767f8b",
     "row": "#f0f2f5",
     "text": "#1a1d24",
-    "muted": "#66707d"
+    "muted": "#5d6673"
 }
 SURFACE_DARK = {
     "bg": "#0b0d10",
     "panel": "#14171c",
     "panel2": "#1c2027",
     "border": "#262b33",
+    "border_strong": "#66707d",
     "row": "#1a1d22",
     "text": "#e8eaee",
     "muted": "#8a93a0"
+}
+
+HIGHLIGHT = {
+    "target": {
+        "dark": "rgba(74,222,128,.16)",
+        "light": "rgba(21,128,61,.10)"
+    },
+    "mine": {
+        "dark": "rgba(74,222,128,.18)",
+        "light": "rgba(21,128,61,.12)"
+    }
 }
 
 BANNER = {
@@ -93,8 +108,9 @@ CHART = {
     "grid_strong": "#d1d5db"
 }
 BRAND = {
-    "header_a": "#14b8a6",
-    "header_b": "#0891b2"
+    "header_a": "#0f766e",
+    "header_b": "#0e7490",
+    "on_brand": "#ffffff"
 }
 
 FONT_DISPLAY = "'Bebas Neue', 'Arial Narrow', sans-serif"
