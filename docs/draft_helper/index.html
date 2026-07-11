@@ -1,128 +1,80 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Brian's 2026 Draft Helper</title>
+<link rel="stylesheet" href="ml.css">
 <style>
-  :root {
-    --bg: #0b0d10;
-    --panel: #14171c;
-    --panel-2: #1c2027;
-    --border: #262b33;
-    --text: #e8eaee;
-    --muted: #8a93a0;
-    --accent: #4ade80;
-    --warn: #f59e0b;
-    --danger: #ef4444;
-    --info: #60a5fa;
-    --qb: #dc2626;
-    --rb: #0891b2;
-    --wr: #16a34a;
-    --te: #f59e0b;
-    --k:  #9a3412;
-    --def:#525252;
-  }
+  /* Page-specific layout ONLY — every color comes from ml.css --ml-* vars. */
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  header { background: linear-gradient(135deg, #14b8a6 0%, #0891b2 100%); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  body { margin: 0; background: var(--ml-bg); color: var(--ml-text); font: 14px/1.4 var(--ml-font-body); }
+  header { background: linear-gradient(135deg, var(--ml-brand-a) 0%, var(--ml-brand-b) 100%); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
   header .title { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; }
-  header .clock { font-weight: 700; font-size: 13px; padding: 6px 10px; border-radius: 6px; background: rgba(0,0,0,0.35); }
-  header .clock.me { background: #16a34a; animation: pulse 1.4s infinite; }
-  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.6);} 50% { box-shadow: 0 0 0 8px rgba(74,222,128,0);} }
   main { display: grid; grid-template-columns: 1fr 380px; gap: 12px; padding: 12px; max-width: 1400px; margin: 0 auto; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
-  .panel h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
   .controls { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
-  .controls input[type=search] { flex: 1; min-width: 140px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 14px; }
+  .controls input[type=search] { flex: 1; min-width: 140px; }
   .pos-filter { display: flex; gap: 4px; flex-wrap: wrap; }
-  .pos-btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 4px 9px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 700; transition: all 0.1s; }
-  .pos-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-  .pos-btn[data-pos=QB].active { background: var(--qb); border-color: var(--qb); color: #fff; }
-  .pos-btn[data-pos=RB].active { background: var(--rb); border-color: var(--rb); color: #fff; }
-  .pos-btn[data-pos=WR].active { background: var(--wr); border-color: var(--wr); color: #fff; }
-  .pos-btn[data-pos=TE].active { background: var(--te); border-color: var(--te); color: #fff; }
-  table.player-list { width: 100%; border-collapse: collapse; font-size: 13px; }
-  table.player-list th { text-align: left; padding: 4px 6px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); z-index: 1; }
-  table.player-list td { padding: 6px; border-bottom: 1px solid #1a1d22; }
   table.player-list tr { cursor: pointer; }
-  table.player-list tr:hover { background: var(--panel-2); }
+  table.player-list tr:hover { background: var(--ml-panel2); }
   table.player-list tr.drafted { opacity: 0.25; text-decoration: line-through; pointer-events: none; }
-  table.player-list tr.brian-target { background: rgba(74,222,128,0.07); border-left: 3px solid var(--accent); }
-  .pos-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; font-weight: 700; color: #fff; min-width: 24px; text-align: center; }
-  .pos-QB { background: var(--qb); }
-  .pos-RB { background: var(--rb); }
-  .pos-WR { background: var(--wr); }
-  .pos-TE { background: var(--te); }
-  .pos-K  { background: var(--k); }
-  .pos-DEF, .pos-DST { background: var(--def); }
+  table.player-list tr.brian-target { background: rgba(74,222,128,0.07); border-left: 3px solid var(--ml-success); }
   .vbd { font-weight: 700; }
-  .vbd.pos { color: var(--accent); }
-  .vbd.neg { color: var(--muted); }
-  .meta { color: var(--muted); font-size: 11px; }
+  .vbd.pos { color: var(--ml-success); }
+  .vbd.neg { color: var(--ml-muted); }
+  .meta { color: var(--ml-muted); font-size: 11px; }
   .roster { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 12px; }
-  .roster-row { padding: 4px 6px; background: var(--panel-2); border-left: 3px solid; border-radius: 3px; display: flex; justify-content: space-between; align-items: center; }
+  .roster-row { padding: 4px 6px; background: var(--ml-panel2); border-left: 3px solid; border-radius: var(--ml-r-sm); display: flex; justify-content: space-between; align-items: center; }
   .recs { display: flex; flex-direction: column; gap: 4px; }
-  .rec { padding: 6px 8px; background: var(--panel-2); border-radius: 5px; border-left: 3px solid var(--accent); }
-  .rec.warn { border-left-color: var(--warn); }
-  .rec .why { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .rec { padding: 6px 8px; background: var(--ml-panel2); border-radius: var(--ml-r-md); border-left: 3px solid var(--ml-success); }
+  .rec.warn { border-left-color: var(--ml-warn); }
+  .rec .why { color: var(--ml-muted); font-size: 11px; margin-top: 2px; }
   .player-list-scroll { max-height: 70vh; overflow-y: auto; }
   .history { max-height: 200px; overflow-y: auto; font-size: 12px; }
-  .history-row { padding: 3px 6px; border-bottom: 1px solid #1a1d22; display: flex; gap: 6px; align-items: center; }
-  .history-row .pn { color: var(--muted); min-width: 28px; }
-  .history-row .who { color: var(--muted); min-width: 60px; }
+  .history-row { padding: 3px 6px; border-bottom: 1px solid var(--ml-row); display: flex; gap: 6px; align-items: center; }
+  .history-row .pn { color: var(--ml-muted); min-width: 28px; }
+  .history-row .who { color: var(--ml-muted); min-width: 60px; }
   .history-row.mine { background: rgba(74,222,128,0.12); }
-  .keeper-badge { background: var(--info); color: #000; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: 700; margin-left: 4px; }
-  .age-young { color: var(--accent); }
-  .age-old { color: var(--muted); }
-  button.undo { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; }
-  button.undo:hover { background: #2a2f38; }
-  .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
-  .stat { background: var(--panel-2); padding: 3px 8px; border-radius: 4px; }
-  .stat strong { color: var(--text); }
+  .age-young { color: var(--ml-success); }
+  .age-old { color: var(--ml-muted); }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; }
   .keeper-row { font-style: italic; opacity: 0.7; }
-  .next-pick-info { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .next-pick-info { font-size: 11px; color: var(--ml-muted); margin-top: 2px; }
   .live-box { display: flex; align-items: center; gap: 8px; }
-  .live-btn { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
-  .live-btn.on { background: var(--danger); border-color: var(--danger); animation: pulse 1.4s infinite; }
   .live-status { font-size: 11px; color: rgba(255,255,255,0.85); max-width: 220px; }
-  .sv-hi { color: var(--accent); font-weight: 700; }
-  .sv-mid { color: var(--warn); font-weight: 700; }
-  .sv-lo { color: var(--danger); font-weight: 700; }
-  .clock.soon { background: var(--warn); color: #000; animation: pulse 1.4s infinite; }
 </style>
 </head>
 <body>
 <header>
   <div class="title">BRIAN'S 2026 DRAFT HELPER · slot 6</div>
   <div class="live-box">
-    <button id="ceiling-btn" class="live-btn" title="Weight recommendations toward boom/bust upside (expert disagreement + youth) instead of median value">CEILING</button>
-    <button id="practice-btn" class="live-btn" title="Run a practice draft vs the tendency-modeled league bots">PRACTICE</button>
-    <button id="live-btn" class="live-btn">GO LIVE</button>
+    <button id="ceiling-btn" class="ml-btn ml-btn--hdr" title="Weight recommendations toward boom/bust upside (expert disagreement + youth) instead of median value">CEILING</button>
+    <button id="practice-btn" class="ml-btn ml-btn--hdr" title="Run a practice draft vs the tendency-modeled league bots">PRACTICE</button>
+    <button id="live-btn" class="ml-btn ml-btn--hdr">GO LIVE</button>
     <span id="live-status" class="live-status"></span>
   </div>
-  <div id="clock" class="clock">loading…</div>
+  <div id="clock" class="ml-clock">loading…</div>
 </header>
 
 <main>
   <!-- LEFT: player pool -->
-  <div class="panel">
+  <div class="ml-panel">
     <h2>Available Players</h2>
     <div class="controls">
-      <input id="search" type="search" placeholder="Search by name…" autocomplete="off">
+      <input id="search" class="ml-input" type="search" placeholder="Search by name…" autocomplete="off">
       <div class="pos-filter">
-        <button class="pos-btn active" data-pos="ALL">All</button>
-        <button class="pos-btn" data-pos="QB">QB</button>
-        <button class="pos-btn" data-pos="RB">RB</button>
-        <button class="pos-btn" data-pos="WR">WR</button>
-        <button class="pos-btn" data-pos="TE">TE</button>
-        <button class="pos-btn" data-pos="K">K</button>
-        <button class="pos-btn" data-pos="DEF">DEF</button>
+        <button class="ml-filter active" data-pos="ALL">All</button>
+        <button class="ml-filter ml-filter--qb" data-pos="QB">QB</button>
+        <button class="ml-filter ml-filter--rb" data-pos="RB">RB</button>
+        <button class="ml-filter ml-filter--wr" data-pos="WR">WR</button>
+        <button class="ml-filter ml-filter--te" data-pos="TE">TE</button>
+        <button class="ml-filter" data-pos="K">K</button>
+        <button class="ml-filter" data-pos="DEF">DEF</button>
       </div>
     </div>
     <div class="player-list-scroll">
-      <table class="player-list" id="ptable">
+      <table class="ml-table player-list" id="ptable">
         <thead>
           <tr><th>Pos</th><th>Name</th><th>Team</th><th>Age</th><th>Proj</th><th>VBD</th><th>ADP</th><th title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)">Next✓</th></tr>
         </thead>
@@ -133,21 +85,21 @@
 
   <!-- RIGHT: roster + recs + history -->
   <div style="display: flex; flex-direction: column; gap: 12px;">
-    <div class="panel">
+    <div class="ml-panel">
       <h2>You're on the Clock</h2>
       <div id="next-pick" class="next-pick-info">—</div>
       <h2 style="margin-top: 10px;">Top Recommendations</h2>
       <div id="recs" class="recs"></div>
     </div>
 
-    <div class="panel">
+    <div class="ml-panel">
       <h2>Your Roster <span id="roster-total" class="meta"></span></h2>
       <div id="roster" class="roster"></div>
       <div id="roster-stats" class="stats" style="margin-top: 8px;"></div>
     </div>
 
-    <div class="panel">
-      <h2>Recent Picks <button class="undo" id="undo">undo last</button></h2>
+    <div class="ml-panel">
+      <h2>Recent Picks <button class="ml-btn" id="undo">undo last</button></h2>
       <div class="history" id="history"></div>
     </div>
   </div>
@@ -170,9 +122,9 @@ let cursor = 0;               // index into DATA.schedule
   recomputeCursor();          // cursor = first slot without a player
   refresh();
   document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); });
-  document.querySelectorAll(".pos-btn").forEach(b => b.addEventListener("click", e => {
+  document.querySelectorAll(".ml-filter").forEach(b => b.addEventListener("click", e => {
     posFilter = e.target.dataset.pos;
-    document.querySelectorAll(".pos-btn").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".ml-filter").forEach(x => x.classList.remove("active"));
     e.target.classList.add("active");
     renderPlayerList();
   }));
@@ -331,7 +283,7 @@ function togglePractice() {
   const btn = document.getElementById("practice-btn");
   if (practiceMode) {           // exit + restore
     practiceMode = false;
-    btn.classList.remove("on");
+    btn.classList.remove("ml-btn--on");
     btn.textContent = "PRACTICE";
     history.replaceState(null, "", "#" + (practiceSavedHash || ""));
     for (const s of DATA.schedule) { delete s.player; delete s.is_keeper; }
@@ -346,7 +298,7 @@ function togglePractice() {
   if (liveTimer) { setLiveStatus("stop LIVE sync before practicing"); return; }
   practiceMode = true;
   practiceSavedHash = location.hash.slice(1);
-  btn.classList.add("on");
+  btn.classList.add("ml-btn--on");
   btn.textContent = "EXIT PRACTICE";
   // fresh board: keepers only
   for (const s of DATA.schedule) { delete s.player; delete s.is_keeper; }
@@ -374,7 +326,7 @@ async function toggleLive() {
     clearInterval(liveTimer);
     liveTimer = null;
     btn.textContent = "GO LIVE";
-    btn.classList.remove("on");
+    btn.classList.remove("ml-btn--on");
     setLiveStatus("live sync stopped");
     return;
   }
@@ -391,7 +343,7 @@ async function toggleLive() {
     return;
   }
   btn.textContent = "LIVE";
-  btn.classList.add("on");
+  btn.classList.add("ml-btn--on");
   await livePoll();
   liveTimer = setInterval(livePoll, 15000);
 }
@@ -628,7 +580,7 @@ function survivalAt(p, overall) {
 function survivalCell(p, waitPick) {
   if (!waitPick) return '<span class="meta">–</span>';
   const pct = Math.round(survivalAt(p, waitPick.overall) * 100);
-  const cls = pct >= 70 ? "sv-hi" : (pct >= 30 ? "sv-mid" : "sv-lo");
+  const cls = pct >= 70 ? "ml-sv-hi" : (pct >= 30 ? "ml-sv-mid" : "ml-sv-lo");
   return `<span class="${cls}">${pct}%</span>`;
 }
 
@@ -687,7 +639,7 @@ function upsideBonus(p) {
 function toggleCeiling() {
   ceilingMode = !ceilingMode;
   const btn = document.getElementById("ceiling-btn");
-  btn.classList.toggle("on", ceilingMode);
+  btn.classList.toggle("ml-btn--on", ceilingMode);
   btn.textContent = ceilingMode ? "CEILING ON" : "CEILING";
   refresh();
 }
@@ -730,19 +682,19 @@ function renderClock() {
   const el = document.getElementById("clock");
   if (cursor >= DATA.schedule.length) {
     el.textContent = "Draft complete";
-    el.classList.remove("me");
+    el.classList.remove("ml-clock--me");
     return;
   }
   const next = DATA.schedule[cursor];
   const mgr = DATA.managers.find(m => m.team_idx === next.team_idx);
   const isMe = next.team_idx === DATA.my_team_idx;
   el.textContent = `R${next.round}.${next.pick_in_round} · #${next.overall} · ${mgr ? mgr.id.toUpperCase() : "?"}`;
-  el.classList.toggle("me", isMe);
+  el.classList.toggle("ml-clock--me", isMe);
 
   // Find Brian's next pick
   const myNext = DATA.schedule.slice(cursor).find(p => p.team_idx === DATA.my_team_idx && !p.player);
   const away = myNext ? myNext.overall - next.overall : -1;
-  el.classList.toggle("soon", !isMe && away > 0 && away <= 2);
+  el.classList.toggle("ml-clock--soon", !isMe && away > 0 && away <= 2);
   if (myNext) {
     const keepNote = keeperCostLabel(myNext.round);
     document.getElementById("next-pick").textContent =
@@ -776,12 +728,12 @@ function renderPlayerList() {
     const tr = document.createElement("tr");
     if (needPos.has(p.pos)) tr.classList.add("brian-target");
     const ageCell = p.age ? `<span class="${p.age <= 25 ? 'age-young' : (p.age >= 29 ? 'age-old' : '')}">${p.age}</span>` : '<span class="meta">-</span>';
-    const rookieTag = p.years_exp === 0 ? ' <span class="keeper-badge" style="background:var(--warn);color:#000">R</span>' : '';
-    const injTag = p.injury ? ` <span class="keeper-badge" style="background:var(--danger);color:#fff">${p.injury[0]}</span>` : '';
+    const rookieTag = p.years_exp === 0 ? ' <span class="ml-badge ml-badge--rookie">R</span>' : '';
+    const injTag = p.injury ? ` <span class="ml-badge ml-badge--injury">${p.injury[0]}</span>` : '';
     const dv = dynVbd.get(p.name) ?? p.vbd;
     const vbdClass = dv > 0 ? "pos" : "neg";
     tr.innerHTML = `
-      <td><span class="pos-tag pos-${p.pos}">${p.pos}</span></td>
+      <td><span class="ml-badge ml-badge--${p.pos.toLowerCase()}">${p.pos}</span></td>
       <td>${p.name}${rookieTag}${injTag}</td>
       <td class="meta">${p.team}</td>
       <td>${ageCell}</td>
@@ -818,10 +770,10 @@ function renderRoster() {
       const isKeeper = player.is_keeper;
       const row = document.createElement("div");
       row.className = "roster-row" + (isKeeper ? " keeper-row" : "");
-      row.style.borderLeftColor = `var(--${pos.toLowerCase()})`;
+      row.style.borderLeftColor = `var(--ml-pos-${pos.toLowerCase()})`;
       const keepTag = (!isKeeper && player.round > 2)
         ? ` <span class="meta" title="2027 keeper cost">·K'27 R${player.round - 2}</span>` : "";
-      row.innerHTML = `<span><span class="pos-tag pos-${pos}">${pos}</span> ${player.player}${isKeeper ? ' <span class="keeper-badge">K</span>' : ''}</span><span class="meta">R${player.round}${keepTag}</span>`;
+      row.innerHTML = `<span><span class="ml-badge ml-badge--${pos.toLowerCase()}">${pos}</span> ${player.player}${isKeeper ? ' <span class="ml-badge ml-badge--keeper">K</span>' : ''}</span><span class="meta">R${player.round}${keepTag}</span>`;
       r.appendChild(row);
     }
   }
@@ -833,7 +785,7 @@ function renderRoster() {
     const target = { QB:3, RB:5, WR:6, TE:2, K:1, DEF:1 }[pos];
     const cur = counts[pos] || 0;
     const ok = cur >= target ? '✓' : `${target - cur} short`;
-    stats.innerHTML += `<span class="stat"><strong>${pos}</strong> ${cur}/${target} <span class="meta">${ok}</span></span>`;
+    stats.innerHTML += `<span class="ml-stat"><strong>${pos}</strong> ${cur}/${target} <span class="meta">${ok}</span></span>`;
   }
 }
 
@@ -886,7 +838,7 @@ function renderRecs() {
     const dv = dynVbd.get(p.name) ?? p.vbd;
     const div = document.createElement("div");
     div.className = "rec";
-    div.innerHTML = `<div><span class="pos-tag pos-${p.pos}">${p.pos}</span> <strong>${p.name}</strong> ` +
+    div.innerHTML = `<div><span class="ml-badge ml-badge--${p.pos.toLowerCase()}">${p.pos}</span> <strong>${p.name}</strong> ` +
       `<span class="meta">VBD ${dv > 0 ? '+' : ''}${dv.toFixed(0)} · ADP ${p.adp.toFixed(0)}` +
       `${p.age ? ' · age ' + p.age : ''} · back-to-you ${survivalCell(p, waitPick)}</span></div>` +
       `<div class="why">${reason}</div>`;
@@ -929,9 +881,9 @@ function renderHistory() {
     row.innerHTML = `
       <span class="pn">#${p.overall}</span>
       <span class="who">${(mgr && mgr.id) ? mgr.id.toUpperCase() : '?'}</span>
-      <span class="pos-tag pos-${player.pos}">${player.pos || '?'}</span>
+      <span class="ml-badge ml-badge--${(player.pos || '?').toLowerCase()}">${player.pos || '?'}</span>
       <span>${p.player}</span>
-      ${isKeeper ? '<span class="keeper-badge">K</span>' : ''}
+      ${isKeeper ? '<span class="ml-badge ml-badge--keeper">K</span>' : ''}
     `;
     h.appendChild(row);
   }
