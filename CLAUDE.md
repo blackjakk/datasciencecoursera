@@ -9,8 +9,9 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
 ## Branch map
 - `master` — the project (pipeline, data, docs, design system)
 - `claude/football-sim-blockchain-game-b3sdq` — GitHub Pages source ONLY:
-  serves the gridiron-chain game + `/draft_helper/` (auto-synced from
-  master by the weekly workflow; never develop here)
+  hosts `/draft_helper/` (auto-synced from master by the weekly workflow;
+  never develop here). Also carries the old gridiron-chain game, which is
+  UNRELATED to this project (user-confirmed) — ignore it entirely.
 - `claude/trusting-hamilton-3MNt9` — frozen pre-migration archive
 - Weekly automation: `.github/workflows/weekly_refresh.yml`, Tuesdays
   ~9:23am ET — full pipeline, verify-gated push to master, PDFs to the
