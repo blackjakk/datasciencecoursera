@@ -52,6 +52,11 @@ duplicate palettes, hand-edited generated files. Use the `design-review`
 skill for any UI diff. Catalog: docs/DESIGN_SYSTEM.md. **Intent/aesthetic
 doctrine: DESIGN.md (repo root) — read before building ANY UI**; it is
 hex-free by rule (RAW HEX scan covers it) so it can't fork from tokens.
+Theme (July 2026): **The Exchange** — trading terminal (dark) + engraved
+banknote (light/PDFs); gold = market state + blue-chip ONLY; GUAP labels
+never replace numbers; tape is static. Contract: docs/GOAL_EXCHANGE.md.
+Fonts self-hosted OFL (data/fonts/), guilloché via design/guilloche.py.
+data/adp_history.csv accumulates weekly ADP (sparklines ready ~Aug).
 
 ## Accessibility (July 2026 hardening — enforced)
 Helper is WCAG 2.1 AA: keyboard-draftable (roving tabindex, focus

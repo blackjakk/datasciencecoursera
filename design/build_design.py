@@ -1,36 +1,54 @@
 """Generate the design-system artifacts from design/tokens.json.
 
-    python3 design/build_design.py
+    python3 design/build_design.py               # regenerate ml.css + tokens.py
+    python3 design/build_design.py --sync-fonts  # refresh fonts.faces payloads
+                                                 # in tokens.json from
+                                                 # data/fonts/*.woff2, then build
 
 Emits (commit all of these together):
   design/ml.css    — component library + CSS custom properties (dark + light)
+                     + base64 @font-face for the self-hosted Exchange faces
   design/tokens.py — Python constants + report_base_css() + mpl_style()
 
 Both files carry DO-NOT-EDIT headers; they are build products.
+
+Font embedding: the latin woff2 payloads are stored base64 inside
+tokens.json (fonts.faces) rather than read from data/fonts at build time,
+so the DRIFT check — which regenerates from tokens.json + this file alone
+in a temp dir — reproduces ml.css byte-identically. `--sync-fonts` is the
+one sanctioned way to refresh those payloads from data/fonts.
 
 Accessibility invariants baked in (see docs/DESIGN_SYSTEM.md for measured
 WCAG ratios — do not change these without re-measuring):
   - every on-color text pairing (badges, filters, clock states) is emitted
     per-theme so both themes meet 4.5:1;
+  - the gold closing-bell / blue-chip chips use the measured dark-on-gold
+    polarity (chip_text on chip_bg) in BOTH themes;
   - interactive controls (.ml-btn/.ml-input/.ml-filter) use the
     border_strong token (>=3:1 boundary, WCAG 1.4.11); decorative panels
     keep the subtle border (documented exemption);
   - global :focus-visible ring from the focus token;
   - font sizes are rem so browser text-size settings work;
   - prefers-reduced-motion kills the ml-pulse animation;
-  - (pointer: coarse) enforces >=40px touch targets.
+  - (pointer: coarse) enforces >=40px touch targets;
+  - .ml-tape is static by construction — no animation, ever (motion means
+    urgency, DESIGN.md).
 """
 from __future__ import annotations
 
+import base64
 import json
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-T = json.loads((HERE / "tokens.json").read_text())
+TOKENS_PATH = HERE / "tokens.json"
+T = json.loads(TOKENS_PATH.read_text())
 
 POS = T["color"]["position"]
 POS_TEXT = T["color"]["position_text"]  # on-badge text overrides; default #fff
 SEM = T["color"]["semantic"]
+GOLD = SEM["gold"]
 DARK = T["color"]["surface"]["dark"]
 LIGHT = T["color"]["surface"]["light"]
 HL = T["color"]["highlight"]
@@ -39,11 +57,39 @@ CHART = T["color"]["chart"]
 BRAND = T["color"]["brand"]
 TYPE = T["typography"]
 RAD = T["radius"]
+FONTS = T.get("fonts", {}).get("faces", [])
+
+# (family, css font-weight [range for variable files], filename in data/fonts)
+FONT_FILES = [
+    ("IBM Plex Mono", "400", "IBMPlexMono-Regular-latin.woff2"),
+    ("IBM Plex Mono", "700", "IBMPlexMono-Bold-latin.woff2"),
+    ("Cinzel", "700", "Cinzel-700-latin.woff2"),
+    ("Archivo", "600 800", "Archivo-600-800-latin.woff2"),
+]
 
 
 def _pos_fg(k: str) -> str:
     """Text color on a position badge/filter chip (C20 polarity table)."""
     return POS_TEXT.get(k, "#fff")
+
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha:g})"
+
+
+def build_font_faces() -> str:
+    """@font-face rules from the base64 payloads stored in tokens.json."""
+    rules = []
+    for face in FONTS:
+        rules.append(
+            f"@font-face {{ font-family: '{face['family']}'; "
+            f"font-style: normal; font-weight: {face['weight']}; "
+            f"font-display: swap; "
+            f"src: url(data:font/woff2;base64,{face['data']}) "
+            f"format('woff2'); }}")
+    return "\n".join(rules)
 
 
 def build_css() -> str:
@@ -66,20 +112,30 @@ def build_css() -> str:
         f' border-color: var(--ml-pos-{k.lower()}); color: {_pos_fg(k)}; }}'
         for k in POS)
 
+    seal_tint_hi = _rgba(GOLD["chip_bg"], 0.35)
+    seal_tint_lo = _rgba(GOLD["chip_bg"], 0.08)
+
     return f"""/* ============================================================
    MONEYLEAGUE design system — GENERATED from design/tokens.json.
    DO NOT EDIT BY HAND: run  python3 design/build_design.py
    ============================================================ */
+
+/* ---------- self-hosted faces (latin subsets, OFL — data/fonts/OFL_NOTICE.md) ---------- */
+{build_font_faces()}
 
 :root, [data-theme="dark"] {{
 {surf(DARK)}
 {pos_vars_dark}
 {sem_dark}
 {hl('dark')}
+  --ml-gold-chip: {GOLD['chip_bg']};
+  --ml-gold-chip-text: {GOLD['chip_text']};
   --ml-banner-warn-bg: #2a2115;
   --ml-banner-warn-border: #7c5a2b;
   --ml-font-display: {TYPE['display']};
   --ml-font-body: {TYPE['body']};
+  --ml-font-data: {TYPE['data']};
+  --ml-font-engraving: {TYPE['engraving']};
   --ml-r-sm: {RAD['sm']}; --ml-r-md: {RAD['md']}; --ml-r-lg: {RAD['lg']};
   --ml-brand-a: {BRAND['header_a']}; --ml-brand-b: {BRAND['header_b']};
   --ml-on-brand: {BRAND['on_brand']};
@@ -112,6 +168,24 @@ def build_css() -> str:
   padding: 4px 7px; background: var(--ml-panel); break-inside: avoid; }}
 .ml-display {{ font-family: var(--ml-font-display); letter-spacing: .5px; }}
 
+/* ---------- exchange primitives ---------- */
+.ml-num {{ font-family: var(--ml-font-data); font-variant-numeric: tabular-nums;
+  text-align: right; }}
+/* .ml-tape is STATIC by doctrine (DESIGN.md: motion means urgency) —
+   never animate it; overflow simply clips. */
+.ml-tape {{ display: flex; gap: 18px; padding: 4px 10px; overflow: hidden;
+  white-space: nowrap; font-family: var(--ml-font-data); font-size: 0.6875rem;
+  color: var(--ml-muted); border-bottom: 1px solid var(--ml-border); }}
+.ml-tape b, .ml-tape strong {{ color: var(--ml-text); font-weight: 700; }}
+.ml-serial {{ font-family: var(--ml-font-data); color: var(--ml-danger);
+  font-size: 0.625rem; font-weight: 700; letter-spacing: 1px; }}
+.ml-seal {{ font-family: var(--ml-font-engraving); font-weight: 700;
+  font-size: 0.8125rem; width: 34px; height: 34px; border-radius: 50%;
+  border: 1.5px solid currentColor; display: inline-grid; place-items: center;
+  background: radial-gradient(circle at 50% 50%, {seal_tint_hi},
+    {seal_tint_lo} 70%); }}
+.ml-fineprint {{ color: var(--ml-muted); font-size: 0.65rem; line-height: 1.5; }}
+
 /* ---------- badges & chips ---------- */
 .ml-badge {{ display: inline-block; padding: 1px 5px; border-radius: var(--ml-r-sm);
   font-size: 0.625rem; font-weight: 700; color: #fff; min-width: 24px; text-align: center; }}
@@ -123,6 +197,10 @@ def build_css() -> str:
   font-size: 0.5625rem; min-width: 0; }}
 .ml-badge--injury {{ background: var(--ml-danger); color: #000; padding: 1px 4px;
   font-size: 0.5625rem; min-width: 0; }}
+/* gold chip polarity: dark text on gold, BOTH themes (measured 7.84) */
+.ml-badge--bluechip {{ background: var(--ml-gold-chip);
+  color: var(--ml-gold-chip-text); padding: 1px 4px; font-size: 0.5625rem;
+  min-width: 0; letter-spacing: .5px; }}
 [data-theme="light"] .ml-badge--keeper {{ color: #fff; }}
 [data-theme="light"] .ml-badge--rookie {{ color: #fff; }}
 [data-theme="light"] .ml-badge--injury {{ color: #fff; }}
@@ -157,11 +235,11 @@ def build_css() -> str:
   50% {{ box-shadow: 0 0 0 8px rgba(74,222,128,0); }} }}
 .ml-clock {{ font-weight: 700; font-size: 0.8125rem; padding: 6px 10px;
   border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--ml-on-brand); }}
-.ml-clock--me {{ background: var(--ml-success); color: #000;
+/* closing bell: gold chip polarity (dark text on gold), BOTH themes */
+.ml-clock--me {{ background: var(--ml-gold-chip); color: var(--ml-gold-chip-text);
   animation: ml-pulse 1.4s infinite; }}
 .ml-clock--soon {{ background: var(--ml-warn); color: #000;
   animation: ml-pulse 1.4s infinite; }}
-[data-theme="light"] .ml-clock--me {{ color: #fff; }}
 [data-theme="light"] .ml-clock--soon {{ color: #fff; }}
 .ml-sv-hi {{ color: var(--ml-success); font-weight: 700; }}
 .ml-sv-mid {{ color: var(--ml-warn); font-weight: 700; }}
@@ -218,6 +296,10 @@ PALETTE = {json.dumps(T["color"]["palette"], indent=4)}
 SEMANTIC_LIGHT = {json.dumps({k: v["light"] for k, v in SEM.items()}, indent=4)}
 SEMANTIC_DARK = {json.dumps({k: v["dark"] for k, v in SEM.items()}, indent=4)}
 
+# The Exchange gold chip (closing bell / blue chip): dark-on-gold polarity,
+# measured safe in BOTH themes — see docs/DESIGN_SYSTEM.md.
+GOLD_CHIP = {json.dumps({"bg": GOLD["chip_bg"], "text": GOLD["chip_text"]}, indent=4)}
+
 SURFACE_LIGHT = {json.dumps(LIGHT, indent=4)}
 SURFACE_DARK = {json.dumps(DARK, indent=4)}
 
@@ -229,6 +311,8 @@ BRAND = {json.dumps(BRAND, indent=4)}
 
 FONT_DISPLAY = {json.dumps(TYPE["display"])}
 FONT_BODY = {json.dumps(TYPE["body"])}
+FONT_DATA = {json.dumps(TYPE["data"])}
+FONT_ENGRAVING = {json.dumps(TYPE["engraving"])}
 FONT_DIR = {json.dumps(TYPE["font_dir"])}
 
 
@@ -293,7 +377,35 @@ def mpl_style() -> None:
 '''
 
 
+def sync_fonts() -> None:
+    """Refresh tokens.json fonts.faces from data/fonts/*.woff2 (FONT_FILES).
+    The payloads live in tokens.json so the DRIFT check's temp-dir
+    regeneration (tokens.json + build_design.py only) stays byte-identical."""
+    font_dir = HERE.parent / TYPE["font_dir"]
+    faces = []
+    for family, weight, fname in FONT_FILES:
+        p = font_dir / fname
+        if not p.exists():
+            sys.exit(f"--sync-fonts: missing {p}")
+        faces.append({
+            "family": family,
+            "weight": weight,
+            "file": fname,
+            "data": base64.b64encode(p.read_bytes()).decode("ascii"),
+        })
+    T["fonts"]["faces"] = faces
+    TOKENS_PATH.write_text(json.dumps(T, indent=2) + "\n")
+    total = sum(len(f["data"]) for f in faces)
+    print(f"Synced {len(faces)} font payload(s) into tokens.json "
+          f"({total:,} base64 chars)")
+
+
 def main() -> None:
+    if "--sync-fonts" in sys.argv[1:]:
+        sync_fonts()
+        # re-read so the build below uses the fresh payloads
+        global FONTS
+        FONTS = json.loads(TOKENS_PATH.read_text())["fonts"]["faces"]
     css = build_css()
     py = build_py()
     (HERE / "ml.css").write_text(css)

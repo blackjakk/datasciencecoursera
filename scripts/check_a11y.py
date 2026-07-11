@@ -462,12 +462,18 @@ def _token_pairs() -> list[tuple[str, str, str, float]]:
                           f"{s}.muted", f"{s}.{bgk}", 4.5))
             pairs.append((f"{theme} text on {bgk}",
                           f"{s}.text", f"{s}.{bgk}", 4.5))
-        for sem in ("success", "warn", "danger", "info"):
+        # "gold" joined the semantic text set with The Exchange theme
+        # (July 2026): market-state/premium accent, themed like the others.
+        for sem in ("success", "warn", "danger", "info", "gold"):
             for bgk in ("bg", "panel", "panel2"):
                 pairs.append((f"{theme} {sem} text on {bgk}",
                               f"semantic.{sem}.{theme}", f"{s}.{bgk}", 4.5))
-    # audit C1/C2: header foregrounds; C13: interactive control boundaries.
+    # audit C1/C2: header foregrounds; C13: interactive control boundaries;
+    # Exchange gold chip (closing bell / blue chip): dark-on-gold polarity,
+    # one fixed pairing used in BOTH themes.
     pairs += [
+        ("gold chip text on gold chip fill",
+         "semantic.gold.chip_text", "semantic.gold.chip_bg", 4.5),
         ("on_brand on brand.header_a", "brand.on_brand", "brand.header_a", 4.5),
         ("on_brand on brand.header_b", "brand.on_brand", "brand.header_b", 4.5),
         ("dark border_strong vs panel",
@@ -489,6 +495,7 @@ COMPONENT_CLASSES = [
     ".ml-badge--qb", ".ml-badge--rb", ".ml-badge--wr", ".ml-badge--te",
     ".ml-badge--k", ".ml-badge--def",
     ".ml-badge--keeper", ".ml-badge--rookie", ".ml-badge--injury",
+    ".ml-badge--bluechip",
     ".ml-filter.active",
     ".ml-filter--qb.active", ".ml-filter--rb.active", ".ml-filter--wr.active",
     ".ml-filter--te.active", ".ml-filter--k.active", ".ml-filter--def.active",
@@ -726,7 +733,9 @@ GOOD_TOKENS = {"color": {
                  "warn": {"light": "#b45309", "dark": "#f59e0b"},
                  "danger": {"light": "#c81e1e", "dark": "#f87171"},
                  "info": {"light": "#0369a1", "dark": "#60a5fa"},
-                 "keeper": {"light": "#0369a1", "dark": "#60a5fa"}},
+                 "keeper": {"light": "#0369a1", "dark": "#60a5fa"},
+                 "gold": {"light": "#7d6010", "dark": "#e8c76a",
+                          "chip_bg": "#d4a017", "chip_text": "#14130a"}},
     "surface": {"dark": {"bg": "#0b0d10", "panel": "#14171c",
                          "panel2": "#1c2027", "border": "#262b33",
                          "border_strong": "#66707d", "row": "#1a1d22",
@@ -745,12 +754,14 @@ GOOD_TOKENS_CSS = """
   --ml-pos-te: #f59e0b; --ml-pos-k: #9a3412; --ml-pos-def: #525252;
   --ml-success: #4ade80; --ml-warn: #f59e0b; --ml-danger: #f87171;
   --ml-keeper: #60a5fa;
+  --ml-gold-chip: #d4a017; --ml-gold-chip-text: #14130a;
 }
 [data-theme="light"] {
   --ml-success: #15803d; --ml-warn: #b45309; --ml-danger: #c81e1e;
   --ml-keeper: #0369a1;
 }
 .ml-badge { color: #fff; }
+.ml-badge--bluechip { background: var(--ml-gold-chip); color: var(--ml-gold-chip-text); }
 .ml-badge--qb { background: var(--ml-pos-qb); color: #fff; }
 .ml-badge--rb { background: var(--ml-pos-rb); color: #fff; }
 .ml-badge--wr { background: var(--ml-pos-wr); color: #fff; }
@@ -788,7 +799,9 @@ BAD_TOKENS = {"color": {
                  "warn": {"light": "#d97706", "dark": "#f59e0b"},
                  "danger": {"light": "#dc2626", "dark": "#ef4444"},
                  "info": {"light": "#0369a1", "dark": "#60a5fa"},
-                 "keeper": {"light": "#0369a1", "dark": "#60a5fa"}},
+                 "keeper": {"light": "#0369a1", "dark": "#60a5fa"},
+                 "gold": {"light": "#d4a017", "dark": "#e8c76a",
+                          "chip_bg": "#d4a017", "chip_text": "#ffffff"}},
     "surface": {"dark": {"bg": "#0b0d10", "panel": "#14171c",
                          "panel2": "#1c2027", "border": "#262b33",
                          "row": "#1a1d22",
@@ -929,6 +942,17 @@ def selftest() -> int:
           not has(v, "dark .ml-badge--keeper"), str(v))
     check("contrast: absent component rules reported, not crashed",
           has(v, "no .ml-clock--me rule"))
+    # Exchange gold pairs (July 2026): raw gold as light-theme text fails,
+    # white-on-gold chip fails — the measured pairings are #7d6010 text and
+    # #14130a chip text, modeled in the GOOD fixtures.
+    check("contrast: light gold text on white fires (2.38 < 4.5)",
+          has(v, "light gold text on bg"))
+    check("contrast: dark gold text passes on dark panels",
+          not has(v, "dark gold text on"), str(v))
+    check("contrast: white-on-gold chip fires (2.38 < 4.5)",
+          has(v, "gold chip text on gold chip fill"))
+    check("contrast: absent bluechip rule reported, not crashed",
+          has(v, "no .ml-badge--bluechip rule"))
 
     print()
     if failures:

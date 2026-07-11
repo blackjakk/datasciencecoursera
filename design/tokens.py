@@ -46,17 +46,18 @@ PALETTE = {
     "crimson": "#a23737",
     "slate": "#3d405b",
     "cream": "#f7f4ea",
-    "ink": "#1a1d24",
+    "ink": "#1f3d2b",
     "gray": "#6b7280"
 }
 
 SEMANTIC_LIGHT = {
-    "success": "#15803d",
-    "warn": "#b45309",
+    "success": "#147339",
+    "warn": "#a54c06",
     "danger": "#c81e1e",
     "info": "#0369a1",
     "keeper": "#0369a1",
-    "focus": "#0369a1"
+    "focus": "#0369a1",
+    "gold": "#7d6010"
 }
 SEMANTIC_DARK = {
     "success": "#4ade80",
@@ -64,57 +65,67 @@ SEMANTIC_DARK = {
     "danger": "#f87171",
     "info": "#60a5fa",
     "keeper": "#60a5fa",
-    "focus": "#7dd3fc"
+    "focus": "#7dd3fc",
+    "gold": "#e8c76a"
+}
+
+# The Exchange gold chip (closing bell / blue chip): dark-on-gold polarity,
+# measured safe in BOTH themes — see docs/DESIGN_SYSTEM.md.
+GOLD_CHIP = {
+    "bg": "#d4a017",
+    "text": "#14130a"
 }
 
 SURFACE_LIGHT = {
-    "bg": "#ffffff",
-    "panel": "#ffffff",
-    "panel2": "#f1f5f9",
-    "border": "#d8dce2",
-    "border_strong": "#767f8b",
-    "row": "#f0f2f5",
-    "text": "#1a1d24",
-    "muted": "#5d6673"
+    "bg": "#f7f4ea",
+    "panel": "#f7f4ea",
+    "panel2": "#ece6d3",
+    "border": "#d9d2ba",
+    "border_strong": "#6e755f",
+    "row": "#f1ecdd",
+    "text": "#1f3d2b",
+    "muted": "#52604f"
 }
 SURFACE_DARK = {
-    "bg": "#0b0d10",
-    "panel": "#14171c",
-    "panel2": "#1c2027",
-    "border": "#262b33",
-    "border_strong": "#66707d",
-    "row": "#1a1d22",
-    "text": "#e8eaee",
-    "muted": "#8a93a0"
+    "bg": "#0c1710",
+    "panel": "#12211a",
+    "panel2": "#1a2f24",
+    "border": "#24382c",
+    "border_strong": "#6b8672",
+    "row": "#16281e",
+    "text": "#dfe7df",
+    "muted": "#8fae97"
 }
 
 HIGHLIGHT = {
     "target": {
         "dark": "rgba(74,222,128,.16)",
-        "light": "rgba(21,128,61,.10)"
+        "light": "rgba(20,115,57,.10)"
     },
     "mine": {
         "dark": "rgba(74,222,128,.18)",
-        "light": "rgba(21,128,61,.12)"
+        "light": "rgba(20,115,57,.12)"
     }
 }
 
 BANNER = {
-    "warn_bg": "#fff7ed",
-    "warn_border": "#fed7aa"
+    "warn_bg": "#f9efda",
+    "warn_border": "#dfc38f"
 }
 CHART = {
-    "grid": "#e5e7eb",
-    "grid_strong": "#d1d5db"
+    "grid": "#ddd8c6",
+    "grid_strong": "#cbc5ae"
 }
 BRAND = {
-    "header_a": "#0f766e",
-    "header_b": "#0e7490",
+    "header_a": "#0e2417",
+    "header_b": "#123020",
     "on_brand": "#ffffff"
 }
 
-FONT_DISPLAY = "'Bebas Neue', 'Arial Narrow', sans-serif"
+FONT_DISPLAY = "'Archivo', 'Arial Narrow', sans-serif"
 FONT_BODY = "'Inter', -apple-system, 'Segoe UI', sans-serif"
+FONT_DATA = "'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace"
+FONT_ENGRAVING = "'Cinzel', Georgia, 'Times New Roman', serif"
 FONT_DIR = "data/fonts"
 
 
