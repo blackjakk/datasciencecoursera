@@ -259,6 +259,7 @@
   .col-right { display: flex; flex-direction: column; gap: 12px; }
   .controls { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
   .controls input[type=search] { flex: 1; min-width: 140px; }
+  .controls select { flex: 1; min-width: 140px; }
   .pos-filter { display: flex; gap: 4px; flex-wrap: wrap; }
   table.player-list tr { cursor: pointer; }
   table.player-list tr:hover { background: var(--ml-panel2); }
@@ -425,6 +426,21 @@
       <div id="opp-roster" class="roster"></div>
       <div id="opp-stats" class="stats" style="margin-top: 8px;"></div>
       <div id="opp-next" class="next-pick-info"></div>
+    </section>
+
+    <section class="ml-panel" aria-labelledby="h-saves">
+      <div class="panel-head">
+        <h2 id="h-saves" class="ml-h-label">SAVED BOARDS <span id="doc-name" class="meta"></span></h2>
+        <span>
+          <button class="ml-btn" id="save-btn" title="Save (Ctrl+S)">save</button>
+          <button class="ml-btn" id="saveas-btn" title="Save As (Ctrl+Shift+S)">save as</button>
+        </span>
+      </div>
+      <div class="controls">
+        <select id="save-select" class="ml-input" aria-label="Saved boards"></select>
+        <button class="ml-btn" id="open-btn">open</button>
+        <button class="ml-btn" id="del-btn">delete</button>
+      </div>
     </section>
   </div>
 </main>
@@ -14935,6 +14951,17 @@ function showBootError(err) {
   });
   document.getElementById("undo").addEventListener("click", undo);
   document.getElementById("reset").addEventListener("click", resetBoard);
+  document.getElementById("save-btn").addEventListener("click", doSave);
+  document.getElementById("saveas-btn").addEventListener("click", doSaveAs);
+  document.getElementById("open-btn").addEventListener("click", doOpen);
+  document.getElementById("del-btn").addEventListener("click", doDelete);
+  // Document-editor keys: Ctrl/Cmd+S saves, +Shift saves-as. preventDefault
+  // stops the browser's save-page dialog.
+  window.addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || (e.key || "").toLowerCase() !== "s") return;
+    e.preventDefault();
+    if (e.shiftKey) doSaveAs(); else doSave();
+  });
   // Opponent portfolio selector: every rival, you excluded (you have the
   // PORTFOLIO panel), sorted by draft slot.
   const oppSel = document.getElementById("opp-select");
@@ -14959,6 +14986,11 @@ function showBootError(err) {
     loadStateFromURL();
     applyKeepersAtStart();
     recomputeCursor();
+    // Re-derive the document identity: if this hash matches a saved board,
+    // that save becomes the current doc (Back after Open behaves sanely).
+    const saves = loadSaves();
+    docName = Object.keys(saves).find(k => saves[k].hash === boardHash()) ?? null;
+    lastSavedHash = docName !== null ? boardHash() : null;
     refresh();
     const n = pickOrder.filter(p => !p.is_keeper).length;
     setLiveStatus(`RESTORED from history — ${n} fill${n === 1 ? "" : "s"} on the board`);
@@ -15518,15 +15550,21 @@ function toggleCeiling() {
 let alertedFor = 0;
 let srClockMeFor = 0;    // last pick # announced as "on the clock"
 let srClockSoonFor = 0;  // last pick # announced as "2 away"
-const BASE_TITLE = document.title;
+const APP_TITLE = document.title;
+let titleFlag = "";   // ⏰ urgency prefix, owned by maybeAlert()
+// Tab title composes like a document editor: ⏰ flag + dirty dot + doc name.
+function applyTitle() {
+  const dirty = isDirty() ? "• " : "";
+  const doc = docName ? docName + " — " : "";
+  document.title = titleFlag + dirty + doc + APP_TITLE;
+}
 function maybeAlert(current, myNext) {
   const away = (current && myNext) ? myNext.overall - current.overall : -1;
   const isMe = away === 0;
   const soon = away > 0 && away <= 2;
   // Non-audio, non-color equivalents of the beep/pulse: tab title prefix…
-  document.title = isMe ? "⏰ you're up · " + BASE_TITLE
-    : soon ? "⏰ 2 away · " + BASE_TITLE
-    : BASE_TITLE;
+  titleFlag = isMe ? "⏰ you're up · " : soon ? "⏰ 2 away · " : "";
+  applyTitle();
   // …and a polite live-region announcement, only on state TRANSITIONS
   // (keyed per pick like alertedFor — never re-announced on re-renders).
   const sr = document.getElementById("sr-clock");
@@ -15573,6 +15611,7 @@ function refresh() {
   renderRecs();
   renderHistory();
   renderOpponent();
+  refreshSaveUI();
   syncControlStates();
   restoreFocus(focusSnap);
 }
@@ -15644,6 +15683,119 @@ function resetBoard() {
   setLiveStatus(`RESET — ${n} fill${n === 1 ? "" : "s"} cleared, keepers restored · press Back to restore them`);
 }
 
+// ---------- SAVED BOARDS (document experience: Save / Save As / Open) ----------
+// Named snapshots of the real board's state (the URL-hash pick list) in
+// localStorage — works offline in standalone.html too. Ctrl+S saves,
+// Ctrl+Shift+S saves-as; opening pushes a history entry so Back returns.
+const SAVES_KEY = "ml_saves_2026";
+let docName = null;        // current document; null = untitled
+let lastSavedHash = null;  // board hash at last save (dirty tracking)
+
+function loadSaves() {
+  try { return JSON.parse(localStorage.getItem(SAVES_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function persistSaves(s) {
+  try { localStorage.setItem(SAVES_KEY, JSON.stringify(s)); return true; }
+  catch (e) { setLiveStatus("couldn't save — browser storage unavailable"); return false; }
+}
+function boardHash() { return location.hash.slice(1); }
+function isDirty() {
+  return docName !== null ? boardHash() !== lastSavedHash : boardHash() !== "";
+}
+
+function refreshSaveUI() {
+  const sel = document.getElementById("save-select");
+  if (!sel) return;
+  const saves = loadSaves();
+  const names = Object.keys(saves).sort((a, b) => saves[b].ts - saves[a].ts);
+  sel.innerHTML = "";
+  for (const n of names) {
+    const o = document.createElement("option");
+    o.value = n;
+    o.textContent = `${n} · ${saves[n].fills} fill${saves[n].fills === 1 ? "" : "s"} · ${new Date(saves[n].ts).toLocaleDateString()}`;
+    if (n === docName) o.selected = true;
+    sel.appendChild(o);
+  }
+  if (!names.length) {
+    const o = document.createElement("option");
+    o.value = ""; o.textContent = "no saved boards yet";
+    o.disabled = true; o.selected = true;
+    sel.appendChild(o);
+  }
+  document.getElementById("doc-name").textContent =
+    docName ? `· ${docName}${isDirty() ? " •" : ""}` : (isDirty() ? "· untitled •" : "");
+  applyTitle();
+}
+
+function snapshotEntry() {
+  return { hash: boardHash(), ts: Date.now(),
+           fills: pickOrder.filter(p => !p.is_keeper).length };
+}
+
+function doSave() {
+  if (practiceMode) { setLiveStatus("practice boards aren't saved — exit practice first"); return; }
+  if (docName === null) { doSaveAs(); return; }
+  const saves = loadSaves();
+  saves[docName] = snapshotEntry();
+  if (!persistSaves(saves)) return;
+  lastSavedHash = boardHash();
+  refreshSaveUI();
+  setLiveStatus(`SAVED — “${docName}” (${saves[docName].fills} fills)`);
+}
+
+function doSaveAs() {
+  if (practiceMode) { setLiveStatus("practice boards aren't saved — exit practice first"); return; }
+  const suggested = docName || "draft board";
+  let name = prompt("Save board as:", suggested);
+  if (name === null) { setLiveStatus("save cancelled"); return; }
+  name = name.trim().slice(0, 40);
+  if (!name) { setLiveStatus("save cancelled — no name given"); return; }
+  const saves = loadSaves();
+  if (name !== docName && saves[name]
+      && !confirm(`“${name}” already exists. Overwrite it?`)) {
+    setLiveStatus("save cancelled");
+    return;
+  }
+  saves[name] = snapshotEntry();
+  if (!persistSaves(saves)) return;
+  docName = name;
+  lastSavedHash = boardHash();
+  refreshSaveUI();
+  setLiveStatus(`SAVED — “${name}” (${saves[name].fills} fills)`);
+}
+
+function doOpen() {
+  if (practiceMode) { setLiveStatus("exit practice before opening a saved board"); return; }
+  const name = document.getElementById("save-select").value;
+  const saves = loadSaves();
+  if (!name || !(name in saves)) { setLiveStatus("no saved board selected"); return; }
+  // Opening pushes a history entry — Back returns to the previous board.
+  history.pushState(null, "", "#" + saves[name].hash);
+  loadStateFromURL();
+  applyKeepersAtStart();
+  recomputeCursor();
+  docName = name;
+  lastSavedHash = boardHash();
+  refresh();
+  setLiveStatus(`OPENED — “${name}” (${saves[name].fills} fills) · press Back to return`);
+}
+
+function doDelete() {
+  const name = document.getElementById("save-select").value;
+  const saves = loadSaves();
+  if (!name || !(name in saves)) { setLiveStatus("no saved board selected"); return; }
+  if (!confirm(`Delete saved board “${name}”? The board on screen is untouched.`)) {
+    setLiveStatus("delete cancelled");
+    return;
+  }
+  delete saves[name];
+  if (!persistSaves(saves)) return;
+  if (docName === name) { docName = null; lastSavedHash = null; }
+  refreshSaveUI();
+  setLiveStatus(`DELETED — “${name}”`);
+}
+
 // ---------- CONTROL STATES ----------
 // aria-disabled (not the disabled attribute): the control stays focusable
 // and announced, and activating it explains itself via the status region —
@@ -15663,6 +15815,11 @@ function syncControlStates() {
   resetBtn.setAttribute("aria-disabled", String(!canReset));
   resetBtn.title = practiceMode ? "Exit practice instead — it restores the real board"
     : (canReset ? "Clear every recorded pick (keepers stay)" : "Nothing to reset yet");
+  const hasSaves = Object.keys(loadSaves()).length > 0;
+  document.getElementById("save-btn").setAttribute("aria-disabled", String(practiceMode));
+  document.getElementById("saveas-btn").setAttribute("aria-disabled", String(practiceMode));
+  document.getElementById("open-btn").setAttribute("aria-disabled", String(practiceMode || !hasSaves));
+  document.getElementById("del-btn").setAttribute("aria-disabled", String(!hasSaves));
 }
 
 // ---------- RESULT-COUNT FEEDBACK ----------
