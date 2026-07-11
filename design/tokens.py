@@ -110,7 +110,11 @@ HIGHLIGHT = {
 
 BANNER = {
     "warn_bg": "#f9efda",
-    "warn_border": "#dfc38f"
+    "warn_border": "#dfc38f",
+    "error_bg": "#f7e3dc",
+    "error_border": "#c98d7e",
+    "error_bg_dark": "#2c1614",
+    "error_border_dark": "#8a4a40"
 }
 CHART = {
     "grid": "#ddd8c6",

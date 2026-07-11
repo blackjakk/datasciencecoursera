@@ -17,14 +17,27 @@ HELPER = ROOT / "docs" / "draft_helper"
 CSS_LINK = '<link rel="stylesheet" href="ml.css">'
 DATA_DECL = 'const DATA_URL = "data.json";\nlet DATA = null;'
 FETCH_INIT = """(async function init() {
-  const resp = await fetch(DATA_URL);
-  DATA = await resp.json();"""
+  try {
+    const resp = await fetch(DATA_URL);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    DATA = await resp.json();
+  } catch (err) {
+    showBootError(err);
+    return;
+  }"""
 INLINE_INIT = """(async function init() {
-  // Yield one microtask so the rest of the top-level script (const decls
-  // below this IIFE) initializes first — index.html gets this for free from
-  // `await fetch(...)`; without it init() hits the consts in their TDZ.
-  await Promise.resolve();
-  DATA = EMBEDDED_DATA;"""
+  try {
+    // Yield one microtask so the rest of the top-level script (const decls
+    // below this IIFE) initializes first — index.html gets this for free
+    // from `await fetch(...)`; without it init() hits the consts in their
+    // TDZ. The catch keeps the boot-error surface for the (unlikely)
+    // embedded-data failure too.
+    await Promise.resolve();
+    DATA = EMBEDDED_DATA;
+  } catch (err) {
+    showBootError(err);
+    return;
+  }"""
 
 
 def main() -> None:

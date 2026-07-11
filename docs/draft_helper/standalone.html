@@ -44,6 +44,8 @@
   --ml-gold-chip-text: #14130a;
   --ml-banner-warn-bg: #2a2115;
   --ml-banner-warn-border: #7c5a2b;
+  --ml-banner-error-bg: #2c1614;
+  --ml-banner-error-border: #8a4a40;
   --ml-font-display: 'Archivo', 'Arial Narrow', sans-serif;
   --ml-font-body: 'Inter', -apple-system, 'Segoe UI', sans-serif;
   --ml-font-data: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
@@ -72,6 +74,8 @@
   --ml-mine-tint: rgba(20,115,57,.12);
   --ml-banner-warn-bg: #f9efda;
   --ml-banner-warn-border: #dfc38f;
+  --ml-banner-error-bg: #f7e3dc;
+  --ml-banner-error-border: #c98d7e;
 }
 
 /* ---------- a11y utilities ---------- */
@@ -202,12 +206,40 @@
 .ml-banner--warn { background: var(--ml-banner-warn-bg);
   border: 1px solid var(--ml-banner-warn-border); border-radius: var(--ml-r-md);
   padding: 4px 8px; }
+.ml-banner--error { background: var(--ml-banner-error-bg);
+  border: 1px solid var(--ml-banner-error-border); border-radius: var(--ml-r-md);
+  padding: 8px 10px; }
+.ml-banner--error strong { color: var(--ml-danger); }
 .ml-note { color: var(--ml-muted); font-size: .85em; }
 .ml-urgent { color: var(--ml-danger); font-weight: 700; }
 
+/* ---------- interaction states ---------- */
+/* Loading placeholder: STATIC block (no shimmer — motion doctrine). Mark
+   the containing region aria-hidden; real content replaces it wholesale. */
+.ml-skeleton { display: inline-block; width: 100%; height: 0.8125rem;
+  border-radius: var(--ml-r-sm); background: var(--ml-panel2); }
+/* Empty state: context text set by the caller ("no matches", "no fills"). */
+.ml-empty { padding: 14px 10px; text-align: center; color: var(--ml-muted);
+  font-size: 0.75rem; }
+/* Disabled controls: aria-disabled (kept focusable + announced) or the
+   disabled attribute both render the same. Muted text stays readable —
+   never opacity-ghosting (the C15 lesson). */
+.ml-btn[disabled], .ml-btn[aria-disabled="true"] { color: var(--ml-muted);
+  border-color: var(--ml-border); cursor: not-allowed; }
+.ml-btn[disabled]:hover, .ml-btn[aria-disabled="true"]:hover { filter: none; }
+.ml-btn--hdr[aria-disabled="true"] { color: rgba(255,255,255,0.55);
+  border-color: rgba(255,255,255,0.3); cursor: not-allowed; }
+.ml-filter:hover { filter: brightness(1.15); }
+/* Action receipt: a single-fire background fade acknowledging a user
+   action (fill/undo). Sanctioned by the motion doctrine alongside
+   ml-pulse; one-shot, <=900ms, killed under reduced motion. */
+@keyframes ml-receipt { from { background-color: var(--ml-mine-tint); }
+  to { background-color: transparent; } }
+.ml-flash { animation: ml-receipt 900ms ease-out 1; }
+
 /* ---------- media adaptations ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .ml-btn--on, .ml-clock--me, .ml-clock--soon { animation: none; }
+  .ml-btn--on, .ml-clock--me, .ml-clock--soon, .ml-flash { animation: none; }
 }
 @media (pointer: coarse) {
   .ml-btn, .ml-filter { min-height: 40px; padding: 8px 12px; }
@@ -244,6 +276,10 @@
   .rec.warn .why::before { content: "⚠ "; }
   .rec .rec-main, .rec .why { display: block; }
   .rec .why { color: var(--ml-muted); font-size: 0.6875rem; margin-top: 2px; }
+  .rec:hover { filter: brightness(1.12); }
+  #boot-error { margin: 12px auto; max-width: 720px; padding: 0 12px; }
+  #boot-error .ml-btn { margin-left: 8px; }
+  .skel-stack { display: flex; flex-direction: column; gap: 6px; }
   .player-list-scroll { max-height: 70vh; overflow-y: auto; overflow-x: auto; }
   .history { max-height: 200px; overflow-y: auto; font-size: 0.75rem; }
   .history-row { padding: 3px 6px; border-bottom: 1px solid var(--ml-row); display: flex; gap: 6px; align-items: center; }
@@ -303,7 +339,12 @@
   <span id="ceiling-desc" class="ml-visually-hidden">Weights recommendations toward boom-or-bust upside (expert disagreement plus youth) instead of median value.</span>
   <span id="practice-desc" class="ml-visually-hidden">Runs a practice draft against the tendency-modeled league bots; bots pick for every other team.</span>
   <div id="sr-clock" class="ml-visually-hidden" role="status"></div>
+  <div id="sr-results" class="ml-visually-hidden" role="status"></div>
 </header>
+
+<!-- Boot failure surface: filled by showBootError() when data.json can't
+     load; replaces <main> entirely (role=alert + one Retry action). -->
+<div id="boot-error" hidden></div>
 
 <!-- Static week-over-week movers strip (never animated — motion means
      urgency only). Hidden entirely when the data bundle has no movers. -->
@@ -312,10 +353,13 @@
   <span id="tape-items"></span>
 </div>
 
-<main>
+<main aria-busy="true">
   <!-- LEFT: player pool -->
   <section class="ml-panel" aria-labelledby="h-players">
-    <h2 id="h-players">ORDER BOOK</h2>
+    <div class="panel-head">
+      <h2 id="h-players">ORDER BOOK</h2>
+      <span id="book-count" class="meta ml-num"></span>
+    </div>
     <div class="controls">
       <input id="search" class="ml-input" type="search" placeholder="Search by name…" autocomplete="off" aria-label="Search players by name">
       <div class="pos-filter">
@@ -333,7 +377,16 @@
         <thead>
           <tr><th>Pos</th><th>Name</th><th>Team</th><th class="ml-num">Age</th><th class="ml-num">Proj</th><th class="ml-num">VAL<span class="ml-visually-hidden"> — dynamic value over replacement, recomputed against the remaining player pool</span></th><th class="ml-num">MKT<span class="ml-visually-hidden"> — average draft position — market price</span></th><th class="ml-num" title="Week-over-week ADP movement in rounds (up = being drafted earlier now)">Δwk<span class="ml-visually-hidden"> — week-over-week ADP movement in rounds; up means the player is being drafted earlier now</span></th><th class="ml-num" title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)">Next✓<span class="ml-visually-hidden"> — chance the player is still available at your next pick (300-sim Monte Carlo)</span></th></tr>
         </thead>
-        <tbody id="ptable-body"></tbody>
+        <tbody id="ptable-body"><!-- static loading skeletons; first render replaces them wholesale -->
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:88%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:72%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:81%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:64%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:77%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:69%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:84%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:58%"></span></td></tr>
+        </tbody>
       </table>
     </div>
   </section>
@@ -344,12 +397,12 @@
       <h2 id="h-clock">You're on the Clock</h2>
       <div id="next-pick" class="next-pick-info" role="status">—</div>
       <h2 id="h-recs" style="margin-top: 10px;">Top Recommendations</h2>
-      <div id="recs" class="recs"></div>
+      <div id="recs" class="recs"><div class="skel-stack" aria-hidden="true"><span class="ml-skeleton" style="width:92%"></span><span class="ml-skeleton" style="width:70%"></span><span class="ml-skeleton" style="width:80%"></span></div></div>
     </section>
 
     <section class="ml-panel" aria-labelledby="h-roster">
       <h2 id="h-roster">PORTFOLIO <span id="roster-total" class="meta"></span></h2>
-      <div id="roster" class="roster"></div>
+      <div id="roster" class="roster"><div class="skel-stack" aria-hidden="true"><span class="ml-skeleton" style="width:85%"></span><span class="ml-skeleton" style="width:65%"></span></div><div class="skel-stack" aria-hidden="true"><span class="ml-skeleton" style="width:75%"></span><span class="ml-skeleton" style="width:60%"></span></div></div>
       <div id="roster-stats" class="stats" style="margin-top: 8px;"></div>
     </section>
 
@@ -358,7 +411,7 @@
         <h2 id="h-history" class="ml-h-label">FILLS</h2>
         <button class="ml-btn" id="undo">undo last</button>
       </div>
-      <div class="history" id="history"></div>
+      <div class="history" id="history"><div class="skel-stack" aria-hidden="true"><span class="ml-skeleton" style="width:90%"></span><span class="ml-skeleton" style="width:78%"></span><span class="ml-skeleton" style="width:83%"></span></div></div>
     </section>
   </div>
 </main>
@@ -14798,12 +14851,41 @@ function renderTape() {
   tape.hidden = false;
 }
 
+// Boot failure: replace the app with one alert + one action. Recoverable
+// runtime failures (live poll) degrade to status text instead — this path
+// is only for "we have no data at all".
+function showBootError(err) {
+  const main = document.querySelector("main");
+  if (main) main.hidden = true;
+  const tape = document.getElementById("tape");
+  if (tape) tape.hidden = true;
+  document.getElementById("clock").textContent = "offline";
+  const box = document.getElementById("boot-error");
+  box.hidden = false;
+  box.innerHTML =
+    '<div class="ml-banner--error" role="alert">' +
+    "<strong>MARKET DATA UNAVAILABLE</strong> — the player bundle " +
+    "(data.json) didn't load (" + escHtml((err && err.message) || err) + "). " +
+    "The order book can't open without it." +
+    '<button type="button" class="ml-btn" id="boot-retry">Retry</button></div>';
+  document.getElementById("boot-retry").addEventListener("click", () => location.reload());
+  document.getElementById("boot-retry").focus();
+}
+
 (async function init() {
-  // Yield one microtask so the rest of the top-level script (const decls
-  // below this IIFE) initializes first — index.html gets this for free from
-  // `await fetch(...)`; without it init() hits the consts in their TDZ.
-  await Promise.resolve();
-  DATA = EMBEDDED_DATA;
+  try {
+    // Yield one microtask so the rest of the top-level script (const decls
+    // below this IIFE) initializes first — index.html gets this for free
+    // from `await fetch(...)`; without it init() hits the consts in their
+    // TDZ. The catch keeps the boot-error surface for the (unlikely)
+    // embedded-data failure too.
+    await Promise.resolve();
+    DATA = EMBEDDED_DATA;
+  } catch (err) {
+    showBootError(err);
+    return;
+  }
+  document.querySelector("main").removeAttribute("aria-busy");
   loadStateFromURL();         // first restore any user picks from URL
   applyKeepersAtStart();      // then place all remaining keepers
   recomputeCursor();          // cursor = first slot without a player
@@ -14812,7 +14894,7 @@ function renderTape() {
     .slice(0, 12).map(p => p.name));
   renderTape();
   refresh();
-  document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); });
+  document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); announceResults(); });
   // Esc clears the search explicitly (Chromium does this natively for
   // type=search; Firefox does not) — value, state, and list all reset,
   // focus stays in the field.
@@ -14822,6 +14904,7 @@ function renderTape() {
     e.target.value = "";
     searchQ = "";
     renderPlayerList();
+    announceResults();
   });
   document.querySelectorAll(".ml-filter").forEach(b => b.addEventListener("click", e => {
     posFilter = e.target.dataset.pos;
@@ -14832,6 +14915,7 @@ function renderTape() {
     e.target.classList.add("active");
     e.target.setAttribute("aria-pressed", "true");
     renderPlayerList();
+    announceResults();
   }));
   // Roving tabindex: the 200-row player list is ONE tab stop; ArrowUp/Down
   // move between rows, Home/End jump, Enter/Space draft (native buttons).
@@ -14941,7 +15025,7 @@ function botPick(slot) {
   return top[top.length - 1].p;
 }
 
-function practiceAdvance() {
+function practiceAdvance(receipt) {
   while (cursor < DATA.schedule.length) {
     const slot = DATA.schedule[cursor];
     if (slot.player) { cursor++; continue; }
@@ -14956,7 +15040,8 @@ function practiceAdvance() {
   }
   refresh();
   if (cursor >= DATA.schedule.length) showPracticeResult();
-  else setLiveStatus(`practice · your pick R${DATA.schedule[cursor].round} (#${DATA.schedule[cursor].overall})`);
+  else setLiveStatus((receipt ? receipt + " · " : "") +
+    `practice · your pick R${DATA.schedule[cursor].round} (#${DATA.schedule[cursor].overall})`);
 }
 
 function startersProjJS(ti) {
@@ -15044,6 +15129,10 @@ function setLiveStatus(msg) {
 
 async function toggleLive() {
   const btn = document.getElementById("live-btn");
+  if (practiceMode && !liveTimer) {
+    setLiveStatus("exit practice before going live");
+    return;
+  }
   if (liveTimer) {                       // turn OFF
     clearInterval(liveTimer);
     liveTimer = null;
@@ -15240,6 +15329,11 @@ function loadStateFromURL() {
 }
 
 // ---------- DRAFT ACTIONS ----------
+// Action receipts: every state-changing action reports what happened
+// through the #live-status role=status region (announced + visible) and
+// flashes the affected FILLS row (ml-flash, one-shot, reduced-motion-safe).
+let flashOverall = null;
+
 function draftPlayer(name) {
   if (drafted.has(name)) return;
   if (cursor >= DATA.schedule.length) return;
@@ -15248,23 +15342,32 @@ function draftPlayer(name) {
   slot.is_keeper = false;
   pickOrder.push(slot);
   drafted.add(name);
+  const receipt = `FILLED — ${name} · R${slot.round}.${slot.pick_in_round} #${slot.overall}`;
+  flashOverall = slot.overall;
   recomputeCursor();  // skips any subsequent keeper slots
   saveStateToURL();
   refresh();
-  if (practiceMode) practiceAdvance();  // bots pick until your next clock
+  if (practiceMode) practiceAdvance(receipt);  // bots pick until your next clock
+  else setLiveStatus(receipt);
 }
 
 function undo() {
   // Pop the most recent USER pick (skip keepers — they're not undoable)
+  if (!pickOrder.some(p => !p.is_keeper)) {
+    setLiveStatus("nothing to undo — no fills yet");
+    return;
+  }
   for (let i = pickOrder.length - 1; i >= 0; i--) {
     if (!pickOrder[i].is_keeper) {
       const [p] = pickOrder.splice(i, 1);
+      const undone = p.player;
       drafted.delete(p.player);
       delete p.player;
       delete p.is_keeper;
       recomputeCursor();
       saveStateToURL();
       refresh();
+      setLiveStatus(`UNDONE — ${undone} returned to the order book`);
       return;
     }
   }
@@ -15436,7 +15539,37 @@ function refresh() {
   renderRoster();
   renderRecs();
   renderHistory();
+  syncControlStates();
   restoreFocus(focusSnap);
+}
+
+// ---------- CONTROL STATES ----------
+// aria-disabled (not the disabled attribute): the control stays focusable
+// and announced, and activating it explains itself via the status region —
+// the guard clauses in undo()/togglePractice()/toggleLive() are the truth,
+// this just makes them visible before the click.
+function syncControlStates() {
+  const undoBtn = document.getElementById("undo");
+  const canUndo = pickOrder.some(p => !p.is_keeper);
+  undoBtn.setAttribute("aria-disabled", String(!canUndo));
+  undoBtn.title = canUndo ? "Undo the most recent fill" : "Nothing to undo yet";
+  document.getElementById("practice-btn")
+    .setAttribute("aria-disabled", String(!!liveTimer && !practiceMode));
+  document.getElementById("live-btn")
+    .setAttribute("aria-disabled", String(practiceMode && !liveTimer));
+}
+
+// ---------- RESULT-COUNT FEEDBACK ----------
+// Announce search/filter outcomes (debounced — typing shouldn't spam the
+// screen reader). The visible #book-count updates on every render.
+let announceTimer = null;
+function announceResults() {
+  clearTimeout(announceTimer);
+  announceTimer = setTimeout(() => {
+    const n = document.querySelectorAll("#ptable-body .row-draft").length;
+    document.getElementById("sr-results").textContent =
+      n === 0 ? "No assets match" : `${n} asset${n === 1 ? "" : "s"} shown`;
+  }, 350);
 }
 
 // Header market-state chip: schedule fill count (keepers included).
@@ -15593,6 +15726,17 @@ function renderPlayerList() {
     tr.addEventListener("click", () => draftPlayer(p.name));
     body.appendChild(tr);
   }
+  // Contextual empty state: name the cause and the way out — never a blank.
+  if (!filtered.length) {
+    const msg = searchQ
+      ? `No assets match “${escHtml(searchQ)}” — press Esc to clear the search`
+      : (posFilter !== "ALL"
+        ? `No available ${escHtml(posFilter)}s left on the board`
+        : "Order book empty — every asset is rostered");
+    body.innerHTML = `<tr><td colspan="9"><div class="ml-empty">${msg}</div></td></tr>`;
+  }
+  document.getElementById("book-count").textContent =
+    `${filtered.length} shown`;
   // Roving tabindex: exactly one row button is tabbable at a time.
   const firstBtn = body.querySelector(".row-draft");
   if (firstBtn) firstBtn.tabIndex = 0;
@@ -15604,6 +15748,9 @@ function renderRoster() {
   // Pull straight from schedule so keepers + user picks both show
   const myPicks = DATA.schedule
     .filter(p => p.team_idx === DATA.my_team_idx && p.player);
+  if (!myPicks.length) {
+    r.innerHTML = '<div class="ml-empty" style="grid-column: 1 / -1">No holdings yet — your first fill lands here</div>';
+  }
   const totalProj = myPicks.reduce((s, p) => {
     const pp = DATA.players.find(x => x.name === p.player);
     return s + (pp ? pp.proj : 0);
@@ -15724,6 +15871,10 @@ function renderHistory() {
   // Show picks in actual draft order (overall), up to cursor.
   const happened = DATA.schedule.slice(0, cursor).filter(p => p.player);
   const last = happened.slice(-15).reverse();
+  if (!last.length) {
+    h.innerHTML = '<div class="ml-empty">No fills yet — the tape starts at pick #1</div>';
+    return;
+  }
   for (const p of last) {
     const mgr = DATA.managers.find(m => m.team_idx === p.team_idx);
     const player = DATA.players.find(x => x.name === p.player) || {pos: '?'};
@@ -15731,6 +15882,8 @@ function renderHistory() {
     const isMe = p.team_idx === DATA.my_team_idx;
     const row = document.createElement("div");
     row.className = "history-row" + (isMe ? " mine" : "");
+    // One-shot receipt flash on the row this action just created.
+    if (flashOverall != null && p.overall === flashOverall) row.classList.add("ml-flash");
     row.innerHTML = `
       <span class="pn">#${p.overall}</span>
       <span class="who">${(mgr && mgr.id) ? mgr.id.toUpperCase() : '?'}</span>
@@ -15740,6 +15893,7 @@ function renderHistory() {
     `;
     h.appendChild(row);
   }
+  flashOverall = null;
 }
 
 // ---------- HELPERS ----------

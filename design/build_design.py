@@ -132,6 +132,8 @@ def build_css() -> str:
   --ml-gold-chip-text: {GOLD['chip_text']};
   --ml-banner-warn-bg: #2a2115;
   --ml-banner-warn-border: #7c5a2b;
+  --ml-banner-error-bg: {BAN['error_bg_dark']};
+  --ml-banner-error-border: {BAN['error_border_dark']};
   --ml-font-display: {TYPE['display']};
   --ml-font-body: {TYPE['body']};
   --ml-font-data: {TYPE['data']};
@@ -146,6 +148,8 @@ def build_css() -> str:
 {hl('light')}
   --ml-banner-warn-bg: {BAN['warn_bg']};
   --ml-banner-warn-border: {BAN['warn_border']};
+  --ml-banner-error-bg: {BAN['error_bg']};
+  --ml-banner-error-border: {BAN['error_border']};
 }}
 
 /* ---------- a11y utilities ---------- */
@@ -261,12 +265,40 @@ def build_css() -> str:
 .ml-banner--warn {{ background: var(--ml-banner-warn-bg);
   border: 1px solid var(--ml-banner-warn-border); border-radius: var(--ml-r-md);
   padding: 4px 8px; }}
+.ml-banner--error {{ background: var(--ml-banner-error-bg);
+  border: 1px solid var(--ml-banner-error-border); border-radius: var(--ml-r-md);
+  padding: 8px 10px; }}
+.ml-banner--error strong {{ color: var(--ml-danger); }}
 .ml-note {{ color: var(--ml-muted); font-size: .85em; }}
 .ml-urgent {{ color: var(--ml-danger); font-weight: 700; }}
 
+/* ---------- interaction states ---------- */
+/* Loading placeholder: STATIC block (no shimmer — motion doctrine). Mark
+   the containing region aria-hidden; real content replaces it wholesale. */
+.ml-skeleton {{ display: inline-block; width: 100%; height: 0.8125rem;
+  border-radius: var(--ml-r-sm); background: var(--ml-panel2); }}
+/* Empty state: context text set by the caller ("no matches", "no fills"). */
+.ml-empty {{ padding: 14px 10px; text-align: center; color: var(--ml-muted);
+  font-size: 0.75rem; }}
+/* Disabled controls: aria-disabled (kept focusable + announced) or the
+   disabled attribute both render the same. Muted text stays readable —
+   never opacity-ghosting (the C15 lesson). */
+.ml-btn[disabled], .ml-btn[aria-disabled="true"] {{ color: var(--ml-muted);
+  border-color: var(--ml-border); cursor: not-allowed; }}
+.ml-btn[disabled]:hover, .ml-btn[aria-disabled="true"]:hover {{ filter: none; }}
+.ml-btn--hdr[aria-disabled="true"] {{ color: rgba(255,255,255,0.55);
+  border-color: rgba(255,255,255,0.3); cursor: not-allowed; }}
+.ml-filter:hover {{ filter: brightness(1.15); }}
+/* Action receipt: a single-fire background fade acknowledging a user
+   action (fill/undo). Sanctioned by the motion doctrine alongside
+   ml-pulse; one-shot, <=900ms, killed under reduced motion. */
+@keyframes ml-receipt {{ from {{ background-color: var(--ml-mine-tint); }}
+  to {{ background-color: transparent; }} }}
+.ml-flash {{ animation: ml-receipt 900ms ease-out 1; }}
+
 /* ---------- media adaptations ---------- */
 @media (prefers-reduced-motion: reduce) {{
-  .ml-btn--on, .ml-clock--me, .ml-clock--soon {{ animation: none; }}
+  .ml-btn--on, .ml-clock--me, .ml-clock--soon, .ml-flash {{ animation: none; }}
 }}
 @media (pointer: coarse) {{
   .ml-btn, .ml-filter {{ min-height: 40px; padding: 8px 12px; }}

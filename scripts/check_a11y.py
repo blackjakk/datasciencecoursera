@@ -273,6 +273,17 @@ def scan_aria(html: str, name: str) -> list[str]:
                 out.append(f"ARIA {name}:{_line(html, pos)}: injury badge "
                            f"aria-label uses injury[0] — must be the FULL "
                            f"injury string (Questionable, not Q)")
+
+    # interaction-states doctrine (DESIGN.md): boot failure must be an
+    # announced alert with a retry, and the shell must expose its loading
+    # state — silent blank screens are the pre-fix failure mode.
+    if 'role="alert"' not in html:
+        out.append(f"ARIA {name}: no role=\"alert\" boot-error surface "
+                   f"(a data-load failure must be announced, not a blank "
+                   f"screen)")
+    if not re.search(r"<main\b[^>]*\baria-busy", html, re.IGNORECASE):
+        out.append(f"ARIA {name}: <main> missing aria-busy loading state "
+                   f"(skeletons render until the data bundle lands)")
     return out
 
 
@@ -349,6 +360,23 @@ def scan_css(css: str, name: str) -> list[str]:
     if ".ml-btn--bare" not in stripped:
         out.append(f"CSS {name}: .ml-btn--bare reset missing (in-cell "
                    f"row-draft buttons depend on it)")
+
+    # interaction-states component layer (DESIGN.md doctrine)
+    for cls, why in ((".ml-skeleton", "loading skeletons"),
+                     (".ml-empty", "empty states"),
+                     (".ml-banner--error", "error banner"),
+                     ('.ml-btn[aria-disabled="true"]',
+                      "disabled-control styling")):
+        if cls not in stripped:
+            out.append(f"CSS {name}: {cls} missing ({why} — "
+                       f"interaction-states doctrine)")
+    # ml-flash (action receipt) exists => it must die under reduced motion
+    if ".ml-flash" in stripped:
+        rm = re.search(r"prefers-reduced-motion.*?(?=@media|\Z)",
+                       stripped, re.DOTALL)
+        if not rm or ".ml-flash" not in rm.group(0):
+            out.append(f"CSS {name}: .ml-flash not inside the "
+                       f"prefers-reduced-motion kill list")
     return out
 
 
@@ -484,6 +512,15 @@ def _token_pairs() -> list[tuple[str, str, str, float]]:
          "surface.light.border_strong", "surface.light.bg", 3.0),
         ("light border_strong vs panel2",
          "surface.light.border_strong", "surface.light.panel2", 3.0),
+        # interaction-states doctrine: error banner text pairs, both themes
+        ("dark danger text on error banner",
+         "semantic.danger.dark", "banner.error_bg_dark", 4.5),
+        ("dark text on error banner",
+         "surface.dark.text", "banner.error_bg_dark", 4.5),
+        ("light danger text on error banner",
+         "semantic.danger.light", "banner.error_bg", 4.5),
+        ("light text on error banner",
+         "surface.light.text", "banner.error_bg", 4.5),
     ]
     return pairs
 
@@ -636,7 +673,10 @@ GOOD_HTML = """<!DOCTYPE html>
   <span id="live-status" role="status" aria-live="polite"></span>
   <div id="sr-clock" class="ml-visually-hidden" role="status"></div>
 </header>
-<main>
+<div id="boot-error" hidden><div class="ml-banner--error" role="alert">
+  <strong>MARKET DATA UNAVAILABLE</strong>
+  <button class="ml-btn" id="boot-retry">Retry</button></div></div>
+<main aria-busy="true">
   <h2>Available Players</h2>
   <input id="search" class="ml-input" type="search"
          aria-label="Search players by name" placeholder="Search by name">
@@ -714,8 +754,17 @@ GOOD_CSS = """
 .ml-visually-hidden { position: absolute; width: 1px; height: 1px;
   clip: rect(0 0 0 0); overflow: hidden; }
 .ml-btn--bare { background: none; border: 0; color: inherit; font: inherit; }
+.ml-skeleton { display: inline-block; background: var(--ml-panel2); }
+.ml-empty { padding: 14px 10px; color: var(--ml-muted); }
+.ml-banner--error { background: var(--ml-banner-error-bg);
+  border: 1px solid var(--ml-banner-error-border); }
+.ml-btn[disabled], .ml-btn[aria-disabled="true"] { color: var(--ml-muted);
+  cursor: not-allowed; }
+@keyframes ml-receipt { from { background-color: var(--ml-mine-tint); }
+  to { background-color: transparent; } }
+.ml-flash { animation: ml-receipt 900ms ease-out 1; }
 @media (prefers-reduced-motion: reduce) {
-  .ml-btn--on, .ml-clock--me, .ml-clock--soon { animation: none; }
+  .ml-btn--on, .ml-clock--me, .ml-clock--soon, .ml-flash { animation: none; }
 }
 @media (pointer: coarse) { .ml-btn, .ml-filter { min-height: 40px; } }
 """
@@ -746,6 +795,9 @@ GOOD_TOKENS = {"color": {
                           "text": "#1a1d24", "muted": "#5d6673"}},
     "brand": {"header_a": "#0f766e", "header_b": "#0e7490",
               "on_brand": "#ffffff"},
+    "banner": {"warn_bg": "#fff7ed", "warn_border": "#fed7aa",
+               "error_bg": "#f7e3dc", "error_border": "#c98d7e",
+               "error_bg_dark": "#2c1614", "error_border_dark": "#8a4a40"},
 }}
 
 GOOD_TOKENS_CSS = """
@@ -872,6 +924,8 @@ def selftest() -> int:
     check("aria: rookie badge label fires", has(v, "rookie badge"))
     check("aria: keeper badge label fires", has(v, "keeper badge"))
     check("aria: injury[0] aria-label fires", has(v, "FULL injury string"))
+    check("aria: missing boot-error alert fires", has(v, 'role="alert"'))
+    check("aria: missing main aria-busy fires", has(v, "aria-busy"))
 
     # RESPONSIVE
     v = scan_responsive(_page_css(GOOD_HTML), "good.html")
@@ -898,6 +952,17 @@ def selftest() -> int:
     check("css: pointer coarse fires", has(v, "pointer: coarse"))
     check("css: visually-hidden fires", has(v, ".ml-visually-hidden"))
     check("css: btn--bare fires", has(v, ".ml-btn--bare"))
+    check("css: skeleton fires", has(v, ".ml-skeleton"))
+    check("css: empty-state fires", has(v, ".ml-empty"))
+    check("css: error banner fires", has(v, ".ml-banner--error"))
+    check("css: disabled styling fires", has(v, 'aria-disabled="true"'))
+    v = scan_css(GOOD_CSS.replace(
+        ".ml-btn--on, .ml-clock--me, .ml-clock--soon, .ml-flash "
+        "{ animation: none; }",
+        ".ml-btn--on, .ml-clock--me, .ml-clock--soon { animation: none; }"),
+        "flashless.css")
+    check("css: ml-flash outside reduced-motion kill fires",
+          has(v, ".ml-flash not inside"), str(v))
     focus_no_token = ":focus-visible { outline: 2px solid red; }"
     v = scan_css(focus_no_token + GOOD_CSS.replace(
         ":focus-visible { outline: 2px solid var(--ml-focus); "

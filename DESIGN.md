@@ -46,11 +46,15 @@ surfaces, it never changes what a number means or hides one.
 3. **Flat.** Separation comes from surface steps (`bg → panel → panel2`)
    and 1px borders — never drop shadows, never glassmorphism. Banknote
    texture is line work, not depth.
-4. **Motion means urgency.** The only animation is `ml-pulse`, and it means
-   "act now" (you're up / 2 away / live). Nothing else moves —
+4. **Motion is spent on exactly two things.** (a) *Urgency*: `ml-pulse`
+   means "act now" (you're up / 2 away / live). (b) *Receipts*: `ml-flash`
+   (`ml-receipt` keyframe) is a single-fire ≤900ms background fade that
+   acknowledges a user action — a fill landing, an undo returning — and
+   never loops. Nothing else moves, nothing ambient ever moves —
    **the tape is static, always** (`.ml-tape` never animates, never
-   marquees; it is a strip of facts, not ambience). Reduced-motion users
-   get the same state via solid color.
+   marquees; it is a strip of facts, not ambience). Loading skeletons
+   (`.ml-skeleton`) are static blocks — no shimmer. Reduced-motion users
+   get the same states via solid color (both animations are killed).
 5. **Dense, with rhythm.** Draft decisions need many facts per screen-inch;
    density is a feature. Rhythm comes from the `space.*` tokens, not
    eyeballed padding.
@@ -105,6 +109,30 @@ surfaces, it never changes what a number means or hides one.
   slot-round-pick — not decorative gibberish.
 - Fine print (`.ml-fineprint`) is for true disclosures (data-as-of lines,
   the self-aware risk disclosure), not for burying facts someone needs.
+
+## Interaction states (every control earns all five)
+
+A control or region isn't done until its loading, empty, error, disabled,
+and feedback states are all designed — the components exist, so "the happy
+path only" is never a reason:
+
+- **Loading**: static `.ml-skeleton` placeholders per region (aria-hidden,
+  `aria-busy` on the container until data lands). No shimmer, ever.
+- **Empty**: `.ml-empty` with a *contextual* sentence that names the cause
+  and the way out ("No assets match 'jones' — press Esc to clear"), never
+  a bare dash or a silent blank.
+- **Error**: `.ml-banner--error` + `role="alert"`, stating what failed and
+  offering exactly one action (Retry). Recoverable background failures
+  (live poll) degrade to status text instead and keep retrying.
+- **Disabled**: `aria-disabled="true"` — kept focusable and announced;
+  activating it explains itself via the status region. Muted text, hover
+  effects off; never opacity-ghosting.
+- **Feedback**: every state-changing action produces a receipt — one line
+  in the `role="status"` region ("FILLED — …", "UNDONE — …") plus an
+  `ml-flash` on the affected row; search/filter changes announce a result
+  count. Silent success is a bug.
+- Hover ≠ focus: hover is a brightness step; focus is the global ring;
+  neither ever substitutes for the other.
 
 ## Type
 

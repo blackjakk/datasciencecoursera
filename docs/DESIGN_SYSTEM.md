@@ -355,9 +355,44 @@ page layout CSS — alignment/font only, no colors).
 ```html
 <div class="ml-banner">Ceiling mode uses 85th-percentile projections.</div>
 <div class="ml-banner ml-banner--warn">3 keepers still unconfirmed.</div>
+<div class="ml-banner--error" role="alert">
+  <strong>MARKET DATA UNAVAILABLE</strong> — data.json didn't load.
+  <button class="ml-btn">Retry</button></div>
 <p class="ml-note">Values as of July 11.</p>
 <span class="ml-urgent">On the clock!</span>
 ```
+
+### Interaction states (DESIGN.md doctrine: every control earns all five)
+
+```html
+<!-- loading: static placeholder (no shimmer), region hidden from SR -->
+<tr aria-hidden="true"><td colspan="9">
+  <span class="ml-skeleton" style="width:72%"></span></td></tr>
+<main aria-busy="true">…</main>   <!-- until the data bundle lands -->
+
+<!-- empty: contextual — name the cause AND the way out -->
+<div class="ml-empty">No assets match “jones” — press Esc to clear</div>
+
+<!-- disabled: aria-disabled keeps it focusable + announced; activating it
+     explains itself via the status region. Muted text, never opacity. -->
+<button class="ml-btn" aria-disabled="true" title="Nothing to undo yet">undo last</button>
+
+<!-- feedback: one-shot receipt flash on the affected row (<=900ms
+     background fade via the ml-receipt keyframe; reduced-motion kills it),
+     paired with a receipt line in a role="status" region -->
+<div class="history-row ml-flash">#6 BRIAN … Bijan Robinson</div>
+```
+
+- `.ml-skeleton` — static block, `--ml-panel2` fill; never animated.
+- `.ml-empty` — centered muted 0.75rem block for zero-result regions.
+- `.ml-banner--error` — `--ml-banner-error-bg/border` (both themes measured:
+  danger text 6.16 dark / 4.64 light); always `role="alert"` + one action.
+- `.ml-btn[disabled]` / `[aria-disabled="true"]` — muted text, subtle
+  border, `cursor: not-allowed`, hover filter off (both button variants).
+- `.ml-flash` / `@keyframes ml-receipt` — the sanctioned action receipt;
+  in the `prefers-reduced-motion` kill list alongside `ml-pulse`.
+- `check_a11y.py` enforces all of the above (CSS group + error-banner
+  contrast pairs + `role="alert"` / `aria-busy` ARIA rules).
 
 ## Python API (`design/tokens.py`, generated)
 
