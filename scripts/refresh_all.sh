@@ -47,6 +47,8 @@ do_fetch() {
 # ---------- LAYER 2: derived data ----------
 do_derive() {
   ensure_player_catalog
+  log "Regenerate design-system artifacts from tokens"
+  python3 design/build_design.py
   log "Rebuild players_2026.csv from Sleeper projections"
   python3 scripts/build_players_csv.py
   log "Rebuild empirical pick-value chart"

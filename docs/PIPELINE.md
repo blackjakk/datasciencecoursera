@@ -233,3 +233,15 @@ build_manager_tendencies.py for the pattern.
 - **scripts/trade_advisor.py** — league pick-capital table and pick-swap
   pricing with forward-looking round values:
   `python3 scripts/trade_advisor.py --give R3 R7 --get R2 R12`
+
+## Design system
+
+All UI (draft helper, PDF reports, matplotlib charts) consumes ONE
+source of truth: `design/tokens.json`. The derive stage regenerates
+`design/ml.css` (component library, dark+light themes) and
+`design/tokens.py` (Python constants + report_base_css + mpl_style).
+`scripts/check_design_system.py` (run inside verify) fails the build on
+raw hex literals, duplicate palettes, hand-edited generated files, or a
+helper that doesn't link ml.css. New UI goes through the library — no
+bypassing; the `design-review` skill enforces this in code review.
+See docs/DESIGN_SYSTEM.md for the token/component catalog.
