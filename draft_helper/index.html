@@ -309,8 +309,20 @@ function showBootError(err) {
   document.getElementById("live-btn").addEventListener("click", toggleLive);
   document.getElementById("ceiling-btn").addEventListener("click", toggleCeiling);
   document.getElementById("practice-btn").addEventListener("click", togglePractice);
-  // Persist state via URL hash so refresh doesn't lose picks
-  window.addEventListener("hashchange", () => { if (!suppressHashChange) loadStateFromURL(); });
+  // Persist state via URL hash so refresh doesn't lose picks. The browser
+  // Back/Forward buttons walk real history entries (reset pushes one), so a
+  // hashchange must do the FULL restore: picks from hash, then keepers,
+  // cursor, render — and never mid-practice (practice owns the board).
+  window.addEventListener("hashchange", () => {
+    if (suppressHashChange) return;
+    if (practiceMode) { setLiveStatus("exit practice before using Back/Forward"); return; }
+    loadStateFromURL();
+    applyKeepersAtStart();
+    recomputeCursor();
+    refresh();
+    const n = pickOrder.filter(p => !p.is_keeper).length;
+    setLiveStatus(`RESTORED from history — ${n} fill${n === 1 ? "" : "s"} on the board`);
+  });
   // Resume live mode if a draft ID was saved this browser
   if (localStorage.getItem("sleeper_draft_id")) {
     setLiveStatus("saved draft ID found — press GO LIVE to resume");
@@ -689,12 +701,14 @@ function saveStateToURL() {
 }
 function loadStateFromURL() {
   const h = location.hash.slice(1);
-  if (!h) return;
-  const items = h.split(",").filter(Boolean);
+  // Empty hash is a real state (e.g. Forward past a reset): wipe user
+  // picks rather than silently keeping the old board.
   pickOrder = [];
   drafted = new Set();
   // Wipe any prior assignments on schedule
   for (const p of DATA.schedule) { delete p.player; delete p.is_keeper; }
+  if (!h) return;
+  const items = h.split(",").filter(Boolean);
   for (const it of items) {
     const [overall, ...rest] = it.split(":");
     const pn = decodeURIComponent(rest.join(":"));
@@ -973,20 +987,21 @@ function resetBoard() {
   if (practiceMode) { setLiveStatus("exit practice instead — it restores the real board"); return; }
   const n = pickOrder.filter(p => !p.is_keeper).length;
   if (!n) { setLiveStatus("nothing to reset — no fills recorded"); return; }
-  if (!confirm(`Reset the board? This clears all ${n} recorded pick${n === 1 ? "" : "s"}. Keepers stay. This cannot be undone.`)) {
+  if (!confirm(`Reset the board? This clears all ${n} recorded pick${n === 1 ? "" : "s"}. Keepers stay. (Your browser's Back button restores them.)`)) {
     setLiveStatus("reset cancelled");
     return;
   }
   if (liveTimer) toggleLive();   // stop the poll before wiping state
   for (const s of DATA.schedule) { delete s.player; delete s.is_keeper; }
   pickOrder = []; drafted = new Set();
-  suppressHashChange = true;
-  history.replaceState(null, "", "#");
-  setTimeout(() => suppressHashChange = false, 50);
+  // PUSH a fresh history entry (not replace): the pre-reset board stays one
+  // Back-press away — the hashchange listener does the full restore.
+  // (pushState fires no hashchange itself, so no suppress needed.)
+  history.pushState(null, "", "#");
   applyKeepersAtStart();
   recomputeCursor();
   refresh();
-  setLiveStatus(`RESET — ${n} fill${n === 1 ? "" : "s"} cleared, keepers restored`);
+  setLiveStatus(`RESET — ${n} fill${n === 1 ? "" : "s"} cleared, keepers restored · press Back to restore them`);
 }
 
 // ---------- CONTROL STATES ----------
