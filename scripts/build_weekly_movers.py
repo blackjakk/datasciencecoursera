@@ -102,10 +102,84 @@ def keeper_changes() -> list[str]:
     return (["", "Keeper prediction changes:"] + lines) if lines else []
 
 
+SNAPSHOT = ROOT / "data" / "injury_snapshot.json"
+
+
+def injury_changes() -> list[str]:
+    """Diff injury statuses for draft-relevant players (ADP < 200) plus all
+    predicted keepers, against last week's committed snapshot. Camp injuries
+    reshape ADP within days — this surfaces them in the Tuesday briefing
+    before the market fully reprices."""
+    catalog = json.loads(
+        (ROOT / "data" / "sleeper" / "players_nfl.json").read_text())
+
+    relevant: dict[str, float] = {}   # name -> adp
+    with open(ROOT / "data" / "players_2026.csv", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            try:
+                adp = float(row["adp"])
+            except (KeyError, ValueError):
+                continue
+            if adp < 200:
+                relevant[row["name"]] = adp
+    keeper_names = set()
+    try:
+        for k in json.loads((ROOT / "data" / "keepers_2026.json").read_text()):
+            if k.get("status") in ("carryover", "alternate"):
+                keeper_names.add(k["player_name"])
+                relevant.setdefault(k["player_name"], 999)
+    except FileNotFoundError:
+        pass
+
+    snapshot: dict[str, str] = {}
+    for p in catalog.values():
+        nm = p.get("full_name")
+        if not nm or nm not in relevant:
+            continue
+        status = p.get("injury_status") or ""
+        part = p.get("injury_body_part") or ""
+        snapshot[nm] = f"{status}|{part}" if status else ""
+
+    old_text = _git_show("data/injury_snapshot.json")
+    SNAPSHOT.write_text(json.dumps(dict(sorted(snapshot.items())), indent=1))
+
+    if old_text is None:
+        return ["", "Injury watch: baseline snapshot created "
+                f"({sum(1 for v in snapshot.values() if v)} currently flagged)."]
+    try:
+        old = json.loads(old_text)
+    except json.JSONDecodeError:
+        return []
+
+    lines = []
+    for nm in sorted(set(old) | set(snapshot)):
+        o, n = old.get(nm, ""), snapshot.get(nm, "")
+        if o == n:
+            continue
+        ktag = " [KEEPER]" if nm in keeper_names else ""
+        adp = relevant.get(nm)
+        adp_txt = f", ADP {adp:.0f}" if adp and adp < 500 else ""
+        if n and not o:
+            st, part = n.split("|", 1)
+            lines.append(f"- ⚠ {nm}{ktag}{adp_txt}: now {st}"
+                         + (f" ({part})" if part else ""))
+        elif o and not n:
+            lines.append(f"- ✓ {nm}{ktag}{adp_txt}: cleared "
+                         f"({o.split('|', 1)[0]})")
+        elif n and o:
+            st, part = n.split("|", 1)
+            lines.append(f"- ⚠ {nm}{ktag}{adp_txt}: {o.split('|', 1)[0]} -> {st}"
+                         + (f" ({part})" if part else ""))
+    if not lines:
+        return ["", "Injury watch: no status changes this week."]
+    return ["", "Injury watch (status changes):"] + lines
+
+
 def main() -> None:
     lines = ["ADP movers (FantasyPros/Sleeper blend, ≥1 round):"]
     lines += adp_movers()
     lines += keeper_changes()
+    lines += injury_changes()
     body = "\n".join(lines) + "\n"
     OUT.write_text(body, encoding="utf-8")
     print(body)
