@@ -50,6 +50,13 @@ it. `scripts/check_design_system.py` (inside verify) fails on raw hex,
 duplicate palettes, hand-edited generated files. Use the `design-review`
 skill for any UI diff. Catalog: docs/DESIGN_SYSTEM.md.
 
+## Accessibility (July 2026 hardening — enforced)
+Helper is WCAG 2.1 AA: keyboard-draftable (roving tabindex, focus
+restoration in refresh()), SR live regions (#sr-clock), phone-clean at
+360px (column collapse + sticky header), AA contrast both themes.
+`scripts/check_a11y.py` (inside verify) guards it; use the `a11y-review`
+skill for any helper/design diff. Record: docs/A11Y_AUDIT.md.
+
 ## Key analyses on record
 - Backtest (`scripts/backtest_recommender.py`): tool vs real-Brian
   2023-2025 = ~break-even (+19/season). Brian already drafts QB-early

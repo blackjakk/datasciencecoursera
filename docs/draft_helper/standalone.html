@@ -15,48 +15,68 @@
   --ml-panel: #14171c;
   --ml-panel2: #1c2027;
   --ml-border: #262b33;
+  --ml-border-strong: #66707d;
   --ml-row: #1a1d22;
   --ml-text: #e8eaee;
   --ml-muted: #8a93a0;
   --ml-pos-qb: #dc2626;
-  --ml-pos-rb: #0891b2;
-  --ml-pos-wr: #16a34a;
+  --ml-pos-rb: #0e7490;
+  --ml-pos-wr: #15803d;
   --ml-pos-te: #f59e0b;
   --ml-pos-k: #9a3412;
-  --ml-pos-def: #525252;
+  --ml-pos-def: #6b6b6b;
   --ml-success: #4ade80;
   --ml-warn: #f59e0b;
-  --ml-danger: #ef4444;
+  --ml-danger: #f87171;
   --ml-info: #60a5fa;
   --ml-keeper: #60a5fa;
+  --ml-focus: #7dd3fc;
+  --ml-target-tint: rgba(74,222,128,.16);
+  --ml-mine-tint: rgba(74,222,128,.18);
   --ml-banner-warn-bg: #2a2115;
   --ml-banner-warn-border: #7c5a2b;
   --ml-font-display: 'Bebas Neue', 'Arial Narrow', sans-serif;
   --ml-font-body: 'Inter', -apple-system, 'Segoe UI', sans-serif;
   --ml-r-sm: 3px; --ml-r-md: 5px; --ml-r-lg: 8px;
-  --ml-brand-a: #14b8a6; --ml-brand-b: #0891b2;
+  --ml-brand-a: #0f766e; --ml-brand-b: #0e7490;
+  --ml-on-brand: #ffffff;
 }
 [data-theme="light"] {
   --ml-bg: #ffffff;
   --ml-panel: #ffffff;
   --ml-panel2: #f1f5f9;
   --ml-border: #d8dce2;
+  --ml-border-strong: #767f8b;
   --ml-row: #f0f2f5;
   --ml-text: #1a1d24;
-  --ml-muted: #66707d;
-  --ml-success: #16a34a;
-  --ml-warn: #d97706;
-  --ml-danger: #dc2626;
+  --ml-muted: #5d6673;
+  --ml-success: #15803d;
+  --ml-warn: #b45309;
+  --ml-danger: #c81e1e;
   --ml-info: #0369a1;
   --ml-keeper: #0369a1;
+  --ml-focus: #0369a1;
+  --ml-target-tint: rgba(21,128,61,.10);
+  --ml-mine-tint: rgba(21,128,61,.12);
   --ml-banner-warn-bg: #fff7ed;
   --ml-banner-warn-border: #fed7aa;
 }
 
+/* ---------- a11y utilities ---------- */
+:focus-visible { outline: 2px solid var(--ml-focus); outline-offset: 1px; }
+.ml-visually-hidden { position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0);
+  clip-path: inset(50%); white-space: nowrap; border: 0; }
+.ml-btn--bare { background: none; border: 0; padding: 0; color: inherit;
+  font: inherit; text-align: left; cursor: pointer; }
+
 /* ---------- primitives ---------- */
+/* .ml-panel/.ml-card borders are decorative container outlines — exempt
+   from WCAG 1.4.11 (structure is conveyed by headings/spacing). Interactive
+   controls below use --ml-border-strong instead. */
 .ml-panel { background: var(--ml-panel); border: 1px solid var(--ml-border);
   border-radius: var(--ml-r-lg); padding: 10px; }
-.ml-panel > h2, .ml-h-label { margin: 0 0 8px; font-size: 12px; font-weight: 700;
+.ml-panel > h2, .ml-h-label { margin: 0 0 8px; font-size: 0.75rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1px; color: var(--ml-muted); }
 .ml-card { border: 1px solid var(--ml-border); border-radius: var(--ml-r-md);
   padding: 4px 7px; background: var(--ml-panel); break-inside: avoid; }
@@ -64,20 +84,23 @@
 
 /* ---------- badges & chips ---------- */
 .ml-badge { display: inline-block; padding: 1px 5px; border-radius: var(--ml-r-sm);
-  font-size: 10px; font-weight: 700; color: #fff; min-width: 24px; text-align: center; }
+  font-size: 0.625rem; font-weight: 700; color: #fff; min-width: 24px; text-align: center; }
 .ml-badge--qb { background: var(--ml-pos-qb); color: #fff; }
 .ml-badge--rb { background: var(--ml-pos-rb); color: #fff; }
 .ml-badge--wr { background: var(--ml-pos-wr); color: #fff; }
-.ml-badge--te { background: var(--ml-pos-te); color: #fff; }
+.ml-badge--te { background: var(--ml-pos-te); color: #000; }
 .ml-badge--k { background: var(--ml-pos-k); color: #fff; }
 .ml-badge--def { background: var(--ml-pos-def); color: #fff; }
 .ml-badge--dst { background: var(--ml-pos-def); color: #fff; }
 .ml-badge--keeper { background: var(--ml-keeper); color: #000; padding: 1px 4px;
-  font-size: 9px; min-width: 0; }
+  font-size: 0.5625rem; min-width: 0; }
 .ml-badge--rookie { background: var(--ml-warn); color: #000; padding: 1px 4px;
-  font-size: 9px; min-width: 0; }
-.ml-badge--injury { background: var(--ml-danger); color: #fff; padding: 1px 4px;
-  font-size: 9px; min-width: 0; }
+  font-size: 0.5625rem; min-width: 0; }
+.ml-badge--injury { background: var(--ml-danger); color: #000; padding: 1px 4px;
+  font-size: 0.5625rem; min-width: 0; }
+[data-theme="light"] .ml-badge--keeper { color: #fff; }
+[data-theme="light"] .ml-badge--rookie { color: #fff; }
+[data-theme="light"] .ml-badge--injury { color: #fff; }
 .ml-pos-qb { color: var(--ml-pos-qb); }
 .ml-pos-rb { color: var(--ml-pos-rb); }
 .ml-pos-wr { color: var(--ml-pos-wr); }
@@ -85,50 +108,54 @@
 .ml-pos-k { color: var(--ml-pos-k); }
 .ml-pos-def { color: var(--ml-pos-def); }
 .ml-stat { background: var(--ml-panel2); padding: 3px 8px; border-radius: 4px;
-  font-size: 11px; color: var(--ml-muted); }
+  font-size: 0.6875rem; color: var(--ml-muted); }
 .ml-stat strong { color: var(--ml-text); }
 
 /* ---------- buttons & inputs ---------- */
-.ml-btn { background: var(--ml-panel2); border: 1px solid var(--ml-border);
+.ml-btn { background: var(--ml-panel2); border: 1px solid var(--ml-border-strong);
   color: var(--ml-text); padding: 4px 10px; border-radius: var(--ml-r-md);
-  cursor: pointer; font-size: 12px; }
+  cursor: pointer; font-size: 0.75rem; }
 .ml-btn:hover { filter: brightness(1.2); }
-.ml-btn--hdr { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.3);
-  color: #fff; padding: 6px 12px; font-weight: 700; letter-spacing: .5px; }
+.ml-btn--hdr { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.65);
+  color: var(--ml-on-brand); padding: 6px 12px; font-weight: 700; letter-spacing: .5px; }
 .ml-btn--on { background: var(--ml-danger); border-color: var(--ml-danger);
-  color: #fff; animation: ml-pulse 1.4s infinite; }
-.ml-input { background: var(--ml-panel2); border: 1px solid var(--ml-border);
+  color: #000; animation: ml-pulse 1.4s infinite; }
+[data-theme="light"] .ml-btn--on { color: #fff; }
+.ml-input { background: var(--ml-panel2); border: 1px solid var(--ml-border-strong);
   color: var(--ml-text); padding: 6px 10px; border-radius: var(--ml-r-md);
-  font-size: 14px; }
-.ml-filter { background: var(--ml-panel2); border: 1px solid var(--ml-border);
+  font-size: 0.875rem; }
+.ml-filter { background: var(--ml-panel2); border: 1px solid var(--ml-border-strong);
   color: var(--ml-text); padding: 4px 9px; border-radius: var(--ml-r-md);
-  cursor: pointer; font-size: 12px; font-weight: 700; }
+  cursor: pointer; font-size: 0.75rem; font-weight: 700; }
 .ml-filter.active { background: var(--ml-success); color: #000;
   border-color: var(--ml-success); }
+[data-theme="light"] .ml-filter.active { color: #fff; }
 .ml-filter--qb.active { background: var(--ml-pos-qb); border-color: var(--ml-pos-qb); color: #fff; }
 .ml-filter--rb.active { background: var(--ml-pos-rb); border-color: var(--ml-pos-rb); color: #fff; }
 .ml-filter--wr.active { background: var(--ml-pos-wr); border-color: var(--ml-pos-wr); color: #fff; }
-.ml-filter--te.active { background: var(--ml-pos-te); border-color: var(--ml-pos-te); color: #fff; }
+.ml-filter--te.active { background: var(--ml-pos-te); border-color: var(--ml-pos-te); color: #000; }
 .ml-filter--k.active { background: var(--ml-pos-k); border-color: var(--ml-pos-k); color: #fff; }
 .ml-filter--def.active { background: var(--ml-pos-def); border-color: var(--ml-pos-def); color: #fff; }
 
 /* ---------- status / clock ---------- */
 @keyframes ml-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.6); }
   50% { box-shadow: 0 0 0 8px rgba(74,222,128,0); } }
-.ml-clock { font-weight: 700; font-size: 13px; padding: 6px 10px;
-  border-radius: 6px; background: rgba(0,0,0,0.35); }
+.ml-clock { font-weight: 700; font-size: 0.8125rem; padding: 6px 10px;
+  border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--ml-on-brand); }
 .ml-clock--me { background: var(--ml-success); color: #000;
   animation: ml-pulse 1.4s infinite; }
 .ml-clock--soon { background: var(--ml-warn); color: #000;
   animation: ml-pulse 1.4s infinite; }
+[data-theme="light"] .ml-clock--me { color: #fff; }
+[data-theme="light"] .ml-clock--soon { color: #fff; }
 .ml-sv-hi { color: var(--ml-success); font-weight: 700; }
 .ml-sv-mid { color: var(--ml-warn); font-weight: 700; }
 .ml-sv-lo { color: var(--ml-danger); font-weight: 700; }
 
 /* ---------- tables ---------- */
-.ml-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ml-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 .ml-table th { text-align: left; padding: 4px 6px; color: var(--ml-muted);
-  font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+  font-size: 0.6875rem; text-transform: uppercase; letter-spacing: .5px;
   border-bottom: 1px solid var(--ml-border); position: sticky; top: 0;
   background: var(--ml-panel); z-index: 1; }
 .ml-table td { padding: 6px; border-bottom: 1px solid var(--ml-row); }
@@ -143,104 +170,142 @@
   padding: 4px 8px; }
 .ml-note { color: var(--ml-muted); font-size: .85em; }
 .ml-urgent { color: var(--ml-danger); font-weight: 700; }
+
+/* ---------- media adaptations ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ml-btn--on, .ml-clock--me, .ml-clock--soon { animation: none; }
+}
+@media (pointer: coarse) {
+  .ml-btn, .ml-filter { min-height: 40px; padding: 8px 12px; }
+  .ml-input { min-height: 40px; }
+  .ml-table td { padding-top: 10px; padding-bottom: 10px; }
+}
 </style>
 <style>
   /* Page-specific layout ONLY — every color comes from ml.css --ml-* vars. */
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--ml-bg); color: var(--ml-text); font: 14px/1.4 var(--ml-font-body); }
+  body { margin: 0; background: var(--ml-bg); color: var(--ml-text); font: 0.875rem/1.4 var(--ml-font-body); }
   header { background: linear-gradient(135deg, var(--ml-brand-a) 0%, var(--ml-brand-b) 100%); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-  header .title { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; }
+  header .title { margin: 0; font-weight: 800; font-size: 1rem; letter-spacing: 0.5px; color: var(--ml-on-brand); }
   main { display: grid; grid-template-columns: 1fr 380px; gap: 12px; padding: 12px; max-width: 1400px; margin: 0 auto; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  main > * { min-width: 0; }
+  main .ml-panel { min-width: 0; }
+  .col-right { display: flex; flex-direction: column; gap: 12px; }
   .controls { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
   .controls input[type=search] { flex: 1; min-width: 140px; }
   .pos-filter { display: flex; gap: 4px; flex-wrap: wrap; }
   table.player-list tr { cursor: pointer; }
   table.player-list tr:hover { background: var(--ml-panel2); }
-  table.player-list tr.drafted { opacity: 0.25; text-decoration: line-through; pointer-events: none; }
-  table.player-list tr.brian-target { background: rgba(74,222,128,0.07); border-left: 3px solid var(--ml-success); }
+  table.player-list tr.brian-target { background: var(--ml-target-tint); border-left: 3px solid var(--ml-success); }
+  .target-glyph { color: var(--ml-success); }
   .vbd { font-weight: 700; }
   .vbd.pos { color: var(--ml-success); }
   .vbd.neg { color: var(--ml-muted); }
-  .meta { color: var(--ml-muted); font-size: 11px; }
-  .roster { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 12px; }
+  .meta { color: var(--ml-muted); font-size: 0.6875rem; }
+  .roster { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 0.75rem; }
   .roster-row { padding: 4px 6px; background: var(--ml-panel2); border-left: 3px solid; border-radius: var(--ml-r-sm); display: flex; justify-content: space-between; align-items: center; }
   .recs { display: flex; flex-direction: column; gap: 4px; }
-  .rec { padding: 6px 8px; background: var(--ml-panel2); border-radius: var(--ml-r-md); border-left: 3px solid var(--ml-success); }
+  .rec { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; padding: 6px 8px; background: var(--ml-panel2); border: 0; border-radius: var(--ml-r-md); border-left: 3px solid var(--ml-success); }
   .rec.warn { border-left-color: var(--ml-warn); }
-  .rec .why { color: var(--ml-muted); font-size: 11px; margin-top: 2px; }
-  .player-list-scroll { max-height: 70vh; overflow-y: auto; }
-  .history { max-height: 200px; overflow-y: auto; font-size: 12px; }
+  .rec.warn .why::before { content: "⚠ "; }
+  .rec .rec-main, .rec .why { display: block; }
+  .rec .why { color: var(--ml-muted); font-size: 0.6875rem; margin-top: 2px; }
+  .player-list-scroll { max-height: 70vh; overflow-y: auto; overflow-x: auto; }
+  .history { max-height: 200px; overflow-y: auto; font-size: 0.75rem; }
   .history-row { padding: 3px 6px; border-bottom: 1px solid var(--ml-row); display: flex; gap: 6px; align-items: center; }
   .history-row .pn { color: var(--ml-muted); min-width: 28px; }
   .history-row .who { color: var(--ml-muted); min-width: 60px; }
-  .history-row.mine { background: rgba(74,222,128,0.12); }
+  .history-row.mine { background: var(--ml-mine-tint); }
   .age-young { color: var(--ml-success); }
   .age-old { color: var(--ml-muted); }
-  .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 0.6875rem; }
   .keeper-row { font-style: italic; opacity: 0.7; }
-  .next-pick-info { font-size: 11px; color: var(--ml-muted); margin-top: 2px; }
+  .next-pick-info { font-size: 0.6875rem; color: var(--ml-muted); margin-top: 2px; }
   .live-box { display: flex; align-items: center; gap: 8px; }
-  .live-status { font-size: 11px; color: rgba(255,255,255,0.85); max-width: 220px; }
+  .live-status { font-size: 0.6875rem; color: var(--ml-on-brand); max-width: 220px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .panel-head h2 { margin: 0; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    header { position: sticky; top: 0; z-index: 10; }
+    /* Flatten the right column into main's grid so the clock/recs panel can
+       be ordered ABOVE the player pool on small screens. */
+    .col-right { display: contents; }
+    .panel-clock { order: -1; }
+  }
+  @media (max-width: 480px) {
+    /* Drop Team / Age / Proj so Pos·Name·VBD·ADP·Next✓ fit without hscroll */
+    .player-list th:nth-child(3), .player-list td:nth-child(3),
+    .player-list th:nth-child(4), .player-list td:nth-child(4),
+    .player-list th:nth-child(5), .player-list td:nth-child(5) { display: none; }
+    .player-list-scroll { max-height: 50vh; }
+    .title-slot { display: none; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <div class="title">BRIAN'S 2026 DRAFT HELPER · slot 6</div>
+  <h1 class="title">BRIAN'S 2026 DRAFT HELPER<span class="title-slot"> · slot 6</span></h1>
   <div class="live-box">
-    <button id="ceiling-btn" class="ml-btn ml-btn--hdr" title="Weight recommendations toward boom/bust upside (expert disagreement + youth) instead of median value">CEILING</button>
-    <button id="practice-btn" class="ml-btn ml-btn--hdr" title="Run a practice draft vs the tendency-modeled league bots">PRACTICE</button>
+    <button id="ceiling-btn" class="ml-btn ml-btn--hdr" aria-pressed="false" aria-describedby="ceiling-desc" title="Weight recommendations toward boom/bust upside (expert disagreement + youth) instead of median value">CEILING</button>
+    <button id="practice-btn" class="ml-btn ml-btn--hdr" aria-describedby="practice-desc" title="Run a practice draft vs the tendency-modeled league bots">PRACTICE</button>
     <button id="live-btn" class="ml-btn ml-btn--hdr">GO LIVE</button>
-    <span id="live-status" class="live-status"></span>
+    <span id="live-status" class="live-status" role="status"></span>
   </div>
   <div id="clock" class="ml-clock">loading…</div>
+  <span id="ceiling-desc" class="ml-visually-hidden">Weights recommendations toward boom-or-bust upside (expert disagreement plus youth) instead of median value.</span>
+  <span id="practice-desc" class="ml-visually-hidden">Runs a practice draft against the tendency-modeled league bots; bots pick for every other team.</span>
+  <div id="sr-clock" class="ml-visually-hidden" role="status"></div>
 </header>
 
 <main>
   <!-- LEFT: player pool -->
-  <div class="ml-panel">
-    <h2>Available Players</h2>
+  <section class="ml-panel" aria-labelledby="h-players">
+    <h2 id="h-players">Available Players</h2>
     <div class="controls">
-      <input id="search" class="ml-input" type="search" placeholder="Search by name…" autocomplete="off">
+      <input id="search" class="ml-input" type="search" placeholder="Search by name…" autocomplete="off" aria-label="Search players by name">
       <div class="pos-filter">
-        <button class="ml-filter active" data-pos="ALL">All</button>
-        <button class="ml-filter ml-filter--qb" data-pos="QB">QB</button>
-        <button class="ml-filter ml-filter--rb" data-pos="RB">RB</button>
-        <button class="ml-filter ml-filter--wr" data-pos="WR">WR</button>
-        <button class="ml-filter ml-filter--te" data-pos="TE">TE</button>
-        <button class="ml-filter" data-pos="K">K</button>
-        <button class="ml-filter" data-pos="DEF">DEF</button>
+        <button class="ml-filter active" data-pos="ALL" aria-pressed="true">All</button>
+        <button class="ml-filter ml-filter--qb" data-pos="QB" aria-pressed="false">QB</button>
+        <button class="ml-filter ml-filter--rb" data-pos="RB" aria-pressed="false">RB</button>
+        <button class="ml-filter ml-filter--wr" data-pos="WR" aria-pressed="false">WR</button>
+        <button class="ml-filter ml-filter--te" data-pos="TE" aria-pressed="false">TE</button>
+        <button class="ml-filter" data-pos="K" aria-pressed="false">K</button>
+        <button class="ml-filter" data-pos="DEF" aria-pressed="false">DEF</button>
       </div>
     </div>
-    <div class="player-list-scroll">
+    <div class="player-list-scroll" tabindex="0" role="region" aria-label="Available players">
       <table class="ml-table player-list" id="ptable">
         <thead>
-          <tr><th>Pos</th><th>Name</th><th>Team</th><th>Age</th><th>Proj</th><th>VBD</th><th>ADP</th><th title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)">Next✓</th></tr>
+          <tr><th>Pos</th><th>Name</th><th>Team</th><th>Age</th><th>Proj</th><th>VBD<span class="ml-visually-hidden"> — dynamic value over replacement, recomputed against the remaining player pool</span></th><th>ADP</th><th title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)">Next✓<span class="ml-visually-hidden"> — chance the player is still available at your next pick (300-sim Monte Carlo)</span></th></tr>
         </thead>
         <tbody id="ptable-body"></tbody>
       </table>
     </div>
-  </div>
+  </section>
 
   <!-- RIGHT: roster + recs + history -->
-  <div style="display: flex; flex-direction: column; gap: 12px;">
-    <div class="ml-panel">
-      <h2>You're on the Clock</h2>
-      <div id="next-pick" class="next-pick-info">—</div>
-      <h2 style="margin-top: 10px;">Top Recommendations</h2>
+  <div class="col-right">
+    <section class="ml-panel panel-clock" aria-labelledby="h-clock">
+      <h2 id="h-clock">You're on the Clock</h2>
+      <div id="next-pick" class="next-pick-info" role="status">—</div>
+      <h2 id="h-recs" style="margin-top: 10px;">Top Recommendations</h2>
       <div id="recs" class="recs"></div>
-    </div>
+    </section>
 
-    <div class="ml-panel">
-      <h2>Your Roster <span id="roster-total" class="meta"></span></h2>
+    <section class="ml-panel" aria-labelledby="h-roster">
+      <h2 id="h-roster">Your Roster <span id="roster-total" class="meta"></span></h2>
       <div id="roster" class="roster"></div>
       <div id="roster-stats" class="stats" style="margin-top: 8px;"></div>
-    </div>
+    </section>
 
-    <div class="ml-panel">
-      <h2>Recent Picks <button class="ml-btn" id="undo">undo last</button></h2>
+    <section class="ml-panel" aria-labelledby="h-history">
+      <div class="panel-head">
+        <h2 id="h-history" class="ml-h-label">Recent Picks</h2>
+        <button class="ml-btn" id="undo">undo last</button>
+      </div>
       <div class="history" id="history"></div>
-    </div>
+    </section>
   </div>
 </main>
 
@@ -14409,12 +14474,43 @@ let cursor = 0;               // index into DATA.schedule
   recomputeCursor();          // cursor = first slot without a player
   refresh();
   document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); });
+  // Esc clears the search explicitly (Chromium does this natively for
+  // type=search; Firefox does not) — value, state, and list all reset,
+  // focus stays in the field.
+  document.getElementById("search").addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.target.value = "";
+    searchQ = "";
+    renderPlayerList();
+  });
   document.querySelectorAll(".ml-filter").forEach(b => b.addEventListener("click", e => {
     posFilter = e.target.dataset.pos;
-    document.querySelectorAll(".ml-filter").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".ml-filter").forEach(x => {
+      x.classList.remove("active");
+      x.setAttribute("aria-pressed", "false");
+    });
     e.target.classList.add("active");
+    e.target.setAttribute("aria-pressed", "true");
     renderPlayerList();
   }));
+  // Roving tabindex: the 200-row player list is ONE tab stop; ArrowUp/Down
+  // move between rows, Home/End jump, Enter/Space draft (native buttons).
+  document.getElementById("ptable-body").addEventListener("keydown", e => {
+    const t = e.target;
+    if (!t.classList || !t.classList.contains("row-draft")) return;
+    const rows = Array.from(document.querySelectorAll("#ptable-body .row-draft"));
+    const i = rows.indexOf(t);
+    if (i === -1 || !rows.length) return;
+    let j = null;
+    if (e.key === "ArrowDown") j = Math.min(i + 1, rows.length - 1);
+    else if (e.key === "ArrowUp") j = Math.max(i - 1, 0);
+    else if (e.key === "Home") j = 0;
+    else if (e.key === "End") j = rows.length - 1;
+    if (j === null) return;
+    e.preventDefault();
+    if (j !== i) setRovingFocus(rows[j]);
+  });
   document.getElementById("undo").addEventListener("click", undo);
   document.getElementById("live-btn").addEventListener("click", toggleLive);
   document.getElementById("ceiling-btn").addEventListener("click", toggleCeiling);
@@ -14927,15 +15023,35 @@ function toggleCeiling() {
   ceilingMode = !ceilingMode;
   const btn = document.getElementById("ceiling-btn");
   btn.classList.toggle("ml-btn--on", ceilingMode);
-  btn.textContent = ceilingMode ? "CEILING ON" : "CEILING";
+  // Label stays "CEILING"; aria-pressed + the --on class carry the state.
+  btn.setAttribute("aria-pressed", String(ceilingMode));
   refresh();
 }
 
 // ---------- ALERT (2 picks out) ----------
 let alertedFor = 0;
+let srClockMeFor = 0;    // last pick # announced as "on the clock"
+let srClockSoonFor = 0;  // last pick # announced as "2 away"
+const BASE_TITLE = document.title;
 function maybeAlert(current, myNext) {
+  const away = (current && myNext) ? myNext.overall - current.overall : -1;
+  const isMe = away === 0;
+  const soon = away > 0 && away <= 2;
+  // Non-audio, non-color equivalents of the beep/pulse: tab title prefix…
+  document.title = isMe ? "⏰ you're up · " + BASE_TITLE
+    : soon ? "⏰ 2 away · " + BASE_TITLE
+    : BASE_TITLE;
+  // …and a polite live-region announcement, only on state TRANSITIONS
+  // (keyed per pick like alertedFor — never re-announced on re-renders).
+  const sr = document.getElementById("sr-clock");
+  if (isMe && srClockMeFor !== myNext.overall) {
+    srClockMeFor = myNext.overall;
+    sr.textContent = `You're on the clock — pick #${myNext.overall}`;
+  } else if (soon && srClockSoonFor !== myNext.overall) {
+    srClockSoonFor = myNext.overall;
+    sr.textContent = "2 picks until you're up";
+  }
   if (!current || !myNext) return;
-  const away = myNext.overall - current.overall;
   if (away >= 0 && away <= 2 && alertedFor !== myNext.overall) {
     alertedFor = myNext.overall;
     beep(away === 0 ? 2 : 1);
@@ -14957,12 +15073,77 @@ function beep(times) {
 // ---------- RENDER ----------
 let dynVbd = new Map();
 function refresh() {
+  const focusSnap = captureFocus();
   dynVbd = computeDynVbd();
   renderClock();
   renderPlayerList();
   renderRoster();
   renderRecs();
   renderHistory();
+  restoreFocus(focusSnap);
+}
+
+// ---------- FOCUS RESTORATION ----------
+// refresh() rebuilds the table/recs DOM; without this, keyboard focus dies
+// to <body> after every draft, undo, and 15s live poll. Contract: refocus
+// the same player if still listed, else the row at the same visual index
+// (clamped), else #search. Never let focus land on BODY.
+function captureFocus() {
+  const ae = document.activeElement;
+  if (!ae || ae === document.body) return null;
+  if (ae.classList && ae.classList.contains("row-draft")) {
+    const rows = Array.from(document.querySelectorAll("#ptable-body .row-draft"));
+    return { kind: "row", player: ae.dataset.player, index: rows.indexOf(ae) };
+  }
+  if (ae.classList && ae.classList.contains("rec")) {
+    const recs = Array.from(document.querySelectorAll("#recs button.rec"));
+    return { kind: "rec", player: ae.dataset.player, index: recs.indexOf(ae) };
+  }
+  // Anything outside the rebuilt regions (search, filters, undo, header
+  // buttons) survives re-render; remember it only as a fallback check.
+  return { kind: "other", el: ae };
+}
+
+function restoreFocus(snap) {
+  if (!snap) return;
+  const ae = document.activeElement;
+  if (ae && ae !== document.body) return;   // focus survived the re-render
+  if (snap.kind === "other" && snap.el && document.contains(snap.el)) {
+    snap.el.focus();
+    return;
+  }
+  const rows = Array.from(document.querySelectorAll("#ptable-body .row-draft"));
+  if (snap.kind === "row" && snap.player) {
+    const same = rows.find(b => b.dataset.player === snap.player);
+    if (same) { setRovingFocus(same); return; }
+  }
+  if (snap.kind === "rec") {
+    const recs = Array.from(document.querySelectorAll("#recs button.rec"));
+    if (recs.length) {
+      recs[Math.max(0, Math.min(snap.index, recs.length - 1))].focus();
+      return;
+    }
+  }
+  if (rows.length) {
+    const i = Math.max(0, Math.min(snap.index || 0, rows.length - 1));
+    setRovingFocus(rows[i]);
+    return;
+  }
+  const search = document.getElementById("search");
+  if (search) search.focus();
+}
+
+function setRovingFocus(btn) {
+  document.querySelectorAll("#ptable-body .row-draft").forEach(b => { b.tabIndex = -1; });
+  btn.tabIndex = 0;
+  btn.focus();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function escAttr(s) {
+  return escHtml(s).replace(/"/g, "&quot;");
 }
 
 function renderClock() {
@@ -14970,6 +15151,7 @@ function renderClock() {
   if (cursor >= DATA.schedule.length) {
     el.textContent = "Draft complete";
     el.classList.remove("ml-clock--me");
+    maybeAlert(null, null);   // restore document.title
     return;
   }
   const next = DATA.schedule[cursor];
@@ -15013,15 +15195,18 @@ function renderPlayerList() {
 
   for (const p of filtered) {
     const tr = document.createElement("tr");
-    if (needPos.has(p.pos)) tr.classList.add("brian-target");
+    const isTarget = needPos.has(p.pos);
+    if (isTarget) tr.classList.add("brian-target");
+    const targetTag = isTarget
+      ? ' <span class="target-glyph" aria-hidden="true">★</span><span class="ml-visually-hidden"> — fills roster need</span>' : '';
     const ageCell = p.age ? `<span class="${p.age <= 25 ? 'age-young' : (p.age >= 29 ? 'age-old' : '')}">${p.age}</span>` : '<span class="meta">-</span>';
-    const rookieTag = p.years_exp === 0 ? ' <span class="ml-badge ml-badge--rookie">R</span>' : '';
-    const injTag = p.injury ? ` <span class="ml-badge ml-badge--injury">${p.injury[0]}</span>` : '';
+    const rookieTag = p.years_exp === 0 ? ' <span class="ml-badge ml-badge--rookie" title="Rookie" aria-label="Rookie">R</span>' : '';
+    const injTag = p.injury ? ` <span class="ml-badge ml-badge--injury" title="${escAttr(p.injury)}" aria-label="${escAttr(p.injury)}">${p.injury[0]}</span>` : '';
     const dv = dynVbd.get(p.name) ?? p.vbd;
     const vbdClass = dv > 0 ? "pos" : "neg";
     tr.innerHTML = `
       <td><span class="ml-badge ml-badge--${p.pos.toLowerCase()}">${p.pos}</span></td>
-      <td>${p.name}${rookieTag}${injTag}</td>
+      <td><button type="button" class="ml-btn--bare row-draft" data-player="${escAttr(p.name)}" tabindex="-1">${escHtml(p.name)}</button>${rookieTag}${injTag}${targetTag}</td>
       <td class="meta">${p.team}</td>
       <td>${ageCell}</td>
       <td>${p.proj.toFixed(0)}</td>
@@ -15029,9 +15214,14 @@ function renderPlayerList() {
       <td class="meta">${p.adp.toFixed(0)}</td>
       <td>${survivalCell(p, waitPick)}</td>
     `;
+    // Mouse path: whole row drafts. Keyboard path: the name button's native
+    // Enter/Space fires a click that bubbles to this same listener.
     tr.addEventListener("click", () => draftPlayer(p.name));
     body.appendChild(tr);
   }
+  // Roving tabindex: exactly one row button is tabbable at a time.
+  const firstBtn = body.querySelector(".row-draft");
+  if (firstBtn) firstBtn.tabIndex = 0;
 }
 
 function renderRoster() {
@@ -15060,7 +15250,7 @@ function renderRoster() {
       row.style.borderLeftColor = `var(--ml-pos-${pos.toLowerCase()})`;
       const keepTag = (!isKeeper && player.round > 2)
         ? ` <span class="meta" title="2027 keeper cost">·K'27 R${player.round - 2}</span>` : "";
-      row.innerHTML = `<span><span class="ml-badge ml-badge--${pos.toLowerCase()}">${pos}</span> ${player.player}${isKeeper ? ' <span class="ml-badge ml-badge--keeper">K</span>' : ''}</span><span class="meta">R${player.round}${keepTag}</span>`;
+      row.innerHTML = `<span><span class="ml-badge ml-badge--${pos.toLowerCase()}">${pos}</span> ${escHtml(player.player)}${isKeeper ? ' <span class="ml-badge ml-badge--keeper" title="Keeper" aria-label="Keeper">K</span>' : ''}</span><span class="meta">R${player.round}${keepTag}</span>`;
       r.appendChild(row);
     }
   }
@@ -15123,15 +15313,17 @@ function renderRecs() {
   for (const p of top3) {
     const reason = recReason(p, next, myCounts, needPos, waitPick);
     const dv = dynVbd.get(p.name) ?? p.vbd;
-    const div = document.createElement("div");
-    div.className = "rec";
-    div.innerHTML = `<div><span class="ml-badge ml-badge--${p.pos.toLowerCase()}">${p.pos}</span> <strong>${p.name}</strong> ` +
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "rec";
+    btn.dataset.player = p.name;
+    btn.innerHTML = `<span class="ml-visually-hidden">Draft </span>` +
+      `<span class="rec-main"><span class="ml-badge ml-badge--${p.pos.toLowerCase()}">${p.pos}</span> <strong>${escHtml(p.name)}</strong> ` +
       `<span class="meta">VBD ${dv > 0 ? '+' : ''}${dv.toFixed(0)} · ADP ${p.adp.toFixed(0)}` +
-      `${p.age ? ' · age ' + p.age : ''} · back-to-you ${survivalCell(p, waitPick)}</span></div>` +
-      `<div class="why">${reason}</div>`;
-    div.addEventListener("click", () => draftPlayer(p.name));
-    div.style.cursor = "pointer";
-    recs.appendChild(div);
+      `${p.age ? ' · age ' + p.age : ''} · back-to-you ${survivalCell(p, waitPick)}</span></span>` +
+      `<span class="why">${reason}</span>`;
+    btn.addEventListener("click", () => draftPlayer(p.name));
+    recs.appendChild(btn);
   }
 }
 
@@ -15169,8 +15361,8 @@ function renderHistory() {
       <span class="pn">#${p.overall}</span>
       <span class="who">${(mgr && mgr.id) ? mgr.id.toUpperCase() : '?'}</span>
       <span class="ml-badge ml-badge--${(player.pos || '?').toLowerCase()}">${player.pos || '?'}</span>
-      <span>${p.player}</span>
-      ${isKeeper ? '<span class="ml-badge ml-badge--keeper">K</span>' : ''}
+      <span>${escHtml(p.player)}${isMe ? '<span class="ml-visually-hidden"> (your pick)</span>' : ''}</span>
+      ${isKeeper ? '<span class="ml-badge ml-badge--keeper" title="Keeper" aria-label="Keeper">K</span>' : ''}
     `;
     h.appendChild(row);
   }
