@@ -593,6 +593,66 @@ def render_rank_card(r):
     """
 
 
+def keeper_bonds_html() -> str:
+    """KEEPER BONDS — Brian's keepers (roster_id 9) rendered as small
+    bond certificates. Keeper rule: next-year cost = held round − 2."""
+    path = ROOT / "data" / "keepers_2026.json"
+    try:
+        recs = [k for k in json.loads(path.read_text())
+                if k.get("roster_id") == 9 and k.get("status") == "carryover"]
+    except (FileNotFoundError, json.JSONDecodeError):
+        return ""
+    if not recs:
+        return ""
+    h = ['<h2>Keeper Bonds</h2>']
+    h.append('<p class="ml-note">Brian\'s keeper portfolio as issued paper: '
+             'each bond was <strong>acquired</strong> at its original draft '
+             'round, is <strong>held</strong> at this year\'s forfeit round, '
+             'and <strong>matures</strong> next season two rounds dearer '
+             '(keeper rule: cost = round − 2). Coupon = net VBD over the '
+             'forfeited pick, denominated in GUAP.</p>')
+    h.append('<div class="bond-grid">')
+    lat = bpr.lattice_svg(700, 170, bpr.BANKNOTE_INK, 0.08)
+    for k in sorted(recs, key=lambda r: r.get("effective_forfeit_round", 99)):
+        last = "".join(c for c in k["player_name"].split()[-1].upper()
+                       if c.isalpha())
+        held = k.get("effective_forfeit_round") or k.get("forfeit_round")
+        matures = (f"2027 @ R{held - 2}" if held and held > 2
+                   else "2027 — no keeper value")
+        acquired = f'R{k["prior_round"]}' + \
+            (" (waiver)" if k.get("is_waiver") else "")
+        cap = (f' · <span style="white-space:nowrap">cap year '
+               f'<strong>{k["years_kept"] + 1}/3</strong></span>'
+               if "years_kept" in k else "")
+        h.append(f'<div class="bond">'
+                 f'<div class="bn-lattice" aria-hidden="true">{lat}</div>'
+                 '<div class="bond-head">'
+                 '<span class="bn-league">✦ Keeper Bond · Series 2026 ✦</span>'
+                 f'<span class="ml-serial bond-serial">NO. K-09-{last}</span>'
+                 '</div>'
+                 f'<div class="bond-name">{k["player_name"].upper()} '
+                 f'<small>· {k["position"]}</small></div>'
+                 f'<div class="bond-terms">Acquired <strong>{acquired}</strong>'
+                 f' · held at <strong>R{held}</strong>'
+                 f' · matures <strong>{matures}</strong>{cap}</div>')
+        if k.get("net_vbd") is not None:
+            h.append('<div class="bond-row"><span>Coupon (net VBD over '
+                     'forfeit)</span>'
+                     f'<span class="ml-num">{k["net_vbd"]:+.1f} GUAP</span>'
+                     '</div>')
+        if k.get("adp") is not None:
+            h.append('<div class="bond-row"><span>Market price if re-drafted'
+                     '</span>'
+                     f'<span class="ml-num">R{int((k["adp"] - 1) // 12 + 1)} '
+                     f'(ADP {k["adp"]:.0f})</span></div>')
+        h.append('<div class="bond-foot">'
+                 '<span class="bond-motto">In GUAP we trust</span>'
+                 '<span class="ml-seal" aria-hidden="true">K</span>'
+                 '</div></div>')
+    h.append('</div>')
+    return "\n".join(h)
+
+
 def build_html(rows, paths):
     today = date.today().strftime("%B %Y")
     # Page-specific rules only — palette/base components come from
@@ -601,13 +661,33 @@ def build_html(rows, paths):
     css = Template("""
     body { max-width: 780px; margin: 18px auto; padding: 0 22px;
            line-height: 1.5; font-size: 10.5pt; }
-    .hero { background: linear-gradient(135deg, $navy 0%, $teal 100%);
-            color: white; padding: 22px 26px; border-radius: 14px;
-            margin-bottom: 18px; }
-    .hero h1 { font-size: 38pt;
-               letter-spacing: 1px; margin: 0; line-height: 1; color: white; }
-    .hero .subtitle { color: rgba(255,255,255,0.85); margin: 8px 0 0;
-                      font-weight: 500; font-size: 11pt; }
+    h1 { font-size: 23pt; letter-spacing: 1px; margin: 0; line-height: 1.1; }
+    .bn-mast .bn-sub { font-size: 11pt; }
+    .bond-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+                 margin: 6px 0 12px; }
+    .bond { position: relative; overflow: hidden; border: 2px solid var(--ml-text);
+            border-radius: 6px; padding: 9px 12px 8px;
+            background: var(--ml-panel2); page-break-inside: avoid; }
+    .bond::before { content: ""; position: absolute; inset: 3px;
+            border: 1px solid var(--ml-border-strong); border-radius: 4px;
+            pointer-events: none; }
+    .bond > *:not(.bn-lattice) { position: relative; z-index: 1; }
+    .bond-head { display: flex; justify-content: space-between;
+                 align-items: baseline; gap: 8px; }
+    .bond-head .bn-league { font-size: 6.5pt; letter-spacing: 1.2px;
+                            white-space: nowrap; }
+    .bond-serial { font-size: 7pt; white-space: nowrap; }
+    .bond-terms { font-size: 8pt; }
+    .bond-name { font-family: var(--ml-font-engraving, var(--ml-font-display));
+                 font-size: 15pt; margin: 3px 0 1px; line-height: 1.1; }
+    .bond-name small { font-size: 9pt; color: var(--ml-muted);
+                       letter-spacing: 1px; }
+    .bond-terms { font-size: 8.5pt; color: var(--ml-muted); margin-bottom: 5px; }
+    .bond-row { display: flex; justify-content: space-between; font-size: 9pt;
+                padding: 2px 0; border-bottom: 1px dotted var(--ml-border); }
+    .bond-foot { display: flex; justify-content: space-between;
+                 align-items: center; margin-top: 6px; }
+    .bond-motto { font-style: italic; font-size: 8pt; color: var(--ml-muted); }
     h2 { font-size: 22pt;
          letter-spacing: 1px; color: $navy; margin: 16px 0 4px;
          padding-bottom: 3px; border-bottom: 3px solid $gold;
@@ -673,11 +753,13 @@ def build_html(rows, paths):
     @page { size: letter; margin: 0.45in; }
     """).substitute(
         navy=PALETTE["navy"], teal=PALETTE["teal"], gold=PALETTE["gold"],
-        slate=PALETTE["slate"])
+        slate=PALETTE["slate"]) + bpr.banknote_css()
     h = ['<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8">',
          f'<style>{report_base_css()}{css}</style></head><body>']
-    h.append('<div class="hero"><h1>2026 PRESEASON GUAP RANKINGS</h1>'
-             f'<p class="subtitle">{today} · MONEYLEAGUE</p></div>')
+    h.append(bpr.banknote_masthead(
+        '2026 PRESEASON GUAP RANKINGS',
+        f'{today} · MONEYLEAGUE · certificate of standing',
+        league_line='✦ MONEY LEAGUE · GUAP CERTIFICATE ✦'))
 
     h.append('<h2>Preseason Power Score</h2>')
     h.append('<p class="ml-note">Composite: <strong>70% ASSETS</strong> '
@@ -696,10 +778,13 @@ def build_html(rows, paths):
              'where the meaningful rookie draft action happens.</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["capital"])}"/>')
 
+    h.append(keeper_bonds_html())
+
     h.append('<h2>The Rankings & Takes</h2>')
     for r in rows:
         h.append(render_rank_card(r))
 
+    h.append(bpr.banknote_fineprint(f'Generated {today}'))
     h.append('</body></html>')
     return "\n".join(h)
 

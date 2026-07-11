@@ -1,7 +1,8 @@
-"""Summarize what moved since the last commit: ADP risers/fallers and
-keeper-prediction changes. Written to data/WEEKLY_MOVERS.md so the weekly
-refresh bot can use it as its commit body — turning "Weekly refresh: <date>"
-into a readable briefing.
+"""The weekly MARKET REPORT: what moved since the last commit — ADP
+gainers/decliners, keeper-prediction changes, and injury risk disclosures.
+Written to data/WEEKLY_MOVERS.md so the weekly refresh bot can use it as
+its commit body — turning "Weekly refresh: <date>" into a readable
+market briefing (The Exchange print voice; data logic unchanged).
 
 Compares the WORKING TREE against HEAD, so run it after the pipeline
 refreshes data but before committing.
@@ -13,6 +14,7 @@ import io
 import json
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -61,12 +63,20 @@ def adp_movers() -> list[str]:
             name, pos = key.split("|")
             deltas.append((d, name, pos, old_adp, new_adp))
     if not deltas:
-        return ["- No ADP moves of a round or more this week."]
+        return ["- No moves of a round or more this week. Flat tape."]
     deltas.sort(key=lambda x: -abs(x[0]))
-    lines = []
-    for d, name, pos, o, n in deltas[:TOP_N]:
-        arrow = "▲" if d > 0 else "▼"
-        lines.append(f"- {arrow} {name} ({pos}): ADP {o:.0f} → {n:.0f} ({d:+.0f})")
+    top = deltas[:TOP_N]
+
+    def fmt(rows):
+        if not rows:
+            return ["- none this week."]
+        return [f"- {name} ({pos}): ADP {o:.0f} → {n:.0f} ({d:+.0f})"
+                for d, name, pos, o, n in rows]
+
+    lines = ["GAINERS ▲"]
+    lines += fmt([t for t in top if t[0] > 0])
+    lines += ["", "DECLINERS ▼"]
+    lines += fmt([t for t in top if t[0] < 0])
     return lines
 
 
@@ -99,7 +109,7 @@ def keeper_changes() -> list[str]:
             if dropped:
                 bits.append("no longer " + ", ".join(sorted(dropped)))
             lines.append(f"- roster {rid}: " + "; ".join(bits))
-    return (["", "Keeper prediction changes:"] + lines) if lines else []
+    return (["", "KEEPER CONTRACT AMENDMENTS"] + lines) if lines else []
 
 
 SNAPSHOT = ROOT / "data" / "injury_snapshot.json"
@@ -144,7 +154,8 @@ def injury_changes() -> list[str]:
     SNAPSHOT.write_text(json.dumps(dict(sorted(snapshot.items())), indent=1))
 
     if old_text is None:
-        return ["", "Injury watch: baseline snapshot created "
+        return ["", "RISK DISCLOSURES",
+                "- Baseline snapshot created "
                 f"({sum(1 for v in snapshot.values() if v)} currently flagged)."]
     try:
         old = json.loads(old_text)
@@ -171,15 +182,23 @@ def injury_changes() -> list[str]:
             lines.append(f"- ⚠ {nm}{ktag}{adp_txt}: {o.split('|', 1)[0]} -> {st}"
                          + (f" ({part})" if part else ""))
     if not lines:
-        return ["", "Injury watch: no status changes this week."]
-    return ["", "Injury watch (status changes):"] + lines
+        return ["", "RISK DISCLOSURES",
+                "- No injury status changes to disclose this week."]
+    return ["", "RISK DISCLOSURES (injury status changes)"] + lines
 
 
 def main() -> None:
-    lines = ["ADP movers (FantasyPros/Sleeper blend, ≥1 round):"]
+    wk = date.today().isocalendar()[1]
+    lines = [f"MARKET REPORT — WEEK {wk} · SERIES 2026",
+             "ADP tape: FantasyPros/Sleeper blend, moves of a round "
+             "(12 picks) or more.",
+             ""]
     lines += adp_movers()
     lines += keeper_changes()
     lines += injury_changes()
+    lines += ["",
+              "Past performance (2025: 12th of 12) is not indicative of "
+              "future results."]
     body = "\n".join(lines) + "\n"
     OUT.write_text(body, encoding="utf-8")
     print(body)

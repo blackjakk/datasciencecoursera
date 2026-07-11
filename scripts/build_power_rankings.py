@@ -10,6 +10,7 @@ import base64
 import json
 import math
 import re
+import subprocess
 import sys
 import unicodedata
 from collections import defaultdict
@@ -33,7 +34,7 @@ from fantasy_draft.team_identity import (  # noqa: E402
 # PALETTE / MANAGER_COLORS / mgr_color are re-exported here for backward
 # compat — downstream scripts do `bpr.mgr_color(...)`.
 from design.tokens import (  # noqa: E402, F401
-    CHART, MANAGER_COLORS, PALETTE, POS_COLORS,
+    CHART, MANAGER_COLORS, PALETTE, POS_COLORS, SURFACE_LIGHT,
     mgr_color, mpl_style, report_base_css,
 )
 
@@ -44,6 +45,111 @@ CHART_DIR = ROOT / "data" / "charts" / "rankings"
 CHART_DIR.mkdir(parents=True, exist_ok=True)
 
 mpl_style()  # register league fonts + standard chart rcParams
+
+
+# ---------------------------------------------------------------------------
+# Banknote chrome — the engraved-banknote print face shared by every PDF
+# builder (preseason / mock / round menu consume these via `bpr.`).
+# design/guilloche.py is the design system's engraving generator; until it
+# lands, the chrome degrades to bare paper (empty SVG strings) so the
+# builders keep running end-to-end.
+try:
+    from design.guilloche import lattice_svg, rosette_svg  # noqa: E402
+except ImportError:  # pre-integration fallback: no lattice, no rosettes
+    def lattice_svg(width: int, height: int, stroke: str,
+                    opacity: float) -> str:
+        return ""
+
+    def rosette_svg(size: int, stroke: str, opacity: float) -> str:
+        return ""
+
+
+FINE_PRINT = ("Past performance (2025: 12th of 12) is not indicative of "
+              "future results.")
+
+# Engraving ink for generated guilloché — resolved from design.tokens so the
+# SVG strings inherit any surface retune (SVG attrs can't read CSS vars).
+BANKNOTE_INK = SURFACE_LIGHT["text"]
+
+
+def _git_short_rev() -> str:
+    try:
+        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                           capture_output=True, text=True, cwd=ROOT)
+        rev = r.stdout.strip()
+        return rev if r.returncode == 0 and rev else "local"
+    except OSError:
+        return "local"
+
+
+def banknote_serial() -> str:
+    """Report serial: SERIES 2026 · WK{ISO week} · {git short rev}."""
+    return (f"SERIES 2026 · WK{date.today().isocalendar()[1]} · "
+            f"{_git_short_rev()}")
+
+
+def banknote_css() -> str:
+    """Layout-only rules for the shared banknote chrome. Colors and type
+    identity come from ml.css (--ml-* vars, .ml-serial/.ml-fineprint)."""
+    return """
+    .bn-mast { position: relative; overflow: hidden; padding: 16px 20px 14px;
+               border: 2px solid var(--ml-text); border-radius: 6px;
+               background: var(--ml-panel); margin-bottom: 16px; }
+    .bn-mast::before { content: ""; position: absolute; inset: 3px;
+               border: 1px solid var(--ml-border-strong); border-radius: 4px;
+               pointer-events: none; }
+    .bn-lattice { position: absolute; inset: 0; z-index: 0; line-height: 0; }
+    .bn-lattice svg { width: 100%; height: 100%; display: block; }
+    .bn-corner { position: absolute; z-index: 0; line-height: 0; }
+    .bn-corner--tl { top: 7px; left: 7px; }
+    .bn-corner--br { bottom: 7px; right: 7px; }
+    .bn-mast-top, .bn-mast h1, .bn-mast .bn-sub {
+               position: relative; z-index: 1; }
+    .bn-mast-top { display: flex; justify-content: space-between;
+                   align-items: baseline; gap: 12px; }
+    .bn-league { font-family: var(--ml-font-engraving, var(--ml-font-display));
+                 font-weight: 700; letter-spacing: 3px;
+                 text-transform: uppercase; font-size: 10pt; }
+    .bn-mast h1 { font-family: var(--ml-font-engraving, var(--ml-font-display));
+                  color: var(--ml-text); margin: 6px 0 0; }
+    .bn-sub { color: var(--ml-muted); margin: 5px 0 0; }
+    .bn-mast--compact { padding: 7px 12px 6px; margin-bottom: 6px; }
+    .bn-mast--compact .bn-league { font-size: 7.5pt; letter-spacing: 2px; }
+    .bn-mast--compact h1 { margin: 1px 0 0; }
+    .bn-mast--compact .bn-sub { margin: 1px 0 0; }
+    .bn-foot { display: flex; justify-content: space-between; gap: 12px;
+               border-top: 1px solid var(--ml-border); margin-top: 14px;
+               padding-top: 5px; }
+    """
+
+
+def banknote_masthead(title: str, subtitle: str = "",
+                      league_line: str = "✦ MONEY LEAGUE · SERIES 2026 ✦",
+                      compact: bool = False) -> str:
+    """Engraved masthead: guilloché band + corner rosettes + serial."""
+    band_h = 80 if compact else 150
+    rose = 34 if compact else 54
+    lat = lattice_svg(1400, band_h, BANKNOTE_INK, 0.10)
+    ros = rosette_svg(rose, BANKNOTE_INK, 0.28)
+    cls = "bn-mast bn-mast--compact" if compact else "bn-mast"
+    sub = f'<p class="bn-sub">{subtitle}</p>' if subtitle else ""
+    return (
+        f'<header class="{cls}">'
+        f'<div class="bn-lattice" aria-hidden="true">{lat}</div>'
+        f'<div class="bn-corner bn-corner--tl" aria-hidden="true">{ros}</div>'
+        f'<div class="bn-corner bn-corner--br" aria-hidden="true">{ros}</div>'
+        '<div class="bn-mast-top">'
+        f'<span class="bn-league">{league_line}</span>'
+        f'<span class="ml-serial">{banknote_serial()}</span></div>'
+        f'<h1>{title}</h1>{sub}</header>'
+    )
+
+
+def banknote_fineprint(generated: str = "") -> str:
+    """Disclosure footer: fine print + the report's generation date."""
+    right = f"<span>{generated}</span>" if generated else ""
+    return (f'<div class="bn-foot ml-fineprint"><span>{FINE_PRINT}</span>'
+            f'{right}</div>')
 
 
 def _avatar_path(mid):
@@ -1725,18 +1831,12 @@ def build_html():
     # report_base_css() (design/ml.css) + design.tokens.PALETTE.
     from string import Template
     css = Template("""
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap');
     body { max-width: 780px; margin: 18px auto; padding: 0 22px;
            line-height: 1.5; font-size: 10.5pt;
            background: var(--ml-bg); }
-    h1 { font-size: 38pt; letter-spacing: 1px; margin: 0; color: $navy;
-         line-height: 1; }
-    .hero { background: linear-gradient(135deg, $navy 0%, $teal 100%);
-            color: white; padding: 22px 26px; border-radius: 14px;
-            margin-bottom: 22px; }
-    .hero h1 { color: white; }
-    .hero .subtitle { color: rgba(255,255,255,0.85); font-size: 11pt;
-                      margin: 6px 0 0; font-weight: 500; }
+    h1 { font-size: 23pt; letter-spacing: 1px; margin: 0;
+         line-height: 1.1; }
+    .bn-mast .bn-sub { font-size: 10.5pt; }
     h2 { font-size: 22pt; letter-spacing: 1px; color: $navy; margin: 16px 0 2px;
          padding-bottom: 3px; border-bottom: 3px solid $gold;
          break-after: avoid-page; page-break-after: avoid; }
@@ -1831,7 +1931,7 @@ def build_html():
     @page { size: letter; margin: 0.4in; }
     """).substitute(
         navy=PALETTE["navy"], teal=PALETTE["teal"], gold=PALETTE["gold"],
-        slate=PALETTE["slate"], cream=PALETTE["cream"])
+        slate=PALETTE["slate"], cream=PALETTE["cream"]) + banknote_css()
 
     n_yrs = max(c["years"] for c in cards)
     n_champs = sum(c["rings"] for c in cards)
@@ -1841,12 +1941,11 @@ def build_html():
     h = ['<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8">',
          f'<style>{report_base_css()}{css}</style></head><body>']
 
-    # Hero
-    h.append('<div class="hero">')
-    h.append('<h1>MONEYLEAGUE POWER RANKINGS</h1>')
-    h.append(f'<p class="subtitle">{today} · 15-year retrospective '
-             '· Madden-style attribute scoring · charts + cards</p>')
-    h.append('</div>')
+    # Masthead (engraved-banknote chrome)
+    h.append(banknote_masthead(
+        'MONEYLEAGUE POWER RANKINGS',
+        f'{today} · 15-year retrospective · Madden-style attribute '
+        'scoring · charts + cards'))
 
     # Stat strip
     h.append('<div class="stat-cards">'
@@ -2092,6 +2191,7 @@ def build_html():
              'Draft skill: total rookie-year points / total picks made. '
              '2025 Sleeper trades excluded — no nflverse 2025 totals yet.</p>')
 
+    h.append(banknote_fineprint(f'Generated {today}'))
     h.append('</body></html>')
     return "\n".join(h)
 

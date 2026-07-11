@@ -310,16 +310,10 @@ def build_html(picks):
     # report_base_css() (design/ml.css) + design.tokens.PALETTE.
     from string import Template
     css = Template("""
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap');
     body { max-width: 920px; margin: 18px auto;
            padding: 0 22px; line-height: 1.45; font-size: 10pt; }
-    .hero { background: linear-gradient(135deg, $navy 0%, $teal 100%);
-            color: white; padding: 22px 26px; border-radius: 14px;
-            margin-bottom: 18px; }
-    .hero h1 { font-size: 38pt;
-               letter-spacing: 1px; margin: 0; line-height: 1; color: white; }
-    .hero .subtitle { color: rgba(255,255,255,0.85); margin: 8px 0 0;
-                      font-weight: 500; font-size: 11pt; }
+    h1 { font-size: 28pt; letter-spacing: 1px; margin: 0; line-height: 1; }
+    .bn-mast .bn-sub { font-size: 11pt; }
     h2 { font-size: 22pt;
          letter-spacing: 1px; color: $navy; margin: 16px 0 4px;
          padding-bottom: 3px; border-bottom: 3px solid $gold;
@@ -438,13 +432,14 @@ def build_html(picks):
     @page { size: letter landscape; margin: 0.35in; }
     """).substitute(
         navy=PALETTE["navy"], teal=PALETTE["teal"], gold=PALETTE["gold"],
-        slate=PALETTE["slate"])
+        slate=PALETTE["slate"]) + bpr.banknote_css()
 
     h = ['<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8">',
          f'<style>{report_base_css()}{css}</style></head><body>']
 
-    h.append('<div class="hero"><h1>2026 MOCK DRAFT</h1>'
-             f'<p class="subtitle">{today} · MONEYLEAGUE · projected final boards</p></div>')
+    h.append(bpr.banknote_masthead(
+        '2026 MOCK DRAFT',
+        f'{today} · MONEYLEAGUE · projected final boards'))
 
     # ===== Draft board — split into 2 halves =====
     h.append('<h2>The Board · R1–R9</h2>')
@@ -584,6 +579,7 @@ def build_html(picks):
         h.append(render_team_card(ti, team_picks[ti]))
     h.append('</div>')
 
+    h.append(bpr.banknote_fineprint(f'Generated {today}'))
     h.append('</body></html>')
     return "\n".join(h)
 

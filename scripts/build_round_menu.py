@@ -110,34 +110,42 @@ def main():
         long_shot = shots[0] if shots and rnd < 15 else None
 
         sim_call = rep.get(rnd)
-        keep = f"keep '27 @ R{rnd-2}" if rnd > 2 else "no keeper value"
+        keep = (f"CONTRACT: KEEP '27 AT R{rnd-2}" if rnd > 2
+                else "CONTRACT: NO '27 KEEPER VALUE")
         cards.append((pk, menu, long_shot, sim_call, keep))
 
     # ---------- HTML ----------
     # Page-specific rules only; palette + components (ml-card, ml-table,
     # ml-banner, ml-sv-*, ml-urgent) come from report_base_css()/ml.css.
     h = ['<html data-theme="light"><head><meta charset="utf-8"><style>'
-         + report_base_css() + """
+         + report_base_css() + bpr.banknote_css() + """
     * { box-sizing: border-box; margin: 0; }
-    body { font-size: 8pt; line-height: 1.2; padding: 14px 18px; }
-    h1 { font-size: 21pt; letter-spacing: 1px; }
-    .sub { color: var(--ml-muted); font-size: 8pt; margin: 2px 0 8px; }
+    body { font-size: 8pt; line-height: 1.2; padding: 10px 18px; }
+    h1 { font-size: 16pt; letter-spacing: 1px; }
+    .bn-mast .bn-sub { font-size: 7.5pt; }
     .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
     .ml-card { padding: 3px 6px; }
-    .ml-card h2 { font-size: 11.5pt; display: flex; justify-content: space-between; align-items: baseline; }
-    .ml-card h2 .keep { font-family: var(--ml-font-body); font-size: 6.5pt; color: var(--ml-muted); font-weight: 400; }
+    .ml-card h2 { font-size: 11pt; display: flex; justify-content: space-between; align-items: baseline; gap: 4px;
+                  font-family: var(--ml-font-engraving, var(--ml-font-display)); }
+    .bn-note-meta { display: flex; flex-direction: column; align-items: flex-end;
+                    line-height: 1.25; font-family: var(--ml-font-body); font-weight: 400; }
+    .bn-cardserial { font-size: 5.4pt; letter-spacing: .4px; }
+    .bn-contract { font-size: 5.4pt; color: var(--ml-muted); letter-spacing: .3px; }
     .sim { font-size: 7pt; color: var(--ml-info); margin: 1px 0 3px; }
     .pos { font-weight: 700; width: 22px; }
     .vbd { text-align: right; color: var(--ml-muted); width: 28px; }
     .sv { text-align: right; font-weight: 700; width: 30px; }
     .shot { font-size: 7pt; color: var(--ml-warn); margin-top: 2px; font-style: italic; }
-    .legend { font-size: 7.5pt; color: var(--ml-muted); margin-top: 8px; }
+    .legend { font-size: 7.5pt; color: var(--ml-muted); margin-top: 6px; }
     .kbanner { font-size: 8pt; margin-bottom: 5px; }
     .deadlines { font-size: 7.6pt; margin-bottom: 7px; }
+    .bn-foot { margin-top: 5px; padding-top: 3px; font-size: 6.5pt; }
     </style></head><body>"""]
-    h.append(f"<h1>BRIAN'S ROUND-BY-ROUND MENU · 2026</h1>")
-    h.append(f'<div class="sub">P(available) at YOUR exact pick, from 300 keeper-scenario Monte Carlo sims · '
-             f'slot 6 · generated {date.today():%b %d, %Y} · regenerates weekly</div>')
+    h.append(bpr.banknote_masthead(
+        "BRIAN'S ROUND-BY-ROUND MENU · 2026",
+        "P(available) at YOUR exact pick, from 300 keeper-scenario Monte "
+        "Carlo sims · slot 6 · regenerates weekly",
+        compact=True))
     h.append('<div class="ml-banner kbanner"><b>Keepers (locked):</b> Colston Loveland R8 · Luther Burden R9 · '
              'Alec Pierce R14 · Christian Watson R15 &nbsp;|&nbsp; '
              '<b>Doctrine:</b> RB/QB early → Price R5-R6 → BPA mid → rookie stashes R16-R17, stream K/DEF</div>')
@@ -155,8 +163,11 @@ def main():
     h.append('</div>')
     h.append('<div class="grid">')
     for pk, menu, long_shot, sim_call, keep in cards:
+        serial = f'NO. B06-R{pk["round"]}-{pk["overall"]:03d}'
         h.append(f'<div class="ml-card"><h2>R{pk["round"]} · #{pk["overall"]}'
-                 f'<span class="keep">{keep}</span></h2>')
+                 '<span class="bn-note-meta">'
+                 f'<span class="ml-serial bn-cardserial">{serial}</span>'
+                 f'<span class="bn-contract">{keep}</span></span></h2>')
         if sim_call:
             h.append(f'<div class="sim">sim\'s call: <b>{sim_call["player"]}</b> ({sim_call["pct"]:.0f}%)</div>')
         h.append('<table class="ml-table ml-table--compact">')
@@ -183,6 +194,7 @@ def main():
              '<span class="ml-sv-mid"><b>amber</b></span> = coin flip, take if he\'s your guy · '
              '<span class="ml-sv-lo"><b>red</b></span> = now or never. '
              'K/DEF appear only at R16-R17 (stream all season). Keeper cost = draft round − 2.</div>')
+    h.append(bpr.banknote_fineprint(f"Generated {date.today():%b %d, %Y}"))
     h.append("</body></html>")
 
     import os
@@ -197,7 +209,19 @@ def main():
                          "left": "0.25in", "right": "0.25in"},
                  print_background=True)
         b.close()
-    print(f"Wrote {PDF_OUT.relative_to(ROOT)} ({len(cards)} live picks)")
+
+    # Hard constraint: the menu is a one-page cheat sheet. Fail loudly if
+    # the chrome ever pushes it to a second page (shrink chrome, not data).
+    try:
+        from pypdf import PdfReader
+        n_pages = len(PdfReader(str(PDF_OUT)).pages)
+    except ImportError:
+        n_pages = None
+    if n_pages is not None and n_pages != 1:
+        raise SystemExit(
+            f"ERROR: round menu rendered {n_pages} pages — must stay 1")
+    print(f"Wrote {PDF_OUT.relative_to(ROOT)} ({len(cards)} live picks, "
+          f"{n_pages if n_pages is not None else '?'} page)")
 
 
 if __name__ == "__main__":
