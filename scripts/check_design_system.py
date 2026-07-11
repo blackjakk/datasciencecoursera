@@ -40,6 +40,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # from tokens.json the way prose design docs usually rot).
 HEX_SCAN_TARGETS = [
     "DESIGN.md",
+    "docs/hq/index.html",
     "docs/draft_helper/index.html",
     "scripts/build_power_rankings.py",
     "scripts/build_preseason_2026.py",

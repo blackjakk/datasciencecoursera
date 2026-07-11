@@ -77,7 +77,9 @@ jobs:
           for f in index.html data.json standalone.html ml.css; do
             git show master:docs/draft_helper/$f > draft_helper/$f
           done
-          git add draft_helper/
+          mkdir -p hq
+          git show master:docs/hq/index.html > hq/index.html
+          git add draft_helper/ hq/
           if git diff --cached --quiet; then
             echo "Helper unchanged."
             exit 0
