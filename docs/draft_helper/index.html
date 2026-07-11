@@ -45,8 +45,19 @@
   .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 0.6875rem; }
   .keeper-row { font-style: italic; opacity: 0.7; }
   .next-pick-info { font-size: 0.6875rem; color: var(--ml-muted); margin-top: 2px; }
-  .live-box { display: flex; align-items: center; gap: 8px; }
+  .live-box { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .live-status { font-size: 0.6875rem; color: var(--ml-on-brand); max-width: 220px; }
+  .session-chip { font-size: 0.6875rem; color: var(--ml-on-brand); white-space: nowrap; }
+  /* Week-over-week market movement — direction is carried by the ▲/▼/—
+     glyphs (never color-only); gold = rising, danger = falling. The
+     var(--ml-gold, …) fallback keeps the page usable until the Exchange
+     tokens land in ml.css. */
+  .delta-up { color: var(--ml-gold, var(--ml-success)); font-weight: 700; }
+  .delta-down { color: var(--ml-danger); font-weight: 700; }
+  .delta-flat { color: var(--ml-muted); }
+  /* .ml-tape sets display:flex, which would beat the UA [hidden] rule —
+     keep the empty strip truly gone when there are no movers. */
+  #tape[hidden] { display: none; }
   .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
   .panel-head h2 { margin: 0; }
   @media (max-width: 900px) {
@@ -58,10 +69,11 @@
     .panel-clock { order: -1; }
   }
   @media (max-width: 480px) {
-    /* Drop Team / Age / Proj so Pos·Name·VBD·ADP·Next✓ fit without hscroll */
+    /* Drop Team / Age / Proj / Δwk so Pos·Name·VAL·MKT·Next✓ fit without hscroll */
     .player-list th:nth-child(3), .player-list td:nth-child(3),
     .player-list th:nth-child(4), .player-list td:nth-child(4),
-    .player-list th:nth-child(5), .player-list td:nth-child(5) { display: none; }
+    .player-list th:nth-child(5), .player-list td:nth-child(5),
+    .player-list th:nth-child(8), .player-list td:nth-child(8) { display: none; }
     .player-list-scroll { max-height: 50vh; }
     .title-slot { display: none; }
   }
@@ -69,12 +81,13 @@
 </head>
 <body>
 <header>
-  <h1 class="title">BRIAN'S 2026 DRAFT HELPER<span class="title-slot"> · slot 6</span></h1>
+  <h1 class="title">MONEYLEAGUE EXCHANGE<span class="title-slot"> · SEAT 6</span></h1>
   <div class="live-box">
     <button id="ceiling-btn" class="ml-btn ml-btn--hdr" aria-pressed="false" aria-describedby="ceiling-desc" title="Weight recommendations toward boom/bust upside (expert disagreement + youth) instead of median value">CEILING</button>
     <button id="practice-btn" class="ml-btn ml-btn--hdr" aria-describedby="practice-desc" title="Run a practice draft vs the tendency-modeled league bots">PRACTICE</button>
     <button id="live-btn" class="ml-btn ml-btn--hdr">GO LIVE</button>
     <span id="live-status" class="live-status" role="status"></span>
+    <span id="session-chip" class="session-chip"></span>
   </div>
   <div id="clock" class="ml-clock">loading…</div>
   <span id="ceiling-desc" class="ml-visually-hidden">Weights recommendations toward boom-or-bust upside (expert disagreement plus youth) instead of median value.</span>
@@ -82,10 +95,17 @@
   <div id="sr-clock" class="ml-visually-hidden" role="status"></div>
 </header>
 
+<!-- Static week-over-week movers strip (never animated — motion means
+     urgency only). Hidden entirely when the data bundle has no movers. -->
+<div id="tape" class="ml-tape" hidden>
+  <span class="ml-visually-hidden">Week-over-week market movers:</span>
+  <span id="tape-items"></span>
+</div>
+
 <main>
   <!-- LEFT: player pool -->
   <section class="ml-panel" aria-labelledby="h-players">
-    <h2 id="h-players">Available Players</h2>
+    <h2 id="h-players">ORDER BOOK</h2>
     <div class="controls">
       <input id="search" class="ml-input" type="search" placeholder="Search by name…" autocomplete="off" aria-label="Search players by name">
       <div class="pos-filter">
@@ -101,7 +121,7 @@
     <div class="player-list-scroll" tabindex="0" role="region" aria-label="Available players">
       <table class="ml-table player-list" id="ptable">
         <thead>
-          <tr><th>Pos</th><th>Name</th><th>Team</th><th>Age</th><th>Proj</th><th>VBD<span class="ml-visually-hidden"> — dynamic value over replacement, recomputed against the remaining player pool</span></th><th>ADP</th><th title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)">Next✓<span class="ml-visually-hidden"> — chance the player is still available at your next pick (300-sim Monte Carlo)</span></th></tr>
+          <tr><th>Pos</th><th>Name</th><th>Team</th><th class="ml-num">Age</th><th class="ml-num">Proj</th><th class="ml-num">VAL<span class="ml-visually-hidden"> — dynamic value over replacement, recomputed against the remaining player pool</span></th><th class="ml-num">MKT<span class="ml-visually-hidden"> — average draft position — market price</span></th><th class="ml-num" title="Week-over-week ADP movement in rounds (up = being drafted earlier now)">Δwk<span class="ml-visually-hidden"> — week-over-week ADP movement in rounds; up means the player is being drafted earlier now</span></th><th class="ml-num" title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)">Next✓<span class="ml-visually-hidden"> — chance the player is still available at your next pick (300-sim Monte Carlo)</span></th></tr>
         </thead>
         <tbody id="ptable-body"></tbody>
       </table>
@@ -118,14 +138,14 @@
     </section>
 
     <section class="ml-panel" aria-labelledby="h-roster">
-      <h2 id="h-roster">Your Roster <span id="roster-total" class="meta"></span></h2>
+      <h2 id="h-roster">PORTFOLIO <span id="roster-total" class="meta"></span></h2>
       <div id="roster" class="roster"></div>
       <div id="roster-stats" class="stats" style="margin-top: 8px;"></div>
     </section>
 
     <section class="ml-panel" aria-labelledby="h-history">
       <div class="panel-head">
-        <h2 id="h-history" class="ml-h-label">Recent Picks</h2>
+        <h2 id="h-history" class="ml-h-label">FILLS</h2>
         <button class="ml-btn" id="undo">undo last</button>
       </div>
       <div class="history" id="history"></div>
@@ -141,6 +161,24 @@ let pickOrder = [];           // array of {round, overall, slot, team_idx, playe
 let posFilter = "ALL";
 let searchQ = "";
 let cursor = 0;               // index into DATA.schedule
+let blueChip = new Set();     // top-12 pre-draft VBD names (set in init)
+
+// Static movers tape: real week-over-week ADP movement from data.json
+// (build_draft_helper_data.py diffs the committed players csv). No movers
+// data → the strip stays hidden; nothing ever scrolls or animates.
+function renderTape() {
+  const tape = document.getElementById("tape");
+  const items = document.getElementById("tape-items");
+  const movers = (DATA && DATA.movers) || [];
+  if (!tape || !items) return;
+  if (!movers.length) { tape.hidden = true; return; }
+  items.innerHTML = "WK MOVERS: " + movers.map(m => {
+    const up = m.delta > 0;
+    return `${escHtml(m.label)} <span class="${up ? "delta-up" : "delta-down"}">` +
+      `${up ? "▲" : "▼"}${Math.abs(m.delta).toFixed(1)}</span>`;
+  }).join(" · ");
+  tape.hidden = false;
+}
 
 (async function init() {
   const resp = await fetch(DATA_URL);
@@ -148,6 +186,10 @@ let cursor = 0;               // index into DATA.schedule
   loadStateFromURL();         // first restore any user picks from URL
   applyKeepersAtStart();      // then place all remaining keepers
   recomputeCursor();          // cursor = first slot without a player
+  // Blue chips: top 12 by PRE-DRAFT VBD — a fixed tier, not the dynamic VBD.
+  blueChip = new Set(DATA.players.slice().sort((a, b) => b.vbd - a.vbd)
+    .slice(0, 12).map(p => p.name));
+  renderTape();
   refresh();
   document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); });
   // Esc clears the search explicitly (Chromium does this natively for
@@ -335,7 +377,7 @@ function showPracticeResult() {
   else if (mc.p25 && full < mc.p25) grade = " — below p25, run it back";
   else if (mc.p25) grade = " — below median, tighten the middle rounds";
   setLiveStatus(`PRACTICE DONE: ${full.toFixed(0)} roster pts${grade}`);
-  alert(`Practice draft complete!\n\nStarters: ${starters.toFixed(0)} projected pts\nFull roster: ${full.toFixed(0)}${grade}${bench}\n\nHit EXIT PRACTICE to restore the real board, or review your roster first.`);
+  alert(`TRADE CONFIRMATION — Practice draft complete!\n\nStarters: ${starters.toFixed(0)} projected pts\nFull roster: ${full.toFixed(0)}${grade}${bench}\n\nHit EXIT PRACTICE to restore the real board, or review your roster first.`);
 }
 
 function togglePractice() {
@@ -643,6 +685,17 @@ function survivalCell(p, waitPick) {
   return `<span class="${cls}">${pct}%</span>`;
 }
 
+// Δwk cell: week-over-week ADP movement in rounds. Direction is carried by
+// sign AND arrow (▲+n.n / ▼-n.n / —), never by color alone. Missing or
+// ~zero delta renders as a muted em-dash.
+function deltaCellHtml(p) {
+  const d = p.adp_delta;
+  if (d == null || Math.abs(d) < 0.05) return '<td class="ml-num delta-flat">—</td>';
+  const up = d > 0;
+  return `<td class="ml-num"><span class="${up ? "delta-up" : "delta-down"}">` +
+    `${up ? "▲+" : "▼-"}${Math.abs(d).toFixed(1)}</span></td>`;
+}
+
 // Dynamic VBD: replacement level recomputed against the REMAINING pool.
 // As positions thin out, the survivors at scarce positions gain value —
 // static pre-draft VBD misses that entirely.
@@ -677,7 +730,7 @@ function computeDynVbd() {
 // 2027 keeper cost if drafted in round r (league rule: cost = round - 2;
 // R1/R2 picks are keeper-ineligible; waivers cost R15).
 function keeperCostLabel(round) {
-  return round > 2 ? `keep '27 @ R${round - 2}` : "not keeper-eligible";
+  return round > 2 ? `contract: keep '27 @ R${round - 2}` : "not keeper-eligible";
 }
 
 // ---------- CEILING MODE ----------
@@ -734,14 +787,19 @@ function maybeAlert(current, myNext) {
   }
 }
 function beep(times) {
+  // Two-tone closing bell (880 → 660 Hz per ring). Same trigger logic and
+  // failure mode as the old single-tone beep — no new autoplay behavior.
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     for (let i = 0; i < times; i++) {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = 880; g.gain.value = 0.15;
-      o.start(ctx.currentTime + i * 0.35);
-      o.stop(ctx.currentTime + i * 0.35 + 0.18);
+      const t0 = ctx.currentTime + i * 0.45;
+      [[880, 0], [660, 0.16]].forEach(([hz, off]) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = hz; g.gain.value = 0.15;
+        o.start(t0 + off);
+        o.stop(t0 + off + 0.14);
+      });
     }
   } catch (e) { /* audio blocked until first user gesture — fine */ }
 }
@@ -752,11 +810,23 @@ function refresh() {
   const focusSnap = captureFocus();
   dynVbd = computeDynVbd();
   renderClock();
+  renderSessionChip();
   renderPlayerList();
   renderRoster();
   renderRecs();
   renderHistory();
   restoreFocus(focusSnap);
+}
+
+// Header market-state chip: schedule fill count (keepers included).
+function renderSessionChip() {
+  const el = document.getElementById("session-chip");
+  if (!el) return;
+  const total = DATA.schedule.length;
+  const filled = DATA.schedule.filter(s => s.player).length;
+  el.textContent = (cursor >= total || filled >= total)
+    ? "MARKET CLOSED"
+    : `MARKET OPEN · ${filled}/${total}`;
 }
 
 // ---------- FOCUS RESTORATION ----------
@@ -833,7 +903,11 @@ function renderClock() {
   const next = DATA.schedule[cursor];
   const mgr = DATA.managers.find(m => m.team_idx === next.team_idx);
   const isMe = next.team_idx === DATA.my_team_idx;
-  el.textContent = `R${next.round}.${next.pick_in_round} · #${next.overall} · ${mgr ? mgr.id.toUpperCase() : "?"}`;
+  // Your clock is the closing bell (status text — the ⏰ is content, not
+  // chrome). #sr-clock announcements are handled in maybeAlert(), unchanged.
+  el.textContent = isMe
+    ? `⏰ CLOSING BELL · R${next.round}.${next.pick_in_round} · #${next.overall} · YOU`
+    : `R${next.round}.${next.pick_in_round} · #${next.overall} · ${mgr ? mgr.id.toUpperCase() : "?"}`;
   el.classList.toggle("ml-clock--me", isMe);
 
   // Find Brian's next pick
@@ -878,17 +952,20 @@ function renderPlayerList() {
     const ageCell = p.age ? `<span class="${p.age <= 25 ? 'age-young' : (p.age >= 29 ? 'age-old' : '')}">${p.age}</span>` : '<span class="meta">-</span>';
     const rookieTag = p.years_exp === 0 ? ' <span class="ml-badge ml-badge--rookie" title="Rookie" aria-label="Rookie">R</span>' : '';
     const injTag = p.injury ? ` <span class="ml-badge ml-badge--injury" title="${escAttr(p.injury)}" aria-label="${escAttr(p.injury)}">${p.injury[0]}</span>` : '';
+    const chipTag = blueChip.has(p.name)
+      ? ' <span class="ml-badge ml-badge--bluechip" title="Blue chip — top-12 value" aria-label="Blue chip — top-12 value">◆</span>' : '';
     const dv = dynVbd.get(p.name) ?? p.vbd;
     const vbdClass = dv > 0 ? "pos" : "neg";
     tr.innerHTML = `
       <td><span class="ml-badge ml-badge--${p.pos.toLowerCase()}">${p.pos}</span></td>
-      <td><button type="button" class="ml-btn--bare row-draft" data-player="${escAttr(p.name)}" tabindex="-1">${escHtml(p.name)}</button>${rookieTag}${injTag}${targetTag}</td>
+      <td><button type="button" class="ml-btn--bare row-draft" data-player="${escAttr(p.name)}" tabindex="-1">${escHtml(p.name)}</button>${chipTag}${rookieTag}${injTag}${targetTag}</td>
       <td class="meta">${p.team}</td>
-      <td>${ageCell}</td>
-      <td>${p.proj.toFixed(0)}</td>
-      <td class="vbd ${vbdClass}" title="dynamic VBD vs remaining pool (pre-draft: ${p.vbd > 0 ? '+' : ''}${p.vbd.toFixed(0)})">${dv > 0 ? '+' : ''}${dv.toFixed(0)}</td>
-      <td class="meta">${p.adp.toFixed(0)}</td>
-      <td>${survivalCell(p, waitPick)}</td>
+      <td class="ml-num">${ageCell}</td>
+      <td class="ml-num">${p.proj.toFixed(0)}</td>
+      <td class="vbd ${vbdClass} ml-num" title="dynamic VBD vs remaining pool (pre-draft: ${p.vbd > 0 ? '+' : ''}${p.vbd.toFixed(0)})">${dv > 0 ? '+' : ''}${dv.toFixed(0)}</td>
+      <td class="meta ml-num">${p.adp.toFixed(0)}</td>
+      ${deltaCellHtml(p)}
+      <td class="ml-num">${survivalCell(p, waitPick)}</td>
     `;
     // Mouse path: whole row drafts. Keyboard path: the name button's native
     // Enter/Space fires a click that bubbles to this same listener.
@@ -910,7 +987,7 @@ function renderRoster() {
     const pp = DATA.players.find(x => x.name === p.player);
     return s + (pp ? pp.proj : 0);
   }, 0);
-  document.getElementById("roster-total").textContent = `· ${myPicks.length}/17 · ${totalProj.toFixed(0)} proj`;
+  document.getElementById("roster-total").textContent = `· ${myPicks.length}/17 · ${totalProj.toFixed(0)} GUAP proj`;
   // Group by position
   const byPos = {QB: [], RB: [], WR: [], TE: [], K: [], DEF: []};
   for (const pk of myPicks) {
@@ -925,7 +1002,7 @@ function renderRoster() {
       row.className = "roster-row" + (isKeeper ? " keeper-row" : "");
       row.style.borderLeftColor = `var(--ml-pos-${pos.toLowerCase()})`;
       const keepTag = (!isKeeper && player.round > 2)
-        ? ` <span class="meta" title="2027 keeper cost">·K'27 R${player.round - 2}</span>` : "";
+        ? ` <span class="meta" title="contract: 2027 keeper cost">·K'27 R${player.round - 2}</span>` : "";
       row.innerHTML = `<span><span class="ml-badge ml-badge--${pos.toLowerCase()}">${pos}</span> ${escHtml(player.player)}${isKeeper ? ' <span class="ml-badge ml-badge--keeper" title="Keeper" aria-label="Keeper">K</span>' : ''}</span><span class="meta">R${player.round}${keepTag}</span>`;
       r.appendChild(row);
     }

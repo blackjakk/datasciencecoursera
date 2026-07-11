@@ -11,7 +11,9 @@ Includes:
 from __future__ import annotations
 
 import csv
+import io
 import json
+import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -36,11 +38,40 @@ def _norm(s: str) -> str:
     return s.lower().replace(".", "").replace("'", "").replace("-", " ").strip()
 
 
+def load_prev_adp() -> dict[tuple[str, str], float]:
+    """Previous week's raw csv ADP, keyed (norm name, POS), from the last
+    committed data/players_2026.csv (`git show HEAD:...`). The weekly
+    workflow commits a fresh csv every Tuesday, so HEAD is 'last week'
+    while the working tree holds this week's fetch. Any failure (no git,
+    shallow history, file absent, parse error) returns {} — the helper then
+    hides the movers tape and shows an em-dash in every Δwk cell."""
+    try:
+        res = subprocess.run(
+            ["git", "show", "HEAD:data/players_2026.csv"],
+            cwd=ROOT, capture_output=True, text=True, timeout=30,
+        )
+        if res.returncode != 0 or not res.stdout:
+            return {}
+        prev = {}
+        for r in csv.DictReader(io.StringIO(res.stdout)):
+            try:
+                adp = float(r["adp"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if 0 < adp < 500:  # 999-style placeholders are not market prices
+                prev[(_norm(r["name"]), r["position"].upper())] = adp
+        return prev
+    except Exception:
+        return {}
+
+
 def load_players() -> list[dict]:
     rows = []
     with open(ROOT / "data" / "players_2026.csv", encoding="utf-8") as f:
         for r in csv.DictReader(f):
+            r["_csv_adp"] = r["adp"]  # raw pre-FP-overlay ADP, for Δwk
             rows.append(r)
+    prev_adp = load_prev_adp()
     # Apply FP overlay (override ADP + promote projection)
     fp = json.loads((ROOT / "data" / "rankings_fantasypros.json").read_text())
     fp_by_key = {(_norm(p["name"]), p["position"].upper()): p
@@ -112,7 +143,7 @@ def load_players() -> list[dict]:
             continue
         vbd = round(proj - repl_pts.get(r["position"], 0), 1)
         meta = name_to_meta.get((r["name"], r["position"]), {})
-        out.append({
+        entry = {
             "name": r["name"],
             "pos": r["position"],
             "team": r["team"],
@@ -125,7 +156,22 @@ def load_players() -> list[dict]:
             "age": meta.get("age"),
             "years_exp": meta.get("years_exp"),
             "injury": meta.get("injury_status") or "",
-        })
+        }
+        # Δwk — week-over-week ADP movement in ROUNDS (12-team league):
+        #   delta_rounds = (prev_adp - adp_now) / 12
+        # POSITIVE = the ADP number shrank week-over-week = the player is
+        # being drafted EARLIER now (rising / getting more expensive).
+        # Compared raw-csv vs raw-csv (both pre-FP-overlay) so the overlay
+        # can't manufacture fake movement. Key absent when unknowable —
+        # the helper renders those as a muted em-dash.
+        prev = prev_adp.get((_norm(r["name"]), r["position"].upper()))
+        try:
+            cur = float(r["_csv_adp"])
+        except (TypeError, ValueError):
+            cur = None
+        if prev is not None and cur is not None and 0 < cur < 500:
+            entry["adp_delta"] = round((prev - cur) / 12.0, 2)
+        out.append(entry)
     # Keep the pool DEEP: live-sync marks every real Sleeper pick against this
     # list, and managers draft bench-tier players well below replacement. The
     # old vbd > -100 cutoff (381 players) left ~25 of 204 real 2025 picks
@@ -133,6 +179,28 @@ def load_players() -> list[dict]:
     out = [p for p in out if p["adp"] < 999 or p["proj"] >= 20]
     out.sort(key=lambda p: -p["vbd"])
     return out
+
+
+_NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
+
+
+def _mover_label(name: str) -> str:
+    """Ticker-style short label: surname, uppercased ('Jahmyr Gibbs' ->
+    'GIBBS', 'Amon-Ra St. Brown' -> 'ST. BROWN'), suffixes dropped."""
+    toks = [t for t in name.split() if t.rstrip(".").lower() not in _NAME_SUFFIXES]
+    label = " ".join(toks[1:]) if len(toks) > 1 else (toks[0] if toks else name)
+    return label.upper()
+
+
+def build_movers(players: list[dict], n: int = 8) -> list[dict]:
+    """Top-n week-over-week ADP movers by |delta_rounds| (see load_players
+    for the sign convention: positive = rising). Deltas that round to 0.0
+    at one decimal are not movement; empty list = tape hidden."""
+    cands = [p for p in players
+             if p.get("adp_delta") is not None and abs(p["adp_delta"]) >= 0.05]
+    cands.sort(key=lambda p: -abs(p["adp_delta"]))
+    return [{"name": p["name"], "label": _mover_label(p["name"]),
+             "delta": p["adp_delta"]} for p in cands[:n]]
 
 
 def load_keepers() -> list[dict]:
@@ -215,6 +283,9 @@ def main():
     tendencies = load_tendencies()
     n_sv = attach_survival(players)
     print(f"Attached survival curves to {n_sv} players")
+    movers = build_movers(players)
+    n_delta = sum(1 for p in players if p.get("adp_delta") is not None)
+    print(f"Attached adp_delta to {n_delta} players; {len(movers)} movers")
 
     # Traded 2026 picks (override Pick.team_idx by ownership)
     traded = json.loads(
@@ -239,6 +310,7 @@ def main():
         "my_team_idx": MY_SLOT - 1,
         "rounds": ROUNDS,
         "players": players,
+        "movers": movers,
         "keepers": keepers,
         "managers": managers,
         "schedule": schedule,
