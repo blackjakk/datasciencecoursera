@@ -19,7 +19,6 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import matplotlib.image as mpimg
 import numpy as np
@@ -30,6 +29,13 @@ from fantasy_draft.results import load_all_seasons  # noqa: E402
 from fantasy_draft.team_identity import (  # noqa: E402
     all_managers, manager_for_sleeper_roster,
 )
+# Design system: single source of truth for palettes, CSS base + mpl style.
+# PALETTE / MANAGER_COLORS / mgr_color are re-exported here for backward
+# compat — downstream scripts do `bpr.mgr_color(...)`.
+from design.tokens import (  # noqa: E402, F401
+    CHART, MANAGER_COLORS, PALETTE, POS_COLORS,
+    mgr_color, mpl_style, report_base_css,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 PDF_OUT = ROOT / "data" / "MONEYLEAGUE_POWER_RANKINGS.pdf"
@@ -37,50 +43,7 @@ MD_OUT = ROOT / "data" / "MONEYLEAGUE_POWER_RANKINGS.md"
 CHART_DIR = ROOT / "data" / "charts" / "rankings"
 CHART_DIR.mkdir(parents=True, exist_ok=True)
 
-# Modern color palette
-PALETTE = {
-    "gold": "#d4a017", "navy": "#0a3d62", "teal": "#1f7a8c",
-    "emerald": "#2d6a4f", "orange": "#dd6e42", "crimson": "#a23737",
-    "slate": "#3d405b", "cream": "#f7f4ea", "ink": "#1a1d24",
-    "gray": "#6b7280",
-}
-
-# Per-manager brand colors — stable across every chart
-MANAGER_COLORS = {
-    "trevor_bergerboy": "#2d6a4f",  # forest
-    "coop":             "#1f3a5f",  # navy
-    "dave_aka_wang":    "#8b1e3f",  # wine
-    "kyle_figgy":       "#f59e0b",  # gold
-    "brower_barry":     "#0891b2",  # teal
-    "ankur_patel":      "#7c3aed",  # purple
-    "eric_m":           "#dc2626",  # red
-    "troy_mullings":    "#15803d",  # green
-    "brian_bigguap":    "#1e40af",  # royal blue
-    "lem":              "#65a30d",  # lime
-    "donnie":           "#9a3412",  # rust
-    "tim_breswick":     "#0f172a",  # ink
-    "josh_wildboy":     "#a855f7",  # violet
-    "nark":             "#78716c",  # stone
-    "jp_former":        "#525252",  # gray
-    "nick_lewis_left":  "#737373",  # gray
-    "notebooks_left":   "#a3a3a3",  # silver
-}
-
-
-def mgr_color(mid):
-    return MANAGER_COLORS.get(mid, PALETTE["gray"])
-
-
-def _register_fonts():
-    """Add Inter + Bebas Neue to matplotlib."""
-    for f in (ROOT / "data" / "fonts").glob("*.ttf"):
-        try:
-            fm.fontManager.addfont(str(f))
-        except Exception:
-            pass
-
-
-_register_fonts()
+mpl_style()  # register league fonts + standard chart rcParams
 
 
 def _avatar_path(mid):
@@ -492,20 +455,6 @@ def tier(ovr):
     return "Bench"
 
 
-def tier_color(ovr):
-    if ovr >= 90:
-        return "#b8860b"  # gold
-    if ovr >= 85:
-        return "#1f7a4d"  # green
-    if ovr >= 80:
-        return "#c08810"  # yellow
-    if ovr >= 75:
-        return "#c0540a"  # orange
-    if ovr >= 65:
-        return "#7a4a1f"  # brown
-    return "#a02020"  # red
-
-
 def archetype(card):
     """Madden-style descriptor based on the card's profile."""
     s = card
@@ -608,28 +557,8 @@ def build_madden_cards_sleeper(stats, vbd, vbd_n, draft):
     return cards
 
 
-def _setup_mpl():
-    plt.rcParams.update({
-        "font.family": ["Inter", "DejaVu Sans", "sans-serif"],
-        "font.size": 10,
-        "axes.facecolor": "#ffffff",
-        "figure.facecolor": "#ffffff",
-        "axes.edgecolor": PALETTE["gray"],
-        "axes.labelcolor": PALETTE["ink"],
-        "axes.titleweight": "bold",
-        "axes.titlesize": 13,
-        "axes.titlecolor": PALETTE["ink"],
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-        "xtick.color": PALETTE["gray"],
-        "ytick.color": PALETTE["gray"],
-        "grid.color": "#e5e7eb",
-        "grid.alpha": 0.7,
-    })
-
-
 def chart_ovr_ranking(cards, path, title="All-Time Power Rankings"):
-    _setup_mpl()
+    mpl_style()
     cards = sorted(cards, key=lambda c: c["ovr"])
     names = [c["name"] + (" (FMR)" if not c.get("is_current", True) else "") for c in cards]
     ovrs = [c["ovr"] for c in cards]
@@ -657,7 +586,7 @@ def chart_ovr_ranking(cards, path, title="All-Time Power Rankings"):
 
 
 def chart_radar_grid(cards, path, title="Top 6 Player Profiles"):
-    _setup_mpl()
+    mpl_style()
     top = sorted(cards, key=lambda c: -c["ovr"])[:6]
     cats = ["RING", "WIN%", "PPG", "DRFT", "TRADE"]
     angles = np.linspace(0, 2 * np.pi, len(cats), endpoint=False).tolist()
@@ -678,8 +607,8 @@ def chart_radar_grid(cards, path, title="Top 6 Player Profiles"):
         ax.set_ylim(30, 100)
         ax.set_title(f"{c['name']}  ({c['ovr']})", color=color,
                      fontweight="bold", fontsize=11, pad=12)
-        ax.grid(color="#d1d5db", linewidth=0.6)
-        ax.spines["polar"].set_color("#d1d5db")
+        ax.grid(color=CHART["grid_strong"], linewidth=0.6)
+        ax.spines["polar"].set_color(CHART["grid_strong"])
     for ax in axes.flat[len(top):]:
         ax.set_visible(False)
     fig.suptitle(title, fontweight="bold", fontsize=14, color=PALETTE["ink"], y=0.99)
@@ -689,7 +618,7 @@ def chart_radar_grid(cards, path, title="Top 6 Player Profiles"):
 
 
 def chart_scatter_winpct_ppg(cards, path):
-    _setup_mpl()
+    mpl_style()
     fig, ax = plt.subplots(figsize=(9, 6), dpi=140)
     # Bubble size = rings (exponential so 0 -> dot, 3 -> big circle)
     for c in cards:
@@ -727,7 +656,7 @@ def chart_scatter_winpct_ppg(cards, path):
 
 
 def chart_trade_vbd(cards, path):
-    _setup_mpl()
+    mpl_style()
     s = sorted(cards, key=lambda c: c["trade_vbd"])
     names = [c["name"] for c in s]
     vals = [c["trade_vbd"] for c in s]
@@ -753,7 +682,7 @@ def chart_trade_vbd(cards, path):
 
 
 def chart_drafters(cards, path):
-    _setup_mpl()
+    mpl_style()
     s = sorted([c for c in cards if c["draft_picks"] > 20],
                 key=lambda c: c["draft_spp"])
     names = [c["name"] for c in s]
@@ -782,7 +711,7 @@ def chart_drafters(cards, path):
 
 
 def chart_championships_timeline(path):
-    _setup_mpl()
+    mpl_style()
     # Collect (year, mgr_id) for every champion
     champs = []
     for yr, mid in KNOWN_CHAMPIONS.items():
@@ -808,7 +737,7 @@ def chart_championships_timeline(path):
     yr_min, yr_max = min(years), max(years)
     # Grid: faint vertical line per year
     for y in range(yr_min, yr_max + 1):
-        ax.axvline(y, color="#e5e7eb", linewidth=0.5, zorder=0)
+        ax.axvline(y, color=CHART["grid"], linewidth=0.5, zorder=0)
     # Trophies — star markers
     for yr, mid in champs:
         ax.scatter(yr, y_pos[mid], s=420, color=PALETTE["gold"], zorder=3,
@@ -831,7 +760,7 @@ def chart_championships_timeline(path):
 def chart_trade_heatmap(path, cards):
     """Pairwise net VBD matrix: cell[row][col] = row mgr's net advantage
     over col mgr across all their trades together."""
-    _setup_mpl()
+    mpl_style()
     nfl = btr._load_nflverse()
     sleeper_names = btr._load_sleeper_players()
     spp = btr._build_sleeper_pick_resolver()
@@ -912,7 +841,7 @@ def chart_trade_heatmap(path, cards):
     # Diagonal = gray
     for i in range(n):
         ax.add_patch(plt.Rectangle((i - 0.5, i - 0.5), 1, 1,
-                                    color="#1a1d24", zorder=2))
+                                    color=PALETTE["ink"], zorder=2))
     names = [_mgr_name(m) for m in mgrs]
     ax.set_xticks(range(n))
     ax.set_yticks(range(n))
@@ -929,7 +858,7 @@ def chart_trade_heatmap(path, cards):
                 continue
             val = M[i, j]
             # Text color based on cell brightness
-            tc = "white" if abs(val) > 0.55 * vmax else "#1a1d24"
+            tc = "white" if abs(val) > 0.55 * vmax else PALETTE["ink"]
             ax.text(j, i - 0.12, f"{val:+.0f}", ha="center", va="center",
                     fontsize=8, color=tc, fontweight="bold")
             ax.text(j, i + 0.25, f"{cnt[i, j]}t", ha="center", va="center",
@@ -953,7 +882,7 @@ def chart_trade_network(path, cards):
     """Force-directed trade network. Nodes = avatars, edges = trade
     relationships (thickness = volume, color intensity = imbalance)."""
     import networkx as nx
-    _setup_mpl()
+    mpl_style()
 
     nfl = btr._load_nflverse()
     sleeper_names = btr._load_sleeper_players()
@@ -1138,7 +1067,7 @@ def compute_season_table():
 
 def chart_tenure_timeline(path, cards):
     """Gantt-style timeline of who was in the league each year, with ring stars."""
-    _setup_mpl()
+    mpl_style()
     # Pull every (yr, mid) from season table to know tenure
     season_table = compute_season_table()
     # Champions per year
@@ -1201,7 +1130,7 @@ def chart_tenure_timeline(path, cards):
                  loc="left", pad=14, fontsize=13)
     ax.spines["left"].set_visible(False)
     ax.tick_params(left=False)
-    ax.grid(axis="x", linestyle=":", color="#d1d5db", alpha=0.6, zorder=0)
+    ax.grid(axis="x", linestyle=":", color=CHART["grid_strong"], alpha=0.6, zorder=0)
     ax.set_axisbelow(True)
     plt.tight_layout()
     plt.savefig(path, bbox_inches="tight", facecolor="white")
@@ -1211,7 +1140,7 @@ def chart_tenure_timeline(path, cards):
 def chart_finish_heatmap(path, cards):
     """Manager rows × year cols, color = regular-season finishing rank
     (1 = gold, last = red)."""
-    _setup_mpl()
+    mpl_style()
     season_table = compute_season_table()
     mgrs = [c["mid"] for c in sorted(cards, key=lambda c: -c["ovr"])]
     years_all = sorted({yr for (yr, _) in season_table})
@@ -1262,7 +1191,7 @@ def chart_finish_heatmap(path, cards):
 def chart_schedule_luck(path, cards):
     """Career schedule-luck index: (fpts_rank - wins_rank) avg per manager.
     Positive = luckier than they scored; negative = unlucky."""
-    _setup_mpl()
+    mpl_style()
     season_table = compute_season_table()
     luck = defaultdict(list)
     for (yr, mid), s in season_table.items():
@@ -1362,12 +1291,10 @@ def _load_all_drafts():
 def chart_position_drafted(path, cards):
     """Stacked horizontal bars per manager — what positions they draft
     in each round. Shows draft strategy preferences."""
-    _setup_mpl()
+    mpl_style()
     drafts = _load_all_drafts()
     mgrs = [c["mid"] for c in cards]
     positions = ["QB", "RB", "WR", "TE", "K", "DEF"]
-    pos_colors = {"QB": "#dc2626", "RB": "#0891b2", "WR": "#2d6a4f",
-                  "TE": "#f59e0b", "K": "#9a3412", "DEF": "#525252"}
     # rounds to show
     rounds = list(range(1, 11))  # focus on rounds 1-10
     # data: mgr -> round -> position -> count
@@ -1386,7 +1313,7 @@ def chart_position_drafted(path, cards):
         bottoms = np.zeros(len(rounds))
         for pos in positions:
             vals = [cnt[mid][r][pos] for r in rounds]
-            ax.bar(rounds, vals, bottom=bottoms, color=pos_colors[pos],
+            ax.bar(rounds, vals, bottom=bottoms, color=POS_COLORS[pos],
                     label=pos, edgecolor="white", linewidth=0.6, width=0.85)
             bottoms += np.array(vals)
         ax.set_title(_mgr_name(mid), fontsize=10, fontweight="bold",
@@ -1400,7 +1327,7 @@ def chart_position_drafted(path, cards):
     for ax in axes_flat[n_mgrs:]:
         ax.set_visible(False)
     # Single legend across the top
-    handles = [plt.Rectangle((0, 0), 1, 1, color=pos_colors[p]) for p in positions]
+    handles = [plt.Rectangle((0, 0), 1, 1, color=POS_COLORS[p]) for p in positions]
     fig.legend(handles, positions, loc="upper center", ncol=len(positions),
                frameon=False, bbox_to_anchor=(0.5, 1.02), fontsize=9)
     fig.suptitle("Positions Drafted by Round  ·  rounds 1-10  ·  "
@@ -1413,7 +1340,7 @@ def chart_position_drafted(path, cards):
 
 def chart_h2h_matrix(path, cards):
     """Pairwise W-L matrix across all regular-season matchups (career)."""
-    _setup_mpl()
+    mpl_style()
     ytm = {}
     for m in all_managers():
         for yr, tn in (m.get("yahoo_team_names") or {}).items():
@@ -1517,7 +1444,7 @@ def chart_h2h_matrix(path, cards):
     im = ax.imshow(M, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="equal")
     for i in range(n):
         ax.add_patch(plt.Rectangle((i - 0.5, i - 0.5), 1, 1,
-                                    color="#1a1d24", zorder=2))
+                                    color=PALETTE["ink"], zorder=2))
     names = [_mgr_name(m) for m in mgrs]
     ax.set_xticks(range(n)); ax.set_yticks(range(n))
     ax.set_xticklabels(names, rotation=45, ha="left", fontsize=9,
@@ -1529,7 +1456,7 @@ def chart_h2h_matrix(path, cards):
             if i == j or np.isnan(M[i, j]):
                 continue
             v = M[i, j]
-            tc = "white" if abs(v) > 0.55 * vmax else "#1a1d24"
+            tc = "white" if abs(v) > 0.55 * vmax else PALETTE["ink"]
             ax.text(j, i, Lbl[i, j], ha="center", va="center",
                     fontsize=8, color=tc, fontweight="bold")
     for x in range(n + 1):
@@ -1548,7 +1475,7 @@ def chart_h2h_matrix(path, cards):
 
 def chart_recent_vs_lifetime(path, cards, cards_s):
     """Sleeper-era OVR minus all-time OVR per current manager."""
-    _setup_mpl()
+    mpl_style()
     by_mid = {c["mid"]: c["ovr"] for c in cards}
     by_mid_s = {c["mid"]: c["ovr"] for c in cards_s}
     rows = []
@@ -1582,7 +1509,7 @@ def chart_recent_vs_lifetime(path, cards, cards_s):
 
 def chart_best_worst_seasons(path):
     """Top 8 best + 8 worst (mgr, year) seasons by composite score."""
-    _setup_mpl()
+    mpl_style()
     st = compute_season_table()
     items = []
     for (yr, mid), s in st.items():
@@ -1699,7 +1626,7 @@ def sleeper_championship_blueprint():
 
 def chart_sleeper_winpct_trend(path):
     """Per-season win pct per current manager."""
-    _setup_mpl()
+    mpl_style()
     rid_to_mid = {m["sleeper_roster_id"]: m["id"]
                   for m in all_managers() if m.get("sleeper_roster_id")}
     series = defaultdict(dict)
@@ -1794,41 +1721,42 @@ def build_html():
                      "Sleeper Era Top 6 — Attribute Profiles")
     chart_sleeper_winpct_trend(chart_paths["sleeper_trend"])
 
-    css = """
+    # Page-specific rules only — palette/base components come from
+    # report_base_css() (design/ml.css) + design.tokens.PALETTE.
+    from string import Template
+    css = Template("""
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap');
-    body { font-family: 'Inter', -apple-system, system-ui, sans-serif;
-           max-width: 780px; margin: 18px auto; padding: 0 22px;
-           color: #1a1d24; line-height: 1.5; font-size: 10.5pt;
-           background: #ffffff; }
-    h1 { font-family: 'Bebas Neue', sans-serif; font-size: 38pt;
-         letter-spacing: 1px; margin: 0; color: #0a3d62;
+    body { max-width: 780px; margin: 18px auto; padding: 0 22px;
+           line-height: 1.5; font-size: 10.5pt;
+           background: var(--ml-bg); }
+    h1 { font-size: 38pt; letter-spacing: 1px; margin: 0; color: $navy;
          line-height: 1; }
-    .hero { background: linear-gradient(135deg, #0a3d62 0%, #1f7a8c 100%);
+    .hero { background: linear-gradient(135deg, $navy 0%, $teal 100%);
             color: white; padding: 22px 26px; border-radius: 14px;
             margin-bottom: 22px; }
     .hero h1 { color: white; }
     .hero .subtitle { color: rgba(255,255,255,0.85); font-size: 11pt;
                       margin: 6px 0 0; font-weight: 500; }
-    h2 { font-family: 'Bebas Neue', sans-serif; font-size: 22pt;
-         letter-spacing: 1px; color: #0a3d62; margin: 16px 0 2px;
-         padding-bottom: 3px; border-bottom: 3px solid #d4a017;
+    h2 { font-size: 22pt; letter-spacing: 1px; color: $navy; margin: 16px 0 2px;
+         padding-bottom: 3px; border-bottom: 3px solid $gold;
          break-after: avoid-page; page-break-after: avoid; }
-    h3 { font-size: 11pt; color: #3d405b; margin: 10px 0 4px;
+    h3 { font-family: var(--ml-font-body); font-size: 11pt; color: $slate;
+         margin: 10px 0 4px;
          font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-    .subtitle { color: #6b7280; margin: 0 0 10px; font-size: 10pt; }
+    .subtitle { color: var(--ml-muted); margin: 0 0 10px; font-size: 10pt; }
     .chart { width: 100%; max-height: 4.2in; object-fit: contain;
              margin: 2px 0 4px; display: block; }
     .chart.tall { max-height: 6in; }
     .section-intro { margin: 2px 0 6px; }
     .cards-grid { display: grid; grid-template-columns: 1fr 1fr;
                   gap: 10px; margin: 10px 0; }
-    .card { border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;
-            page-break-inside: avoid;
+    .card { border: 1px solid var(--ml-border); border-radius: 12px;
+            overflow: hidden; page-break-inside: avoid;
             box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
     .card-head { color: white; padding: 12px 14px; display: flex;
                  align-items: center; gap: 12px; position: relative;
                  overflow: hidden; }
-    .ovr { font-family: 'Bebas Neue', sans-serif; font-size: 36pt;
+    .ovr { font-family: var(--ml-font-display); font-size: 36pt;
            font-weight: bold; min-width: 50px; text-align: center;
            line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.25); }
     .avatar { width: 46px; height: 46px; border-radius: 50%;
@@ -1844,76 +1772,74 @@ def build_html():
     .card-body { padding: 8px 12px 10px; }
     .attr-table { width: 100%; font-size: 8.5pt; }
     .attr-table td { padding: 2px 4px; }
-    .attr { font-weight: 700; color: #3d405b; width: 38px;
+    .attr { font-weight: 700; color: $slate; width: 38px;
             font-size: 8pt; letter-spacing: 0.4px; }
     .bar { width: 100%; }
-    .bar-fill { height: 8px; border-radius: 4px; background: #888;
+    .bar-fill { height: 8px; border-radius: 4px; background: var(--ml-muted);
                 min-width: 4px; }
     .val { width: 24px; text-align: right; font-weight: 800;
-           color: #1a1d24; }
-    .raw { color: #6b7280; font-size: 8pt; text-align: right;
+           color: var(--ml-text); }
+    .raw { color: var(--ml-muted); font-size: 8pt; text-align: right;
            min-width: 90px; }
-    .badge-fmr { font-size: 7pt; background: rgba(0,0,0,0.3); color: #fff;
+    .badge-fmr { font-size: 7pt; background: rgba(0,0,0,0.3); color: white;
                  padding: 1px 5px; border-radius: 4px;
                  vertical-align: middle; font-weight: 700; }
     table { width: 100%; border-collapse: collapse; margin: 4px 0 12px;
             font-size: 9.5pt; }
-    th { background: #0a3d62; color: white; padding: 5px 8px;
+    th { background: $navy; color: white; padding: 5px 8px;
          text-align: left; font-weight: 700; }
-    td { padding: 4px 8px; border-bottom: 1px solid #f0f0f0; }
-    tr:nth-child(even) td { background: #fafafa; }
-    .note { font-size: 9pt; color: #6b7280; margin: 4px 0 14px;
-            line-height: 1.5; }
-    .top3 { font-size: 9.5pt; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            border-radius: 8px; overflow: hidden; }
-    .top3 th { display: none; }
-    .top3 td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; }
+    td { padding: 4px 8px; border-bottom: 1px solid var(--ml-row); }
+    tr:nth-child(even) td { background: var(--ml-panel2); }
+    p.ml-note { font-size: 9pt; margin: 4px 0 14px; line-height: 1.5; }
     .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr);
                   gap: 8px; margin: 8px 0 14px; }
-    .stat-card { background: #f7f4ea; border-radius: 10px; padding: 10px 12px;
-                 text-align: center; border: 1px solid #e5e7eb; }
-    .stat-card .num { font-family: 'Bebas Neue', sans-serif;
-                       font-size: 22pt; color: #0a3d62; line-height: 1; }
-    .stat-card .lbl { font-size: 8pt; color: #6b7280; margin-top: 4px;
+    .stat-card { background: $cream; border-radius: 10px; padding: 10px 12px;
+                 text-align: center; border: 1px solid var(--ml-border); }
+    .stat-card .num { font-family: var(--ml-font-display);
+                       font-size: 22pt; color: $navy; line-height: 1; }
+    .stat-card .lbl { font-size: 8pt; color: var(--ml-muted); margin-top: 4px;
                       text-transform: uppercase; letter-spacing: 0.5px;
                       font-weight: 600; }
-    .section-intro { color: #3d405b; font-size: 10pt; margin: 2px 0 6px;
+    .section-intro { color: $slate; font-size: 10pt; margin: 2px 0 6px;
                      break-after: avoid-page; page-break-after: avoid; }
-    .callout { background: #fdf6e3; border-left: 4px solid #d4a017;
+    .callout { background: var(--ml-banner-warn-bg);
+               border-left: 4px solid $gold;
                padding: 8px 12px; font-size: 9.5pt; margin: 4px 0 14px;
-               color: #2a2a2a; border-radius: 0 6px 6px 0; }
-    .callout strong { color: #0a3d62; }
+               color: var(--ml-text); border-radius: 0 6px 6px 0; }
+    .callout strong { color: $navy; }
     .personalities { display: grid; grid-template-columns: 1fr 1fr;
                      gap: 8px; margin: 6px 0; }
-    .persona { border: 1px solid #e5e7eb; border-left: 5px solid;
+    .persona { border: 1px solid var(--ml-border); border-left: 5px solid;
                border-radius: 6px; padding: 8px 12px;
                page-break-inside: avoid; }
-    .persona-name { font-family: 'Bebas Neue', sans-serif;
+    .persona-name { font-family: var(--ml-font-display);
                     letter-spacing: 0.8px; font-size: 15pt;
                     margin: 0 0 2px; }
-    .persona-label { font-weight: 700; color: #0a3d62;
+    .persona-label { font-weight: 700; color: $navy;
                      font-size: 9pt; text-transform: uppercase;
                      letter-spacing: 0.6px; margin-bottom: 4px; }
-    .persona-body { font-size: 9.5pt; color: #3d405b; line-height: 1.5; }
+    .persona-body { font-size: 9.5pt; color: $slate; line-height: 1.5; }
     .bp-card { margin: 6px 0; padding: 8px 12px 4px;
-               background: #fafafa; border-radius: 6px; }
-    .bp-head { font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px;
+               background: var(--ml-panel2); border-radius: 6px; }
+    .bp-head { font-family: var(--ml-font-display); letter-spacing: 1px;
                font-size: 16pt; margin-bottom: 4px; }
-    .bp-year { color: #6b7280; margin-right: 8px; }
+    .bp-year { color: var(--ml-muted); margin-right: 8px; }
     .bp-champ { font-weight: 700; }
     .bp-section { font-size: 9.5pt; margin: 4px 0; }
     .bp-section ul { margin: 2px 0 4px 18px; padding: 0; }
     .bp-section li { margin: 1px 0; }
     @page { size: letter; margin: 0.4in; }
-    """
+    """).substitute(
+        navy=PALETTE["navy"], teal=PALETTE["teal"], gold=PALETTE["gold"],
+        slate=PALETTE["slate"], cream=PALETTE["cream"])
 
     n_yrs = max(c["years"] for c in cards)
     n_champs = sum(c["rings"] for c in cards)
     n_trades = sum(c["trade_n"] for c in cards) // 2
     top_ovr = max(c["ovr"] for c in cards)
 
-    h = ['<!DOCTYPE html><html><head><meta charset="utf-8">',
-         f'<style>{css}</style></head><body>']
+    h = ['<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8">',
+         f'<style>{report_base_css()}{css}</style></head><body>']
 
     # Hero
     h.append('<div class="hero">')
@@ -2066,7 +1992,7 @@ def build_html():
     for mid in ordered_mgrs:
         favs = fav_players.get(mid, [])
         if not favs:
-            cells = "<em style='color:#9ca3af'>no repeat targets</em>"
+            cells = "<em class='ml-note'>no repeat targets</em>"
         else:
             cells = " · ".join(f"<strong>{n}</strong> ×{c}" for n, c in favs)
         h.append(f'<tr><td><strong style="color:{mgr_color(mid)}">'
@@ -2155,7 +2081,7 @@ def build_html():
 
     # ===== Methodology =====
     h.append('<h2>Methodology</h2>')
-    h.append('<p class="note">Win/loss + PPG: regular-season games only '
+    h.append('<p class="ml-note">Win/loss + PPG: regular-season games only '
              '(weeks 1-13 for 8/10-team years, 1-14 for 12-team years). '
              'Yahoo data via scraped matchups; Sleeper via league API. '
              'Rings: KNOWN_CHAMPIONS dict (Yahoo era) + winners_bracket.json '

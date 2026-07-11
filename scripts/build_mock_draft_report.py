@@ -11,12 +11,14 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fantasy_draft.team_identity import all_managers, manager_for_sleeper_roster
+from design.tokens import (  # noqa: E402
+    PALETTE, POS_COLORS, mgr_color, mpl_style, report_base_css,
+)
 from scripts import build_power_rankings as bpr
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,12 +51,6 @@ ROSTER_HANDOFFS = {
     for k, v in _SEASON_CFG.get("roster_handoffs", {}).items()
 }
 
-POS_COLORS = {
-    "QB": "#dc2626", "RB": "#0891b2", "WR": "#2d6a4f",
-    "TE": "#f59e0b", "K": "#9a3412", "DEF": "#525252",
-}
-
-
 def _norm_player(s):
     import re, unicodedata
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower().strip()
@@ -68,20 +64,6 @@ def _data_uri(path):
     mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(ext, "image/png")
     b = Path(path).read_bytes()
     return f"data:{mime};base64,{base64.b64encode(b).decode()}"
-
-
-def _setup_mpl():
-    for f in (ROOT / "data" / "fonts").glob("*.ttf"):
-        try:
-            fm.fontManager.addfont(str(f))
-        except Exception:
-            pass
-    plt.rcParams.update({
-        "font.family": ["Inter", "DejaVu Sans"],
-        "font.size": 10,
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-    })
 
 
 def team_idx_to_mid(idx):
@@ -104,7 +86,7 @@ def team_idx_to_name(idx):
 
 def chart_position_runs(picks, path):
     """Cumulative position picks over the draft. Skip K/DEF (all R16-R17)."""
-    _setup_mpl()
+    mpl_style()
     overall = sorted({p["overall"] for p in picks})
     cum = defaultdict(lambda: defaultdict(int))
     for p in picks:
@@ -137,17 +119,17 @@ def chart_position_runs(picks, path):
 
 def chart_team_projection(team_totals, path):
     """Sort teams by total projection."""
-    _setup_mpl()
+    mpl_style()
     s = sorted(team_totals.items(), key=lambda kv: kv[1])
     names = [t[0] for t in s]
     vals = [t[1] for t in s]
-    colors = [bpr.mgr_color(team_idx_to_mid_by_name(t[0])) for t in s]
+    colors = [mgr_color(team_idx_to_mid_by_name(t[0])) for t in s]
     fig, ax = plt.subplots(figsize=(9, 0.32 * len(s) + 0.6), dpi=140)
     ax.barh(names, vals, color=colors, edgecolor="white", linewidth=1.2,
             height=0.72)
     for i, v in enumerate(vals):
         ax.text(v + 15, i, f"{v:.0f}", va="center", fontsize=10,
-                fontweight="bold", color="#1a1d24")
+                fontweight="bold", color=PALETTE["ink"])
     ax.set_xlim(min(vals) * 0.98, max(vals) * 1.04)
     ax.set_xlabel("Total projected pts (full roster, half-PPR)",
                   fontweight="bold")
@@ -212,10 +194,10 @@ def render_draft_board_html(picks, round_range=None):
                 h.append('<td class="empty">—</td>')
                 continue
             pos = cell["position"]
-            pos_color = POS_COLORS.get(pos, "#888")
+            pos_color = POS_COLORS.get(pos, PALETTE["gray"])
             kept = ' k' if cell["is_keeper"] else ""
             mid = team_idx_to_mid(cell["team_idx"])
-            team_color = bpr.mgr_color(mid) if mid else "#888"
+            team_color = mgr_color(mid)
             team_name = team_idx_to_name(cell["team_idx"])
             short = cell["player_name"]
             if " " in short:
@@ -236,7 +218,7 @@ def render_team_card(ti, team_picks):
     """Per-team roster summary — compact 2-column inner layout."""
     mid = team_idx_to_mid(ti)
     nm = team_idx_to_name(ti)
-    color = bpr.mgr_color(mid) if mid else "#666"
+    color = mgr_color(mid)
     avatar = ROOT / "data/charts/avatars" / f"{mid}.jpg"
     av_html = (f'<img class="t-avatar" src="{_data_uri(avatar)}"/>'
                if avatar.exists() else '<div class="t-avatar"></div>')
@@ -268,7 +250,7 @@ def render_team_card(ti, team_picks):
     def cell_html(p):
         star = "*" if id(p) in starter_set else ""
         keep_tag = ' <span class="k-tag">K</span>' if p["is_keeper"] else ""
-        row_color = POS_COLORS.get(p["position"], "#888")
+        row_color = POS_COLORS.get(p["position"], PALETTE["gray"])
         # Abbreviate first name
         nm = p["player_name"]
         if " " in nm:
@@ -324,137 +306,149 @@ def build_html(picks):
 
     steals, reaches = find_steals_reaches(picks, top_n=10)
 
-    css = """
+    # Page-specific rules only — palette/base components come from
+    # report_base_css() (design/ml.css) + design.tokens.PALETTE.
+    from string import Template
+    css = Template("""
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap');
-    body { font-family: 'Inter', sans-serif; max-width: 920px; margin: 18px auto;
-           padding: 0 22px; color: #1a1d24; line-height: 1.45; font-size: 10pt; }
-    .hero { background: linear-gradient(135deg, #0a3d62 0%, #1f7a8c 100%);
+    body { max-width: 920px; margin: 18px auto;
+           padding: 0 22px; line-height: 1.45; font-size: 10pt; }
+    .hero { background: linear-gradient(135deg, $navy 0%, $teal 100%);
             color: white; padding: 22px 26px; border-radius: 14px;
             margin-bottom: 18px; }
-    .hero h1 { font-family: 'Bebas Neue', sans-serif; font-size: 38pt;
+    .hero h1 { font-size: 38pt;
                letter-spacing: 1px; margin: 0; line-height: 1; color: white; }
     .hero .subtitle { color: rgba(255,255,255,0.85); margin: 8px 0 0;
                       font-weight: 500; font-size: 11pt; }
-    h2 { font-family: 'Bebas Neue', sans-serif; font-size: 22pt;
-         letter-spacing: 1px; color: #0a3d62; margin: 16px 0 4px;
-         padding-bottom: 3px; border-bottom: 3px solid #d4a017;
+    h2 { font-size: 22pt;
+         letter-spacing: 1px; color: $navy; margin: 16px 0 4px;
+         padding-bottom: 3px; border-bottom: 3px solid $gold;
          break-after: avoid-page; }
-    .note { color: #6b7280; font-size: 9pt; margin: 2px 0 8px;
-            break-after: avoid-page; }
+    p.ml-note { font-size: 9pt; margin: 2px 0 8px;
+                break-after: avoid-page; }
     .chart { width: 100%; max-height: 5.5in; object-fit: contain;
              display: block; margin: 4px 0 8px; }
     .chart-half { max-height: 3.4in; margin: 2px 0 4px; }
-    .page-break { page-break-after: always; height: 0; }
+    .page-break { height: 0; }
     .board { width: 100%; border-collapse: separate; border-spacing: 1px;
              font-size: 7pt; table-layout: fixed;
              page-break-inside: avoid; }
-    .board th { background: #0a3d62; color: white; padding: 2px 2px;
+    .board th { background: $navy; color: white; padding: 2px 2px;
                 font-weight: 700; font-size: 7.5pt; }
-    .pick-col { font-family: 'Bebas Neue', sans-serif; }
+    .pick-col { font-family: var(--ml-font-display); }
     .rd-col { width: 22px; }
-    .rd-num { background: #0a3d62; color: white; font-weight: 700;
-              text-align: center; font-family: 'Bebas Neue', sans-serif;
+    .rd-num { background: $navy; color: white; font-weight: 700;
+              text-align: center; font-family: var(--ml-font-display);
               font-size: 11pt; }
     .cell { padding: 2px 4px; border-radius: 3px;
             font-size: 7pt; line-height: 1.1; }
-    .cell.k { background: #fef3c7 !important;
-              border-left: 3px solid #d4a017 !important; }
+    .cell.k { background: var(--ml-banner-warn-bg) !important;
+              border-left: 3px solid $gold !important; }
     .tname { display: block; font-size: 5.5pt; font-weight: 700;
              letter-spacing: 0.3px; text-transform: uppercase;
              line-height: 1; }
-    .pname { display: block; font-weight: 700; color: #1a1d24;
+    .pname { display: block; font-weight: 700; color: var(--ml-text);
              margin-top: 1px; font-size: 7.5pt; line-height: 1.05; }
     .pos { font-size: 5.5pt; font-weight: 700; opacity: 0.7;
            line-height: 1; }
-    .empty { color: #d1d5db; text-align: center; font-size: 7pt;
-             background: #f9fafb; }
+    .empty { color: var(--ml-border); text-align: center; font-size: 7pt;
+             background: var(--ml-panel2); }
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
                margin-top: 8px; }
-    .mc-summary { font-size: 9pt; color: #3d405b; margin: 0 0 6px;
-                  padding: 4px 8px; background: #f9fafb; border-radius: 6px;
-                  border-left: 4px solid #0a3d62; }
+    .mc-summary { font-size: 9pt; color: $slate; margin: 0 0 6px;
+                  padding: 4px 8px; background: var(--ml-panel2);
+                  border-radius: 6px;
+                  border-left: 4px solid $navy; }
     .mc-table { width: 100%; font-size: 9pt; }
-    .mc-table th { background: #0a3d62; color: white; padding: 5px 8px;
+    .mc-table th { background: $navy; color: white; padding: 5px 8px;
                    text-align: left; }
-    .mc-table td { padding: 4px 8px; border-bottom: 1px solid #f0f0f0; }
-    .mc-table .rd { background: #f9fafb; font-weight: 700; width: 36px;
-                    color: #0a3d62; }
-    .pct { color: #6b7280; font-weight: 600; font-size: 8.5pt; }
+    .mc-table td { padding: 4px 8px; border-bottom: 1px solid var(--ml-row); }
+    .mc-table .rd { background: var(--ml-panel2); font-weight: 700; width: 36px;
+                    color: $navy; }
+    .pct { color: var(--ml-muted); font-weight: 600; font-size: 8.5pt; }
     .mc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
                margin-top: 6px; }
-    .mc-card { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;
+    .mc-card { border: 1px solid var(--ml-border); border-radius: 6px;
+               overflow: hidden;
                page-break-inside: avoid; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-    .mc-head { background: #f9fafb; padding: 4px 8px; display: flex;
+    .mc-head { background: var(--ml-panel2); padding: 4px 8px; display: flex;
                align-items: center; gap: 6px; }
     .mc-avatar { width: 22px; height: 22px; border-radius: 50%;
                  object-fit: cover; flex-shrink: 0; }
-    .mc-name { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.4px;
+    .mc-name { font-family: var(--ml-font-display); letter-spacing: 0.4px;
                font-size: 11pt; flex: 1; }
-    .mc-tot { font-family: 'Bebas Neue', sans-serif; font-size: 11pt;
-              color: #0a3d62; line-height: 1; text-align: right; }
+    .mc-tot { font-family: var(--ml-font-display); font-size: 11pt;
+              color: $navy; line-height: 1; text-align: right; }
     .mc-tot .lbl { display: block; font-size: 6pt; letter-spacing: 0.3px;
-                   color: #6b7280; font-family: 'Inter', sans-serif;
+                   color: var(--ml-muted); font-family: var(--ml-font-body);
                    text-transform: uppercase; font-weight: 600; }
     .mc-mini { width: 100%; font-size: 7pt; }
-    .mc-mini td { padding: 1px 4px; border-bottom: 1px solid #f9fafb;
+    .mc-mini td { padding: 1px 4px; border-bottom: 1px solid var(--ml-panel2);
                   line-height: 1.3; }
-    .mc-mini .r { color: #6b7280; font-weight: 700; width: 22px;
-                  font-family: 'Bebas Neue', sans-serif; font-size: 8.5pt; }
-    .mc-mini .pct { text-align: right; color: #16a34a; font-weight: 700;
+    .mc-mini .r { color: var(--ml-muted); font-weight: 700; width: 22px;
+                  font-family: var(--ml-font-display); font-size: 8.5pt; }
+    .mc-mini .pct { text-align: right; color: var(--ml-success);
+                    font-weight: 700;
                     width: 28px; }
     .steals-reaches { display: grid; grid-template-columns: 1fr 1fr;
                       gap: 16px; }
     .sr-table { width: 100%; font-size: 9pt; border-collapse: collapse; }
-    .sr-table th { background: #e5e7eb; padding: 4px 6px; text-align: left;
+    .sr-table th { background: var(--ml-border); padding: 4px 6px;
+                   text-align: left;
                    font-size: 8pt; }
-    .sr-table td { padding: 3px 6px; border-bottom: 1px solid #f0f0f0; }
-    .sr-table .delta-pos { color: #16a34a; font-weight: 700; }
-    .sr-table .delta-neg { color: #dc2626; font-weight: 700; }
+    .sr-table td { padding: 3px 6px; border-bottom: 1px solid var(--ml-row); }
+    .sr-table .delta-pos { color: var(--ml-success); font-weight: 700; }
+    .sr-table .delta-neg { color: var(--ml-danger); font-weight: 700; }
     .team-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
                  margin: 8px 0; }
-    .t-card { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;
+    .t-card { border: 1px solid var(--ml-border); border-radius: 8px;
+              overflow: hidden;
               page-break-inside: avoid; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .t-head { display: flex; align-items: center; gap: 6px; padding: 5px 8px;
-              background: #f9fafb; }
+              background: var(--ml-panel2); }
     .t-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover;
-                background: #d1d5db; flex-shrink: 0; }
-    .t-name { font-family: 'Bebas Neue', sans-serif; font-size: 12pt;
+                background: var(--ml-row); flex-shrink: 0; }
+    .t-name { font-family: var(--ml-font-display); font-size: 12pt;
               letter-spacing: 0.4px; flex: 1; }
     .t-totals { display: flex; gap: 6px; }
-    .t-tot { font-family: 'Bebas Neue', sans-serif; font-size: 13pt;
-             color: #0a3d62; text-align: right; line-height: 1; }
+    .t-tot { font-family: var(--ml-font-display); font-size: 13pt;
+             color: $navy; text-align: right; line-height: 1; }
     .t-tot .lbl { display: block; font-size: 6pt; letter-spacing: 0.3px;
-                  color: #6b7280; font-family: 'Inter', sans-serif;
+                  color: var(--ml-muted); font-family: var(--ml-font-body);
                   text-transform: uppercase; font-weight: 600;
                   margin-top: 1px; }
     .t-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-    .t-cols .t-table { border-left: 1px solid #f0f0f0; }
+    .t-cols .t-table { border-left: 1px solid var(--ml-row); }
     .t-cols .t-table:first-child { border-left: none; }
     .t-table { width: 100%; font-size: 7.5pt; }
-    .t-table td { padding: 0px 5px; border-bottom: 1px solid #f9fafb;
+    .t-table td { padding: 0px 5px; border-bottom: 1px solid var(--ml-panel2);
                   line-height: 1.25; }
-    .t-table .proj { text-align: right; font-weight: 700; color: #1a1d24;
+    .t-table .proj { text-align: right; font-weight: 700; color: var(--ml-text);
                      width: 32px; }
-    .t-table .rd { text-align: right; color: #9ca3af; font-size: 6.5pt;
+    .t-table .rd { text-align: right; color: var(--ml-muted); font-size: 6.5pt;
                    width: 24px; }
-    .k-tag { background: #fef3c7; color: #92400e; font-size: 7pt;
+    .k-tag { background: var(--ml-banner-warn-bg); color: var(--ml-warn);
+             border: 1px solid var(--ml-banner-warn-border);
+             font-size: 7pt;
              padding: 0 4px; border-radius: 3px; margin-left: 4px;
              font-weight: 700; }
     .legend { display: flex; gap: 10px; margin: 6px 0 12px; font-size: 8.5pt; }
     .legend-item { display: flex; align-items: center; gap: 4px; }
     .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
     @page { size: letter landscape; margin: 0.35in; }
-    """
+    """).substitute(
+        navy=PALETTE["navy"], teal=PALETTE["teal"], gold=PALETTE["gold"],
+        slate=PALETTE["slate"])
 
-    h = ['<!DOCTYPE html><html><head><meta charset="utf-8">',
-         f'<style>{css}</style></head><body>']
+    h = ['<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8">',
+         f'<style>{report_base_css()}{css}</style></head><body>']
 
     h.append('<div class="hero"><h1>2026 MOCK DRAFT</h1>'
              f'<p class="subtitle">{today} · MONEYLEAGUE · projected final boards</p></div>')
 
     # ===== Draft board — split into 2 halves =====
     h.append('<h2>The Board · R1–R9</h2>')
-    h.append('<p class="note">Yellow cells = keepers. Color stripe = position. '
+    h.append('<p class="ml-note">Yellow cells = keepers. Color stripe = position. '
              'Projected by recursive auto-pick (best VBD × positional need × roster fit).</p>')
     h.append('<div class="legend">')
     for pos, color in POS_COLORS.items():
@@ -465,17 +459,17 @@ def build_html(picks):
     h.append('<div class="page-break"></div>')
 
     h.append('<h2>The Board · R10–R17</h2>')
-    h.append('<p class="note">Late-round depth, handcuffs, K/DEF.</p>')
+    h.append('<p class="ml-note">Late-round depth, handcuffs, K/DEF.</p>')
     h.append(render_draft_board_html(picks, round_range=(10, 17)))
     h.append('<div class="page-break"></div>')
 
     # ===== Steals/Reaches first (compact, one page) =====
     h.append('<h2>Steals &amp; Reaches</h2>')
-    h.append('<p class="note">ADP δ = pick − ADP. '
-             '<strong style="color:#16a34a">Positive</strong> = fell (steal). '
-             '<strong style="color:#dc2626">Negative</strong> = reach.</p>')
+    h.append('<p class="ml-note">ADP δ = pick − ADP. '
+             '<strong style="color:var(--ml-success)">Positive</strong> = fell (steal). '
+             '<strong style="color:var(--ml-danger)">Negative</strong> = reach.</p>')
     h.append('<div class="two-col">')
-    h.append('<div><h3 style="font-family:Bebas Neue;color:#16a34a;font-size:13pt;margin:0 0 4px;letter-spacing:0.5px">TOP STEALS</h3>'
+    h.append('<div><h3 style="color:var(--ml-success);font-size:13pt;margin:0 0 4px;letter-spacing:0.5px">TOP STEALS</h3>'
              '<table class="sr-table"><tr><th>Player</th><th>Pos</th><th>Team</th><th>Pick</th><th>ADP</th><th>Δ</th></tr>')
     for p, delta in steals:
         h.append(f'<tr><td><strong>{p["player_name"]}</strong></td>'
@@ -485,7 +479,7 @@ def build_html(picks):
                  f'<td>{p["adp"]:.0f}</td>'
                  f'<td class="delta-pos">+{delta:.0f}</td></tr>')
     h.append('</table></div>')
-    h.append('<div><h3 style="font-family:Bebas Neue;color:#dc2626;font-size:13pt;margin:0 0 4px;letter-spacing:0.5px">TOP REACHES</h3>'
+    h.append('<div><h3 style="color:var(--ml-danger);font-size:13pt;margin:0 0 4px;letter-spacing:0.5px">TOP REACHES</h3>'
              '<table class="sr-table"><tr><th>Player</th><th>Pos</th><th>Team</th><th>Pick</th><th>ADP</th><th>Δ</th></tr>')
     for p, delta in reaches:
         h.append(f'<tr><td><strong>{p["player_name"]}</strong></td>'
@@ -503,7 +497,7 @@ def build_html(picks):
         mc_all = json.loads(mc_all_path.read_text())
         n_sims = mc_all.get("n_sims", 50)
         h.append('<h2>Monte Carlo — Pick Distributions (All Teams)</h2>')
-        h.append(f'<p class="note">{n_sims} sims with softmax sampling (temp=0.35) + '
+        h.append(f'<p class="ml-note">{n_sims} sims with softmax sampling (temp=0.35) + '
                  'keeper-biased VBD scoring. For each manager, the most-likely pick per round '
                  'with confidence %. <strong>High %</strong> = consensus call. '
                  '<strong>Low % spread across many names</strong> = high variance / many viable options.</p>')
@@ -516,7 +510,7 @@ def build_html(picks):
             data = per_team.get(str(ti), {})
             mid = team_idx_to_mid(ti)
             nm = team_idx_to_name(ti)
-            color = bpr.mgr_color(mid) if mid else "#666"
+            color = mgr_color(mid)
             avatar = ROOT / "data/charts/avatars" / f"{mid}.jpg"
             av_html = (f'<img class="mc-avatar" src="{_data_uri(avatar)}"/>'
                        if avatar.exists() else '')
@@ -577,7 +571,7 @@ def build_html(picks):
 
     # ===== Position runs + Roster strength on one page =====
     h.append('<h2>Position Runs &amp; Roster Strength</h2>')
-    h.append('<p class="note"><strong>Top:</strong> when each position flew off the board. '
+    h.append('<p class="ml-note"><strong>Top:</strong> when each position flew off the board. '
              '<strong>Bottom:</strong> projected total roster pts (full 17-player roster).</p>')
     h.append(f'<img class="chart chart-half" src="{_data_uri(chart_paths["pos_runs"])}"/>')
     h.append(f'<img class="chart chart-half" src="{_data_uri(chart_paths["team_proj"])}"/>')

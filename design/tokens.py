@@ -88,6 +88,10 @@ BANNER = {
     "warn_bg": "#fff7ed",
     "warn_border": "#fed7aa"
 }
+CHART = {
+    "grid": "#e5e7eb",
+    "grid_strong": "#d1d5db"
+}
 BRAND = {
     "header_a": "#14b8a6",
     "header_b": "#0891b2"
@@ -142,6 +146,17 @@ def mpl_style() -> None:
     plt.rcParams.update({
         "font.family": ["Inter", "DejaVu Sans"],
         "font.size": 10,
+        "axes.facecolor": SURFACE_LIGHT["bg"],
+        "figure.facecolor": SURFACE_LIGHT["bg"],
+        "axes.edgecolor": PALETTE["gray"],
+        "axes.labelcolor": PALETTE["ink"],
+        "axes.titleweight": "bold",
+        "axes.titlesize": 13,
+        "axes.titlecolor": PALETTE["ink"],
         "axes.spines.top": False,
         "axes.spines.right": False,
+        "xtick.color": PALETTE["gray"],
+        "ytick.color": PALETTE["gray"],
+        "grid.color": CHART["grid"],
+        "grid.alpha": 0.7,
     })

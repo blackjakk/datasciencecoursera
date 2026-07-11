@@ -20,7 +20,6 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -28,6 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fantasy_draft.results import load_all_seasons  # noqa: E402
 from fantasy_draft.team_identity import (  # noqa: E402
     all_managers, manager_for_sleeper_roster,
+)
+from design.tokens import (  # noqa: E402
+    PALETTE, mgr_color, mpl_style, report_base_css,
 )
 from scripts import build_power_rankings as bpr  # noqa: E402
 
@@ -106,20 +108,6 @@ def _data_uri(path):
 def _avatar_path(mid):
     p = ROOT / "data" / "charts" / "avatars" / f"{mid}.jpg"
     return p if p.exists() else None
-
-
-def _setup_mpl():
-    for f in (ROOT / "data" / "fonts").glob("*.ttf"):
-        try:
-            fm.fontManager.addfont(str(f))
-        except Exception:
-            pass
-    plt.rcParams.update({
-        "font.family": ["Inter", "DejaVu Sans"],
-        "font.size": 10,
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-    })
 
 
 def _xlsx_keeper_years_2025():
@@ -458,7 +446,7 @@ def compute_preseason_ranks():
 def chart_preseason_power(rows, path):
     """Stacked bar: pick contribution / keeper contribution / skill contribution
     to each manager's preseason power score."""
-    _setup_mpl()
+    mpl_style()
     s = sorted(rows, key=lambda r: r["power_score"])
     names = [r["name"] for r in s]
     # Contributions: cap_norm × 0.35, keeper_norm × 0.30, (trd+drf)/2 × 0.30
@@ -470,9 +458,9 @@ def chart_preseason_power(rows, path):
 
     fig, ax = plt.subplots(figsize=(9, 0.45 * len(s) + 1), dpi=140)
     y = np.arange(len(s))
-    PICK_COLOR = "#0a3d62"
-    KEEP_COLOR = "#1f7a8c"
-    SKILL_COLOR = "#d4a017"
+    PICK_COLOR = PALETTE["navy"]
+    KEEP_COLOR = PALETTE["teal"]
+    SKILL_COLOR = PALETTE["gold"]
     ax.barh(y, picks_contrib, color=PICK_COLOR, edgecolor="white", linewidth=1.2,
             label="Picks + depth")
     ax.barh(y, keep_contrib, left=picks_contrib, color=KEEP_COLOR,
@@ -482,7 +470,7 @@ def chart_preseason_power(rows, path):
             edgecolor="white", linewidth=1.2, label="Skill")
     for i, total in enumerate(totals):
         ax.text(total + 1, i, f"{total:.1f}", va="center", fontsize=10,
-                fontweight="bold", color="#1a1d24")
+                fontweight="bold", color=PALETTE["ink"])
     ax.set_yticks(y)
     ax.set_yticklabels(names, fontweight="bold")
     ax.set_xlim(0, max(totals) * 1.18)
@@ -499,7 +487,7 @@ def chart_preseason_power(rows, path):
 
 
 def chart_pick_capital(rows, path):
-    _setup_mpl()
+    mpl_style()
     s = sorted(rows, key=lambda r: -(r["r1_2026"] * 3 + r["r2_2026"] * 2 + r["r3_2026"]))
     names = [r["name"] for r in s][::-1]
     r1 = [r["r1_2026"] for r in s][::-1]
@@ -507,16 +495,16 @@ def chart_pick_capital(rows, path):
     r3 = [r["r3_2026"] for r in s][::-1]
     y = np.arange(len(s))
     fig, ax = plt.subplots(figsize=(9, 0.42 * len(s) + 1), dpi=140)
-    ax.barh(y, r1, color="#0a3d62", edgecolor="white", linewidth=1.2, label="R1")
-    ax.barh(y, r2, left=r1, color="#1f7a8c", edgecolor="white", linewidth=1.2, label="R2")
-    ax.barh(y, r3, left=[a + b for a, b in zip(r1, r2)], color="#d4a017",
+    ax.barh(y, r1, color=PALETTE["navy"], edgecolor="white", linewidth=1.2, label="R1")
+    ax.barh(y, r2, left=r1, color=PALETTE["teal"], edgecolor="white", linewidth=1.2, label="R2")
+    ax.barh(y, r3, left=[a + b for a, b in zip(r1, r2)], color=PALETTE["gold"],
             edgecolor="white", linewidth=1.2, label="R3")
     ax.set_yticks(y)
     ax.set_yticklabels(names, fontweight="bold")
     for i, r in enumerate(s[::-1]):
         total = r["r1_2026"] + r["r2_2026"] + r["r3_2026"]
         ax.text(total + 0.1, i, f"R1×{r['r1_2026']} R2×{r['r2_2026']} R3×{r['r3_2026']}",
-                va="center", fontsize=8.5, color="#3d405b")
+                va="center", fontsize=8.5, color=PALETTE["slate"])
     ax.set_xlabel("R1-R3 picks owned", fontweight="bold")
     ax.set_title("2026 Early-Round Draft Capital", loc="left", pad=14, fontsize=13)
     ax.legend(loc="lower right", frameon=False, fontsize=9)
@@ -574,7 +562,7 @@ def _format_keepers(scored_players, keepers_detail=None):
 
 
 def render_rank_card(r):
-    color = bpr.mgr_color(r["mid"])
+    color = mgr_color(r["mid"])
     label, body = GUAP_TAKES.get(r["mid"], ("", ""))
     av = _avatar_path(r["mid"])
     av_html = (f'<img class="avatar" src="{_data_uri(av)}"/>' if av else
@@ -592,7 +580,7 @@ def render_rank_card(r):
       </div>
       <div class="rank-body">
         <div class="stat-strip">
-          <div><span class="lbl">2025</span><div class="val">{r['wl_2025'][0]}-{r['wl_2025'][1]} <span style="color:#6b7280;font-weight:500">#{r['rank_2025']}</span></div></div>
+          <div><span class="lbl">2025</span><div class="val">{r['wl_2025'][0]}-{r['wl_2025'][1]} <span class="ml-note">#{r['rank_2025']}</span></div></div>
           <div><span class="lbl">2026 R1/R2/R3</span><div class="val">{r['r1_2026']} / {r['r2_2026']} / {r['r3_2026']}</div></div>
           <div><span class="lbl">Keep Value</span><div class="val">{r['keeper_value']:.0f}</div></div>
           <div><span class="lbl">Skill (trade · draft)</span><div class="val">{r['trade_per']:+.0f} · {r['draft_spp']:+.1f}</div></div>
@@ -607,30 +595,32 @@ def render_rank_card(r):
 
 def build_html(rows, paths):
     today = date.today().strftime("%B %Y")
-    css = """
-    body { font-family: 'Inter', -apple-system, system-ui, sans-serif;
-           max-width: 780px; margin: 18px auto; padding: 0 22px;
-           color: #1a1d24; line-height: 1.5; font-size: 10.5pt; }
-    .hero { background: linear-gradient(135deg, #0a3d62 0%, #1f7a8c 100%);
+    # Page-specific rules only — palette/base components come from
+    # report_base_css() (design/ml.css) + design.tokens.PALETTE.
+    from string import Template
+    css = Template("""
+    body { max-width: 780px; margin: 18px auto; padding: 0 22px;
+           line-height: 1.5; font-size: 10.5pt; }
+    .hero { background: linear-gradient(135deg, $navy 0%, $teal 100%);
             color: white; padding: 22px 26px; border-radius: 14px;
             margin-bottom: 18px; }
-    .hero h1 { font-family: 'Bebas Neue', sans-serif; font-size: 38pt;
+    .hero h1 { font-size: 38pt;
                letter-spacing: 1px; margin: 0; line-height: 1; color: white; }
     .hero .subtitle { color: rgba(255,255,255,0.85); margin: 8px 0 0;
                       font-weight: 500; font-size: 11pt; }
-    h2 { font-family: 'Bebas Neue', sans-serif; font-size: 22pt;
-         letter-spacing: 1px; color: #0a3d62; margin: 16px 0 4px;
-         padding-bottom: 3px; border-bottom: 3px solid #d4a017;
+    h2 { font-size: 22pt;
+         letter-spacing: 1px; color: $navy; margin: 16px 0 4px;
+         padding-bottom: 3px; border-bottom: 3px solid $gold;
          break-after: avoid-page; }
-    .note { color: #6b7280; font-size: 9.5pt; margin: 2px 0 8px; }
+    p.ml-note { font-size: 9.5pt; margin: 2px 0 8px; }
     .chart { width: 100%; max-height: 5.5in; object-fit: contain;
              display: block; margin: 4px 0 8px; }
-    .rank-card { border: 1px solid #e5e7eb; border-radius: 12px;
+    .rank-card { border: 1px solid var(--ml-border); border-radius: 12px;
                  overflow: hidden; margin: 6px 0; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
                  page-break-inside: avoid; }
     .rank-head { color: white; padding: 10px 14px; display: flex;
                  align-items: center; gap: 12px; }
-    .rank-num { font-family: 'Bebas Neue', sans-serif; font-size: 28pt;
+    .rank-num { font-family: var(--ml-font-display); font-size: 28pt;
                 font-weight: bold; min-width: 56px; line-height: 1;
                 text-shadow: 0 2px 4px rgba(0,0,0,0.25); }
     .avatar { width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
@@ -640,53 +630,57 @@ def build_html(rows, paths):
     .rank-label { font-size: 9pt; opacity: 0.92; margin-top: 3px;
                   font-weight: 500; letter-spacing: 0.3px; }
     .power-score { text-align: center; min-width: 60px; }
-    .ps-num { font-family: 'Bebas Neue', sans-serif; font-size: 22pt;
+    .ps-num { font-family: var(--ml-font-display); font-size: 22pt;
               font-weight: bold; line-height: 1; }
     .ps-lbl { font-size: 7.5pt; opacity: 0.85; letter-spacing: 0.5px;
               text-transform: uppercase; }
     .rank-body { padding: 8px 14px 10px; }
     .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr);
-                  gap: 0; font-size: 9pt; color: #3d405b;
-                  background: #f9fafb; border-radius: 6px;
+                  gap: 0; font-size: 9pt; color: $slate;
+                  background: var(--ml-panel2); border-radius: 6px;
                   padding: 6px 10px; margin-bottom: 6px; }
-    .stat-strip > div { padding: 0 4px; border-right: 1px solid #e5e7eb;
+    .stat-strip > div { padding: 0 4px; border-right: 1px solid var(--ml-border);
                         line-height: 1.25; }
     .stat-strip > div:last-child { border-right: none; }
-    .stat-strip .lbl { font-size: 7.5pt; color: #6b7280;
+    .stat-strip .lbl { font-size: 7.5pt; color: var(--ml-muted);
                        text-transform: uppercase; letter-spacing: 0.4px;
                        font-weight: 600; }
-    .stat-strip .val { font-weight: 700; color: #1a1d24; font-size: 10pt; }
+    .stat-strip .val { font-weight: 700; color: var(--ml-text); font-size: 10pt; }
+    .stat-strip .val .ml-note { font-weight: 500; font-size: 10pt; }
     .keeper-label { display: block; font-size: 7.5pt; font-weight: 700;
-                    color: #6b7280; letter-spacing: 0.6px;
+                    color: var(--ml-muted); letter-spacing: 0.6px;
                     text-transform: uppercase; margin: 4px 0 4px; }
     .keepers-grid { display: grid; grid-template-columns: repeat(2, 1fr);
                     gap: 6px; }
-    .rank-take { font-size: 9.5pt; color: #1a1d24; margin-top: 6px;
+    .rank-take { font-size: 9.5pt; color: var(--ml-text); margin-top: 6px;
                  line-height: 1.55; }
     .keeper-chip { display: flex; align-items: center; gap: 5px;
-                   background: #f9fafb; border-radius: 6px; padding: 4px 6px;
-                   font-size: 8pt; border: 1px solid #e5e7eb; overflow: hidden; }
+                   background: var(--ml-panel2); border-radius: 6px; padding: 4px 6px;
+                   font-size: 8pt; border: 1px solid var(--ml-border); overflow: hidden; }
     .keeper-portrait { width: 22px; height: 22px; border-radius: 50%;
-                       object-fit: cover; background: #d1d5db;
-                       border: 1px solid #cbd5e1; flex-shrink: 0; }
-    .kc-name { font-weight: 700; color: #1a1d24; font-size: 9pt;
+                       object-fit: cover; background: var(--ml-row);
+                       border: 1px solid var(--ml-border); flex-shrink: 0; }
+    .kc-name { font-weight: 700; color: var(--ml-text); font-size: 9pt;
                line-height: 1.15; flex: 1; min-width: 0;
                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .kc-pts { color: #0a3d62; font-weight: 700;
-              font-size: 7.5pt; background: #fef3c7; padding: 1px 5px;
+    .kc-pts { color: $navy; font-weight: 700;
+              font-size: 7.5pt; background: var(--ml-banner-warn-bg);
+              padding: 1px 5px;
               border-radius: 6px; flex-shrink: 0; }
-    .kc-cost { color: white; background: #0a3d62; font-weight: 700;
+    .kc-cost { color: white; background: $navy; font-weight: 700;
                font-size: 7pt; padding: 1px 5px; border-radius: 6px;
                flex-shrink: 0; letter-spacing: 0.3px; }
     @page { size: letter; margin: 0.45in; }
-    """
-    h = ['<!DOCTYPE html><html><head><meta charset="utf-8">',
-         f'<style>{css}</style></head><body>']
+    """).substitute(
+        navy=PALETTE["navy"], teal=PALETTE["teal"], gold=PALETTE["gold"],
+        slate=PALETTE["slate"])
+    h = ['<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8">',
+         f'<style>{report_base_css()}{css}</style></head><body>']
     h.append('<div class="hero"><h1>2026 PRESEASON GUAP RANKINGS</h1>'
              f'<p class="subtitle">{today} · MONEYLEAGUE</p></div>')
 
     h.append('<h2>Preseason Power Score</h2>')
-    h.append('<p class="note">Composite: <strong>70% ASSETS</strong> '
+    h.append('<p class="ml-note">Composite: <strong>70% ASSETS</strong> '
              '(40% 2026 pick capital — projected pts/round from '
              'data/pick_value.json · 30% top-4 keeper projected pts '
              '× multi-year multiplier) + <strong>30% SKILL</strong> '
@@ -698,7 +692,7 @@ def build_html(rows, paths):
     h.append(f'<img class="chart" src="{_data_uri(paths["power"])}"/>')
 
     h.append('<h2>2026 Pick Capital</h2>')
-    h.append('<p class="note">Who hoarded picks, who sold them. R1+R2+R3 only — '
+    h.append('<p class="ml-note">Who hoarded picks, who sold them. R1+R2+R3 only — '
              'where the meaningful rookie draft action happens.</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["capital"])}"/>')
 

@@ -21,6 +21,7 @@ SEM = T["color"]["semantic"]
 DARK = T["color"]["surface"]["dark"]
 LIGHT = T["color"]["surface"]["light"]
 BAN = T["color"]["banner"]
+CHART = T["color"]["chart"]
 BRAND = T["color"]["brand"]
 TYPE = T["typography"]
 RAD = T["radius"]
@@ -37,6 +38,10 @@ def build_css() -> str:
         for k in POS)
     pos_text = "\n".join(
         f'.ml-pos-{k.lower()} {{ color: var(--ml-pos-{k.lower()}); }}' for k in POS)
+    pos_filters = "\n".join(
+        f'.ml-filter--{k.lower()}.active {{ background: var(--ml-pos-{k.lower()});'
+        f' border-color: var(--ml-pos-{k.lower()}); color: #fff; }}'
+        for k in POS)
 
     return f"""/* ============================================================
    MONEYLEAGUE design system — GENERATED from design/tokens.json.
@@ -103,6 +108,7 @@ def build_css() -> str:
   cursor: pointer; font-size: 12px; font-weight: 700; }}
 .ml-filter.active {{ background: var(--ml-success); color: #000;
   border-color: var(--ml-success); }}
+{pos_filters}
 
 /* ---------- status / clock ---------- */
 @keyframes ml-pulse {{ 0%,100% {{ box-shadow: 0 0 0 0 rgba(74,222,128,.6); }}
@@ -162,6 +168,7 @@ SURFACE_LIGHT = {json.dumps(LIGHT, indent=4)}
 SURFACE_DARK = {json.dumps(DARK, indent=4)}
 
 BANNER = {json.dumps(BAN, indent=4)}
+CHART = {json.dumps(CHART, indent=4)}
 BRAND = {json.dumps(BRAND, indent=4)}
 
 FONT_DISPLAY = {json.dumps(TYPE["display"])}
@@ -213,8 +220,19 @@ def mpl_style() -> None:
     plt.rcParams.update({{
         "font.family": ["Inter", "DejaVu Sans"],
         "font.size": 10,
+        "axes.facecolor": SURFACE_LIGHT["bg"],
+        "figure.facecolor": SURFACE_LIGHT["bg"],
+        "axes.edgecolor": PALETTE["gray"],
+        "axes.labelcolor": PALETTE["ink"],
+        "axes.titleweight": "bold",
+        "axes.titlesize": 13,
+        "axes.titlecolor": PALETTE["ink"],
         "axes.spines.top": False,
         "axes.spines.right": False,
+        "xtick.color": PALETTE["gray"],
+        "ytick.color": PALETTE["gray"],
+        "grid.color": CHART["grid"],
+        "grid.alpha": 0.7,
     }})
 '''
 

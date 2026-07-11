@@ -17,15 +17,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from design.tokens import PALETTE, POS_COLORS, report_base_css  # noqa: E402
 from scripts import build_power_rankings as bpr  # noqa: E402  (CHROMIUM_EXEC)
 
 ROOT = Path(__file__).resolve().parent.parent
 HELPER_DATA = ROOT / "docs" / "draft_helper" / "data.json"
 MC = ROOT / "data" / "mc_summary_all.json"
 PDF_OUT = ROOT / "data" / "MONEYLEAGUE_2026_ROUND_MENU.pdf"
-
-POS_COLORS = {"QB": "#dc2626", "RB": "#0891b2", "WR": "#16a34a",
-              "TE": "#f59e0b", "K": "#9a3412", "DEF": "#525252"}
 
 
 def survival_at(svq: list[int] | None, overall: int) -> float:
@@ -116,58 +114,56 @@ def main():
         cards.append((pk, menu, long_shot, sim_call, keep))
 
     # ---------- HTML ----------
-    h = ["""<html><head><meta charset="utf-8"><style>
-    @font-face { font-family:'Bebas Neue'; src: url('data/fonts/BebasNeue-Regular.ttf'); }
+    # Page-specific rules only; palette + components (ml-card, ml-table,
+    # ml-banner, ml-sv-*, ml-urgent) come from report_base_css()/ml.css.
+    h = ['<html data-theme="light"><head><meta charset="utf-8"><style>'
+         + report_base_css() + """
     * { box-sizing: border-box; margin: 0; }
-    body { font: 8pt/1.2 'Inter','Segoe UI',sans-serif; color: #1a1d24; padding: 14px 18px; }
-    h1 { font-family:'Bebas Neue'; font-size: 21pt; letter-spacing: 1px; }
-    .sub { color: #667; font-size: 8pt; margin: 2px 0 8px; }
+    body { font-size: 8pt; line-height: 1.2; padding: 14px 18px; }
+    h1 { font-size: 21pt; letter-spacing: 1px; }
+    .sub { color: var(--ml-muted); font-size: 8pt; margin: 2px 0 8px; }
     .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-    .card { border: 1px solid #d8dce2; border-radius: 6px; padding: 3px 6px; break-inside: avoid; }
-    .card h2 { font-family:'Bebas Neue'; font-size: 11.5pt; letter-spacing: .5px; display: flex; justify-content: space-between; align-items: baseline; }
-    .card h2 .keep { font-family: Inter; font-size: 6.5pt; color: #667; font-weight: 400; }
-    .sim { font-size: 7pt; color: #0369a1; margin: 1px 0 3px; }
-    table { width: 100%; border-collapse: collapse; font-size: 7.6pt; }
-    td { padding: 1px 2px; border-bottom: 1px solid #f0f2f5; }
+    .ml-card { padding: 3px 6px; }
+    .ml-card h2 { font-size: 11.5pt; display: flex; justify-content: space-between; align-items: baseline; }
+    .ml-card h2 .keep { font-family: var(--ml-font-body); font-size: 6.5pt; color: var(--ml-muted); font-weight: 400; }
+    .sim { font-size: 7pt; color: var(--ml-info); margin: 1px 0 3px; }
     .pos { font-weight: 700; width: 22px; }
-    .vbd { text-align: right; color: #444; width: 28px; }
+    .vbd { text-align: right; color: var(--ml-muted); width: 28px; }
     .sv { text-align: right; font-weight: 700; width: 30px; }
-    .hi { color: #16a34a; } .mid { color: #d97706; } .lo { color: #dc2626; }
-    .shot { font-size: 7pt; color: #9a3412; margin-top: 2px; font-style: italic; }
-    .legend { font-size: 7.5pt; color: #556; margin-top: 8px; }
-    .kbanner { background: #f1f5f9; border-radius: 5px; padding: 4px 8px; font-size: 8pt; margin-bottom: 5px; }
-    .deadlines { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 5px; padding: 4px 8px; font-size: 7.6pt; margin-bottom: 7px; }
-    .urgent { color: #dc2626; font-weight: 700; }
+    .shot { font-size: 7pt; color: var(--ml-warn); margin-top: 2px; font-style: italic; }
+    .legend { font-size: 7.5pt; color: var(--ml-muted); margin-top: 8px; }
+    .kbanner { font-size: 8pt; margin-bottom: 5px; }
+    .deadlines { font-size: 7.6pt; margin-bottom: 7px; }
     </style></head><body>"""]
     h.append(f"<h1>BRIAN'S ROUND-BY-ROUND MENU · 2026</h1>")
     h.append(f'<div class="sub">P(available) at YOUR exact pick, from 300 keeper-scenario Monte Carlo sims · '
              f'slot 6 · generated {date.today():%b %d, %Y} · regenerates weekly</div>')
-    h.append('<div class="kbanner"><b>Keepers (locked):</b> Colston Loveland R8 · Luther Burden R9 · '
+    h.append('<div class="ml-banner kbanner"><b>Keepers (locked):</b> Colston Loveland R8 · Luther Burden R9 · '
              'Alec Pierce R14 · Christian Watson R15 &nbsp;|&nbsp; '
              '<b>Doctrine:</b> RB/QB early → Price R5-R6 → BPA mid → rookie stashes R16-R17, stream K/DEF</div>')
     # Deadline strip
-    h.append('<div class="deadlines"><b>POSITION DEADLINES</b> (median pick the Nth-best is GONE): ')
+    h.append('<div class="ml-banner--warn deadlines"><b>POSITION DEADLINES</b> (median pick the Nth-best is GONE): ')
     strip_bits = []
     for pos, chips in deadlines:
-        c = POS_COLORS.get(pos, "#888")
+        c = POS_COLORS.get(pos, PALETTE["gray"])
         chip_txt = " · ".join(
             f'{label} by <b>#{gone} (R{rnd})</b>'
-            f'{f"<span class=urgent>{near}</span>" if near else ""}'
+            f'{f"<span class=ml-urgent>{near}</span>" if near else ""}'
             for label, gone, rnd, near in chips)
         strip_bits.append(f'<span style="color:{c};font-weight:700">{pos}</span> {chip_txt}')
     h.append(" &nbsp;|&nbsp; ".join(strip_bits))
     h.append('</div>')
     h.append('<div class="grid">')
     for pk, menu, long_shot, sim_call, keep in cards:
-        h.append(f'<div class="card"><h2>R{pk["round"]} · #{pk["overall"]}'
+        h.append(f'<div class="ml-card"><h2>R{pk["round"]} · #{pk["overall"]}'
                  f'<span class="keep">{keep}</span></h2>')
         if sim_call:
             h.append(f'<div class="sim">sim\'s call: <b>{sim_call["player"]}</b> ({sim_call["pct"]:.0f}%)</div>')
-        h.append("<table>")
+        h.append('<table class="ml-table ml-table--compact">')
         for p, sv in menu:
             pct = round(sv * 100)
-            cls = "hi" if pct >= 70 else ("mid" if pct >= 40 else "lo")
-            c = POS_COLORS.get(p["pos"], "#888")
+            cls = "ml-sv-hi" if pct >= 70 else ("ml-sv-mid" if pct >= 40 else "ml-sv-lo")
+            c = POS_COLORS.get(p["pos"], PALETTE["gray"])
             nm = p["name"]
             if len(nm) > 20:
                 f_, l_ = nm.split(" ", 1)
@@ -183,9 +179,9 @@ def main():
         h.append("</div>")
     h.append("</div>")
     h.append('<div class="legend"><b>Reading it:</b> VBD = points above replacement (superflex math). '
-             '<span class="hi"><b>Green %</b></span> = will be there, safe to wait · '
-             '<span class="mid"><b>amber</b></span> = coin flip, take if he\'s your guy · '
-             '<span class="lo"><b>red</b></span> = now or never. '
+             '<span class="ml-sv-hi"><b>Green %</b></span> = will be there, safe to wait · '
+             '<span class="ml-sv-mid"><b>amber</b></span> = coin flip, take if he\'s your guy · '
+             '<span class="ml-sv-lo"><b>red</b></span> = now or never. '
              'K/DEF appear only at R16-R17 (stream all season). Keeper cost = draft round − 2.</div>')
     h.append("</body></html>")
 

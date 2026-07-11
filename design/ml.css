@@ -98,6 +98,12 @@
   cursor: pointer; font-size: 12px; font-weight: 700; }
 .ml-filter.active { background: var(--ml-success); color: #000;
   border-color: var(--ml-success); }
+.ml-filter--qb.active { background: var(--ml-pos-qb); border-color: var(--ml-pos-qb); color: #fff; }
+.ml-filter--rb.active { background: var(--ml-pos-rb); border-color: var(--ml-pos-rb); color: #fff; }
+.ml-filter--wr.active { background: var(--ml-pos-wr); border-color: var(--ml-pos-wr); color: #fff; }
+.ml-filter--te.active { background: var(--ml-pos-te); border-color: var(--ml-pos-te); color: #fff; }
+.ml-filter--k.active { background: var(--ml-pos-k); border-color: var(--ml-pos-k); color: #fff; }
+.ml-filter--def.active { background: var(--ml-pos-def); border-color: var(--ml-pos-def); color: #fff; }
 
 /* ---------- status / clock ---------- */
 @keyframes ml-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.6); }
