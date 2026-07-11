@@ -409,9 +409,22 @@
     <section class="ml-panel" aria-labelledby="h-history">
       <div class="panel-head">
         <h2 id="h-history" class="ml-h-label">FILLS</h2>
-        <button class="ml-btn" id="undo">undo last</button>
+        <span>
+          <button class="ml-btn" id="undo">undo last</button>
+          <button class="ml-btn" id="reset">reset board</button>
+        </span>
       </div>
       <div class="history" id="history"><div class="skel-stack" aria-hidden="true"><span class="ml-skeleton" style="width:90%"></span><span class="ml-skeleton" style="width:78%"></span><span class="ml-skeleton" style="width:83%"></span></div></div>
+    </section>
+
+    <section class="ml-panel" aria-labelledby="h-opp">
+      <div class="panel-head">
+        <h2 id="h-opp" class="ml-h-label">LEAGUE PORTFOLIOS</h2>
+        <select id="opp-select" class="ml-input" aria-label="View a manager's portfolio"></select>
+      </div>
+      <div id="opp-roster" class="roster"></div>
+      <div id="opp-stats" class="stats" style="margin-top: 8px;"></div>
+      <div id="opp-next" class="next-pick-info"></div>
     </section>
   </div>
 </main>
@@ -14921,6 +14934,18 @@ function showBootError(err) {
     if (j !== i) setRovingFocus(rows[j]);
   });
   document.getElementById("undo").addEventListener("click", undo);
+  document.getElementById("reset").addEventListener("click", resetBoard);
+  // Opponent portfolio selector: every rival, you excluded (you have the
+  // PORTFOLIO panel), sorted by draft slot.
+  const oppSel = document.getElementById("opp-select");
+  DATA.managers.slice().sort((a, b) => a.slot - b.slot).forEach(m => {
+    if (m.team_idx === DATA.my_team_idx) return;
+    const o = document.createElement("option");
+    o.value = String(m.team_idx);
+    o.textContent = `${m.id.toUpperCase()} (slot ${m.slot})`;
+    oppSel.appendChild(o);
+  });
+  oppSel.addEventListener("change", renderOpponent);
   document.getElementById("live-btn").addEventListener("click", toggleLive);
   document.getElementById("ceiling-btn").addEventListener("click", toggleCeiling);
   document.getElementById("practice-btn").addEventListener("click", togglePractice);
@@ -14995,7 +15020,15 @@ function botPick(slot) {
     const v = Math.max(0, p.vbd) / 120 + 0.2;
     const need = Math.max(0, (BOT_DEMAND[pos] || 0) - (counts[pos] || 0))
       + (pos === "QB" && (counts.QB || 0) < 3 ? (3 - (counts.QB || 0)) * 0.25 : 0);
-    cands.push({ p, s: v + 0.6 * need + tendencyBonus(mgr, pos, rnd) });
+    // Market anchoring: real managers don't take a round-9-priced player in
+    // round 3 no matter the VBD. Penalize reaching ahead of ADP (capped),
+    // give a small bonus when value falls PAST market — keeps bot reaches
+    // inside ~1-2 rounds like humans, instead of pure-VBD chaos.
+    const adp = p.adp && p.adp < 900 ? p.adp : slot.overall + 24;
+    const reach = Math.max(0, (adp - slot.overall) / 12);   // rounds early
+    const fall = Math.max(0, (slot.overall - adp) / 12);    // rounds late
+    const anchor = -0.45 * Math.min(reach, 4) + 0.1 * Math.min(fall, 2);
+    cands.push({ p, s: v + 0.6 * need + tendencyBonus(mgr, pos, rnd) + anchor });
   }
   if (!cands.length) return null;
   cands.sort((a, b) => b.s - a.s);
@@ -15525,8 +15558,75 @@ function refresh() {
   renderRoster();
   renderRecs();
   renderHistory();
+  renderOpponent();
   syncControlStates();
   restoreFocus(focusSnap);
+}
+
+// ---------- OPPONENT PORTFOLIOS ----------
+// Any rival's holdings, needs, and next pick — the "does my guy survive
+// the turn" panel. Reads straight from the schedule like renderRoster.
+function renderOpponent() {
+  const sel = document.getElementById("opp-select");
+  if (!sel || !sel.value) return;
+  const ti = +sel.value;
+  const r = document.getElementById("opp-roster");
+  r.innerHTML = "";
+  const picks = DATA.schedule.filter(p => p.team_idx === ti && p.player);
+  if (!picks.length) {
+    r.innerHTML = '<div class="ml-empty" style="grid-column: 1 / -1">No holdings yet</div>';
+  }
+  const byPos = {QB: [], RB: [], WR: [], TE: [], K: [], DEF: []};
+  for (const pk of picks) {
+    const pp = DATA.players.find(x => x.name === pk.player) || {pos: 'X'};
+    const pos = pp.pos in byPos ? pp.pos : (pp.pos === 'DST' ? 'DEF' : 'X');
+    if (byPos[pos]) byPos[pos].push({...pk, ...pp});
+  }
+  for (const pos of ['QB','RB','WR','TE','K','DEF']) {
+    for (const player of byPos[pos]) {
+      const row = document.createElement("div");
+      row.className = "roster-row" + (player.is_keeper ? " keeper-row" : "");
+      row.style.borderLeftColor = `var(--ml-pos-${pos.toLowerCase()})`;
+      row.innerHTML = `<span><span class="ml-badge ml-badge--${pos.toLowerCase()}">${pos}</span> ` +
+        `${escHtml(player.player)}${player.is_keeper ? ' <span class="ml-badge ml-badge--keeper" title="Keeper" aria-label="Keeper">K</span>' : ''}</span>` +
+        `<span class="meta">R${player.round}</span>`;
+      r.appendChild(row);
+    }
+  }
+  const stats = document.getElementById("opp-stats");
+  stats.innerHTML = "";
+  const counts = countRoster(picks.map(p => p.player));
+  for (const pos of ['QB','RB','WR','TE','K','DEF']) {
+    const target = { QB:3, RB:5, WR:6, TE:2, K:1, DEF:1 }[pos];
+    const cur = counts[pos] || 0;
+    stats.innerHTML += `<span class="ml-stat"><strong>${pos}</strong> ${cur}/${target}</span>`;
+  }
+  const theirNext = DATA.schedule.slice(cursor)
+    .find(p => p.team_idx === ti && !p.player);
+  document.getElementById("opp-next").textContent = theirNext
+    ? `Their next pick: R${theirNext.round}.${theirNext.pick_in_round} (#${theirNext.overall})`
+    : "No remaining picks.";
+}
+
+// ---------- RESET (real board only; practice has EXIT PRACTICE) ----------
+function resetBoard() {
+  if (practiceMode) { setLiveStatus("exit practice instead — it restores the real board"); return; }
+  const n = pickOrder.filter(p => !p.is_keeper).length;
+  if (!n) { setLiveStatus("nothing to reset — no fills recorded"); return; }
+  if (!confirm(`Reset the board? This clears all ${n} recorded pick${n === 1 ? "" : "s"}. Keepers stay. This cannot be undone.`)) {
+    setLiveStatus("reset cancelled");
+    return;
+  }
+  if (liveTimer) toggleLive();   // stop the poll before wiping state
+  for (const s of DATA.schedule) { delete s.player; delete s.is_keeper; }
+  pickOrder = []; drafted = new Set();
+  suppressHashChange = true;
+  history.replaceState(null, "", "#");
+  setTimeout(() => suppressHashChange = false, 50);
+  applyKeepersAtStart();
+  recomputeCursor();
+  refresh();
+  setLiveStatus(`RESET — ${n} fill${n === 1 ? "" : "s"} cleared, keepers restored`);
 }
 
 // ---------- CONTROL STATES ----------
@@ -15543,6 +15643,11 @@ function syncControlStates() {
     .setAttribute("aria-disabled", String(!!liveTimer && !practiceMode));
   document.getElementById("live-btn")
     .setAttribute("aria-disabled", String(practiceMode && !liveTimer));
+  const resetBtn = document.getElementById("reset");
+  const canReset = !practiceMode && pickOrder.some(p => !p.is_keeper);
+  resetBtn.setAttribute("aria-disabled", String(!canReset));
+  resetBtn.title = practiceMode ? "Exit practice instead — it restores the real board"
+    : (canReset ? "Clear every recorded pick (keepers stay)" : "Nothing to reset yet");
 }
 
 // ---------- RESULT-COUNT FEEDBACK ----------
