@@ -62,3 +62,6 @@ data/MONEYLEAGUE_POWER_RANKINGS.pdf
 data/WEEKLY_MOVERS.md
 data/backtest/
 data/MONEYLEAGUE_2026_ROUND_MENU.pdf
+
+# session worktrees are never committed
+.claude/worktrees/
