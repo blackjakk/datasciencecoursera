@@ -73,6 +73,11 @@ def load_players() -> list[dict]:
                 r["projection"] = by_pos[r["position"]][target_rank - 1]["projection"]
         r["fp_rank"] = f.get("fp_rank_overall")
         r["fp_pos_rank"] = f.get("fp_rank_pos")
+        try:
+            # Expert disagreement — the honest boom/bust proxy for ceiling mode
+            r["fp_std"] = round(float(f.get("fp_rank_std")), 1)
+        except (TypeError, ValueError):
+            pass
 
     # Compute league-specific VBD (1 QB + 1 SUPERFLEX = ~22 QB replacement,
     # 2 RB + 0.6 flex = ~31 RB replacement, 3 WR + 0.48 flex = ~42, TE = ~13)
@@ -116,6 +121,7 @@ def load_players() -> list[dict]:
             "vbd": vbd,
             "fp_rank": r.get("fp_rank"),
             "fp_pos_rank": r.get("fp_pos_rank"),
+            "fp_std": r.get("fp_std"),
             "age": meta.get("age"),
             "years_exp": meta.get("years_exp"),
             "injury": meta.get("injury_status") or "",
@@ -172,6 +178,17 @@ def load_tendencies() -> dict:
     return json.loads((ROOT / "data" / "manager_tendencies.json").read_text())
 
 
+def my_mc_summary() -> dict:
+    """Brian's Monte Carlo starter-total distribution, for grading practice
+    drafts against the sim's expectations."""
+    mc_path = ROOT / "data" / "mc_summary_all.json"
+    if not mc_path.exists():
+        return {}
+    mc = json.loads(mc_path.read_text())
+    me = mc.get("per_team", {}).get(str(MY_SLOT - 1), {})
+    return {k: me[k] for k in ("mean", "p25", "p50", "p75") if k in me}
+
+
 def attach_survival(players: list[dict]) -> int:
     """Attach Monte Carlo draft-position quantiles (11 values: percentiles
     0,10,...,100 of the overall pick where the player left the board) from
@@ -226,6 +243,7 @@ def main():
         "managers": managers,
         "schedule": schedule,
         "tendencies": tendencies,
+        "mc_summary": my_mc_summary(),
         "league_rules": {
             "round_penalty": 2,
             "max_keepers": 4,

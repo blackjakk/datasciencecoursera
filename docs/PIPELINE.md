@@ -217,3 +217,19 @@ allocated players to the correct rosters afterward. Consequences:
 Anything attributing historical picks to managers must join xlsx
 ownership on (round, slot) — see backtest_recommender.py and
 build_manager_tendencies.py for the pattern.
+
+## Draft-prep tools (July 2026 additions)
+
+- **Injury watch** — part of the weekly briefing: diffs injury statuses
+  for ADP<200 players + all keepers vs data/injury_snapshot.json
+  (committed baseline), flags changes with [KEEPER] tags.
+- **CEILING mode** (helper button) — re-weights recommendations toward
+  boom/bust upside: FantasyPros expert disagreement (rank std) + youth.
+  For when you're drafting for 90th-percentile outcomes, not medians.
+- **PRACTICE mode** (helper button) — full mock drafts in-browser
+  against the tendency-modeled league bots (softmax T=0.25, needs +
+  caps + per-manager tendencies). Pauses on your clock; final roster
+  graded against your Monte Carlo quartiles. Never touches real state.
+- **scripts/trade_advisor.py** — league pick-capital table and pick-swap
+  pricing with forward-looking round values:
+  `python3 scripts/trade_advisor.py --give R3 R7 --get R2 R12`

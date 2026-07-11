@@ -97,6 +97,8 @@
 <header>
   <div class="title">BRIAN'S 2026 DRAFT HELPER · slot 6</div>
   <div class="live-box">
+    <button id="ceiling-btn" class="live-btn" title="Weight recommendations toward boom/bust upside (expert disagreement + youth) instead of median value">CEILING</button>
+    <button id="practice-btn" class="live-btn" title="Run a practice draft vs the tendency-modeled league bots">PRACTICE</button>
     <button id="live-btn" class="live-btn">GO LIVE</button>
     <span id="live-status" class="live-status"></span>
   </div>
@@ -176,6 +178,8 @@ let cursor = 0;               // index into DATA.schedule
   }));
   document.getElementById("undo").addEventListener("click", undo);
   document.getElementById("live-btn").addEventListener("click", toggleLive);
+  document.getElementById("ceiling-btn").addEventListener("click", toggleCeiling);
+  document.getElementById("practice-btn").addEventListener("click", togglePractice);
   // Persist state via URL hash so refresh doesn't lose picks
   window.addEventListener("hashchange", () => { if (!suppressHashChange) loadStateFromURL(); });
   // Resume live mode if a draft ID was saved this browser
@@ -183,6 +187,174 @@ let cursor = 0;               // index into DATA.schedule
     setLiveStatus("saved draft ID found — press GO LIVE to resume");
   }
 })();
+
+// ---------- PRACTICE MODE (draft vs the tendency-modeled league bots) ----------
+// Bots replicate the Python simulator: VBD value + positional need
+// (FLEX-share weighted) + per-manager tendency bonus, sampled by softmax
+// at temperature 0.25. Your picks are yours. Nothing is saved to the URL;
+// exiting restores the real board.
+let practiceMode = false;
+let practiceSavedHash = null;
+
+const BOT_CAPS = { QB: 3, RB: 5, WR: 6, TE: 2, K: 1, DEF: 1 };
+const BOT_DEMAND = { QB: 1.85, RB: 2.6, WR: 3.48, TE: 1.07, K: 1, DEF: 1 };
+const BOT_TEMP = 0.25, BOT_TOPK = 15, TEND_STRENGTH = 0.4, TEND_WIDTH = 2.0;
+
+function mgrTendencies(mgrId) {
+  const t = (DATA.tendencies && DATA.tendencies.tendencies) || {};
+  const mine = t[mgrId] || {};
+  const out = {};
+  for (const pos of Object.keys(mine)) {
+    if ((mine[pos].n_samples || 0) >= 2) out[pos] = mine[pos].manager_first_avg;
+  }
+  return out;
+}
+function tendencyBonus(mgrId, pos, round) {
+  const exp = mgrTendencies(mgrId)[pos]
+    ?? ((DATA.tendencies && DATA.tendencies.league_first_avg) || {})[pos];
+  if (exp == null) return 0;
+  const d = round - exp;
+  return TEND_STRENGTH * Math.exp(-(d * d) / (2 * TEND_WIDTH * TEND_WIDTH));
+}
+
+function teamCounts(ti) {
+  const c = {};
+  for (const s of DATA.schedule) {
+    if (s.team_idx !== ti || !s.player) continue;
+    const p = DATA.players.find(x => x.name === s.player);
+    const pos = p ? (p.pos === "DST" ? "DEF" : p.pos) : "?";
+    c[pos] = (c[pos] || 0) + 1;
+  }
+  return c;
+}
+
+function botPick(slot) {
+  const ti = slot.team_idx;
+  const mgr = (DATA.managers.find(m => m.team_idx === ti) || {}).id;
+  const counts = teamCounts(ti);
+  const rnd = slot.round;
+  const kdefFloor = 15;
+
+  const cands = [];
+  for (const p of DATA.players) {
+    if (drafted.has(p.name)) continue;
+    const pos = p.pos === "DST" ? "DEF" : p.pos;
+    if (!(pos in BOT_CAPS)) continue;
+    if ((counts[pos] || 0) >= BOT_CAPS[pos]) continue;
+    if ((pos === "K" || pos === "DEF") && rnd < kdefFloor) {
+      // tendency injection: early-K/DEF managers reach when their window opens
+      const exp = mgrTendencies(mgr)[pos];
+      if (exp == null || rnd < exp - 2 || (counts[pos] || 0) >= 1) continue;
+      cands.push({ p, s: 0.25 + tendencyBonus(mgr, pos, rnd) });
+      continue;
+    }
+    const v = Math.max(0, p.vbd) / 120 + 0.2;
+    const need = Math.max(0, (BOT_DEMAND[pos] || 0) - (counts[pos] || 0))
+      + (pos === "QB" && (counts.QB || 0) < 3 ? (3 - (counts.QB || 0)) * 0.25 : 0);
+    cands.push({ p, s: v + 0.6 * need + tendencyBonus(mgr, pos, rnd) });
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.s - a.s);
+  const top = cands.slice(0, BOT_TOPK);
+  // softmax sample
+  const maxS = top[0].s;
+  const ws = top.map(c => Math.exp((c.s - maxS) / BOT_TEMP));
+  let r = Math.random() * ws.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < top.length; i++) {
+    r -= ws[i];
+    if (r <= 0) return top[i].p;
+  }
+  return top[top.length - 1].p;
+}
+
+function practiceAdvance() {
+  while (cursor < DATA.schedule.length) {
+    const slot = DATA.schedule[cursor];
+    if (slot.player) { cursor++; continue; }
+    if (slot.team_idx === DATA.my_team_idx) break;   // your clock
+    const p = botPick(slot);
+    if (!p) { cursor++; continue; }
+    slot.player = p.name;
+    slot.is_keeper = false;
+    pickOrder.push(slot);
+    drafted.add(p.name);
+    cursor++;
+  }
+  refresh();
+  if (cursor >= DATA.schedule.length) showPracticeResult();
+  else setLiveStatus(`practice · your pick R${DATA.schedule[cursor].round} (#${DATA.schedule[cursor].overall})`);
+}
+
+function startersProjJS(ti) {
+  const shape = [[1, ["QB"]], [2, ["RB"]], [3, ["WR"]], [1, ["TE"]],
+                 [1, ["RB", "WR", "TE"]], [1, ["QB", "RB", "WR", "TE"]],
+                 [1, ["K"]], [1, ["DEF"]]];
+  const pool = [];
+  for (const s of DATA.schedule) {
+    if (s.team_idx !== ti || !s.player) continue;
+    const p = DATA.players.find(x => x.name === s.player);
+    if (p) pool.push([p.pos === "DST" ? "DEF" : p.pos, p.proj]);
+  }
+  pool.sort((a, b) => b[1] - a[1]);
+  const used = new Array(pool.length).fill(false);
+  let total = 0;
+  for (const [count, elig] of shape) {
+    let filled = 0;
+    for (let i = 0; i < pool.length && filled < count; i++) {
+      if (!used[i] && elig.includes(pool[i][0])) { used[i] = true; total += pool[i][1]; filled++; }
+    }
+  }
+  return total;
+}
+
+function showPracticeResult() {
+  const starters = startersProjJS(DATA.my_team_idx);
+  // MC quartiles are FULL-ROSTER projection totals — grade on the same basis.
+  let full = 0;
+  for (const s of DATA.schedule) {
+    if (s.team_idx !== DATA.my_team_idx || !s.player) continue;
+    const p = DATA.players.find(x => x.name === s.player);
+    if (p) full += p.proj;
+  }
+  const mc = DATA.mc_summary || {};
+  const bench = mc.p50 ? `\nSim expectation (full roster): median ${mc.p50.toFixed(0)}, p25 ${mc.p25.toFixed(0)}, p75 ${mc.p75.toFixed(0)}` : "";
+  let grade = "";
+  if (mc.p75 && full >= mc.p75) grade = " — TOP-QUARTILE draft 🔥";
+  else if (mc.p50 && full >= mc.p50) grade = " — above your sim median ✓";
+  else if (mc.p25 && full < mc.p25) grade = " — below p25, run it back";
+  else if (mc.p25) grade = " — below median, tighten the middle rounds";
+  setLiveStatus(`PRACTICE DONE: ${full.toFixed(0)} roster pts${grade}`);
+  alert(`Practice draft complete!\n\nStarters: ${starters.toFixed(0)} projected pts\nFull roster: ${full.toFixed(0)}${grade}${bench}\n\nHit EXIT PRACTICE to restore the real board, or review your roster first.`);
+}
+
+function togglePractice() {
+  const btn = document.getElementById("practice-btn");
+  if (practiceMode) {           // exit + restore
+    practiceMode = false;
+    btn.classList.remove("on");
+    btn.textContent = "PRACTICE";
+    history.replaceState(null, "", "#" + (practiceSavedHash || ""));
+    for (const s of DATA.schedule) { delete s.player; delete s.is_keeper; }
+    pickOrder = []; drafted = new Set();
+    loadStateFromURL();
+    applyKeepersAtStart();
+    recomputeCursor();
+    setLiveStatus("practice ended — real board restored");
+    refresh();
+    return;
+  }
+  if (liveTimer) { setLiveStatus("stop LIVE sync before practicing"); return; }
+  practiceMode = true;
+  practiceSavedHash = location.hash.slice(1);
+  btn.classList.add("on");
+  btn.textContent = "EXIT PRACTICE";
+  // fresh board: keepers only
+  for (const s of DATA.schedule) { delete s.player; delete s.is_keeper; }
+  pickOrder = []; drafted = new Set();
+  applyKeepersAtStart();
+  recomputeCursor();
+  practiceAdvance();
+}
 
 // ---------- LIVE MODE (Sleeper draft auto-sync) ----------
 // Polls api.sleeper.app (CORS-open) every 15s and marks picks automatically.
@@ -364,6 +536,7 @@ function recomputeCursor() {
 // ---------- STATE PERSISTENCE (URL hash) ----------
 let suppressHashChange = false;
 function saveStateToURL() {
+  if (practiceMode) return;   // practice drafts never touch the real state
   suppressHashChange = true;
   // Only save USER picks — keepers are deterministic and replaced on load
   const compact = pickOrder
@@ -404,6 +577,7 @@ function draftPlayer(name) {
   recomputeCursor();  // skips any subsequent keeper slots
   saveStateToURL();
   refresh();
+  if (practiceMode) practiceAdvance();  // bots pick until your next clock
 }
 
 function undo() {
@@ -493,6 +667,29 @@ function computeDynVbd() {
 // R1/R2 picks are keeper-ineligible; waivers cost R15).
 function keeperCostLabel(round) {
   return round > 2 ? `keep '27 @ R${round - 2}` : "not keeper-eligible";
+}
+
+// ---------- CEILING MODE ----------
+// Variance-seeking rec weighting: a 12th-place team wins through 90th-
+// percentile outcomes, not medians. Upside proxy = FantasyPros expert
+// DISAGREEMENT (rank std across 38 experts — high spread means boom/bust)
+// plus youth (breakout runway). Purely a re-weighting of the rec score;
+// the underlying VBD/survival facts don't change.
+let ceilingMode = false;
+function upsideBonus(p) {
+  let u = 0;
+  if (p.fp_std != null) u += Math.min(p.fp_std, 20) * 1.2;  // 0..24
+  if (p.years_exp != null && p.years_exp <= 2) u += 10;
+  if (p.age && p.age <= 24) u += 6;
+  if (p.age && p.age >= 29) u -= 12;
+  return u;
+}
+function toggleCeiling() {
+  ceilingMode = !ceilingMode;
+  const btn = document.getElementById("ceiling-btn");
+  btn.classList.toggle("on", ceilingMode);
+  btn.textContent = ceilingMode ? "CEILING ON" : "CEILING";
+  refresh();
 }
 
 // ---------- ALERT (2 picks out) ----------
@@ -678,6 +875,7 @@ function renderRecs() {
     s += (1 - surv) * 20;
     if (next.round >= 14 && p.years_exp === 0) s += 15; // rookie keeper-future
     if (next.round >= 14 && p.age && p.age <= 24) s += 8;
+    if (ceilingMode) s += upsideBonus(p);
     return s;
   }
   const scored = available.map(p => ({...p, s: score(p)})).sort((a,b) => b.s - a.s);
@@ -700,6 +898,8 @@ function renderRecs() {
 
 function recReason(p, pick, counts, needPos, waitPick) {
   const parts = [];
+  if (ceilingMode && p.fp_std != null && p.fp_std >= 10)
+    parts.push(`experts split (±${p.fp_std.toFixed(0)} ranks) — boom/bust`);
   const surv = survivalAt(p, waitPick ? waitPick.overall : pick.overall + 24);
   if (surv < 0.3) parts.push("likely GONE by your next pick — now or never");
   else if (surv > 0.75) parts.push("probably still there next round (could wait)");
