@@ -145,6 +145,13 @@ def main() -> None:
           "raw hex / duplicate palette / drift / helper-link violations:\n"
           + (ds.stdout + ds.stderr).strip())
 
+    print("Accessibility:")
+    ay = subprocess.run([sys.executable, "scripts/check_a11y.py"],
+                        cwd=ROOT, capture_output=True, text=True)
+    check("a11y compliance", ay.returncode == 0,
+          "structure / aria / responsive / css / contrast violations:\n"
+          + (ay.stdout + ay.stderr).strip())
+
     print()
     if FAILURES:
         print(f"✗ {len(FAILURES)} check(s) FAILED:")
