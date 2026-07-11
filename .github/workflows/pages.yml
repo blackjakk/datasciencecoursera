@@ -42,6 +42,11 @@ jobs:
         run: |
           mkdir -p gridiron-chain/dist/draft_helper
           cp -r draft_helper/* gridiron-chain/dist/draft_helper/
+      - name: Copy hq landing into dist/hq
+        working-directory: .
+        run: |
+          mkdir -p gridiron-chain/dist/hq
+          cp -r hq/* gridiron-chain/dist/hq/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
