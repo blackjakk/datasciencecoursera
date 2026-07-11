@@ -51,6 +51,8 @@ do_derive() {
   python3 design/build_design.py
   log "Rebuild players_2026.csv from Sleeper projections"
   python3 scripts/build_players_csv.py
+  log "Append ADP snapshot to price history"
+  python3 scripts/append_adp_history.py
   log "Rebuild empirical pick-value chart"
   python3 scripts/build_pick_value.py
   log "Predict 2026 keepers"
