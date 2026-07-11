@@ -16,6 +16,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         1,
@@ -43,6 +44,7 @@
       "age": 26,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         1,
@@ -70,6 +72,7 @@
       "age": 25,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -97,6 +100,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         2,
@@ -124,6 +128,7 @@
       "age": 30,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         1,
@@ -151,6 +156,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -178,6 +184,7 @@
       "age": 30,
       "years_exp": 9,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         2,
@@ -205,6 +212,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         3,
@@ -232,6 +240,7 @@
       "age": 26,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         4,
@@ -259,6 +268,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         3,
@@ -286,6 +296,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         4,
@@ -313,6 +324,7 @@
       "age": 22,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         3,
@@ -340,6 +352,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -367,6 +380,7 @@
       "age": 26,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -394,6 +408,7 @@
       "age": 29,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         8,
@@ -421,6 +436,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         5,
@@ -448,6 +464,7 @@
       "age": 24,
       "years_exp": 4,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         1,
         5,
@@ -475,6 +492,7 @@
       "age": 25,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         5,
@@ -502,6 +520,7 @@
       "age": 29,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         5,
@@ -529,6 +548,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -556,6 +576,7 @@
       "age": 23,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         31,
         42,
@@ -583,6 +604,7 @@
       "age": 29,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         6,
@@ -610,6 +632,7 @@
       "age": 27,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -637,6 +660,7 @@
       "age": 23,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -664,6 +688,7 @@
       "age": 29,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         6,
@@ -691,6 +716,7 @@
       "age": 28,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         9,
@@ -718,6 +744,7 @@
       "age": 26,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         9,
@@ -745,6 +772,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         8,
@@ -772,6 +800,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -799,6 +828,7 @@
       "age": 26,
       "years_exp": 3,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         4,
         7,
@@ -826,6 +856,7 @@
       "age": 33,
       "years_exp": 12,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         12,
         27,
@@ -853,6 +884,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -880,6 +912,7 @@
       "age": 25,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         8,
@@ -907,6 +940,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         9,
@@ -934,6 +968,7 @@
       "age": 25,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         10,
@@ -961,6 +996,7 @@
       "age": 24,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         9,
@@ -988,6 +1024,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         9,
         12,
@@ -1015,6 +1052,7 @@
       "age": 32,
       "years_exp": 10,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         1,
         10,
@@ -1042,6 +1080,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         4,
         11,
@@ -1069,6 +1108,7 @@
       "age": 21,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         14,
@@ -1096,6 +1136,7 @@
       "age": 32,
       "years_exp": 10,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         14,
@@ -1123,6 +1164,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         4,
         11,
@@ -1150,6 +1192,7 @@
       "age": 25,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         4,
         11,
@@ -1177,6 +1220,7 @@
       "age": 22,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1204,6 +1248,7 @@
       "age": 25,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         23,
@@ -1231,6 +1276,7 @@
       "age": 27,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1258,6 +1304,7 @@
       "age": 22,
       "years_exp": 2,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         4,
         16,
@@ -1285,6 +1332,7 @@
       "age": 28,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         2,
         24,
@@ -1312,6 +1360,7 @@
       "age": 25,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1339,6 +1388,7 @@
       "age": 25,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         4,
         12,
@@ -1366,6 +1416,7 @@
       "age": 27,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         4,
         5,
@@ -1393,6 +1444,7 @@
       "age": 26,
       "years_exp": 2,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1420,6 +1472,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         1,
         12,
@@ -1447,6 +1500,7 @@
       "age": 22,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1474,6 +1528,7 @@
       "age": 24,
       "years_exp": 2,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         4,
         16,
@@ -1501,6 +1556,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         7,
         17,
@@ -1528,6 +1584,7 @@
       "age": 27,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         7,
         17,
@@ -1555,6 +1612,7 @@
       "age": 21,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         25,
         38,
@@ -1582,6 +1640,7 @@
       "age": 30,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         7,
         25,
@@ -1609,6 +1668,7 @@
       "age": 26,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1636,6 +1696,7 @@
       "age": 24,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         42,
         50,
@@ -1663,6 +1724,7 @@
       "age": 31,
       "years_exp": 10,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         9,
         21,
@@ -1690,6 +1752,7 @@
       "age": 30,
       "years_exp": 9,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         9,
         26,
@@ -1717,6 +1780,7 @@
       "age": 28,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         12,
         24,
@@ -1744,6 +1808,7 @@
       "age": 21,
       "years_exp": 1,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1771,6 +1836,7 @@
       "age": 25,
       "years_exp": 3,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1798,6 +1864,7 @@
       "age": 25,
       "years_exp": 3,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1825,6 +1892,7 @@
       "age": 25,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1852,6 +1920,7 @@
       "age": 24,
       "years_exp": 1,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -1879,6 +1948,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         19,
         34,
@@ -1906,6 +1976,7 @@
       "age": 22,
       "years_exp": 1,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         19,
         34,
@@ -1933,6 +2004,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         15,
         28,
@@ -1960,6 +2032,7 @@
       "age": 38,
       "years_exp": 17,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         9,
         19,
@@ -1987,6 +2060,7 @@
       "age": 23,
       "years_exp": 2,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -2014,6 +2088,7 @@
       "age": 32,
       "years_exp": 12,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         16,
         35,
@@ -2041,6 +2116,7 @@
       "age": 29,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         21,
         39,
@@ -2068,6 +2144,7 @@
       "age": 30,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         31,
         44,
@@ -2095,6 +2172,7 @@
       "age": 22,
       "years_exp": 0,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         39,
         60,
@@ -2122,6 +2200,7 @@
       "age": 29,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         41,
         60,
@@ -2149,6 +2228,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         47,
         60,
@@ -2176,6 +2256,7 @@
       "age": 24,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         21,
         36,
@@ -2257,6 +2338,7 @@
       "age": 23,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         27,
         41,
@@ -2284,6 +2366,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -2338,6 +2421,7 @@
       "age": 28,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         25,
         42,
@@ -2365,6 +2449,7 @@
       "age": 25,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         42,
         55,
@@ -2392,6 +2477,7 @@
       "age": 31,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         25,
         31,
@@ -2473,6 +2559,7 @@
       "age": 26,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         27,
         36,
@@ -2500,6 +2587,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         31,
         39,
@@ -2527,6 +2615,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         19,
         34,
@@ -2554,6 +2643,7 @@
       "age": 29,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         26,
         45,
@@ -2635,6 +2725,7 @@
       "age": 23,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         32,
         52,
@@ -2662,6 +2753,7 @@
       "age": 21,
       "years_exp": 0,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         38,
         55,
@@ -2689,6 +2781,7 @@
       "age": 36,
       "years_exp": 13,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         53,
         66,
@@ -2824,6 +2917,7 @@
       "age": 26,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         53,
         68,
@@ -2851,6 +2945,7 @@
       "age": 32,
       "years_exp": 9,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         42,
         84,
@@ -2959,6 +3054,7 @@
       "age": 26,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -2986,6 +3082,7 @@
       "age": 30,
       "years_exp": 9,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         41,
         60,
@@ -3013,6 +3110,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -3040,6 +3138,7 @@
       "age": 27,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -3067,6 +3166,7 @@
       "age": 22,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         29,
         45,
@@ -3175,6 +3275,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -3310,6 +3411,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         43,
         54,
@@ -3337,6 +3439,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         29,
         44,
@@ -3364,6 +3467,7 @@
       "age": 29,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         34,
         54,
@@ -3391,6 +3495,7 @@
       "age": 28,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -3418,6 +3523,7 @@
       "age": 31,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -3445,6 +3551,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         63,
         69,
@@ -3472,6 +3579,7 @@
       "age": 25,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -3499,6 +3607,7 @@
       "age": 25,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         66,
         84,
@@ -3526,6 +3635,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         53,
         68,
@@ -3553,6 +3663,7 @@
       "age": 22,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         82,
         93,
@@ -3796,6 +3907,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -3823,6 +3935,7 @@
       "age": 30,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         53,
         68,
@@ -3850,6 +3963,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         53,
         68,
@@ -3877,6 +3991,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         55,
         78,
@@ -3904,6 +4019,7 @@
       "age": 29,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -3931,6 +4047,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         66,
         85,
@@ -3985,6 +4102,7 @@
       "age": 25,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -4012,6 +4130,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -4093,6 +4212,7 @@
       "age": 23,
       "years_exp": 2,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         59,
         81,
@@ -4120,6 +4240,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         64,
         86,
@@ -4201,6 +4322,7 @@
       "age": 28,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         64,
         83,
@@ -4228,6 +4350,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         69,
         86,
@@ -4255,6 +4378,7 @@
       "age": 24,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -4390,6 +4514,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         82,
         90,
@@ -4417,6 +4542,7 @@
       "age": 21,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         82,
         90,
@@ -4687,6 +4813,7 @@
       "age": 31,
       "years_exp": 10,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -4714,6 +4841,7 @@
       "age": 28,
       "years_exp": 5,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         53,
@@ -4876,6 +5004,7 @@
       "age": 22,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         82,
         96,
@@ -4903,6 +5032,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         86,
         97,
@@ -4957,6 +5087,7 @@
       "age": 29,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -4984,6 +5115,7 @@
       "age": 21,
       "years_exp": 0,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         84,
         87,
@@ -5039,6 +5171,7 @@
       "age": 25,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         52,
         64,
@@ -5066,6 +5199,7 @@
       "age": 24,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -5121,6 +5255,7 @@
       "age": 24,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         68,
         70,
@@ -5148,6 +5283,7 @@
       "age": 29,
       "years_exp": 7,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         75,
         81,
@@ -5231,6 +5367,7 @@
       "age": 29,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         84,
         87,
@@ -5258,6 +5395,7 @@
       "age": 24,
       "years_exp": 2,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -5285,6 +5423,7 @@
       "age": 28,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -5312,6 +5451,7 @@
       "age": 24,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         95,
         101,
@@ -5353,6 +5493,7 @@
       "age": 25,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -5380,6 +5521,7 @@
       "age": 31,
       "years_exp": 9,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         59,
         67,
@@ -5407,6 +5549,7 @@
       "age": 29,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -5448,6 +5591,7 @@
       "age": 22,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         95,
         99,
@@ -5475,6 +5619,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         86,
         98,
@@ -5502,6 +5647,7 @@
       "age": 25,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         99,
         109,
@@ -5529,6 +5675,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         77,
         83,
@@ -5570,6 +5717,7 @@
       "age": 29,
       "years_exp": 9,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         94,
         141,
@@ -5597,6 +5745,7 @@
       "age": 22,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         152,
         168,
@@ -5624,6 +5773,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         166,
         999,
@@ -5679,6 +5829,7 @@
       "age": 33,
       "years_exp": 10,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         85,
         89,
@@ -5706,6 +5857,7 @@
       "age": 23,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         95,
         100,
@@ -5747,6 +5899,7 @@
       "age": 26,
       "years_exp": 3,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -5774,6 +5927,7 @@
       "age": 30,
       "years_exp": 7,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         97,
         103,
@@ -5801,6 +5955,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         99,
         108,
@@ -5842,6 +5997,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         99,
         109,
@@ -5869,6 +6025,7 @@
       "age": 23,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         102,
         113,
@@ -5895,7 +6052,8 @@
       "fp_std": 26.2,
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Cade Otton",
@@ -5910,6 +6068,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         106,
         147,
@@ -5937,6 +6096,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         77,
         87,
@@ -5964,6 +6124,7 @@
       "age": 25,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         82,
         87,
@@ -5991,6 +6152,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         81,
         86,
@@ -6018,6 +6180,7 @@
       "age": null,
       "years_exp": null,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         85,
         89,
@@ -6045,6 +6208,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         86,
         94,
@@ -6072,6 +6236,7 @@
       "age": 24,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         109,
         115,
@@ -6099,6 +6264,7 @@
       "age": 24,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         110,
         115,
@@ -6126,6 +6292,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         115,
         123,
@@ -6153,6 +6320,7 @@
       "age": 31,
       "years_exp": 8,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         113,
         116,
@@ -6179,7 +6347,8 @@
       "fp_std": 21.6,
       "age": 28,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Cade York",
@@ -6208,6 +6377,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         112,
         120,
@@ -6262,6 +6432,7 @@
       "age": 28,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         115,
         125,
@@ -6288,7 +6459,8 @@
       "fp_std": 32.7,
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Luke McCaffrey",
@@ -6331,6 +6503,7 @@
       "age": 27,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         139,
         149,
@@ -6385,6 +6558,7 @@
       "age": 32,
       "years_exp": 11,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         116,
         126,
@@ -6412,6 +6586,7 @@
       "age": 26,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         55,
         75,
@@ -6439,6 +6614,7 @@
       "age": 22,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         123,
         131,
@@ -6466,6 +6642,7 @@
       "age": 23,
       "years_exp": 0,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         140,
         156,
@@ -6493,6 +6670,7 @@
       "age": 23,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         0,
         0,
@@ -6520,6 +6698,7 @@
       "age": 25,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         146,
         164,
@@ -6574,6 +6753,7 @@
       "age": 23,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         120,
         131,
@@ -6601,6 +6781,7 @@
       "age": 26,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         106,
         118,
@@ -6642,6 +6823,7 @@
       "age": 22,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         137,
         146,
@@ -6669,6 +6851,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         126,
         137,
@@ -6696,6 +6879,7 @@
       "age": 26,
       "years_exp": 5,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         138,
         149,
@@ -6737,6 +6921,7 @@
       "age": 25,
       "years_exp": 3,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         110,
         116,
@@ -6764,6 +6949,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         182,
         183,
@@ -6791,6 +6977,7 @@
       "age": 26,
       "years_exp": 3,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         137,
         159,
@@ -6818,6 +7005,7 @@
       "age": 28,
       "years_exp": 6,
       "injury": "DNR",
+      "adp_delta": 0.0,
       "svq": [
         143,
         166,
@@ -6845,6 +7033,7 @@
       "age": 33,
       "years_exp": 9,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         146,
         999,
@@ -6871,7 +7060,8 @@
       "fp_std": 27.9,
       "age": 21,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Chimere Dike",
@@ -6886,6 +7076,7 @@
       "age": 24,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         131,
         138,
@@ -6912,7 +7103,8 @@
       "fp_std": 23.4,
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Malik Washington",
@@ -6953,7 +7145,8 @@
       "fp_std": 21.6,
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Darnell Washington",
@@ -6981,7 +7174,8 @@
       "fp_std": 22.1,
       "age": 23,
       "years_exp": 1,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Elijah Sarratt",
@@ -6995,7 +7189,8 @@
       "fp_std": 20.5,
       "age": 23,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Jack Bech",
@@ -7009,7 +7204,8 @@
       "fp_std": 23.0,
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Christian Kirk",
@@ -7023,7 +7219,8 @@
       "fp_std": 22.3,
       "age": 29,
       "years_exp": 8,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Max Klare",
@@ -7037,7 +7234,8 @@
       "fp_std": 21.1,
       "age": 23,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Oscar Delp",
@@ -7078,7 +7276,8 @@
       "fp_std": null,
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Chris Bell",
@@ -7092,7 +7291,8 @@
       "fp_std": 28.1,
       "age": 22,
       "years_exp": 0,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Tyreek Hill",
@@ -7106,7 +7306,8 @@
       "fp_std": 37.7,
       "age": 31,
       "years_exp": 10,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Ryan Flournoy",
@@ -7121,6 +7322,7 @@
       "age": 26,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         108,
         112,
@@ -7162,6 +7364,7 @@
       "age": 26,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         124,
         136,
@@ -7189,6 +7392,7 @@
       "age": 25,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         183,
         185,
@@ -7313,6 +7517,7 @@
       "age": 35,
       "years_exp": 13,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         181,
         182,
@@ -7423,7 +7628,8 @@
       "fp_std": 36.1,
       "age": 33,
       "years_exp": 13,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Marvin Mims",
@@ -7437,7 +7643,8 @@
       "fp_std": null,
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Mack Hollins",
@@ -7592,6 +7799,7 @@
       "age": 25,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         178,
         180,
@@ -7618,7 +7826,8 @@
       "fp_std": 28.6,
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Elic Ayomanor",
@@ -7632,7 +7841,8 @@
       "fp_std": 29.8,
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Jahan Dotson",
@@ -7857,6 +8067,7 @@
       "age": 22,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         191,
         199,
@@ -7884,6 +8095,7 @@
       "age": 42,
       "years_exp": 21,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         95,
         99,
@@ -7925,6 +8137,7 @@
       "age": 27,
       "years_exp": 4,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         185,
         194,
@@ -7952,6 +8165,7 @@
       "age": 21,
       "years_exp": 1,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         194,
         196,
@@ -7979,6 +8193,7 @@
       "age": 22,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         164,
         178,
@@ -8230,6 +8445,7 @@
       "age": 30,
       "years_exp": 9,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         197,
         199,
@@ -8271,6 +8487,7 @@
       "age": 23,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         200,
         201,
@@ -8298,6 +8515,7 @@
       "age": 23,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         201,
         202,
@@ -8339,6 +8557,7 @@
       "age": 22,
       "years_exp": 0,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         202,
         203,
@@ -8366,6 +8585,7 @@
       "age": 24,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         196,
         197,
@@ -8407,6 +8627,7 @@
       "age": 27,
       "years_exp": 3,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         204,
         999,
@@ -8433,7 +8654,8 @@
       "fp_std": 23.7,
       "age": 24,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Devin Neal",
@@ -8447,7 +8669,8 @@
       "fp_std": 28.6,
       "age": 22,
       "years_exp": 1,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Devin Singletary",
@@ -8601,7 +8824,8 @@
       "fp_std": 36.9,
       "age": 31,
       "years_exp": 9,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Braelon Allen",
@@ -8616,6 +8840,7 @@
       "age": 22,
       "years_exp": 2,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         203,
         204,
@@ -8642,7 +8867,8 @@
       "fp_std": 26.9,
       "age": 26,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Kendrick Bourne",
@@ -8754,7 +8980,8 @@
       "fp_std": 26.7,
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Sean Tucker",
@@ -8768,7 +8995,8 @@
       "fp_std": 19.7,
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Zavion Thomas",
@@ -8838,7 +9066,8 @@
       "fp_std": 32.6,
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "LeQuint Allen",
@@ -9090,7 +9319,8 @@
       "fp_std": 17.5,
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Eric Rivers",
@@ -9314,7 +9544,8 @@
       "fp_std": 27.8,
       "age": 23,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Tanner Koziol",
@@ -9426,7 +9657,8 @@
       "fp_std": 77.5,
       "age": 24,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Jonnu Smith",
@@ -9902,7 +10134,8 @@
       "fp_std": 23.3,
       "age": 22,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Seth McGowan",
@@ -9930,7 +10163,8 @@
       "fp_std": 30.9,
       "age": 22,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Jordan James",
@@ -10028,7 +10262,8 @@
       "fp_std": 32.1,
       "age": 23,
       "years_exp": 2,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Demond Claiborne",
@@ -10042,7 +10277,8 @@
       "fp_std": 27.8,
       "age": 22,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Isaiah Davis",
@@ -10084,7 +10320,8 @@
       "fp_std": 16.4,
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Michael Carter",
@@ -10112,7 +10349,8 @@
       "fp_std": 34.3,
       "age": 24,
       "years_exp": 3,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Brittain Brown",
@@ -10322,7 +10560,8 @@
       "fp_std": 22.3,
       "age": 27,
       "years_exp": 5,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Trevor Etienne",
@@ -10476,7 +10715,8 @@
       "fp_std": 34.7,
       "age": 29,
       "years_exp": 9,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Kaelon Black",
@@ -10518,7 +10758,8 @@
       "fp_std": 26.4,
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Terrell Jennings",
@@ -10560,7 +10801,8 @@
       "fp_std": 31.9,
       "age": 22,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Kareem Hunt",
@@ -10827,6 +11069,7 @@
       "age": 28,
       "years_exp": 6,
       "injury": "",
+      "adp_delta": 0.0,
       "svq": [
         199,
         999,
@@ -10854,6 +11097,7 @@
       "age": 26,
       "years_exp": 2,
       "injury": "Questionable",
+      "adp_delta": 0.0,
       "svq": [
         202,
         999,
@@ -11188,7 +11432,8 @@
       "fp_std": 30.9,
       "age": 24,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Kirk Cousins",
@@ -11202,7 +11447,8 @@
       "fp_std": 30.2,
       "age": 37,
       "years_exp": 14,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Taylen Green",
@@ -11230,7 +11476,8 @@
       "fp_std": 56.4,
       "age": 23,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Deshaun Watson",
@@ -11244,7 +11491,8 @@
       "fp_std": 36.5,
       "age": 30,
       "years_exp": 9,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Mac Jones",
@@ -11258,7 +11506,8 @@
       "fp_std": 53.4,
       "age": 27,
       "years_exp": 5,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Riley Leonard",
@@ -11272,7 +11521,8 @@
       "fp_std": 92.0,
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Ty Simpson",
@@ -11286,7 +11536,8 @@
       "fp_std": 40.4,
       "age": 23,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Anthony Richardson",
@@ -11300,7 +11551,8 @@
       "fp_std": null,
       "age": 24,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Justin Fields",
@@ -11314,7 +11566,8 @@
       "fp_std": 66.5,
       "age": 27,
       "years_exp": 5,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Carson Beck",
@@ -11328,7 +11581,8 @@
       "fp_std": 70.5,
       "age": 23,
       "years_exp": 0,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Gardner Minshew",
@@ -11370,7 +11624,8 @@
       "fp_std": null,
       "age": 22,
       "years_exp": 0,
-      "injury": "Questionable"
+      "injury": "Questionable",
+      "adp_delta": 0.0
     },
     {
       "name": "Jameis Winston",
@@ -11384,7 +11639,8 @@
       "fp_std": 68.0,
       "age": 32,
       "years_exp": 11,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Will Howard",
@@ -11398,7 +11654,8 @@
       "fp_std": null,
       "age": 24,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Joe Flacco",
@@ -11440,7 +11697,8 @@
       "fp_std": null,
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Marcus Mariota",
@@ -11454,7 +11712,8 @@
       "fp_std": null,
       "age": 32,
       "years_exp": 11,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Tyson Bagent",
@@ -11468,7 +11727,8 @@
       "fp_std": null,
       "age": 26,
       "years_exp": 3,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Quinn Ewers",
@@ -11482,7 +11742,8 @@
       "fp_std": null,
       "age": 23,
       "years_exp": 1,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     },
     {
       "name": "Joe Milton",
@@ -11496,9 +11757,11 @@
       "fp_std": null,
       "age": 26,
       "years_exp": 2,
-      "injury": ""
+      "injury": "",
+      "adp_delta": 0.0
     }
   ],
+  "movers": [],
   "keepers": [
     {
       "team_idx": 0,

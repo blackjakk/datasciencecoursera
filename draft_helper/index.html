@@ -8,100 +8,169 @@
 <style>
   /* Page-specific layout ONLY — every color comes from ml.css --ml-* vars. */
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--ml-bg); color: var(--ml-text); font: 14px/1.4 var(--ml-font-body); }
+  body { margin: 0; background: var(--ml-bg); color: var(--ml-text); font: 0.875rem/1.4 var(--ml-font-body); }
   header { background: linear-gradient(135deg, var(--ml-brand-a) 0%, var(--ml-brand-b) 100%); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-  header .title { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; }
+  header .title { margin: 0; font-weight: 800; font-size: 1rem; letter-spacing: 0.5px; color: var(--ml-on-brand); }
   main { display: grid; grid-template-columns: 1fr 380px; gap: 12px; padding: 12px; max-width: 1400px; margin: 0 auto; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  main > * { min-width: 0; }
+  main .ml-panel { min-width: 0; }
+  .col-right { display: flex; flex-direction: column; gap: 12px; }
   .controls { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
   .controls input[type=search] { flex: 1; min-width: 140px; }
   .pos-filter { display: flex; gap: 4px; flex-wrap: wrap; }
   table.player-list tr { cursor: pointer; }
   table.player-list tr:hover { background: var(--ml-panel2); }
-  table.player-list tr.drafted { opacity: 0.25; text-decoration: line-through; pointer-events: none; }
-  table.player-list tr.brian-target { background: rgba(74,222,128,0.07); border-left: 3px solid var(--ml-success); }
+  table.player-list tr.brian-target { background: var(--ml-target-tint); border-left: 3px solid var(--ml-success); }
+  .target-glyph { color: var(--ml-success); }
   .vbd { font-weight: 700; }
   .vbd.pos { color: var(--ml-success); }
   .vbd.neg { color: var(--ml-muted); }
-  .meta { color: var(--ml-muted); font-size: 11px; }
-  .roster { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 12px; }
+  .meta { color: var(--ml-muted); font-size: 0.6875rem; }
+  .roster { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 0.75rem; }
   .roster-row { padding: 4px 6px; background: var(--ml-panel2); border-left: 3px solid; border-radius: var(--ml-r-sm); display: flex; justify-content: space-between; align-items: center; }
   .recs { display: flex; flex-direction: column; gap: 4px; }
-  .rec { padding: 6px 8px; background: var(--ml-panel2); border-radius: var(--ml-r-md); border-left: 3px solid var(--ml-success); }
+  .rec { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; padding: 6px 8px; background: var(--ml-panel2); border: 0; border-radius: var(--ml-r-md); border-left: 3px solid var(--ml-success); }
   .rec.warn { border-left-color: var(--ml-warn); }
-  .rec .why { color: var(--ml-muted); font-size: 11px; margin-top: 2px; }
-  .player-list-scroll { max-height: 70vh; overflow-y: auto; }
-  .history { max-height: 200px; overflow-y: auto; font-size: 12px; }
+  .rec.warn .why::before { content: "⚠ "; }
+  .rec .rec-main, .rec .why { display: block; }
+  .rec .why { color: var(--ml-muted); font-size: 0.6875rem; margin-top: 2px; }
+  .rec:hover { filter: brightness(1.12); }
+  #boot-error { margin: 12px auto; max-width: 720px; padding: 0 12px; }
+  #boot-error .ml-btn { margin-left: 8px; }
+  .skel-stack { display: flex; flex-direction: column; gap: 6px; }
+  .player-list-scroll { max-height: 70vh; overflow-y: auto; overflow-x: auto; }
+  .history { max-height: 200px; overflow-y: auto; font-size: 0.75rem; }
   .history-row { padding: 3px 6px; border-bottom: 1px solid var(--ml-row); display: flex; gap: 6px; align-items: center; }
   .history-row .pn { color: var(--ml-muted); min-width: 28px; }
   .history-row .who { color: var(--ml-muted); min-width: 60px; }
-  .history-row.mine { background: rgba(74,222,128,0.12); }
+  .history-row.mine { background: var(--ml-mine-tint); }
   .age-young { color: var(--ml-success); }
   .age-old { color: var(--ml-muted); }
-  .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 0.6875rem; }
   .keeper-row { font-style: italic; opacity: 0.7; }
-  .next-pick-info { font-size: 11px; color: var(--ml-muted); margin-top: 2px; }
-  .live-box { display: flex; align-items: center; gap: 8px; }
-  .live-status { font-size: 11px; color: rgba(255,255,255,0.85); max-width: 220px; }
+  .next-pick-info { font-size: 0.6875rem; color: var(--ml-muted); margin-top: 2px; }
+  .live-box { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .live-status { font-size: 0.6875rem; color: var(--ml-on-brand); max-width: 220px; }
+  .session-chip { font-size: 0.6875rem; color: var(--ml-on-brand); white-space: nowrap; }
+  /* Week-over-week market movement — direction is carried by the ▲/▼/—
+     glyphs (never color-only); gold = rising, danger = falling. The
+     var(--ml-gold, …) fallback keeps the page usable until the Exchange
+     tokens land in ml.css. */
+  .delta-up { color: var(--ml-gold, var(--ml-success)); font-weight: 700; }
+  .delta-down { color: var(--ml-danger); font-weight: 700; }
+  .delta-flat { color: var(--ml-muted); }
+  /* .ml-tape sets display:flex, which would beat the UA [hidden] rule —
+     keep the empty strip truly gone when there are no movers. */
+  #tape[hidden] { display: none; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .panel-head h2 { margin: 0; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    header { position: sticky; top: 0; z-index: 10; }
+    /* Flatten the right column into main's grid so the clock/recs panel can
+       be ordered ABOVE the player pool on small screens. */
+    .col-right { display: contents; }
+    .panel-clock { order: -1; }
+  }
+  @media (max-width: 480px) {
+    /* Drop Team / Age / Proj / Δwk so Pos·Name·VAL·MKT·Next✓ fit without hscroll */
+    .player-list th:nth-child(3), .player-list td:nth-child(3),
+    .player-list th:nth-child(4), .player-list td:nth-child(4),
+    .player-list th:nth-child(5), .player-list td:nth-child(5),
+    .player-list th:nth-child(8), .player-list td:nth-child(8) { display: none; }
+    .player-list-scroll { max-height: 50vh; }
+    .title-slot { display: none; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <div class="title">BRIAN'S 2026 DRAFT HELPER · slot 6</div>
+  <h1 class="title ml-display">MONEYLEAGUE EXCHANGE<span class="title-slot"> · SEAT 6</span></h1>
   <div class="live-box">
-    <button id="ceiling-btn" class="ml-btn ml-btn--hdr" title="Weight recommendations toward boom/bust upside (expert disagreement + youth) instead of median value">CEILING</button>
-    <button id="practice-btn" class="ml-btn ml-btn--hdr" title="Run a practice draft vs the tendency-modeled league bots">PRACTICE</button>
+    <button id="ceiling-btn" class="ml-btn ml-btn--hdr" aria-pressed="false" aria-describedby="ceiling-desc" title="Weight recommendations toward boom/bust upside (expert disagreement + youth) instead of median value">CEILING</button>
+    <button id="practice-btn" class="ml-btn ml-btn--hdr" aria-describedby="practice-desc" title="Run a practice draft vs the tendency-modeled league bots">PRACTICE</button>
     <button id="live-btn" class="ml-btn ml-btn--hdr">GO LIVE</button>
-    <span id="live-status" class="live-status"></span>
+    <span id="live-status" class="live-status" role="status"></span>
+    <span id="session-chip" class="session-chip"></span>
   </div>
   <div id="clock" class="ml-clock">loading…</div>
+  <span id="ceiling-desc" class="ml-visually-hidden">Weights recommendations toward boom-or-bust upside (expert disagreement plus youth) instead of median value.</span>
+  <span id="practice-desc" class="ml-visually-hidden">Runs a practice draft against the tendency-modeled league bots; bots pick for every other team.</span>
+  <div id="sr-clock" class="ml-visually-hidden" role="status"></div>
+  <div id="sr-results" class="ml-visually-hidden" role="status"></div>
 </header>
 
-<main>
+<!-- Boot failure surface: filled by showBootError() when data.json can't
+     load; replaces <main> entirely (role=alert + one Retry action). -->
+<div id="boot-error" hidden></div>
+
+<!-- Static week-over-week movers strip (never animated — motion means
+     urgency only). Hidden entirely when the data bundle has no movers. -->
+<div id="tape" class="ml-tape" hidden>
+  <span class="ml-visually-hidden">Week-over-week market movers:</span>
+  <span id="tape-items"></span>
+</div>
+
+<main aria-busy="true">
   <!-- LEFT: player pool -->
-  <div class="ml-panel">
-    <h2>Available Players</h2>
+  <section class="ml-panel" aria-labelledby="h-players">
+    <div class="panel-head">
+      <h2 id="h-players">ORDER BOOK</h2>
+      <span id="book-count" class="meta ml-num"></span>
+    </div>
     <div class="controls">
-      <input id="search" class="ml-input" type="search" placeholder="Search by name…" autocomplete="off">
+      <input id="search" class="ml-input" type="search" placeholder="Search by name…" autocomplete="off" aria-label="Search players by name">
       <div class="pos-filter">
-        <button class="ml-filter active" data-pos="ALL">All</button>
-        <button class="ml-filter ml-filter--qb" data-pos="QB">QB</button>
-        <button class="ml-filter ml-filter--rb" data-pos="RB">RB</button>
-        <button class="ml-filter ml-filter--wr" data-pos="WR">WR</button>
-        <button class="ml-filter ml-filter--te" data-pos="TE">TE</button>
-        <button class="ml-filter" data-pos="K">K</button>
-        <button class="ml-filter" data-pos="DEF">DEF</button>
+        <button class="ml-filter active" data-pos="ALL" aria-pressed="true">All</button>
+        <button class="ml-filter ml-filter--qb" data-pos="QB" aria-pressed="false">QB</button>
+        <button class="ml-filter ml-filter--rb" data-pos="RB" aria-pressed="false">RB</button>
+        <button class="ml-filter ml-filter--wr" data-pos="WR" aria-pressed="false">WR</button>
+        <button class="ml-filter ml-filter--te" data-pos="TE" aria-pressed="false">TE</button>
+        <button class="ml-filter" data-pos="K" aria-pressed="false">K</button>
+        <button class="ml-filter" data-pos="DEF" aria-pressed="false">DEF</button>
       </div>
     </div>
-    <div class="player-list-scroll">
+    <div class="player-list-scroll" tabindex="0" role="region" aria-label="Available players">
       <table class="ml-table player-list" id="ptable">
         <thead>
-          <tr><th>Pos</th><th>Name</th><th>Team</th><th>Age</th><th>Proj</th><th>VBD</th><th>ADP</th><th title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)">Next✓</th></tr>
+          <tr><th>Pos</th><th>Name</th><th>Team</th><th class="ml-num">Age</th><th class="ml-num">Proj</th><th class="ml-num">VAL<span class="ml-visually-hidden"> — dynamic value over replacement, recomputed against the remaining player pool</span></th><th class="ml-num">MKT<span class="ml-visually-hidden"> — average draft position — market price</span></th><th class="ml-num" title="Week-over-week ADP movement in rounds (up = being drafted earlier now)">Δwk<span class="ml-visually-hidden"> — week-over-week ADP movement in rounds; up means the player is being drafted earlier now</span></th><th class="ml-num" title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)">Next✓<span class="ml-visually-hidden"> — chance the player is still available at your next pick (300-sim Monte Carlo)</span></th></tr>
         </thead>
-        <tbody id="ptable-body"></tbody>
+        <tbody id="ptable-body"><!-- static loading skeletons; first render replaces them wholesale -->
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:88%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:72%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:81%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:64%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:77%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:69%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:84%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:58%"></span></td></tr>
+        </tbody>
       </table>
     </div>
-  </div>
+  </section>
 
   <!-- RIGHT: roster + recs + history -->
-  <div style="display: flex; flex-direction: column; gap: 12px;">
-    <div class="ml-panel">
-      <h2>You're on the Clock</h2>
-      <div id="next-pick" class="next-pick-info">—</div>
-      <h2 style="margin-top: 10px;">Top Recommendations</h2>
-      <div id="recs" class="recs"></div>
-    </div>
+  <div class="col-right">
+    <section class="ml-panel panel-clock" aria-labelledby="h-clock">
+      <h2 id="h-clock">You're on the Clock</h2>
+      <div id="next-pick" class="next-pick-info" role="status">—</div>
+      <h2 id="h-recs" style="margin-top: 10px;">Top Recommendations</h2>
+      <div id="recs" class="recs"><div class="skel-stack" aria-hidden="true"><span class="ml-skeleton" style="width:92%"></span><span class="ml-skeleton" style="width:70%"></span><span class="ml-skeleton" style="width:80%"></span></div></div>
+    </section>
 
-    <div class="ml-panel">
-      <h2>Your Roster <span id="roster-total" class="meta"></span></h2>
-      <div id="roster" class="roster"></div>
+    <section class="ml-panel" aria-labelledby="h-roster">
+      <h2 id="h-roster">PORTFOLIO <span id="roster-total" class="meta"></span></h2>
+      <div id="roster" class="roster"><div class="skel-stack" aria-hidden="true"><span class="ml-skeleton" style="width:85%"></span><span class="ml-skeleton" style="width:65%"></span></div><div class="skel-stack" aria-hidden="true"><span class="ml-skeleton" style="width:75%"></span><span class="ml-skeleton" style="width:60%"></span></div></div>
       <div id="roster-stats" class="stats" style="margin-top: 8px;"></div>
-    </div>
+    </section>
 
-    <div class="ml-panel">
-      <h2>Recent Picks <button class="ml-btn" id="undo">undo last</button></h2>
-      <div class="history" id="history"></div>
-    </div>
+    <section class="ml-panel" aria-labelledby="h-history">
+      <div class="panel-head">
+        <h2 id="h-history" class="ml-h-label">FILLS</h2>
+        <button class="ml-btn" id="undo">undo last</button>
+      </div>
+      <div class="history" id="history"><div class="skel-stack" aria-hidden="true"><span class="ml-skeleton" style="width:90%"></span><span class="ml-skeleton" style="width:78%"></span><span class="ml-skeleton" style="width:83%"></span></div></div>
+    </section>
   </div>
 </main>
 
@@ -113,21 +182,104 @@ let pickOrder = [];           // array of {round, overall, slot, team_idx, playe
 let posFilter = "ALL";
 let searchQ = "";
 let cursor = 0;               // index into DATA.schedule
+let blueChip = new Set();     // top-12 pre-draft VBD names (set in init)
+
+// Static movers tape: real week-over-week ADP movement from data.json
+// (build_draft_helper_data.py diffs the committed players csv). No movers
+// data → the strip stays hidden; nothing ever scrolls or animates.
+function renderTape() {
+  const tape = document.getElementById("tape");
+  const items = document.getElementById("tape-items");
+  const movers = (DATA && DATA.movers) || [];
+  if (!tape || !items) return;
+  if (!movers.length) { tape.hidden = true; return; }
+  items.innerHTML = "WK MOVERS: " + movers.map(m => {
+    const up = m.delta > 0;
+    return `${escHtml(m.label)} <span class="${up ? "delta-up" : "delta-down"}">` +
+      `${up ? "▲" : "▼"}${Math.abs(m.delta).toFixed(1)}</span>`;
+  }).join(" · ");
+  tape.hidden = false;
+}
+
+// Boot failure: replace the app with one alert + one action. Recoverable
+// runtime failures (live poll) degrade to status text instead — this path
+// is only for "we have no data at all".
+function showBootError(err) {
+  const main = document.querySelector("main");
+  if (main) main.hidden = true;
+  const tape = document.getElementById("tape");
+  if (tape) tape.hidden = true;
+  document.getElementById("clock").textContent = "offline";
+  const box = document.getElementById("boot-error");
+  box.hidden = false;
+  box.innerHTML =
+    '<div class="ml-banner--error" role="alert">' +
+    "<strong>MARKET DATA UNAVAILABLE</strong> — the player bundle " +
+    "(data.json) didn't load (" + escHtml((err && err.message) || err) + "). " +
+    "The order book can't open without it." +
+    '<button type="button" class="ml-btn" id="boot-retry">Retry</button></div>';
+  document.getElementById("boot-retry").addEventListener("click", () => location.reload());
+  document.getElementById("boot-retry").focus();
+}
 
 (async function init() {
-  const resp = await fetch(DATA_URL);
-  DATA = await resp.json();
+  try {
+    const resp = await fetch(DATA_URL);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    DATA = await resp.json();
+  } catch (err) {
+    showBootError(err);
+    return;
+  }
+  document.querySelector("main").removeAttribute("aria-busy");
   loadStateFromURL();         // first restore any user picks from URL
   applyKeepersAtStart();      // then place all remaining keepers
   recomputeCursor();          // cursor = first slot without a player
+  // Blue chips: top 12 by PRE-DRAFT VBD — a fixed tier, not the dynamic VBD.
+  blueChip = new Set(DATA.players.slice().sort((a, b) => b.vbd - a.vbd)
+    .slice(0, 12).map(p => p.name));
+  renderTape();
   refresh();
-  document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); });
+  document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); announceResults(); });
+  // Esc clears the search explicitly (Chromium does this natively for
+  // type=search; Firefox does not) — value, state, and list all reset,
+  // focus stays in the field.
+  document.getElementById("search").addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.target.value = "";
+    searchQ = "";
+    renderPlayerList();
+    announceResults();
+  });
   document.querySelectorAll(".ml-filter").forEach(b => b.addEventListener("click", e => {
     posFilter = e.target.dataset.pos;
-    document.querySelectorAll(".ml-filter").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".ml-filter").forEach(x => {
+      x.classList.remove("active");
+      x.setAttribute("aria-pressed", "false");
+    });
     e.target.classList.add("active");
+    e.target.setAttribute("aria-pressed", "true");
     renderPlayerList();
+    announceResults();
   }));
+  // Roving tabindex: the 200-row player list is ONE tab stop; ArrowUp/Down
+  // move between rows, Home/End jump, Enter/Space draft (native buttons).
+  document.getElementById("ptable-body").addEventListener("keydown", e => {
+    const t = e.target;
+    if (!t.classList || !t.classList.contains("row-draft")) return;
+    const rows = Array.from(document.querySelectorAll("#ptable-body .row-draft"));
+    const i = rows.indexOf(t);
+    if (i === -1 || !rows.length) return;
+    let j = null;
+    if (e.key === "ArrowDown") j = Math.min(i + 1, rows.length - 1);
+    else if (e.key === "ArrowUp") j = Math.max(i - 1, 0);
+    else if (e.key === "Home") j = 0;
+    else if (e.key === "End") j = rows.length - 1;
+    if (j === null) return;
+    e.preventDefault();
+    if (j !== i) setRovingFocus(rows[j]);
+  });
   document.getElementById("undo").addEventListener("click", undo);
   document.getElementById("live-btn").addEventListener("click", toggleLive);
   document.getElementById("ceiling-btn").addEventListener("click", toggleCeiling);
@@ -219,7 +371,7 @@ function botPick(slot) {
   return top[top.length - 1].p;
 }
 
-function practiceAdvance() {
+function practiceAdvance(receipt) {
   while (cursor < DATA.schedule.length) {
     const slot = DATA.schedule[cursor];
     if (slot.player) { cursor++; continue; }
@@ -234,7 +386,8 @@ function practiceAdvance() {
   }
   refresh();
   if (cursor >= DATA.schedule.length) showPracticeResult();
-  else setLiveStatus(`practice · your pick R${DATA.schedule[cursor].round} (#${DATA.schedule[cursor].overall})`);
+  else setLiveStatus((receipt ? receipt + " · " : "") +
+    `practice · your pick R${DATA.schedule[cursor].round} (#${DATA.schedule[cursor].overall})`);
 }
 
 function startersProjJS(ti) {
@@ -276,7 +429,7 @@ function showPracticeResult() {
   else if (mc.p25 && full < mc.p25) grade = " — below p25, run it back";
   else if (mc.p25) grade = " — below median, tighten the middle rounds";
   setLiveStatus(`PRACTICE DONE: ${full.toFixed(0)} roster pts${grade}`);
-  alert(`Practice draft complete!\n\nStarters: ${starters.toFixed(0)} projected pts\nFull roster: ${full.toFixed(0)}${grade}${bench}\n\nHit EXIT PRACTICE to restore the real board, or review your roster first.`);
+  alert(`TRADE CONFIRMATION — Practice draft complete!\n\nStarters: ${starters.toFixed(0)} projected pts\nFull roster: ${full.toFixed(0)}${grade}${bench}\n\nHit EXIT PRACTICE to restore the real board, or review your roster first.`);
 }
 
 function togglePractice() {
@@ -322,6 +475,10 @@ function setLiveStatus(msg) {
 
 async function toggleLive() {
   const btn = document.getElementById("live-btn");
+  if (practiceMode && !liveTimer) {
+    setLiveStatus("exit practice before going live");
+    return;
+  }
   if (liveTimer) {                       // turn OFF
     clearInterval(liveTimer);
     liveTimer = null;
@@ -518,6 +675,11 @@ function loadStateFromURL() {
 }
 
 // ---------- DRAFT ACTIONS ----------
+// Action receipts: every state-changing action reports what happened
+// through the #live-status role=status region (announced + visible) and
+// flashes the affected FILLS row (ml-flash, one-shot, reduced-motion-safe).
+let flashOverall = null;
+
 function draftPlayer(name) {
   if (drafted.has(name)) return;
   if (cursor >= DATA.schedule.length) return;
@@ -526,23 +688,32 @@ function draftPlayer(name) {
   slot.is_keeper = false;
   pickOrder.push(slot);
   drafted.add(name);
+  const receipt = `FILLED — ${name} · R${slot.round}.${slot.pick_in_round} #${slot.overall}`;
+  flashOverall = slot.overall;
   recomputeCursor();  // skips any subsequent keeper slots
   saveStateToURL();
   refresh();
-  if (practiceMode) practiceAdvance();  // bots pick until your next clock
+  if (practiceMode) practiceAdvance(receipt);  // bots pick until your next clock
+  else setLiveStatus(receipt);
 }
 
 function undo() {
   // Pop the most recent USER pick (skip keepers — they're not undoable)
+  if (!pickOrder.some(p => !p.is_keeper)) {
+    setLiveStatus("nothing to undo — no fills yet");
+    return;
+  }
   for (let i = pickOrder.length - 1; i >= 0; i--) {
     if (!pickOrder[i].is_keeper) {
       const [p] = pickOrder.splice(i, 1);
+      const undone = p.player;
       drafted.delete(p.player);
       delete p.player;
       delete p.is_keeper;
       recomputeCursor();
       saveStateToURL();
       refresh();
+      setLiveStatus(`UNDONE — ${undone} returned to the order book`);
       return;
     }
   }
@@ -584,6 +755,17 @@ function survivalCell(p, waitPick) {
   return `<span class="${cls}">${pct}%</span>`;
 }
 
+// Δwk cell: week-over-week ADP movement in rounds. Direction is carried by
+// sign AND arrow (▲+n.n / ▼-n.n / —), never by color alone. Missing or
+// ~zero delta renders as a muted em-dash.
+function deltaCellHtml(p) {
+  const d = p.adp_delta;
+  if (d == null || Math.abs(d) < 0.05) return '<td class="ml-num delta-flat">—</td>';
+  const up = d > 0;
+  return `<td class="ml-num"><span class="${up ? "delta-up" : "delta-down"}">` +
+    `${up ? "▲+" : "▼-"}${Math.abs(d).toFixed(1)}</span></td>`;
+}
+
 // Dynamic VBD: replacement level recomputed against the REMAINING pool.
 // As positions thin out, the survivors at scarce positions gain value —
 // static pre-draft VBD misses that entirely.
@@ -618,7 +800,7 @@ function computeDynVbd() {
 // 2027 keeper cost if drafted in round r (league rule: cost = round - 2;
 // R1/R2 picks are keeper-ineligible; waivers cost R15).
 function keeperCostLabel(round) {
-  return round > 2 ? `keep '27 @ R${round - 2}` : "not keeper-eligible";
+  return round > 2 ? `contract: keep '27 @ R${round - 2}` : "not keeper-eligible";
 }
 
 // ---------- CEILING MODE ----------
@@ -640,29 +822,54 @@ function toggleCeiling() {
   ceilingMode = !ceilingMode;
   const btn = document.getElementById("ceiling-btn");
   btn.classList.toggle("ml-btn--on", ceilingMode);
-  btn.textContent = ceilingMode ? "CEILING ON" : "CEILING";
+  // Label stays "CEILING"; aria-pressed + the --on class carry the state.
+  btn.setAttribute("aria-pressed", String(ceilingMode));
   refresh();
 }
 
 // ---------- ALERT (2 picks out) ----------
 let alertedFor = 0;
+let srClockMeFor = 0;    // last pick # announced as "on the clock"
+let srClockSoonFor = 0;  // last pick # announced as "2 away"
+const BASE_TITLE = document.title;
 function maybeAlert(current, myNext) {
+  const away = (current && myNext) ? myNext.overall - current.overall : -1;
+  const isMe = away === 0;
+  const soon = away > 0 && away <= 2;
+  // Non-audio, non-color equivalents of the beep/pulse: tab title prefix…
+  document.title = isMe ? "⏰ you're up · " + BASE_TITLE
+    : soon ? "⏰ 2 away · " + BASE_TITLE
+    : BASE_TITLE;
+  // …and a polite live-region announcement, only on state TRANSITIONS
+  // (keyed per pick like alertedFor — never re-announced on re-renders).
+  const sr = document.getElementById("sr-clock");
+  if (isMe && srClockMeFor !== myNext.overall) {
+    srClockMeFor = myNext.overall;
+    sr.textContent = `You're on the clock — pick #${myNext.overall}`;
+  } else if (soon && srClockSoonFor !== myNext.overall) {
+    srClockSoonFor = myNext.overall;
+    sr.textContent = "2 picks until you're up";
+  }
   if (!current || !myNext) return;
-  const away = myNext.overall - current.overall;
   if (away >= 0 && away <= 2 && alertedFor !== myNext.overall) {
     alertedFor = myNext.overall;
     beep(away === 0 ? 2 : 1);
   }
 }
 function beep(times) {
+  // Two-tone closing bell (880 → 660 Hz per ring). Same trigger logic and
+  // failure mode as the old single-tone beep — no new autoplay behavior.
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     for (let i = 0; i < times; i++) {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = 880; g.gain.value = 0.15;
-      o.start(ctx.currentTime + i * 0.35);
-      o.stop(ctx.currentTime + i * 0.35 + 0.18);
+      const t0 = ctx.currentTime + i * 0.45;
+      [[880, 0], [660, 0.16]].forEach(([hz, off]) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = hz; g.gain.value = 0.15;
+        o.start(t0 + off);
+        o.stop(t0 + off + 0.14);
+      });
     }
   } catch (e) { /* audio blocked until first user gesture — fine */ }
 }
@@ -670,12 +877,119 @@ function beep(times) {
 // ---------- RENDER ----------
 let dynVbd = new Map();
 function refresh() {
+  const focusSnap = captureFocus();
   dynVbd = computeDynVbd();
   renderClock();
+  renderSessionChip();
   renderPlayerList();
   renderRoster();
   renderRecs();
   renderHistory();
+  syncControlStates();
+  restoreFocus(focusSnap);
+}
+
+// ---------- CONTROL STATES ----------
+// aria-disabled (not the disabled attribute): the control stays focusable
+// and announced, and activating it explains itself via the status region —
+// the guard clauses in undo()/togglePractice()/toggleLive() are the truth,
+// this just makes them visible before the click.
+function syncControlStates() {
+  const undoBtn = document.getElementById("undo");
+  const canUndo = pickOrder.some(p => !p.is_keeper);
+  undoBtn.setAttribute("aria-disabled", String(!canUndo));
+  undoBtn.title = canUndo ? "Undo the most recent fill" : "Nothing to undo yet";
+  document.getElementById("practice-btn")
+    .setAttribute("aria-disabled", String(!!liveTimer && !practiceMode));
+  document.getElementById("live-btn")
+    .setAttribute("aria-disabled", String(practiceMode && !liveTimer));
+}
+
+// ---------- RESULT-COUNT FEEDBACK ----------
+// Announce search/filter outcomes (debounced — typing shouldn't spam the
+// screen reader). The visible #book-count updates on every render.
+let announceTimer = null;
+function announceResults() {
+  clearTimeout(announceTimer);
+  announceTimer = setTimeout(() => {
+    const n = document.querySelectorAll("#ptable-body .row-draft").length;
+    document.getElementById("sr-results").textContent =
+      n === 0 ? "No assets match" : `${n} asset${n === 1 ? "" : "s"} shown`;
+  }, 350);
+}
+
+// Header market-state chip: schedule fill count (keepers included).
+function renderSessionChip() {
+  const el = document.getElementById("session-chip");
+  if (!el) return;
+  const total = DATA.schedule.length;
+  const filled = DATA.schedule.filter(s => s.player).length;
+  el.textContent = (cursor >= total || filled >= total)
+    ? "MARKET CLOSED"
+    : `MARKET OPEN · ${filled}/${total}`;
+}
+
+// ---------- FOCUS RESTORATION ----------
+// refresh() rebuilds the table/recs DOM; without this, keyboard focus dies
+// to <body> after every draft, undo, and 15s live poll. Contract: refocus
+// the same player if still listed, else the row at the same visual index
+// (clamped), else #search. Never let focus land on BODY.
+function captureFocus() {
+  const ae = document.activeElement;
+  if (!ae || ae === document.body) return null;
+  if (ae.classList && ae.classList.contains("row-draft")) {
+    const rows = Array.from(document.querySelectorAll("#ptable-body .row-draft"));
+    return { kind: "row", player: ae.dataset.player, index: rows.indexOf(ae) };
+  }
+  if (ae.classList && ae.classList.contains("rec")) {
+    const recs = Array.from(document.querySelectorAll("#recs button.rec"));
+    return { kind: "rec", player: ae.dataset.player, index: recs.indexOf(ae) };
+  }
+  // Anything outside the rebuilt regions (search, filters, undo, header
+  // buttons) survives re-render; remember it only as a fallback check.
+  return { kind: "other", el: ae };
+}
+
+function restoreFocus(snap) {
+  if (!snap) return;
+  const ae = document.activeElement;
+  if (ae && ae !== document.body) return;   // focus survived the re-render
+  if (snap.kind === "other" && snap.el && document.contains(snap.el)) {
+    snap.el.focus();
+    return;
+  }
+  const rows = Array.from(document.querySelectorAll("#ptable-body .row-draft"));
+  if (snap.kind === "row" && snap.player) {
+    const same = rows.find(b => b.dataset.player === snap.player);
+    if (same) { setRovingFocus(same); return; }
+  }
+  if (snap.kind === "rec") {
+    const recs = Array.from(document.querySelectorAll("#recs button.rec"));
+    if (recs.length) {
+      recs[Math.max(0, Math.min(snap.index, recs.length - 1))].focus();
+      return;
+    }
+  }
+  if (rows.length) {
+    const i = Math.max(0, Math.min(snap.index || 0, rows.length - 1));
+    setRovingFocus(rows[i]);
+    return;
+  }
+  const search = document.getElementById("search");
+  if (search) search.focus();
+}
+
+function setRovingFocus(btn) {
+  document.querySelectorAll("#ptable-body .row-draft").forEach(b => { b.tabIndex = -1; });
+  btn.tabIndex = 0;
+  btn.focus();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function escAttr(s) {
+  return escHtml(s).replace(/"/g, "&quot;");
 }
 
 function renderClock() {
@@ -683,12 +997,17 @@ function renderClock() {
   if (cursor >= DATA.schedule.length) {
     el.textContent = "Draft complete";
     el.classList.remove("ml-clock--me");
+    maybeAlert(null, null);   // restore document.title
     return;
   }
   const next = DATA.schedule[cursor];
   const mgr = DATA.managers.find(m => m.team_idx === next.team_idx);
   const isMe = next.team_idx === DATA.my_team_idx;
-  el.textContent = `R${next.round}.${next.pick_in_round} · #${next.overall} · ${mgr ? mgr.id.toUpperCase() : "?"}`;
+  // Your clock is the closing bell (status text — the ⏰ is content, not
+  // chrome). #sr-clock announcements are handled in maybeAlert(), unchanged.
+  el.textContent = isMe
+    ? `⏰ CLOSING BELL · R${next.round}.${next.pick_in_round} · #${next.overall} · YOU`
+    : `R${next.round}.${next.pick_in_round} · #${next.overall} · ${mgr ? mgr.id.toUpperCase() : "?"}`;
   el.classList.toggle("ml-clock--me", isMe);
 
   // Find Brian's next pick
@@ -726,25 +1045,47 @@ function renderPlayerList() {
 
   for (const p of filtered) {
     const tr = document.createElement("tr");
-    if (needPos.has(p.pos)) tr.classList.add("brian-target");
+    const isTarget = needPos.has(p.pos);
+    if (isTarget) tr.classList.add("brian-target");
+    const targetTag = isTarget
+      ? ' <span class="target-glyph" aria-hidden="true">★</span><span class="ml-visually-hidden"> — fills roster need</span>' : '';
     const ageCell = p.age ? `<span class="${p.age <= 25 ? 'age-young' : (p.age >= 29 ? 'age-old' : '')}">${p.age}</span>` : '<span class="meta">-</span>';
-    const rookieTag = p.years_exp === 0 ? ' <span class="ml-badge ml-badge--rookie">R</span>' : '';
-    const injTag = p.injury ? ` <span class="ml-badge ml-badge--injury">${p.injury[0]}</span>` : '';
+    const rookieTag = p.years_exp === 0 ? ' <span class="ml-badge ml-badge--rookie" title="Rookie" aria-label="Rookie">R</span>' : '';
+    const injTag = p.injury ? ` <span class="ml-badge ml-badge--injury" title="${escAttr(p.injury)}" aria-label="${escAttr(p.injury)}">${p.injury[0]}</span>` : '';
+    const chipTag = blueChip.has(p.name)
+      ? ' <span class="ml-badge ml-badge--bluechip" title="Blue chip — top-12 value" aria-label="Blue chip — top-12 value">◆</span>' : '';
     const dv = dynVbd.get(p.name) ?? p.vbd;
     const vbdClass = dv > 0 ? "pos" : "neg";
     tr.innerHTML = `
       <td><span class="ml-badge ml-badge--${p.pos.toLowerCase()}">${p.pos}</span></td>
-      <td>${p.name}${rookieTag}${injTag}</td>
+      <td><button type="button" class="ml-btn--bare row-draft" data-player="${escAttr(p.name)}" tabindex="-1">${escHtml(p.name)}</button>${chipTag}${rookieTag}${injTag}${targetTag}</td>
       <td class="meta">${p.team}</td>
-      <td>${ageCell}</td>
-      <td>${p.proj.toFixed(0)}</td>
-      <td class="vbd ${vbdClass}" title="dynamic VBD vs remaining pool (pre-draft: ${p.vbd > 0 ? '+' : ''}${p.vbd.toFixed(0)})">${dv > 0 ? '+' : ''}${dv.toFixed(0)}</td>
-      <td class="meta">${p.adp.toFixed(0)}</td>
-      <td>${survivalCell(p, waitPick)}</td>
+      <td class="ml-num">${ageCell}</td>
+      <td class="ml-num">${p.proj.toFixed(0)}</td>
+      <td class="vbd ${vbdClass} ml-num" title="dynamic VBD vs remaining pool (pre-draft: ${p.vbd > 0 ? '+' : ''}${p.vbd.toFixed(0)})">${dv > 0 ? '+' : ''}${dv.toFixed(0)}</td>
+      <td class="meta ml-num">${p.adp.toFixed(0)}</td>
+      ${deltaCellHtml(p)}
+      <td class="ml-num">${survivalCell(p, waitPick)}</td>
     `;
+    // Mouse path: whole row drafts. Keyboard path: the name button's native
+    // Enter/Space fires a click that bubbles to this same listener.
     tr.addEventListener("click", () => draftPlayer(p.name));
     body.appendChild(tr);
   }
+  // Contextual empty state: name the cause and the way out — never a blank.
+  if (!filtered.length) {
+    const msg = searchQ
+      ? `No assets match “${escHtml(searchQ)}” — press Esc to clear the search`
+      : (posFilter !== "ALL"
+        ? `No available ${escHtml(posFilter)}s left on the board`
+        : "Order book empty — every asset is rostered");
+    body.innerHTML = `<tr><td colspan="9"><div class="ml-empty">${msg}</div></td></tr>`;
+  }
+  document.getElementById("book-count").textContent =
+    `${filtered.length} shown`;
+  // Roving tabindex: exactly one row button is tabbable at a time.
+  const firstBtn = body.querySelector(".row-draft");
+  if (firstBtn) firstBtn.tabIndex = 0;
 }
 
 function renderRoster() {
@@ -753,11 +1094,14 @@ function renderRoster() {
   // Pull straight from schedule so keepers + user picks both show
   const myPicks = DATA.schedule
     .filter(p => p.team_idx === DATA.my_team_idx && p.player);
+  if (!myPicks.length) {
+    r.innerHTML = '<div class="ml-empty" style="grid-column: 1 / -1">No holdings yet — your first fill lands here</div>';
+  }
   const totalProj = myPicks.reduce((s, p) => {
     const pp = DATA.players.find(x => x.name === p.player);
     return s + (pp ? pp.proj : 0);
   }, 0);
-  document.getElementById("roster-total").textContent = `· ${myPicks.length}/17 · ${totalProj.toFixed(0)} proj`;
+  document.getElementById("roster-total").textContent = `· ${myPicks.length}/17 · ${totalProj.toFixed(0)} GUAP proj`;
   // Group by position
   const byPos = {QB: [], RB: [], WR: [], TE: [], K: [], DEF: []};
   for (const pk of myPicks) {
@@ -772,8 +1116,8 @@ function renderRoster() {
       row.className = "roster-row" + (isKeeper ? " keeper-row" : "");
       row.style.borderLeftColor = `var(--ml-pos-${pos.toLowerCase()})`;
       const keepTag = (!isKeeper && player.round > 2)
-        ? ` <span class="meta" title="2027 keeper cost">·K'27 R${player.round - 2}</span>` : "";
-      row.innerHTML = `<span><span class="ml-badge ml-badge--${pos.toLowerCase()}">${pos}</span> ${player.player}${isKeeper ? ' <span class="ml-badge ml-badge--keeper">K</span>' : ''}</span><span class="meta">R${player.round}${keepTag}</span>`;
+        ? ` <span class="meta" title="contract: 2027 keeper cost">·K'27 R${player.round - 2}</span>` : "";
+      row.innerHTML = `<span><span class="ml-badge ml-badge--${pos.toLowerCase()}">${pos}</span> ${escHtml(player.player)}${isKeeper ? ' <span class="ml-badge ml-badge--keeper" title="Keeper" aria-label="Keeper">K</span>' : ''}</span><span class="meta">R${player.round}${keepTag}</span>`;
       r.appendChild(row);
     }
   }
@@ -836,15 +1180,17 @@ function renderRecs() {
   for (const p of top3) {
     const reason = recReason(p, next, myCounts, needPos, waitPick);
     const dv = dynVbd.get(p.name) ?? p.vbd;
-    const div = document.createElement("div");
-    div.className = "rec";
-    div.innerHTML = `<div><span class="ml-badge ml-badge--${p.pos.toLowerCase()}">${p.pos}</span> <strong>${p.name}</strong> ` +
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "rec";
+    btn.dataset.player = p.name;
+    btn.innerHTML = `<span class="ml-visually-hidden">Draft </span>` +
+      `<span class="rec-main"><span class="ml-badge ml-badge--${p.pos.toLowerCase()}">${p.pos}</span> <strong>${escHtml(p.name)}</strong> ` +
       `<span class="meta">VBD ${dv > 0 ? '+' : ''}${dv.toFixed(0)} · ADP ${p.adp.toFixed(0)}` +
-      `${p.age ? ' · age ' + p.age : ''} · back-to-you ${survivalCell(p, waitPick)}</span></div>` +
-      `<div class="why">${reason}</div>`;
-    div.addEventListener("click", () => draftPlayer(p.name));
-    div.style.cursor = "pointer";
-    recs.appendChild(div);
+      `${p.age ? ' · age ' + p.age : ''} · back-to-you ${survivalCell(p, waitPick)}</span></span>` +
+      `<span class="why">${reason}</span>`;
+    btn.addEventListener("click", () => draftPlayer(p.name));
+    recs.appendChild(btn);
   }
 }
 
@@ -871,6 +1217,10 @@ function renderHistory() {
   // Show picks in actual draft order (overall), up to cursor.
   const happened = DATA.schedule.slice(0, cursor).filter(p => p.player);
   const last = happened.slice(-15).reverse();
+  if (!last.length) {
+    h.innerHTML = '<div class="ml-empty">No fills yet — the tape starts at pick #1</div>';
+    return;
+  }
   for (const p of last) {
     const mgr = DATA.managers.find(m => m.team_idx === p.team_idx);
     const player = DATA.players.find(x => x.name === p.player) || {pos: '?'};
@@ -878,15 +1228,18 @@ function renderHistory() {
     const isMe = p.team_idx === DATA.my_team_idx;
     const row = document.createElement("div");
     row.className = "history-row" + (isMe ? " mine" : "");
+    // One-shot receipt flash on the row this action just created.
+    if (flashOverall != null && p.overall === flashOverall) row.classList.add("ml-flash");
     row.innerHTML = `
       <span class="pn">#${p.overall}</span>
       <span class="who">${(mgr && mgr.id) ? mgr.id.toUpperCase() : '?'}</span>
       <span class="ml-badge ml-badge--${(player.pos || '?').toLowerCase()}">${player.pos || '?'}</span>
-      <span>${p.player}</span>
-      ${isKeeper ? '<span class="ml-badge ml-badge--keeper">K</span>' : ''}
+      <span>${escHtml(p.player)}${isMe ? '<span class="ml-visually-hidden"> (your pick)</span>' : ''}</span>
+      ${isKeeper ? '<span class="ml-badge ml-badge--keeper" title="Keeper" aria-label="Keeper">K</span>' : ''}
     `;
     h.appendChild(row);
   }
+  flashOverall = null;
 }
 
 // ---------- HELPERS ----------
