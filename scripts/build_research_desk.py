@@ -31,7 +31,8 @@ SECTIONS = [
     ("market_screen", "I. Market Inefficiency Screen"),
     ("trade_ledger", "II. Trade Ledger — the book, 2023–25"),
     ("counterparty_dossiers", "III. Counterparty Dossiers"),
-    ("autopsy_2025", "IV. The 2025 Autopsy"),
+    ("pick_squeeze", "IV. Pick Squeeze"),
+    ("autopsy_2025", "V. The 2025 Autopsy"),
 ]
 
 PAGE_CSS = """

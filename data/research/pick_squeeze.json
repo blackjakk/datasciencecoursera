@@ -1,0 +1,175 @@
+{
+  "meta": {
+    "generated": "2026-07-12",
+    "basis": "predicted keepers (keepers_2026.json) + schedule with trades applied (helper data.json)",
+    "hard_squeezes": 0,
+    "blocked_alternates": 12
+  },
+  "hard": [],
+  "blocked": [
+    {
+      "manager": "josh_wildboy",
+      "player": "Daniel Jones",
+      "position": "QB",
+      "round": 15,
+      "net_vbd": 49.1,
+      "is_me": false,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "brower_barry",
+      "player": "Romeo Doubs",
+      "position": "WR",
+      "round": 15,
+      "net_vbd": 47.1,
+      "is_me": false,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "coop",
+      "player": "Quentin Johnston",
+      "position": "WR",
+      "round": 15,
+      "net_vbd": 43.3,
+      "is_me": false,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "kyle_figgy",
+      "player": "Cade Otton",
+      "position": "TE",
+      "round": 15,
+      "net_vbd": 42.6,
+      "is_me": false,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "tim_breswick",
+      "player": "Kyle Monangai",
+      "position": "RB",
+      "round": 11,
+      "net_vbd": 30.2,
+      "is_me": false,
+      "brian_can_sell": true
+    },
+    {
+      "manager": "lem",
+      "player": "Keaton Mitchell",
+      "position": "RB",
+      "round": 15,
+      "net_vbd": 20.1,
+      "is_me": false,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "lem",
+      "player": "Darren Waller",
+      "position": "TE",
+      "round": 15,
+      "net_vbd": 12.2,
+      "is_me": false,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "tim_breswick",
+      "player": "George Pickens",
+      "position": "WR",
+      "round": 3,
+      "net_vbd": 6.8,
+      "is_me": false,
+      "brian_can_sell": true
+    },
+    {
+      "manager": "brian_bigguap",
+      "player": "Woody Marks",
+      "position": "RB",
+      "round": 15,
+      "net_vbd": 6.5,
+      "is_me": true,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "lem",
+      "player": "Dylan Sampson",
+      "position": "RB",
+      "round": 12,
+      "net_vbd": 4.8,
+      "is_me": false,
+      "brian_can_sell": true
+    },
+    {
+      "manager": "brian_bigguap",
+      "player": "Theo Johnson",
+      "position": "TE",
+      "round": 15,
+      "net_vbd": 4.1,
+      "is_me": true,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "josh_wildboy",
+      "player": "Kayshon Boutte",
+      "position": "WR",
+      "round": 15,
+      "net_vbd": 4.0,
+      "is_me": false,
+      "brian_can_sell": false
+    }
+  ],
+  "round_market": [
+    {
+      "round": 3,
+      "buyers": 1,
+      "sellers": [
+        "ankur_patel",
+        "brian_bigguap",
+        "brower_barry",
+        "coop",
+        "donnie",
+        "eric_m",
+        "josh_wildboy",
+        "kyle_figgy",
+        "lem",
+        "trevor_bergerboy",
+        "troy_mullings"
+      ]
+    },
+    {
+      "round": 11,
+      "buyers": 1,
+      "sellers": [
+        "ankur_patel",
+        "brian_bigguap",
+        "donnie",
+        "josh_wildboy",
+        "kyle_figgy",
+        "troy_mullings"
+      ]
+    },
+    {
+      "round": 12,
+      "buyers": 1,
+      "sellers": [
+        "ankur_patel",
+        "brian_bigguap",
+        "brower_barry",
+        "coop",
+        "donnie",
+        "eric_m",
+        "josh_wildboy",
+        "tim_breswick",
+        "troy_mullings"
+      ]
+    },
+    {
+      "round": 15,
+      "buyers": 9,
+      "sellers": [
+        "ankur_patel",
+        "donnie",
+        "eric_m",
+        "trevor_bergerboy"
+      ]
+    }
+  ]
+}

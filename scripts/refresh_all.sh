@@ -97,6 +97,7 @@ do_reports() {
   python3 scripts/build_market_screen.py
   python3 scripts/build_trade_ledger.py
   python3 scripts/build_autopsy_2025.py
+  python3 scripts/build_pick_squeeze.py
   python3 scripts/build_research_desk.py
 }
 
