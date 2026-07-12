@@ -136,6 +136,25 @@ def load_players() -> list[dict]:
                     "injury_status": p.get("injury_status") or "",
                 }
 
+    # 2027 keeper-stash propensity, 0..1 — the helper's CEILING-mode
+    # breakout proxy (upsideBonus: fp_std disagreement + youth) normalized by
+    # its 40-point positive max (24 + 10 + 6). Exact formula:
+    #   stash = 0.60 * min(fp_std, 20) / 20      # expert disagreement (24/40); 0 if unknown
+    #         + 0.25 * [years_exp <= 2]          # breakout runway (10/40)
+    #         + 0.15 * [age <= 24]               # youth (6/40)
+    # CEILING's veteran penalty (age >= 29, -12) is dropped so stash stays in
+    # [0, 1]: an option multiplier, not a re-ranking. simScore then adds
+    # stash * stash_curve[round] for rounds >= 10.
+    def stash_score(fp_std, years_exp, age) -> float:
+        s = 0.0
+        if fp_std is not None:
+            s += 0.60 * min(float(fp_std), 20.0) / 20.0
+        if years_exp is not None and years_exp <= 2:
+            s += 0.25
+        if age is not None and age <= 24:
+            s += 0.15
+        return round(s, 3)
+
     out = []
     for r in rows:
         proj = float(r["projection"])
@@ -156,6 +175,8 @@ def load_players() -> list[dict]:
             "age": meta.get("age"),
             "years_exp": meta.get("years_exp"),
             "injury": meta.get("injury_status") or "",
+            "stash": stash_score(r.get("fp_std"), meta.get("years_exp"),
+                                 meta.get("age")),
         }
         # Δwk — week-over-week ADP movement in ROUNDS (12-team league):
         #   delta_rounds = (prev_adp - adp_now) / 12
@@ -257,6 +278,58 @@ def my_mc_summary() -> dict:
     return {k: me[k] for k in ("mean", "p25", "p50", "p75") if k in me}
 
 
+def load_stash_curve() -> dict[str, float] | None:
+    """Per-round 2027 keeper option value in VBD points, from S1's Option
+    Book (data/research/stash_curve.json), as {round(str): option_vbd}.
+    Tolerant of the fragment's exact shape: a flat {round: value} map, a
+    {"curve"|"rounds"|"option_curve": ...} wrapper, and per-round values
+    that are numbers or {"option_value"|"option_vbd"|"value": n} rows.
+    Absent/unreadable file -> None -> the bundle omits `stash_curve` and
+    simScore's `DATA.stash_curve?.[round] ?? 0` degrades to plain dynamic
+    VBD in the late rounds (graceful degradation, no helper change)."""
+    path = ROOT / "data" / "research" / "stash_curve.json"
+    if not path.exists():
+        return None
+    try:
+        raw = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    def _val(v):
+        if isinstance(v, dict):
+            for k in ("option_value", "option_vbd", "value"):
+                if k in v:
+                    v = v[k]
+                    break
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    rows = raw
+    if isinstance(raw, dict):
+        for key in ("curve", "rounds", "option_curve"):
+            if isinstance(raw.get(key), (dict, list)):
+                rows = raw[key]
+                break
+    curve: dict[str, float] = {}
+    if isinstance(rows, dict):
+        items = rows.items()
+    elif isinstance(rows, list):
+        items = ((r.get("round"), r) for r in rows if isinstance(r, dict))
+    else:
+        return None
+    for rnd, v in items:
+        try:
+            rnd = int(rnd)
+        except (TypeError, ValueError):
+            continue
+        val = _val(v)
+        if val is not None and 1 <= rnd <= ROUNDS:
+            curve[str(rnd)] = round(val, 2)
+    return curve or None
+
+
 def attach_survival(players: list[dict]) -> int:
     """Attach Monte Carlo draft-position quantiles (11 values: percentiles
     0,10,...,100 of the overall pick where the player left the board) from
@@ -323,6 +396,14 @@ def main():
             "waiver_keeper_round": 17,
         },
     }
+    stash_curve = load_stash_curve()
+    if stash_curve:
+        bundle["stash_curve"] = stash_curve
+        print(f"Embedded stash curve for rounds "
+              f"{sorted(int(r) for r in stash_curve)}")
+    else:
+        print("No data/research/stash_curve.json — bundle omits stash_curve; "
+              "helper's late-round option term degrades to 0 (VBD-only)")
     OUT.write_text(json.dumps(bundle, indent=2))
     print(f"Wrote {OUT} — {len(players)} players, {len(keepers)} keepers, "
           f"{len(schedule)} picks")
