@@ -1,9 +1,0 @@
-{
-  "name": "gridiron-chain-harness-deps",
-  "private": true,
-  "description": "Root-level deps for the UX snapshot harness (gridiron-chain/_ux_snapshot.js). The actual game lives in gridiron-chain/ and has its own package.json. Install via 'npm install' from this directory; the harness reads from node_modules here.",
-  "dependencies": {
-    "playwright": "^1.60.0",
-    "vite": "^8.0.14"
-  }
-}
