@@ -37,7 +37,12 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
    in-season knowledge — period-honest backtests use ADP only.
 4. rid↔manager stable 2023-2025 except rid 10 (handoff → josh_wildboy in
    2025; config `roster_handoffs`).
-5. The league drafts LIVE IN PERSON; rivals bring their own printed
+5. Keeper seating house rule (user-confirmed, Jul 2026): if the exact
+   cost round isn't owned/free, the keeper seats at the next EARLIER
+   owned free round (bump-up). Nobody is ever hard-blocked while an
+   earlier round is free — the cost of a missing seat is the BUMP TAX
+   (earlier pick consumed), not the keeper itself.
+6. The league drafts LIVE IN PERSON; rivals bring their own printed
    analysis — popular (often Reddit-sourced) rankings, and they are
    smart enough to bring SUPERFLEX/2QB versions (user-confirmed; do NOT
    assume a 1QB naivety discount). Model the room's paper as ≈ the

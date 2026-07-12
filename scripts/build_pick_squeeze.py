@@ -60,21 +60,43 @@ def compute() -> dict:
     def free(ti: int, r: int) -> int:
         return owned[ti].get(r, 0) - len(carry[ti].get(r, []))
 
+    # House rule (user-confirmed): a keeper missing its exact round seats at
+    # the next EARLIER owned free round. So a "blocked" alternate is never
+    # lost while any earlier seat is free — the cost is the BUMP TAX: the
+    # chart value of the earlier pick consumed minus the exact round's.
+    try:
+        from scripts.build_2026_keepers import _load_adp_baselines
+        blind, _ = _load_adp_baselines()
+        def round_value(r: int) -> float:
+            return float(blind.get(r, 0.0))
+    except Exception:
+        def round_value(r: int) -> float:
+            return 0.0
+
     blocked = []
     for k in keepers:
         if k["status"] != "alternate" or (k.get("net_vbd") or 0) <= 0:
             continue
         ti = rid2ti[k["roster_id"]]
         r = k.get("effective_forfeit_round") or k["forfeit_round"]
-        if free(ti, r) <= 0:
-            blocked.append({
-                "manager": ti2name[ti], "player": k["player_name"],
-                "position": k.get("position", "?"), "round": r,
-                "net_vbd": round(k["net_vbd"], 1),
-                "is_me": ti == bt,
-                "brian_can_sell": free(bt, r) > 0,
-            })
-    blocked.sort(key=lambda b: -b["net_vbd"])
+        if free(ti, r) > 0:
+            continue
+        bump_to = next((rr for rr in range(r - 1, 0, -1) if free(ti, rr) > 0),
+                       None)
+        bump_tax = (round(round_value(bump_to) - round_value(r), 1)
+                    if bump_to else None)
+        blocked.append({
+            "manager": ti2name[ti], "player": k["player_name"],
+            "position": k.get("position", "?"), "round": r,
+            "net_vbd": round(k["net_vbd"], 1),
+            "bump_to": bump_to,                # None => truly hard-blocked
+            "bump_tax": bump_tax,              # chart VBD of the bump
+            "is_me": ti == bt,
+            "brian_can_sell": free(bt, r) > 0,
+        })
+    # Urgency = what buying the exact round saves them: tax + a draft slot.
+    blocked.sort(key=lambda b: (-(b["bump_tax"] if b["bump_tax"] is not None
+                                  else 999), -b["net_vbd"]))
 
     # Round-level demand vs supply (the R15 logjam lives here)
     demand_by_round: dict[int, int] = defaultdict(int)
@@ -117,6 +139,12 @@ def build_fragment(res: dict) -> str:
         "carryover keeper currently has a seat. Recomputed weekly; a pick "
         "trade can create one overnight.</td></tr>")
 
+    def bump_cell(b):
+        if b["bump_to"] is None:
+            return '<td class="ml-urgent">no earlier seat — HARD</td>'
+        tax = f' · tax {b["bump_tax"]:+.0f}' if b["bump_tax"] else ""
+        return f'<td class="ml-num">seats at R{b["bump_to"]}{tax}</td>'
+
     rows_blocked = "".join(
         "<tr>"
         f'<td>{e(b["manager"])}'
@@ -126,13 +154,14 @@ def build_fragment(res: dict) -> str:
           f'{e(b["position"])}</span></td>'
           f'<td class="ml-num">R{b["round"]}</td>'
           f'<td class="ml-num ml-sv-hi">+{b["net_vbd"]:.1f}</td>'
+        + bump_cell(b)
         + ("<td>your pick is spoken for</td>" if b["is_me"] else
-           (f'<td class="ml-urgent">you hold a free R{b["round"]} — '
-            "sell it</td>" if b["brian_can_sell"] else
+           (f'<td class="ml-urgent">you hold a free R{b["round"]}</td>'
+            if b["brian_can_sell"] else
             "<td>your seat there is taken too</td>"))
         + "</tr>"
         for b in res["blocked"]) or (
-        '<tr><td colspan="5" class="ml-empty">Every positive alternate has '
+        '<tr><td colspan="6" class="ml-empty">Every positive alternate has '
         "a free seat.</td></tr>")
 
     market = "".join(
@@ -157,7 +186,7 @@ both (your sales leads)</div>
 <table class="ml-table ml-table--compact">
 <thead><tr><th>Manager</th><th>Wants to also keep</th>
 <th class="ml-num">Needs</th><th class="ml-num">Worth (GUAP)</th>
-<th>Your position</th></tr></thead>
+<th>Cheap out (house rule)</th><th>Your position</th></tr></thead>
 <tbody>{rows_blocked}</tbody></table>
 <div class="ml-h-label">Round market</div>
 <p>{market}</p>
@@ -165,9 +194,10 @@ both (your sales leads)</div>
 no substitute pick, which is exactly what makes these seats sellable above
 chart value. Waiver keeps all cost R15, so the R15 seat is the scarcest
 asset in the league. Based on PREDICTED keepers until the league locks
-(then data/keepers_2026_actual.json takes over); seating mechanics for a
-missing round follow house rule — confirm with the commissioner before
-quoting a price.</p>
+(then data/keepers_2026_actual.json takes over); house rule (confirmed): a keeper
+missing its exact round seats at the next EARLIER owned free round — so
+sell against the BUMP TAX and the burned draft slot, not the keeper's
+full value. Only a manager with no earlier free round is truly squeezed.</p>
 </section>
 """
 

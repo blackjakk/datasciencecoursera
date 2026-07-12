@@ -8,49 +8,15 @@
   "hard": [],
   "blocked": [
     {
-      "manager": "josh_wildboy",
-      "player": "Daniel Jones",
-      "position": "QB",
-      "round": 15,
-      "net_vbd": 49.1,
-      "is_me": false,
-      "brian_can_sell": false
-    },
-    {
-      "manager": "brower_barry",
-      "player": "Romeo Doubs",
-      "position": "WR",
-      "round": 15,
-      "net_vbd": 47.1,
-      "is_me": false,
-      "brian_can_sell": false
-    },
-    {
-      "manager": "coop",
-      "player": "Quentin Johnston",
-      "position": "WR",
-      "round": 15,
-      "net_vbd": 43.3,
-      "is_me": false,
-      "brian_can_sell": false
-    },
-    {
       "manager": "kyle_figgy",
       "player": "Cade Otton",
       "position": "TE",
       "round": 15,
       "net_vbd": 42.6,
+      "bump_to": 11,
+      "bump_tax": 56.7,
       "is_me": false,
       "brian_can_sell": false
-    },
-    {
-      "manager": "tim_breswick",
-      "player": "Kyle Monangai",
-      "position": "RB",
-      "round": 11,
-      "net_vbd": 30.2,
-      "is_me": false,
-      "brian_can_sell": true
     },
     {
       "manager": "lem",
@@ -58,6 +24,8 @@
       "position": "RB",
       "round": 15,
       "net_vbd": 20.1,
+      "bump_to": 10,
+      "bump_tax": 55.8,
       "is_me": false,
       "brian_can_sell": false
     },
@@ -67,17 +35,21 @@
       "position": "TE",
       "round": 15,
       "net_vbd": 12.2,
+      "bump_to": 10,
+      "bump_tax": 55.8,
       "is_me": false,
       "brian_can_sell": false
     },
     {
-      "manager": "tim_breswick",
-      "player": "George Pickens",
+      "manager": "brower_barry",
+      "player": "Romeo Doubs",
       "position": "WR",
-      "round": 3,
-      "net_vbd": 6.8,
+      "round": 15,
+      "net_vbd": 47.1,
+      "bump_to": 13,
+      "bump_tax": 29.5,
       "is_me": false,
-      "brian_can_sell": true
+      "brian_can_sell": false
     },
     {
       "manager": "brian_bigguap",
@@ -85,6 +57,19 @@
       "position": "RB",
       "round": 15,
       "net_vbd": 6.5,
+      "bump_to": 13,
+      "bump_tax": 29.5,
+      "is_me": true,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "brian_bigguap",
+      "player": "Theo Johnson",
+      "position": "TE",
+      "round": 15,
+      "net_vbd": 4.1,
+      "bump_to": 13,
+      "bump_tax": 29.5,
       "is_me": true,
       "brian_can_sell": false
     },
@@ -94,16 +79,31 @@
       "position": "RB",
       "round": 12,
       "net_vbd": 4.8,
+      "bump_to": 10,
+      "bump_tax": 25.2,
       "is_me": false,
       "brian_can_sell": true
     },
     {
-      "manager": "brian_bigguap",
-      "player": "Theo Johnson",
-      "position": "TE",
+      "manager": "josh_wildboy",
+      "player": "Daniel Jones",
+      "position": "QB",
       "round": 15,
-      "net_vbd": 4.1,
-      "is_me": true,
+      "net_vbd": 49.1,
+      "bump_to": 14,
+      "bump_tax": 24.1,
+      "is_me": false,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "coop",
+      "player": "Quentin Johnston",
+      "position": "WR",
+      "round": 15,
+      "net_vbd": 43.3,
+      "bump_to": 14,
+      "bump_tax": 24.1,
+      "is_me": false,
       "brian_can_sell": false
     },
     {
@@ -112,8 +112,32 @@
       "position": "WR",
       "round": 15,
       "net_vbd": 4.0,
+      "bump_to": 14,
+      "bump_tax": 24.1,
       "is_me": false,
       "brian_can_sell": false
+    },
+    {
+      "manager": "tim_breswick",
+      "player": "George Pickens",
+      "position": "WR",
+      "round": 3,
+      "net_vbd": 6.8,
+      "bump_to": 2,
+      "bump_tax": 14.9,
+      "is_me": false,
+      "brian_can_sell": true
+    },
+    {
+      "manager": "tim_breswick",
+      "player": "Kyle Monangai",
+      "position": "RB",
+      "round": 11,
+      "net_vbd": 30.2,
+      "bump_to": 10,
+      "bump_tax": -1.0,
+      "is_me": false,
+      "brian_can_sell": true
     }
   ],
   "round_market": [
