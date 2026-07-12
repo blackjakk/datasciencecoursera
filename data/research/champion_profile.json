@@ -1,0 +1,268 @@
+{
+  "meta": {
+    "generated": "2026-07-12",
+    "seasons": [
+      2023,
+      2024,
+      2025
+    ],
+    "finals": {
+      "2023": {
+        "champ": 7,
+        "runner": 8
+      },
+      "2024": {
+        "champ": 12,
+        "runner": 4
+      },
+      "2025": {
+        "champ": 11,
+        "runner": 10
+      }
+    },
+    "method": "xlsx-true draft ownership; keepers = is_keeper flag or period-ADP gap >= 1.5 rounds, valued in realized season VBD; starter-point shares over the regular season; playoff rate = top-6 bracket entry"
+  },
+  "groups": {
+    "CHAMP": {
+      "n": 3,
+      "wins": 9.3,
+      "pf": 2080.7,
+      "trades": 3.3,
+      "adds": 23.3,
+      "faab": 57.0,
+      "pct_trade": 10.7,
+      "pct_waiver": 10.7,
+      "keeper_vbd": 230.4
+    },
+    "RUNNER": {
+      "n": 3,
+      "wins": 9.3,
+      "pf": 1890.0,
+      "trades": 3.3,
+      "adds": 39.7,
+      "faab": 89.7,
+      "pct_trade": 20.3,
+      "pct_waiver": 21.7,
+      "keeper_vbd": -5.8
+    },
+    "playoff-out": {
+      "n": 12,
+      "wins": 9.2,
+      "pf": 1930.0,
+      "trades": 2.1,
+      "adds": 31.8,
+      "faab": 75.2,
+      "pct_trade": 7.8,
+      "pct_waiver": 25.9,
+      "keeper_vbd": 67.9
+    },
+    "field": {
+      "n": 18,
+      "wins": 4.8,
+      "pf": 1629.9,
+      "trades": 2.5,
+      "adds": 30.7,
+      "faab": 72.3,
+      "pct_trade": 3.2,
+      "pct_waiver": 32.1,
+      "keeper_vbd": 14.3
+    }
+  },
+  "qb_split": {
+    "early": {
+      "n": 15,
+      "made_playoffs": 10,
+      "rate": 67
+    },
+    "late": {
+      "n": 21,
+      "made_playoffs": 8,
+      "rate": 38
+    },
+    "champs_early": 3,
+    "finalists_early": 5,
+    "champ_qb_rounds": {
+      "2023": [
+        1,
+        4
+      ],
+      "2024": [
+        2,
+        2
+      ],
+      "2025": [
+        1,
+        5
+      ]
+    }
+  },
+  "finalist_buys": [
+    {
+      "season": 2023,
+      "status": "CHAMP",
+      "mgr": "emattessich",
+      "player": "Breece Hall",
+      "pos": "RB",
+      "how": "trade",
+      "week": 6,
+      "po_pts": 62.5
+    },
+    {
+      "season": 2023,
+      "status": "RUNNER",
+      "mgr": "kbrower",
+      "player": "Kyren Williams",
+      "pos": "RB",
+      "how": "trade",
+      "week": 3,
+      "po_pts": 67.5
+    },
+    {
+      "season": 2024,
+      "status": "CHAMP",
+      "mgr": "BigDickNicholas",
+      "player": "Justin Herbert",
+      "pos": "QB",
+      "how": "trade",
+      "week": 9,
+      "po_pts": 62.4
+    },
+    {
+      "season": 2024,
+      "status": "RUNNER",
+      "mgr": "troymullings",
+      "player": "Josh Allen",
+      "pos": "QB",
+      "how": "trade",
+      "week": 10,
+      "po_pts": 76.4
+    },
+    {
+      "season": 2025,
+      "status": "CHAMP",
+      "mgr": "tjt5055",
+      "player": "New Orleans Saints",
+      "pos": "DEF",
+      "how": "waiver",
+      "week": 15,
+      "po_pts": 38.0
+    },
+    {
+      "season": 2025,
+      "status": "RUNNER",
+      "mgr": "Wi1dboy",
+      "player": "Kyle Pitts",
+      "pos": "TE",
+      "how": "waiver",
+      "week": 13,
+      "po_pts": 57.9
+    }
+  ],
+  "champ_keeper_hits": [
+    {
+      "season": 2025,
+      "mgr": "tjt5055",
+      "player": "Puka Nacua",
+      "pos": "WR",
+      "cost_round": 13,
+      "adp_round": 1.6,
+      "discount": 11.4,
+      "vbd": 195.6,
+      "origin": "kept again (R15 2024)"
+    },
+    {
+      "season": 2025,
+      "mgr": "tjt5055",
+      "player": "De'Von Achane",
+      "pos": "RB",
+      "cost_round": 8,
+      "adp_round": 1.9,
+      "discount": 6.1,
+      "vbd": 152.9,
+      "origin": "kept again (R10 2024)"
+    },
+    {
+      "season": 2023,
+      "mgr": "emattessich",
+      "player": "Amon-Ra St. Brown",
+      "pos": "WR",
+      "cost_round": 13,
+      "adp_round": 2.2,
+      "discount": 10.8,
+      "vbd": 139.8,
+      "origin": "pre-Sleeper"
+    },
+    {
+      "season": 2023,
+      "mgr": "emattessich",
+      "player": "Travis Etienne",
+      "pos": "RB",
+      "cost_round": 10,
+      "adp_round": 3.7,
+      "discount": 6.3,
+      "vbd": 101.1,
+      "origin": "pre-Sleeper"
+    },
+    {
+      "season": 2024,
+      "mgr": "BigDickNicholas",
+      "player": "Trey McBride",
+      "pos": "TE",
+      "cost_round": 15,
+      "adp_round": 3.3,
+      "discount": 11.7,
+      "vbd": 83.2,
+      "origin": "waiver w7 2023"
+    }
+  ],
+  "brian": [
+    {
+      "season": 2023,
+      "status": "field",
+      "wins": 3.0,
+      "pf": 1739.0,
+      "qb_rounds": [
+        1,
+        2,
+        15
+      ],
+      "trades": 6,
+      "adds": 32,
+      "pct_trade": 14,
+      "pct_waiver": 43,
+      "keeper_vbd": 158.7
+    },
+    {
+      "season": 2024,
+      "status": "playoff",
+      "wins": 7.0,
+      "pf": 1981.0,
+      "qb_rounds": [
+        3,
+        13
+      ],
+      "trades": 5,
+      "adds": 31,
+      "pct_trade": 8,
+      "pct_waiver": 15,
+      "keeper_vbd": -164.6
+    },
+    {
+      "season": 2025,
+      "status": "field",
+      "wins": 4.0,
+      "pf": 1479.0,
+      "qb_rounds": [
+        6,
+        11,
+        13
+      ],
+      "trades": 1,
+      "adds": 49,
+      "pct_trade": 0,
+      "pct_waiver": 38,
+      "keeper_vbd": -7.1
+    }
+  ],
+  "doctrine": "Champions are built a year early and finished mid-season: two QBs locked by R6, a late-pick or waiver find riding as a mega-discount keeper, and one conviction trade for a blue-chip starter. Waiver churn is what losing looks like, not a way back."
+}

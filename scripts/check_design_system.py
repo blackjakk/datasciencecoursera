@@ -54,6 +54,7 @@ HEX_SCAN_TARGETS = [
     "scripts/build_keeper_sensitivity.py",
     "scripts/backtest_survival_calibration.py",
     "scripts/build_timing_study.py",
+    "scripts/build_champion_profile.py",
     "scripts/build_research_desk.py",
 ]
 

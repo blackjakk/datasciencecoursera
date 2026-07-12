@@ -37,6 +37,7 @@ SECTIONS = [
     ("keeper_sensitivity", "VII. Keeper Sensitivity — declarations worth probing"),
     ("survival_calibration", "VIII. Survival Calibration — the model audits itself"),
     ("timing_study", "IX. The Timing Study — trading against the calendar"),
+    ("champion_profile", "X. The Champion Profile — what finals teams do differently"),
 ]
 
 PAGE_CSS = """

@@ -86,7 +86,7 @@ restoration in refresh()), SR live regions (#sr-clock), phone-clean at
 `scripts/check_a11y.py` (inside verify) guards it; use the `a11y-review`
 skill for any helper/design diff. Record: docs/A11Y_AUDIT.md.
 
-## Research Desk (July 2026 — the analyst layer, 9 sections)
+## Research Desk (July 2026 — the analyst layer, 10 sections)
 `data/MONEYLEAGUE_RESEARCH_DESK.pdf`, assembled by
 `scripts/build_research_desk.py` from fragments in `data/research/`
 (contract: docs/GOAL_RESEARCH.md — one <section>, ml classes, no hex;
@@ -112,6 +112,16 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   (+56% skill); 60-80% band realizes ~58% — pad it.
 - Timing Study doctrine: sell mid-season (W6-10, +33/deal), buy at the
   deadline (−2.7 ≈ free); contender-buyers lose in EVERY window.
+- Champion Profile (`scripts/build_champion_profile.py`, auto-folds new
+  seasons once bracket decides): champs avg +230 keeper VBD vs field +14
+  (runners −6 — keeper surplus is CHAMPION fuel); every ring carried a
+  ≥5-round-discount keeper built from a late pick/waiver the year before
+  (Puka R13, Achane R8, McBride R15, ARSB R13, Etienne R10); 2QB-by-R6
+  → 67% playoff rate vs 38% (3/3 champs; shape = one elite + one solid,
+  both R1+R2-QB starts finished bottom-two); finalists' title trades
+  land W6-10 (lose the trade on paper, win the title); waiver-point
+  share is a LOSING signal (field 32% vs champs 11%); wins don't
+  separate finalists from playoff-outs — PF does (champs #1,#1,#4).
 
 ## Key analyses on record
 - Backtest (`scripts/backtest_recommender.py`): tool vs real-Brian
