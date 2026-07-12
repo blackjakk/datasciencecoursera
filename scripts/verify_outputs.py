@@ -133,10 +133,19 @@ def main() -> None:
 
     print("PDFs exist and are non-trivial:")
     for name in ("MONEYLEAGUE_2026_MOCK.pdf", "MONEYLEAGUE_2026_PRESEASON.pdf",
-                 "MONEYLEAGUE_POWER_RANKINGS.pdf"):
+                 "MONEYLEAGUE_POWER_RANKINGS.pdf",
+                 "MONEYLEAGUE_RESEARCH_DESK.pdf"):
         f = ROOT / "data" / name
         check(name, f.exists() and f.stat().st_size > 100_000,
               "missing or suspiciously small")
+
+    print("Research Desk fragments:")
+    for frag in ("market_screen", "trade_ledger", "counterparty_dossiers",
+                 "autopsy_2025"):
+        p = ROOT / "data" / "research" / f"{frag}.html"
+        check(f"research fragment {frag}",
+              p.exists() and p.stat().st_size > 500,
+              "missing or empty — its builder didn't run")
 
     print("Design system:")
     ds = subprocess.run([sys.executable, "scripts/check_design_system.py"],

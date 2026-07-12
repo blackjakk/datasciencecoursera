@@ -42,6 +42,10 @@ do_fetch() {
   python3 scripts/fetch_fantasypros.py
   log "Fetch FantasyCalc trade values"
   python3 scripts/fetch_fantasycalc.py
+  log "Refresh trade intelligence cache (current season)"
+  python3 scripts/fetch_trade_intel.py --refresh-current
+  log "Refresh league history cache (matchups)"
+  python3 scripts/fetch_league_history.py
 }
 
 # ---------- LAYER 2: derived data ----------
@@ -89,6 +93,11 @@ do_reports() {
   python3 scripts/build_round_menu.py
   log "Summarize week-over-week movers"
   python3 scripts/build_weekly_movers.py
+  log "Research Desk: market screen, trade ledger, dossiers, autopsy"
+  python3 scripts/build_market_screen.py
+  python3 scripts/build_trade_ledger.py
+  python3 scripts/build_autopsy_2025.py
+  python3 scripts/build_research_desk.py
 }
 
 # ---------- Draft helper ----------
