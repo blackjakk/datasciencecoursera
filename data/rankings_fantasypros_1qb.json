@@ -477,10 +477,10 @@
       "fp_rank_overall": 34,
       "fp_rank_pos": "QB2",
       "fp_tier": 4,
-      "fp_adp_avg": "36.60",
+      "fp_adp_avg": "36.59",
       "fp_rank_min": "27",
       "fp_rank_max": "64",
-      "fp_rank_std": "10.88",
+      "fp_rank_std": "10.84",
       "fp_expert_count": 65
     },
     {
@@ -645,10 +645,10 @@
       "fp_rank_overall": 46,
       "fp_rank_pos": "QB4",
       "fp_tier": 4,
-      "fp_adp_avg": "44.46",
+      "fp_adp_avg": "44.44",
       "fp_rank_min": "27",
       "fp_rank_max": "68",
-      "fp_rank_std": "12.89",
+      "fp_rank_std": "12.86",
       "fp_expert_count": 65
     },
     {
@@ -827,10 +827,10 @@
       "fp_rank_overall": 59,
       "fp_rank_pos": "QB5",
       "fp_tier": 5,
-      "fp_adp_avg": "57.71",
+      "fp_adp_avg": "57.76",
       "fp_rank_min": "36",
       "fp_rank_max": "90",
-      "fp_rank_std": "12.41",
+      "fp_rank_std": "12.42",
       "fp_expert_count": 65
     },
     {
@@ -869,7 +869,7 @@
       "fp_rank_overall": 62,
       "fp_rank_pos": "QB6",
       "fp_tier": 5,
-      "fp_adp_avg": "59.90",
+      "fp_adp_avg": "59.89",
       "fp_rank_min": "26",
       "fp_rank_max": "103",
       "fp_rank_std": "14.99",
@@ -967,10 +967,10 @@
       "fp_rank_overall": 69,
       "fp_rank_pos": "QB8",
       "fp_tier": 6,
-      "fp_adp_avg": "70.06",
+      "fp_adp_avg": "70.05",
       "fp_rank_min": "53",
       "fp_rank_max": "107",
-      "fp_rank_std": "12.58",
+      "fp_rank_std": "12.59",
       "fp_expert_count": 65
     },
     {
@@ -1191,10 +1191,10 @@
       "fp_rank_overall": 85,
       "fp_rank_pos": "QB11",
       "fp_tier": 6,
-      "fp_adp_avg": "87.14",
+      "fp_adp_avg": "87.22",
       "fp_rank_min": "62",
       "fp_rank_max": "123",
-      "fp_rank_std": "14.39",
+      "fp_rank_std": "14.44",
       "fp_expert_count": 65
     },
     {
@@ -1254,31 +1254,31 @@
       "fp_expert_count": 65
     },
     {
-      "name": "Brock Purdy",
-      "position": "QB",
-      "team": "SF",
-      "bye": "8",
-      "fp_rank_overall": 90,
-      "fp_rank_pos": "QB12",
-      "fp_tier": 6,
-      "fp_adp_avg": "91.92",
-      "fp_rank_min": "58",
-      "fp_rank_max": "112",
-      "fp_rank_std": "11.31",
-      "fp_expert_count": 65
-    },
-    {
       "name": "Kyle Monangai",
       "position": "RB",
       "team": "CHI",
       "bye": "10",
-      "fp_rank_overall": 91,
+      "fp_rank_overall": 90,
       "fp_rank_pos": "RB33",
       "fp_tier": 6,
       "fp_adp_avg": "92.05",
       "fp_rank_min": "71",
       "fp_rank_max": "117",
       "fp_rank_std": "11.76",
+      "fp_expert_count": 65
+    },
+    {
+      "name": "Brock Purdy",
+      "position": "QB",
+      "team": "SF",
+      "bye": "8",
+      "fp_rank_overall": 91,
+      "fp_rank_pos": "QB12",
+      "fp_tier": 6,
+      "fp_adp_avg": "92.25",
+      "fp_rank_min": "58",
+      "fp_rank_max": "119",
+      "fp_rank_std": "11.78",
       "fp_expert_count": 65
     },
     {
@@ -1373,10 +1373,10 @@
       "fp_rank_overall": 98,
       "fp_rank_pos": "QB14",
       "fp_tier": 7,
-      "fp_adp_avg": "101.08",
+      "fp_adp_avg": "101.06",
       "fp_rank_min": "78",
       "fp_rank_max": "133",
-      "fp_rank_std": "9.00",
+      "fp_rank_std": "9.01",
       "fp_expert_count": 65
     },
     {
@@ -1443,10 +1443,10 @@
       "fp_rank_overall": 103,
       "fp_rank_pos": "QB15",
       "fp_tier": 7,
-      "fp_adp_avg": "104.60",
+      "fp_adp_avg": "104.62",
       "fp_rank_min": "53",
       "fp_rank_max": "145",
-      "fp_rank_std": "15.33",
+      "fp_rank_std": "15.35",
       "fp_expert_count": 65
     },
     {
@@ -1541,10 +1541,10 @@
       "fp_rank_overall": 110,
       "fp_rank_pos": "QB16",
       "fp_tier": 7,
-      "fp_adp_avg": "109.44",
+      "fp_adp_avg": "109.46",
       "fp_rank_min": "62",
       "fp_rank_max": "136",
-      "fp_rank_std": "15.03",
+      "fp_rank_std": "14.99",
       "fp_expert_count": 65
     },
     {
@@ -1597,10 +1597,10 @@
       "fp_rank_overall": 114,
       "fp_rank_pos": "QB17",
       "fp_tier": 7,
-      "fp_adp_avg": "113.27",
+      "fp_adp_avg": "112.76",
       "fp_rank_min": "78",
       "fp_rank_max": "154",
-      "fp_rank_std": "14.49",
+      "fp_rank_std": "14.60",
       "fp_expert_count": 65
     },
     {
@@ -1681,10 +1681,10 @@
       "fp_rank_overall": 120,
       "fp_rank_pos": "QB18",
       "fp_tier": 7,
-      "fp_adp_avg": "121.79",
-      "fp_rank_min": "103",
+      "fp_adp_avg": "122.13",
+      "fp_rank_min": "104",
       "fp_rank_max": "147",
-      "fp_rank_std": "9.76",
+      "fp_rank_std": "9.46",
       "fp_expert_count": 65
     },
     {
@@ -1709,10 +1709,10 @@
       "fp_rank_overall": 122,
       "fp_rank_pos": "QB19",
       "fp_tier": 7,
-      "fp_adp_avg": "124.08",
+      "fp_adp_avg": "123.76",
       "fp_rank_min": "90",
       "fp_rank_max": "163",
-      "fp_rank_std": "12.61",
+      "fp_rank_std": "12.89",
       "fp_expert_count": 65
     },
     {
@@ -1751,10 +1751,10 @@
       "fp_rank_overall": 125,
       "fp_rank_pos": "QB20",
       "fp_tier": 7,
-      "fp_adp_avg": "127.65",
+      "fp_adp_avg": "128.00",
       "fp_rank_min": "104",
       "fp_rank_max": "173",
-      "fp_rank_std": "13.18",
+      "fp_rank_std": "13.50",
       "fp_expert_count": 65
     },
     {
@@ -2073,10 +2073,10 @@
       "fp_rank_overall": 148,
       "fp_rank_pos": "QB23",
       "fp_tier": 8,
-      "fp_adp_avg": "148.24",
-      "fp_rank_min": "125",
+      "fp_adp_avg": "148.26",
+      "fp_rank_min": "126",
       "fp_rank_max": "254",
-      "fp_rank_std": "17.77",
+      "fp_rank_std": "17.75",
       "fp_expert_count": 65
     },
     {
@@ -2185,10 +2185,10 @@
       "fp_rank_overall": 156,
       "fp_rank_pos": "QB25",
       "fp_tier": 8,
-      "fp_adp_avg": "169.44",
+      "fp_adp_avg": "169.40",
       "fp_rank_min": "118",
       "fp_rank_max": "284",
-      "fp_rank_std": "32.48",
+      "fp_rank_std": "32.49",
       "fp_expert_count": 65
     },
     {
@@ -2283,10 +2283,10 @@
       "fp_rank_overall": 163,
       "fp_rank_pos": "QB26",
       "fp_tier": 8,
-      "fp_adp_avg": "170.15",
-      "fp_rank_min": "137",
+      "fp_adp_avg": "169.79",
+      "fp_rank_min": "129",
       "fp_rank_max": "254",
-      "fp_rank_std": "23.84",
+      "fp_rank_std": "24.28",
       "fp_expert_count": 65
     },
     {
@@ -3221,10 +3221,10 @@
       "fp_rank_overall": 230,
       "fp_rank_pos": "QB29",
       "fp_tier": 10,
-      "fp_adp_avg": "240.92",
+      "fp_adp_avg": "240.93",
       "fp_rank_min": "146",
       "fp_rank_max": "320",
-      "fp_rank_std": "41.74",
+      "fp_rank_std": "41.71",
       "fp_expert_count": 65
     },
     {
@@ -3389,10 +3389,10 @@
       "fp_rank_overall": 242,
       "fp_rank_pos": "QB30",
       "fp_tier": 10,
-      "fp_adp_avg": "255.54",
-      "fp_rank_min": "172",
+      "fp_adp_avg": "255.24",
+      "fp_rank_min": "168",
       "fp_rank_max": "335",
-      "fp_rank_std": "38.39",
+      "fp_rank_std": "39.01",
       "fp_expert_count": 65
     },
     {
@@ -3655,10 +3655,10 @@
       "fp_rank_overall": 261,
       "fp_rank_pos": "QB31",
       "fp_tier": 10,
-      "fp_adp_avg": "279.62",
+      "fp_adp_avg": "279.60",
       "fp_rank_min": "178",
       "fp_rank_max": "338",
-      "fp_rank_std": "38.09",
+      "fp_rank_std": "38.13",
       "fp_expert_count": 65
     },
     {

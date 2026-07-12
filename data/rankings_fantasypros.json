@@ -70,11 +70,11 @@
       "bye": "7",
       "fp_rank_overall": 5,
       "fp_rank_pos": "QB5",
-      "fp_tier": 1,
-      "fp_adp_avg": "7.12",
+      "fp_tier": 2,
+      "fp_adp_avg": "7.20",
       "fp_rank_min": "3",
-      "fp_rank_max": "18",
-      "fp_rank_std": "4.08",
+      "fp_rank_max": "20",
+      "fp_rank_std": "4.28",
       "fp_expert_count": 62
     },
     {
@@ -85,10 +85,10 @@
       "fp_rank_overall": 6,
       "fp_rank_pos": "QB6",
       "fp_tier": 2,
-      "fp_adp_avg": "8.10",
+      "fp_adp_avg": "8.05",
       "fp_rank_min": "2",
       "fp_rank_max": "28",
-      "fp_rank_std": "5.42",
+      "fp_rank_std": "5.34",
       "fp_expert_count": 62
     },
     {
@@ -155,10 +155,10 @@
       "fp_rank_overall": 11,
       "fp_rank_pos": "QB8",
       "fp_tier": 2,
-      "fp_adp_avg": "11.57",
+      "fp_adp_avg": "11.55",
       "fp_rank_min": "5",
       "fp_rank_max": "32",
-      "fp_rank_std": "6.35",
+      "fp_rank_std": "6.30",
       "fp_expert_count": 62
     },
     {
@@ -491,10 +491,10 @@
       "fp_rank_overall": 35,
       "fp_rank_pos": "QB16",
       "fp_tier": 4,
-      "fp_adp_avg": "34.87",
+      "fp_adp_avg": "34.88",
       "fp_rank_min": "8",
       "fp_rank_max": "55",
-      "fp_rank_std": "9.85",
+      "fp_rank_std": "9.84",
       "fp_expert_count": 62
     },
     {
@@ -1009,10 +1009,10 @@
       "fp_rank_overall": 72,
       "fp_rank_pos": "QB24",
       "fp_tier": 6,
-      "fp_adp_avg": "65.53",
+      "fp_adp_avg": "65.54",
       "fp_rank_min": "53",
       "fp_rank_max": "126",
-      "fp_rank_std": "11.04",
+      "fp_rank_std": "11.08",
       "fp_expert_count": 62
     },
     {
@@ -1149,10 +1149,10 @@
       "fp_rank_overall": 82,
       "fp_rank_pos": "QB25",
       "fp_tier": 6,
-      "fp_adp_avg": "73.95",
+      "fp_adp_avg": "73.90",
       "fp_rank_min": "41",
-      "fp_rank_max": "154",
-      "fp_rank_std": "17.88",
+      "fp_rank_max": "151",
+      "fp_rank_std": "17.66",
       "fp_expert_count": 62
     },
     {
@@ -1163,10 +1163,10 @@
       "fp_rank_overall": 83,
       "fp_rank_pos": "QB26",
       "fp_tier": 6,
-      "fp_adp_avg": "74.29",
+      "fp_adp_avg": "74.25",
       "fp_rank_min": "59",
       "fp_rank_max": "129",
-      "fp_rank_std": "10.61",
+      "fp_rank_std": "10.53",
       "fp_expert_count": 62
     },
     {
@@ -1289,10 +1289,10 @@
       "fp_rank_overall": 92,
       "fp_rank_pos": "QB27",
       "fp_tier": 7,
-      "fp_adp_avg": "88.41",
+      "fp_adp_avg": "88.42",
       "fp_rank_min": "55",
-      "fp_rank_max": "157",
-      "fp_rank_std": "20.49",
+      "fp_rank_max": "158",
+      "fp_rank_std": "20.54",
       "fp_expert_count": 62
     },
     {
@@ -1961,10 +1961,10 @@
       "fp_rank_overall": 140,
       "fp_rank_pos": "QB29",
       "fp_tier": 8,
-      "fp_adp_avg": "108.79",
+      "fp_adp_avg": "108.80",
       "fp_rank_min": "63",
       "fp_rank_max": "180",
-      "fp_rank_std": "29.09",
+      "fp_rank_std": "29.12",
       "fp_expert_count": 62
     },
     {
@@ -2297,10 +2297,10 @@
       "fp_rank_overall": 164,
       "fp_rank_pos": "QB30",
       "fp_tier": 9,
-      "fp_adp_avg": "114.70",
+      "fp_adp_avg": "114.68",
       "fp_rank_min": "76",
       "fp_rank_max": "186",
-      "fp_rank_std": "32.11",
+      "fp_rank_std": "32.09",
       "fp_expert_count": 62
     },
     {
@@ -2521,10 +2521,10 @@
       "fp_rank_overall": 180,
       "fp_rank_pos": "QB31",
       "fp_tier": 9,
-      "fp_adp_avg": "139.15",
+      "fp_adp_avg": "139.13",
       "fp_rank_min": "83",
       "fp_rank_max": "278",
-      "fp_rank_std": "36.82",
+      "fp_rank_std": "36.81",
       "fp_expert_count": 62
     },
     {
@@ -2787,10 +2787,10 @@
       "fp_rank_overall": 199,
       "fp_rank_pos": "QB32",
       "fp_tier": 10,
-      "fp_adp_avg": "136.94",
+      "fp_adp_avg": "136.92",
       "fp_rank_min": "76",
       "fp_rank_max": "186",
-      "fp_rank_std": "27.65",
+      "fp_rank_std": "27.64",
       "fp_expert_count": 62
     },
     {
@@ -3375,10 +3375,10 @@
       "fp_rank_overall": 241,
       "fp_rank_pos": "QB34",
       "fp_tier": 10,
-      "fp_adp_avg": "171.47",
+      "fp_adp_avg": "171.56",
       "fp_rank_min": "117",
       "fp_rank_max": "284",
-      "fp_rank_std": "30.64",
+      "fp_rank_std": "30.59",
       "fp_expert_count": 62
     },
     {
