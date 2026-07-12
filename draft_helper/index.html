@@ -274,6 +274,17 @@ function showBootError(err) {
   // Blue chips: top 12 by PRE-DRAFT VBD — a fixed tier, not the dynamic VBD.
   blueChip = new Set(DATA.players.slice().sort((a, b) => b.vbd - a.vbd)
     .slice(0, 12).map(p => p.name));
+  // Opponent portfolio selector: every rival, you excluded (you have the
+  // PORTFOLIO panel), sorted by draft slot. Populated BEFORE the first
+  // refresh so auto-follow can select the on-clock team at load.
+  const oppSel = document.getElementById("opp-select");
+  DATA.managers.slice().sort((a, b) => a.slot - b.slot).forEach(m => {
+    if (m.team_idx === DATA.my_team_idx) return;
+    const o = document.createElement("option");
+    o.value = String(m.team_idx);
+    o.textContent = `${m.id.toUpperCase()} (slot ${m.slot})`;
+    oppSel.appendChild(o);
+  });
   renderTape();
   refresh();
   document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); announceResults(); });
@@ -330,6 +341,7 @@ function showBootError(err) {
   });
   document.getElementById("undo").addEventListener("click", undo);
   document.getElementById("reset").addEventListener("click", resetBoard);
+  document.getElementById("opp-select").addEventListener("change", renderOpponent);
   document.getElementById("save-btn").addEventListener("click", doSave);
   document.getElementById("saveas-btn").addEventListener("click", doSaveAs);
   document.getElementById("open-btn").addEventListener("click", doOpen);
@@ -341,17 +353,6 @@ function showBootError(err) {
     e.preventDefault();
     if (e.shiftKey) doSaveAs(); else doSave();
   });
-  // Opponent portfolio selector: every rival, you excluded (you have the
-  // PORTFOLIO panel), sorted by draft slot.
-  const oppSel = document.getElementById("opp-select");
-  DATA.managers.slice().sort((a, b) => a.slot - b.slot).forEach(m => {
-    if (m.team_idx === DATA.my_team_idx) return;
-    const o = document.createElement("option");
-    o.value = String(m.team_idx);
-    o.textContent = `${m.id.toUpperCase()} (slot ${m.slot})`;
-    oppSel.appendChild(o);
-  });
-  oppSel.addEventListener("change", renderOpponent);
   document.getElementById("live-btn").addEventListener("click", toggleLive);
   document.getElementById("ceiling-btn").addEventListener("click", toggleCeiling);
   document.getElementById("practice-btn").addEventListener("click", togglePractice);
@@ -1019,7 +1020,21 @@ function refresh() {
 // ---------- OPPONENT PORTFOLIOS ----------
 // Any rival's holdings, needs, and next pick — the "does my guy survive
 // the turn" panel. Reads straight from the schedule like renderRoster.
+// AUTO-FOLLOW: when the clock moves to a NEW rival, the panel flips to
+// them; a manual selection survives re-renders while the same pick is up
+// (live polls every 15s must not yank the panel away mid-study).
+let followClockTeam = null;
+function autoFollowClock() {
+  const next = DATA.schedule[cursor];
+  if (!next || next.team_idx === DATA.my_team_idx) return;
+  if (next.team_idx === followClockTeam) return;
+  followClockTeam = next.team_idx;
+  const sel = document.getElementById("opp-select");
+  if (sel) sel.value = String(next.team_idx);
+}
+
 function renderOpponent() {
+  autoFollowClock();
   const sel = document.getElementById("opp-select");
   if (!sel || !sel.value) return;
   const ti = +sel.value;
@@ -1056,9 +1071,12 @@ function renderOpponent() {
   }
   const theirNext = DATA.schedule.slice(cursor)
     .find(p => p.team_idx === ti && !p.player);
-  document.getElementById("opp-next").textContent = theirNext
-    ? `Their next pick: R${theirNext.round}.${theirNext.pick_in_round} (#${theirNext.overall})`
-    : "No remaining picks.";
+  const onClock = DATA.schedule[cursor] && DATA.schedule[cursor].team_idx === ti;
+  document.getElementById("opp-next").textContent = onClock && theirNext
+    ? `⏰ ON THE CLOCK — picking #${theirNext.overall} now`
+    : theirNext
+      ? `Their next pick: R${theirNext.round}.${theirNext.pick_in_round} (#${theirNext.overall})`
+      : "No remaining picks.";
 }
 
 // ---------- RESET (real board only; practice has EXIT PRACTICE) ----------
