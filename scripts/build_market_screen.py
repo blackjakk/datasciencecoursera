@@ -41,6 +41,7 @@ from fantasy_draft.projections import load_projections_from_cache  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 SLEEPER_CACHE = ROOT / "data" / "sleeper_projections_2026.json"
 FP_PATH = ROOT / "data" / "rankings_fantasypros.json"
+FP_1QB_PATH = ROOT / "data" / "rankings_fantasypros_1qb.json"
 OUT_DIR = ROOT / "data" / "research"
 
 TEAMS = 12               # league size → 12 picks per round
@@ -138,6 +139,59 @@ def compute_screen(top_n: int = TOP_N) -> dict:
     }
 
 
+def compute_room_sheet(top_n: int = TOP_N) -> dict:
+    """THE SHEET THE ROOM BRINGS — this league drafts live, in person, and
+    rivals typically print popular (Reddit-circulated) rankings, which are
+    overwhelmingly STANDARD 1QB lists. Compare FantasyPros 1QB consensus
+    (their sheet) against superflex consensus (this league's truth):
+
+        sheet_gap = rank_1qb - rank_superflex
+
+      gap > 0 → their sheet BURIES him (QBs, mostly) → he slides to you
+      gap < 0 → their sheet INFLATES him → the room reaches, let them
+    """
+    sf = json.loads(FP_PATH.read_text(encoding="utf-8"))
+    q1 = json.loads(FP_1QB_PATH.read_text(encoding="utf-8"))
+    q1_by_key = {(_norm(p["name"]), p["position"].upper()): p
+                 for p in q1.get("players", [])
+                 if p.get("fp_rank_overall") is not None}
+    rows = []
+    for p in sf.get("players", []):
+        r_sf = p.get("fp_rank_overall")
+        if r_sf is None or r_sf > 150:
+            continue
+        o = q1_by_key.get((_norm(p["name"]), p["position"].upper()))
+        if o is None:
+            continue
+        gap = o["fp_rank_overall"] - r_sf
+        rows.append({
+            "name": p["name"], "position": p["position"],
+            "team": p.get("team", ""),
+            "rank_sf": r_sf, "round_sf": _round_of(r_sf),
+            "rank_1qb": o["fp_rank_overall"],
+            "round_1qb": _round_of(o["fp_rank_overall"]),
+            "sheet_gap": gap,
+            "read": (f"their sheet says R{_round_of(o['fp_rank_overall'])} · "
+                     f"superflex truth R{_round_of(r_sf)}"),
+        })
+    qb_gaps = [r["sheet_gap"] for r in rows if r["position"] == "QB"]
+    return {
+        "meta": {
+            "generated": date.today().isoformat(),
+            "sf_source": f"FP OP consensus ({sf.get('total_experts', '?')} experts)",
+            "q1_source": f"FP standard 1QB consensus ({q1.get('total_experts', '?')} experts)",
+            "players_compared": len(rows),
+            "qb_avg_discount_ranks": (round(sum(qb_gaps) / len(qb_gaps), 1)
+                                      if qb_gaps else None),
+            "qb_count": len(qb_gaps),
+        },
+        "sheet_buries": sorted((r for r in rows if r["sheet_gap"] > 0),
+                               key=lambda r: -r["sheet_gap"])[:top_n],
+        "sheet_inflates": sorted((r for r in rows if r["sheet_gap"] < 0),
+                                 key=lambda r: r["sheet_gap"])[:top_n],
+    }
+
+
 def summary_lines(result: dict | None = None, top_n: int = 5) -> list[str]:
     """Compact text section for the weekly MARKET REPORT
     (build_weekly_movers.py). Same computation, print-tape voice."""
@@ -164,6 +218,19 @@ def summary_lines(result: dict | None = None, top_n: int = 5) -> list[str]:
     lines += [""]
     lines += block("OVERPRICED — the room is early (let them reach):",
                    result["room_early"])
+    try:
+        sheet = compute_room_sheet()
+        disc = sheet["meta"]["qb_avg_discount_ranks"]
+        lines += ["", "THE SHEET THE ROOM BRINGS (in-person draft; rivals "
+                      "print 1QB rankings):"]
+        if disc is not None:
+            lines.append(f"- QBs sit {disc:+.0f} ranks deeper on their sheet "
+                         f"than superflex truth (avg, {sheet['meta']['qb_count']} QBs)")
+        for e in sheet["sheet_buries"][:3]:
+            lines.append(f"- {e['name']} ({e['position']}): {e['read']} "
+                         f"({e['sheet_gap']:+d} ranks)")
+    except FileNotFoundError:
+        pass  # 1QB consensus not fetched yet — screen still valid
     return lines
 
 
@@ -196,6 +263,55 @@ def _table(entries: list[dict], gap_cls: str) -> str:
             f"<thead>{head}</thead><tbody>{''.join(body)}</tbody></table>")
 
 
+def _sheet_table(entries: list[dict], gap_cls: str) -> str:
+    head = ("<tr><th>Asset</th><th>Pos</th>"
+            '<th class="ml-num">Superflex truth</th>'
+            '<th class="ml-num">Their sheet</th>'
+            '<th class="ml-num">Gap</th></tr>')
+    body = []
+    for e in entries:
+        body.append(
+            "<tr>"
+            f'<td>{html.escape(e["name"])} '
+            f'<span class="ml-note">{html.escape(e["team"] or "FA")}</span></td>'
+            f"<td>{_badge(e['position'])}</td>"
+            f'<td class="ml-num">#{e["rank_sf"]} · R{e["round_sf"]}</td>'
+            f'<td class="ml-num">#{e["rank_1qb"]} · R{e["round_1qb"]}</td>'
+            f'<td class="ml-num {gap_cls}">{e["sheet_gap"]:+d}</td>'
+            "</tr>")
+    return ('<table class="ml-table ml-table--compact">'
+            f"<thead>{head}</thead><tbody>{''.join(body)}</tbody></table>")
+
+
+def build_sheet_block() -> str:
+    try:
+        sheet = compute_room_sheet(top_n=10)
+    except FileNotFoundError:
+        return ""
+    m = sheet["meta"]
+    disc = m["qb_avg_discount_ranks"]
+    disc_line = (f"QBs sit an average of <strong>{disc:+.0f} ranks</strong> "
+                 f"deeper on their sheet than superflex truth "
+                 f"({m['qb_count']} QBs compared)." if disc is not None else "")
+    return "\n".join([
+        '<div class="ml-h-label">The sheet the room brings '
+        "(in-person draft · popular 1QB rankings)</div>",
+        f"<p>{disc_line}</p>",
+        '<div class="ml-h-label">Their sheet buries — he slides to you</div>',
+        _sheet_table(sheet["sheet_buries"], "ml-sv-hi"),
+        '<div class="ml-h-label">Their sheet inflates — let them reach</div>',
+        _sheet_table(sheet["sheet_inflates"], "ml-sv-lo"),
+        '<p class="ml-fineprint">MONEYLEAGUE drafts live and in person; '
+        "rivals typically bring popular (Reddit-circulated) printed "
+        "rankings, which are standard 1QB lists. Gap = the player's rank "
+        "on the 1QB consensus minus his superflex rank — the pull their "
+        "reference material exerts. Tempered in practice: three seasons of "
+        "history show this room DOES draft QBs early, so treat the top of "
+        f"the QB board as efficient and hunt the middle. Sources: "
+        f"{html.escape(m['sf_source'])} vs {html.escape(m['q1_source'])}.</p>",
+    ]) + "\n"
+
+
 def build_fragment(result: dict) -> str:
     meta = result["meta"]
     late, early = result["room_late"], result["room_early"]
@@ -214,6 +330,7 @@ def build_fragment(result: dict) -> str:
         '<div class="ml-h-label">Overpriced — the room is early '
         "(let them reach)</div>",
         _table(early, "ml-sv-lo"),
+        build_sheet_block(),
         '<p class="ml-fineprint">How to read: the room drafts on Sleeper, '
         "so Sleeper superflex ADP is the price MONEYLEAGUE actually pays; "
         "FantasyPros is what the experts say the asset is worth. When the "
