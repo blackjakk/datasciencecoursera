@@ -42,11 +42,13 @@ jobs:
         run: |
           mkdir -p gridiron-chain/dist/draft_helper
           cp -r draft_helper/* gridiron-chain/dist/draft_helper/
-      - name: Copy hq landing into dist/hq
+      - name: HQ landing page at the site root (game index preserved at /game.html)
         working-directory: .
         run: |
+          cp gridiron-chain/dist/index.html gridiron-chain/dist/game.html
+          cp hq/index.html gridiron-chain/dist/index.html
           mkdir -p gridiron-chain/dist/hq
-          cp -r hq/* gridiron-chain/dist/hq/
+          printf '%s' '<!DOCTYPE html><html lang="en"><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../"><link rel="canonical" href="../"><title>MONEYLEAGUE HQ moved</title><p>MONEYLEAGUE HQ moved to <a href="../">the site root</a>.</p></html>' > gridiron-chain/dist/hq/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
