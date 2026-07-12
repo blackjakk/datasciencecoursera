@@ -142,7 +142,8 @@ def main() -> None:
     print("Research Desk fragments:")
     for frag in ("market_screen", "trade_ledger", "counterparty_dossiers",
                  "pick_squeeze", "autopsy_2025", "stash_curve",
-                 "keeper_sensitivity", "survival_calibration"):
+                 "keeper_sensitivity", "survival_calibration",
+                 "timing_study"):
         p = ROOT / "data" / "research" / f"{frag}.html"
         check(f"research fragment {frag}",
               p.exists() and p.stat().st_size > 500,

@@ -102,6 +102,7 @@ do_reports() {
   python3 scripts/build_pick_squeeze.py
   python3 scripts/build_keeper_sensitivity.py
   python3 scripts/backtest_survival_calibration.py
+  python3 scripts/build_timing_study.py
   python3 scripts/build_research_desk.py
 }
 

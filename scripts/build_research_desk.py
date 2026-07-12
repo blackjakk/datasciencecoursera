@@ -36,6 +36,7 @@ SECTIONS = [
     ("stash_curve", "VI. The Option Book — what late picks really pay"),
     ("keeper_sensitivity", "VII. Keeper Sensitivity — declarations worth probing"),
     ("survival_calibration", "VIII. Survival Calibration — the model audits itself"),
+    ("timing_study", "IX. The Timing Study — trading against the calendar"),
 ]
 
 PAGE_CSS = """

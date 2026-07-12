@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "generated": "2026-07-12",
+    "sides": 90,
+    "buyers": 23,
+    "sellers": 23,
+    "swap_sides": 44,
+    "method": "player value = rest-of-season PAR (ledger v2); pick value = Option Book composed round value; contender = top-6 record at trade week"
+  },
+  "buyers_by_timing": [
+    {
+      "bucket": "early (W1-5)",
+      "n": 1,
+      "player_par": 32.8,
+      "pick_value": -83.0,
+      "net": -50.2
+    },
+    {
+      "bucket": "mid (W6-10)",
+      "n": 16,
+      "player_par": 59.4,
+      "pick_value": -92.5,
+      "net": -33.1
+    },
+    {
+      "bucket": "deadline (W11+)",
+      "n": 6,
+      "player_par": 34.6,
+      "pick_value": -37.4,
+      "net": -2.7
+    }
+  ],
+  "sellers_by_timing": [
+    {
+      "bucket": "early (W1-5)",
+      "n": 1,
+      "player_par": -32.8,
+      "pick_value": 83.0,
+      "net": 50.2
+    },
+    {
+      "bucket": "mid (W6-10)",
+      "n": 16,
+      "player_par": -59.4,
+      "pick_value": 92.5,
+      "net": 33.1
+    },
+    {
+      "bucket": "deadline (W11+)",
+      "n": 6,
+      "player_par": -34.6,
+      "pick_value": 37.4,
+      "net": 2.7
+    }
+  ],
+  "contender_buyer_net": {
+    "early (W1-5) \u00b7 contender": -50.2,
+    "mid (W6-10) \u00b7 contender": -34.4,
+    "mid (W6-10) \u00b7 non-contender": -27.6,
+    "deadline (W11+) \u00b7 contender": -10.0,
+    "deadline (W11+) \u00b7 non-contender": 33.4
+  },
+  "swap_lopsidedness": {
+    "early (W1-5)": {
+      "n": 14,
+      "avg_abs_par": 19.2
+    },
+    "mid (W6-10)": {
+      "n": 8,
+      "avg_abs_par": 32.6
+    }
+  },
+  "doctrine": "Value flows to whoever trades against the calendar: sell mid-season while buyers still have hope; buy at the deadline after sellers capitulate."
+}
