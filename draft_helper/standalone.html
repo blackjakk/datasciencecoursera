@@ -260,6 +260,10 @@
   .controls { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
   .controls input[type=search] { flex: 1; min-width: 140px; }
   .controls select { flex: 1; min-width: 140px; }
+  /* Sortable headers: the button inherits th styling; indicator is text. */
+  .sort-btn { text-transform: inherit; letter-spacing: inherit; color: inherit; }
+  .sort-btn:hover { color: var(--ml-text); }
+  .sort-ind { font-family: var(--ml-font-data); }
   .pos-filter { display: flex; gap: 4px; flex-wrap: wrap; }
   table.player-list tr { cursor: pointer; }
   table.player-list tr:hover { background: var(--ml-panel2); }
@@ -376,7 +380,7 @@
     <div class="player-list-scroll" tabindex="0" role="region" aria-label="Available players">
       <table class="ml-table player-list" id="ptable">
         <thead>
-          <tr><th>Pos</th><th>Name</th><th>Team</th><th class="ml-num">Age</th><th class="ml-num">Proj</th><th class="ml-num">VAL<span class="ml-visually-hidden"> — dynamic value over replacement, recomputed against the remaining player pool</span></th><th class="ml-num">MKT<span class="ml-visually-hidden"> — average draft position — market price</span></th><th class="ml-num" title="Week-over-week ADP movement in rounds (up = being drafted earlier now)">Δwk<span class="ml-visually-hidden"> — week-over-week ADP movement in rounds; up means the player is being drafted earlier now</span></th><th class="ml-num" title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)">Next✓<span class="ml-visually-hidden"> — chance the player is still available at your next pick (300-sim Monte Carlo)</span></th></tr>
+          <tr><th>Pos</th><th><button type="button" class="ml-btn--bare sort-btn" data-sort="name" data-label="name">Name<span class="sort-ind" aria-hidden="true"></span></button></th><th>Team</th><th class="ml-num">Age</th><th class="ml-num"><button type="button" class="ml-btn--bare sort-btn" data-sort="proj" data-label="projection">Proj<span class="sort-ind" aria-hidden="true"></span></button></th><th class="ml-num"><button type="button" class="ml-btn--bare sort-btn" data-sort="val" data-label="value">VAL<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — dynamic value over replacement, recomputed against the remaining player pool</span></th><th class="ml-num"><button type="button" class="ml-btn--bare sort-btn" data-sort="mkt" data-label="market rank">MKT<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — average draft position — market price</span></th><th class="ml-num" title="Week-over-week ADP movement in rounds (up = being drafted earlier now)"><button type="button" class="ml-btn--bare sort-btn" data-sort="dwk" data-label="weekly movement">Δwk<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — week-over-week ADP movement in rounds; up means the player is being drafted earlier now</span></th><th class="ml-num" title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)"><button type="button" class="ml-btn--bare sort-btn" data-sort="next" data-label="survival to your next pick">Next✓<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — chance the player is still available at your next pick (300-sim Monte Carlo)</span></th></tr>
         </thead>
         <tbody id="ptable-body"><!-- static loading skeletons; first render replaces them wholesale -->
           <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:88%"></span></td></tr>
@@ -14848,6 +14852,9 @@ let posFilter = "ALL";
 let searchQ = "";
 let cursor = 0;               // index into DATA.schedule
 let blueChip = new Set();     // top-12 pre-draft VBD names (set in init)
+let sortKey = "val";          // order-book sort column
+let sortDir = -1;             // -1 = best-first, 1 = ascending
+const SORT_DEFAULT_DIR = { name: 1, proj: -1, val: -1, mkt: 1, dwk: -1, next: -1 };
 
 // Static movers tape: real week-over-week ADP movement from data.json
 // (build_draft_helper_data.py diffs the committed players csv). No movers
@@ -14932,6 +14939,18 @@ function showBootError(err) {
     renderPlayerList();
     announceResults();
   }));
+  // Sortable order-book headers: same column toggles direction, new column
+  // starts at its natural "best-first" (MKT/Name ascend). Announced via
+  // the results live region; headers live in <thead>, so focus survives.
+  document.querySelectorAll("#ptable thead .sort-btn").forEach(btn =>
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.sort;
+      if (sortKey === k) sortDir = -sortDir;
+      else { sortKey = k; sortDir = SORT_DEFAULT_DIR[k] || -1; }
+      renderPlayerList();
+      document.getElementById("sr-results").textContent =
+        `sorted by ${btn.dataset.label}, ${sortDir === 1 ? "ascending" : "descending"}`;
+    }));
   // Roving tabindex: the 200-row player list is ONE tab stop; ArrowUp/Down
   // move between rows, Home/End jump, Enter/Space draft (native buttons).
   document.getElementById("ptable-body").addEventListener("keydown", e => {
@@ -15957,10 +15976,31 @@ function renderPlayerList() {
     if (posFilter !== "ALL" && p.pos !== posFilter && !(posFilter === "DEF" && p.pos === "DST")) return false;
     if (searchQ && !p.name.toLowerCase().includes(searchQ)) return false;
     return true;
-  }).sort((a, b) => (dynVbd.get(b.name) ?? -999) - (dynVbd.get(a.name) ?? -999))
-    .slice(0, 200);
+  });
+  // Column sort: VAL (dynamic) is the default; MKT ascending = market rank.
+  const sortKeys = {
+    name: p => p.name.toLowerCase(),
+    proj: p => p.proj,
+    val: p => dynVbd.get(p.name) ?? -999,
+    mkt: p => (p.adp && p.adp < 900 ? p.adp : 9999),
+    dwk: p => (p.adp_delta ?? -999),
+    next: p => waitPick ? survivalAt(p, waitPick.overall) : 1,
+  };
+  const keyFn = sortKeys[sortKey] || sortKeys.val;
+  filtered.sort((a, b) => {
+    const ka = keyFn(a), kb = keyFn(b);
+    return (ka < kb ? -1 : ka > kb ? 1 : 0) * sortDir;
+  });
+  const shown = filtered.slice(0, 200);
+  // aria-sort + visible indicator on the active header
+  document.querySelectorAll("#ptable thead .sort-btn").forEach(btn => {
+    const active = btn.dataset.sort === sortKey;
+    btn.parentElement.setAttribute("aria-sort",
+      active ? (sortDir === 1 ? "ascending" : "descending") : "none");
+    btn.querySelector(".sort-ind").textContent = active ? (sortDir === 1 ? " ▲" : " ▼") : "";
+  });
 
-  for (const p of filtered) {
+  for (const p of shown) {
     const tr = document.createElement("tr");
     const isTarget = needPos.has(p.pos);
     if (isTarget) tr.classList.add("brian-target");
@@ -15998,8 +16038,9 @@ function renderPlayerList() {
         : "Order book empty — every asset is rostered");
     body.innerHTML = `<tr><td colspan="9"><div class="ml-empty">${msg}</div></td></tr>`;
   }
-  document.getElementById("book-count").textContent =
-    `${filtered.length} shown`;
+  document.getElementById("book-count").textContent = filtered.length > shown.length
+    ? `${shown.length} of ${filtered.length} shown`
+    : `${filtered.length} shown`;
   // Roving tabindex: exactly one row button is tabbable at a time.
   const firstBtn = body.querySelector(".row-draft");
   if (firstBtn) firstBtn.tabIndex = 0;
