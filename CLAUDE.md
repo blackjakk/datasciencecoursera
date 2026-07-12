@@ -52,7 +52,8 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
 - Keepers lock → write `data/keepers_2026_actual.json` (same schema);
   derive prefers it over the model prediction
 - Brian's keepers (predicted, optimizer-confirmed #1 of 50 sets):
-  Loveland R8, Burden R9, Pierce R14, Watson R15
+  Loveland R8, Burden R9, Pierce R14, Watson R15 — Watson USER-CONFIRMED
+  as kept (Jul 2026); write keepers_2026_actual.json once all four lock
 
 ## Design system (July 2026 refactor — enforced, no bypassing)
 `design/tokens.json` → `design/build_design.py` → generated `design/ml.css`

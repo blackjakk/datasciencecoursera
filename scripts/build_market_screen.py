@@ -78,6 +78,18 @@ def _read_phrase(entry: dict) -> str:
     return f"the room pays R{sr} · experts see R{fr}"
 
 
+def _kept_names() -> set[str]:
+    """Names off the board before pick 1: every carryover keeper league-wide
+    (Christian Watson is Brian's keeper — he slides to nobody)."""
+    try:
+        keepers = json.loads((ROOT / "data" / "keepers_2026.json")
+                             .read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return set()
+    return {_norm(k["player_name"]) for k in keepers
+            if k.get("status") == "carryover"}
+
+
 def compute_screen(top_n: int = TOP_N) -> dict:
     """The single source of truth for the screen. Returns
     {meta, room_late, room_early} with entries sorted by |gap| desc."""
@@ -90,8 +102,11 @@ def compute_screen(top_n: int = TOP_N) -> dict:
         fp_by_key.setdefault((_norm(p["name"]), p["position"].upper()), p)
 
     screened, rows = 0, []
+    kept = _kept_names()
     for pl in players:
         if pl.adp > MAX_ADP:          # spec: exclude ADP>180 (room's price)
+            continue
+        if _norm(pl.name) in kept:    # kept players never reach the board
             continue
         f = fp_by_key.get((_norm(pl.name), pl.position.upper()))
         if f is None:
@@ -156,6 +171,7 @@ def compute_model_vs_paper(top_n: int = TOP_N) -> dict:
     """
     helper = json.loads((ROOT / "docs" / "draft_helper" / "data.json")
                         .read_text(encoding="utf-8"))
+    kept = _kept_names()
     board = [(pl["name"], pl["pos"], pl["vbd"]) for pl in helper["players"]
              if pl.get("pos") not in ("K", "DEF", "DST")
              and pl.get("vbd") is not None]
@@ -170,6 +186,8 @@ def compute_model_vs_paper(top_n: int = TOP_N) -> dict:
         if r_fp is None or r_fp > 150:
             continue
         key = (_norm(p["name"]), p["position"].upper())
+        if key[0] in kept:
+            continue  # keepers never reach the board — no edge to trade on
         r_model = model_rank.get(key)
         if r_model is None or r_model > 200:
             continue

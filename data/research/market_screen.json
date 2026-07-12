@@ -3,7 +3,7 @@
     "generated": "2026-07-12",
     "sleeper_source": "adp_2qb (superflex), data/sleeper_projections_2026.json",
     "fp_source": "FantasyPros OP half-PPR consensus, 62 experts, updated 7/12",
-    "players_screened": 177,
+    "players_screened": 138,
     "max_adp": 180,
     "teams": 12,
     "convention": "gap = sleeper_adp - fp_consensus_pick; >0 room late (value), <0 room early (avoid)"
@@ -342,34 +342,34 @@
       "read": "the room pays R10 \u00b7 experts see R15"
     },
     {
-      "name": "Oronde Gadsden",
-      "position": "TE",
-      "team": "LAC",
-      "sleeper_adp": 106.3,
-      "sleeper_round": 9,
-      "sleeper_slot": "R9.10",
-      "fp_pick": 159.3,
-      "fp_rank": 151,
-      "fp_round": 14,
-      "fp_slot": "R14.03",
-      "gap": -53.0,
-      "gap_rounds": -4.4,
-      "read": "the room pays R9 \u00b7 experts see R14"
-    },
-    {
-      "name": "AJ Barner",
-      "position": "TE",
-      "team": "SEA",
-      "sleeper_adp": 143.0,
+      "name": "James Conner",
+      "position": "RB",
+      "team": "ARI",
+      "sleeper_adp": 136.9,
       "sleeper_round": 12,
-      "sleeper_slot": "R12.11",
-      "fp_pick": 191.0,
-      "fp_rank": 173,
+      "sleeper_slot": "R12.04",
+      "fp_pick": 184.5,
+      "fp_rank": 185,
       "fp_round": 16,
-      "fp_slot": "R16.11",
-      "gap": -48.0,
+      "fp_slot": "R16.04",
+      "gap": -47.6,
       "gap_rounds": -4.0,
       "read": "the room pays R12 \u00b7 experts see R16"
+    },
+    {
+      "name": "Cade Otton",
+      "position": "TE",
+      "team": "TB",
+      "sleeper_adp": 173.0,
+      "sleeper_round": 15,
+      "sleeper_slot": "R15.05",
+      "fp_pick": 220.0,
+      "fp_rank": 204,
+      "fp_round": 19,
+      "fp_slot": "R19.04",
+      "gap": -47.0,
+      "gap_rounds": -3.9,
+      "read": "the room pays R15 \u00b7 experts see R19"
     }
   ]
 }
