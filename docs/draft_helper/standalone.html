@@ -324,7 +324,7 @@
     .player-list th:nth-child(3), .player-list td:nth-child(3),
     .player-list th:nth-child(4), .player-list td:nth-child(4),
     .player-list th:nth-child(5), .player-list td:nth-child(5),
-    .player-list th:nth-child(8), .player-list td:nth-child(8) { display: none; }
+    .player-list th:nth-child(9), .player-list td:nth-child(9) { display: none; }
     .player-list-scroll { max-height: 50vh; }
     .title-slot { display: none; }
   }
@@ -380,17 +380,17 @@
     <div class="player-list-scroll" tabindex="0" role="region" aria-label="Available players">
       <table class="ml-table player-list" id="ptable">
         <thead>
-          <tr><th>Pos</th><th><button type="button" class="ml-btn--bare sort-btn" data-sort="name" data-label="name">Name<span class="sort-ind" aria-hidden="true"></span></button></th><th>Team</th><th class="ml-num">Age</th><th class="ml-num"><button type="button" class="ml-btn--bare sort-btn" data-sort="proj" data-label="projection">Proj<span class="sort-ind" aria-hidden="true"></span></button></th><th class="ml-num"><button type="button" class="ml-btn--bare sort-btn" data-sort="val" data-label="value">VAL<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — dynamic value over replacement, recomputed against the remaining player pool</span></th><th class="ml-num"><button type="button" class="ml-btn--bare sort-btn" data-sort="mkt" data-label="market rank">MKT<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — average draft position — market price</span></th><th class="ml-num" title="Week-over-week ADP movement in rounds (up = being drafted earlier now)"><button type="button" class="ml-btn--bare sort-btn" data-sort="dwk" data-label="weekly movement">Δwk<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — week-over-week ADP movement in rounds; up means the player is being drafted earlier now</span></th><th class="ml-num" title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)"><button type="button" class="ml-btn--bare sort-btn" data-sort="next" data-label="survival to your next pick">Next✓<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — chance the player is still available at your next pick (300-sim Monte Carlo)</span></th></tr>
+          <tr><th>Pos</th><th><button type="button" class="ml-btn--bare sort-btn" data-sort="name" data-label="name">Name<span class="sort-ind" aria-hidden="true"></span></button></th><th>Team</th><th class="ml-num">Age</th><th class="ml-num"><button type="button" class="ml-btn--bare sort-btn" data-sort="proj" data-label="projection">Proj<span class="sort-ind" aria-hidden="true"></span></button></th><th class="ml-num"><button type="button" class="ml-btn--bare sort-btn" data-sort="val" data-label="value">VAL<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — dynamic value over replacement, recomputed against the remaining player pool</span></th><th class="ml-num" title="The recommender's next-pick score: dynamic value + roster need + urgency + FantasyPros superflex consensus"><button type="button" class="ml-btn--bare sort-btn" data-sort="sim" data-label="sim next-pick score">SIM<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — the recommender's score for YOUR next pick: dynamic value plus roster need plus urgency plus FantasyPros superflex consensus</span></th><th class="ml-num"><button type="button" class="ml-btn--bare sort-btn" data-sort="mkt" data-label="market rank">MKT<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — average draft position — market price</span></th><th class="ml-num" title="Week-over-week ADP movement in rounds (up = being drafted earlier now)"><button type="button" class="ml-btn--bare sort-btn" data-sort="dwk" data-label="weekly movement">Δwk<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — week-over-week ADP movement in rounds; up means the player is being drafted earlier now</span></th><th class="ml-num" title="Chance this player is still available at your NEXT pick (300-sim Monte Carlo)"><button type="button" class="ml-btn--bare sort-btn" data-sort="next" data-label="survival to your next pick">Next✓<span class="sort-ind" aria-hidden="true"></span></button><span class="ml-visually-hidden"> — chance the player is still available at your next pick (300-sim Monte Carlo)</span></th></tr>
         </thead>
         <tbody id="ptable-body"><!-- static loading skeletons; first render replaces them wholesale -->
-          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:88%"></span></td></tr>
-          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:72%"></span></td></tr>
-          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:81%"></span></td></tr>
-          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:64%"></span></td></tr>
-          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:77%"></span></td></tr>
-          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:69%"></span></td></tr>
-          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:84%"></span></td></tr>
-          <tr aria-hidden="true"><td colspan="9"><span class="ml-skeleton" style="width:58%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="10"><span class="ml-skeleton" style="width:88%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="10"><span class="ml-skeleton" style="width:72%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="10"><span class="ml-skeleton" style="width:81%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="10"><span class="ml-skeleton" style="width:64%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="10"><span class="ml-skeleton" style="width:77%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="10"><span class="ml-skeleton" style="width:69%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="10"><span class="ml-skeleton" style="width:84%"></span></td></tr>
+          <tr aria-hidden="true"><td colspan="10"><span class="ml-skeleton" style="width:58%"></span></td></tr>
         </tbody>
       </table>
     </div>
@@ -14854,7 +14854,7 @@ let cursor = 0;               // index into DATA.schedule
 let blueChip = new Set();     // top-12 pre-draft VBD names (set in init)
 let sortKey = "val";          // order-book sort column
 let sortDir = -1;             // -1 = best-first, 1 = ascending
-const SORT_DEFAULT_DIR = { name: 1, proj: -1, val: -1, mkt: 1, dwk: -1, next: -1 };
+const SORT_DEFAULT_DIR = { name: 1, proj: -1, val: -1, sim: -1, mkt: 1, dwk: -1, next: -1 };
 
 // Static movers tape: real week-over-week ADP movement from data.json
 // (build_draft_helper_data.py diffs the committed players csv). No movers
@@ -15535,6 +15535,27 @@ function computeDynVbd() {
   return dyn;
 }
 
+// ---------- SIM SCORE (the recommender's brain, shared by the SIM column
+// and the Top Recommendations panel) ----------
+// dynamic VBD + starter-need bonus + urgency (gone-by-your-next-pick) +
+// FantasyPros superflex consensus tilt (±15 cap: half a point per slot
+// between the pick's price and the experts' rank) + late-round stash
+// bonuses + CEILING weighting when toggled.
+function simScore(p, refPick, waitPick, needPos) {
+  let s = dynVbd.get(p.name) ?? p.vbd;
+  if (needPos.has(p.pos)) s += 25;
+  const surv = survivalAt(p, waitPick ? waitPick.overall
+    : (refPick ? refPick.overall + 24 : 999));
+  s += (1 - surv) * 20;
+  if (refPick && refPick.round >= 14 && p.years_exp === 0) s += 15;
+  if (refPick && refPick.round >= 14 && p.age && p.age <= 24) s += 8;
+  if (p.fp_rank != null && refPick) {
+    s += Math.max(-15, Math.min(15, (refPick.overall - p.fp_rank) * 0.5));
+  }
+  if (ceilingMode) s += upsideBonus(p);
+  return s;
+}
+
 // 2027 keeper cost if drafted in round r (league rule: cost = round - 2;
 // R1/R2 picks are keeper-ineligible; waivers cost R15).
 function keeperCostLabel(round) {
@@ -15985,6 +16006,7 @@ function renderPlayerList() {
     mkt: p => (p.adp && p.adp < 900 ? p.adp : 9999),
     dwk: p => (p.adp_delta ?? -999),
     next: p => waitPick ? survivalAt(p, waitPick.overall) : 1,
+    sim: p => simScore(p, myNext, waitPick, needPos),
   };
   const keyFn = sortKeys[sortKey] || sortKeys.val;
   filtered.sort((a, b) => {
@@ -16020,6 +16042,7 @@ function renderPlayerList() {
       <td class="ml-num">${ageCell}</td>
       <td class="ml-num">${p.proj.toFixed(0)}</td>
       <td class="vbd ${vbdClass} ml-num" title="dynamic VBD vs remaining pool (pre-draft: ${p.vbd > 0 ? '+' : ''}${p.vbd.toFixed(0)})">${dv > 0 ? '+' : ''}${dv.toFixed(0)}</td>
+      <td class="ml-num" title="sim next-pick score${p.fp_rank != null ? ' · FP superflex rank ' + p.fp_rank : ''}">${simScore(p, myNext, waitPick, needPos).toFixed(0)}</td>
       <td class="meta ml-num">${p.adp.toFixed(0)}</td>
       ${deltaCellHtml(p)}
       <td class="ml-num">${survivalCell(p, waitPick)}</td>
@@ -16036,7 +16059,7 @@ function renderPlayerList() {
       : (posFilter !== "ALL"
         ? `No available ${escHtml(posFilter)}s left on the board`
         : "Order book empty — every asset is rostered");
-    body.innerHTML = `<tr><td colspan="9"><div class="ml-empty">${msg}</div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="10"><div class="ml-empty">${msg}</div></td></tr>`;
   }
   document.getElementById("book-count").textContent = filtered.length > shown.length
     ? `${shown.length} of ${filtered.length} shown`
@@ -16120,19 +16143,10 @@ function renderRecs() {
   costDiv.textContent = `Anyone drafted at this pick → ${keeperCostLabel(next.round)}`;
   recs.appendChild(costDiv);
 
-  function score(p) {
-    let s = dynVbd.get(p.name) ?? p.vbd;
-    if (needPos.has(p.pos)) s += 25;
-    // Urgency: a player unlikely to survive to the next pick is worth more
-    // NOW; a near-lock to return is worth less (wait and double-dip).
-    const surv = survivalAt(p, waitPick ? waitPick.overall : next.overall + 24);
-    s += (1 - surv) * 20;
-    if (next.round >= 14 && p.years_exp === 0) s += 15; // rookie keeper-future
-    if (next.round >= 14 && p.age && p.age <= 24) s += 8;
-    if (ceilingMode) s += upsideBonus(p);
-    return s;
-  }
-  const scored = available.map(p => ({...p, s: score(p)})).sort((a,b) => b.s - a.s);
+  // One brain, two views: the recs rank by the SAME simScore the SIM
+  // column shows (value + need + urgency + FantasyPros tilt + ceiling).
+  const scored = available.map(p => ({...p, s: simScore(p, next, waitPick, needPos)}))
+    .sort((a, b) => b.s - a.s);
   const top3 = scored.slice(0, 3);
 
   for (const p of top3) {
