@@ -1,0 +1,694 @@
+{
+ "generated": "2026-07-12",
+ "method": {
+  "scope": "rivals' OTHER Sleeper leagues, seasons 2023-25; behavioral metrics only \u2014 no cross-league value grades (scoring/rosters/formats differ league to league)",
+  "weighting": "weighted deals/yr counts superflex-league trades at 1.0 and non-SF at 0.5, per season with an outside league",
+  "timing_buckets": "early w1-4, mid w5-9, deadline w10+"
+ },
+ "rivals": {
+  "kbrower": {
+   "user_id": "335950922154774528",
+   "in_league_trades_2023_25": 10,
+   "outside": {
+    "active_seasons": 2,
+    "leagues_total": 4,
+    "trades_total": 17,
+    "sf_trades": 17,
+    "weighted_deals_per_yr": 8.5,
+    "raw_deals_per_yr": 8.5,
+    "week_histogram": {
+     "early": 12,
+     "mid": 4,
+     "deadline": 1
+    },
+    "pos_flow": {
+     "RB": -4,
+     "WR": -1
+    },
+    "picks_moved": 29
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2024": {
+     "leagues": [
+      {
+       "league_id": "1131300795187642368",
+       "superflex": true,
+       "dynasty": false,
+       "keeper": true,
+       "teams": 10,
+       "name": "300 Keeper League",
+       "their_trades": 0
+      },
+      {
+       "league_id": "1048271310880636928",
+       "superflex": true,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 14,
+       "name": "Bary Godkins",
+       "their_trades": 9
+      }
+     ],
+     "trades": 9
+    },
+    "2025": {
+     "leagues": [
+      {
+       "league_id": "1229817715858866176",
+       "superflex": true,
+       "dynasty": false,
+       "keeper": true,
+       "teams": 10,
+       "name": "300 Keeper League",
+       "their_trades": 1
+      },
+      {
+       "league_id": "1180165172449435648",
+       "superflex": true,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 14,
+       "name": "Bary Godkins",
+       "their_trades": 7
+      }
+     ],
+     "trades": 8
+    }
+   }
+  },
+  "kylefiggy": {
+   "user_id": "461689313671770112",
+   "in_league_trades_2023_25": 7,
+   "outside": {
+    "active_seasons": 3,
+    "leagues_total": 4,
+    "trades_total": 4,
+    "sf_trades": 4,
+    "weighted_deals_per_yr": 1.3,
+    "raw_deals_per_yr": 1.3,
+    "week_histogram": {
+     "early": 2,
+     "mid": 0,
+     "deadline": 2
+    },
+    "pos_flow": {
+     "QB": -1,
+     "RB": 1,
+     "WR": 3,
+     "TE": -1
+    },
+    "picks_moved": 6
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [
+      {
+       "league_id": "917923498117787648",
+       "superflex": true,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 12,
+       "name": "Dynasty",
+       "their_trades": 2
+      }
+     ],
+     "trades": 2
+    },
+    "2024": {
+     "leagues": [
+      {
+       "league_id": "1048293773777809408",
+       "superflex": true,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 12,
+       "name": "Dynasty",
+       "their_trades": 2
+      }
+     ],
+     "trades": 2
+    },
+    "2025": {
+     "leagues": [
+      {
+       "league_id": "1258179147939717120",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 14,
+       "name": "Playoffs?!?! Year 14",
+       "their_trades": 0
+      },
+      {
+       "league_id": "1182713080448974848",
+       "superflex": true,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 12,
+       "name": "Dynasty",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    }
+   }
+  },
+  "tjt5055": {
+   "user_id": "470754140222386176",
+   "in_league_trades_2023_25": 16,
+   "outside": {
+    "active_seasons": 3,
+    "leagues_total": 8,
+    "trades_total": 32,
+    "sf_trades": 32,
+    "weighted_deals_per_yr": 10.7,
+    "raw_deals_per_yr": 10.7,
+    "week_histogram": {
+     "early": 23,
+     "mid": 4,
+     "deadline": 5
+    },
+    "pos_flow": {
+     "QB": -1,
+     "RB": -2,
+     "WR": 2,
+     "TE": 1
+    },
+    "picks_moved": 37
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [
+      {
+       "league_id": "996179783971127296",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 10,
+       "name": "Friendship for Everyone",
+       "their_trades": 0
+      },
+      {
+       "league_id": "941727079954006016",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": true,
+       "teams": 10,
+       "name": "SACK LEAGUE",
+       "their_trades": 0
+      },
+      {
+       "league_id": "916718379451506688",
+       "superflex": true,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 14,
+       "name": "Bary Godkins",
+       "their_trades": 8
+      }
+     ],
+     "trades": 8
+    },
+    "2024": {
+     "leagues": [
+      {
+       "league_id": "1124816489245868032",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 10,
+       "name": "Friendship for Everyone",
+       "their_trades": 0
+      },
+      {
+       "league_id": "1124814473870213120",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 10,
+       "name": "SACC LEAG Too; Electric Kick a Poo",
+       "their_trades": 0
+      },
+      {
+       "league_id": "1048271310880636928",
+       "superflex": true,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 14,
+       "name": "Bary Godkins",
+       "their_trades": 7
+      }
+     ],
+     "trades": 7
+    },
+    "2025": {
+     "leagues": [
+      {
+       "league_id": "1249498455114518528",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 10,
+       "name": "SACC LEAG Too; Electric Kick a Poo",
+       "their_trades": 0
+      },
+      {
+       "league_id": "1180165172449435648",
+       "superflex": true,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 14,
+       "name": "Bary Godkins",
+       "their_trades": 17
+      }
+     ],
+     "trades": 17
+    }
+   }
+  },
+  "BigDickNicholas": {
+   "user_id": "721397055716659200",
+   "in_league_trades_2023_25": 7,
+   "outside": {
+    "active_seasons": 3,
+    "leagues_total": 4,
+    "trades_total": 12,
+    "sf_trades": 0,
+    "weighted_deals_per_yr": 2.0,
+    "raw_deals_per_yr": 4.0,
+    "week_histogram": {
+     "early": 8,
+     "mid": 1,
+     "deadline": 3
+    },
+    "pos_flow": {
+     "QB": -1,
+     "WR": -1,
+     "TE": -1
+    },
+    "picks_moved": 29
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [
+      {
+       "league_id": "917529456183640064",
+       "superflex": false,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 12,
+       "name": "Dynasty -  2021 start ($50) ",
+       "their_trades": 5
+      }
+     ],
+     "trades": 5
+    },
+    "2024": {
+     "leagues": [
+      {
+       "league_id": "1048290964193824768",
+       "superflex": false,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 12,
+       "name": "Dynasty -  2021 start ($50) ",
+       "their_trades": 5
+      }
+     ],
+     "trades": 5
+    },
+    "2025": {
+     "leagues": [
+      {
+       "league_id": "1258179147939717120",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 14,
+       "name": "Playoffs?!?! Year 14",
+       "their_trades": 0
+      },
+      {
+       "league_id": "1182713181952659456",
+       "superflex": false,
+       "dynasty": true,
+       "keeper": false,
+       "teams": 12,
+       "name": "Dynasty -  2021 start ($50) ",
+       "their_trades": 2
+      }
+     ],
+     "trades": 2
+    }
+   }
+  },
+  "TBreswick": {
+   "user_id": "1001713986179686400",
+   "in_league_trades_2023_25": 6,
+   "outside": {
+    "active_seasons": 0,
+    "leagues_total": 0,
+    "trades_total": 0,
+    "sf_trades": 0,
+    "weighted_deals_per_yr": 0.0,
+    "raw_deals_per_yr": 0.0,
+    "week_histogram": {
+     "early": 0,
+     "mid": 0,
+     "deadline": 0
+    },
+    "pos_flow": {},
+    "picks_moved": 0
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2024": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2025": {
+     "leagues": [],
+     "trades": 0
+    }
+   }
+  },
+  "LEMVP": {
+   "user_id": "1001871601794637824",
+   "in_league_trades_2023_25": 3,
+   "outside": {
+    "active_seasons": 2,
+    "leagues_total": 2,
+    "trades_total": 0,
+    "sf_trades": 0,
+    "weighted_deals_per_yr": 0.0,
+    "raw_deals_per_yr": 0.0,
+    "week_histogram": {
+     "early": 0,
+     "mid": 0,
+     "deadline": 0
+    },
+    "pos_flow": {},
+    "picks_moved": 0
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2024": {
+     "leagues": [
+      {
+       "league_id": "1126937178090708992",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 12,
+       "name": "The Deadpool League",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    },
+    "2025": {
+     "leagues": [
+      {
+       "league_id": "1254963323007401984",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": true,
+       "teams": 12,
+       "name": "DC v Marvel",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    }
+   }
+  },
+  "apatel185": {
+   "user_id": "1001875733720981504",
+   "in_league_trades_2023_25": 4,
+   "outside": {
+    "active_seasons": 2,
+    "leagues_total": 2,
+    "trades_total": 0,
+    "sf_trades": 0,
+    "weighted_deals_per_yr": 0.0,
+    "raw_deals_per_yr": 0.0,
+    "week_histogram": {
+     "early": 0,
+     "mid": 0,
+     "deadline": 0
+    },
+    "pos_flow": {},
+    "picks_moved": 0
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2024": {
+     "leagues": [
+      {
+       "league_id": "1126937178090708992",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 12,
+       "name": "The Deadpool League",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    },
+    "2025": {
+     "leagues": [
+      {
+       "league_id": "1254963323007401984",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": true,
+       "teams": 12,
+       "name": "DC v Marvel",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    }
+   }
+  },
+  "troymullings": {
+   "user_id": "1001879029017903104",
+   "in_league_trades_2023_25": 4,
+   "outside": {
+    "active_seasons": 3,
+    "leagues_total": 4,
+    "trades_total": 1,
+    "sf_trades": 0,
+    "weighted_deals_per_yr": 0.2,
+    "raw_deals_per_yr": 0.3,
+    "week_histogram": {
+     "early": 1,
+     "mid": 0,
+     "deadline": 0
+    },
+    "pos_flow": {
+     "RB": -1,
+     "WR": 1,
+     "TE": -1
+    },
+    "picks_moved": 0
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [
+      {
+       "league_id": "941727079954006016",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": true,
+       "teams": 10,
+       "name": "SACK LEAGUE",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    },
+    "2024": {
+     "leagues": [
+      {
+       "league_id": "1124814473870213120",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 10,
+       "name": "SACC LEAG Too; Electric Kick a Poo",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    },
+    "2025": {
+     "leagues": [
+      {
+       "league_id": "1249498455114518528",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 10,
+       "name": "SACC LEAG Too; Electric Kick a Poo",
+       "their_trades": 0
+      },
+      {
+       "league_id": "1258179147939717120",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 14,
+       "name": "Playoffs?!?! Year 14",
+       "their_trades": 1
+      }
+     ],
+     "trades": 1
+    }
+   }
+  },
+  "dibach215": {
+   "user_id": "1001897607733514240",
+   "in_league_trades_2023_25": 6,
+   "outside": {
+    "active_seasons": 0,
+    "leagues_total": 0,
+    "trades_total": 0,
+    "sf_trades": 0,
+    "weighted_deals_per_yr": 0.0,
+    "raw_deals_per_yr": 0.0,
+    "week_histogram": {
+     "early": 0,
+     "mid": 0,
+     "deadline": 0
+    },
+    "pos_flow": {},
+    "picks_moved": 0
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2024": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2025": {
+     "leagues": [],
+     "trades": 0
+    }
+   }
+  },
+  "emattessich": {
+   "user_id": "1001952871493054464",
+   "in_league_trades_2023_25": 8,
+   "outside": {
+    "active_seasons": 2,
+    "leagues_total": 2,
+    "trades_total": 0,
+    "sf_trades": 0,
+    "weighted_deals_per_yr": 0.0,
+    "raw_deals_per_yr": 0.0,
+    "week_histogram": {
+     "early": 0,
+     "mid": 0,
+     "deadline": 0
+    },
+    "pos_flow": {},
+    "picks_moved": 0
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2024": {
+     "leagues": [
+      {
+       "league_id": "1125963592509079552",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 8,
+       "name": "The Family",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    },
+    "2025": {
+     "leagues": [
+      {
+       "league_id": "1257904699902795776",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 10,
+       "name": "Family Fantasy Football",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    }
+   }
+  },
+  "Wi1dboy": {
+   "user_id": "1249817196369022976",
+   "in_league_trades_2023_25": 2,
+   "outside": {
+    "active_seasons": 1,
+    "leagues_total": 1,
+    "trades_total": 0,
+    "sf_trades": 0,
+    "weighted_deals_per_yr": 0.0,
+    "raw_deals_per_yr": 0.0,
+    "week_histogram": {
+     "early": 0,
+     "mid": 0,
+     "deadline": 0
+    },
+    "pos_flow": {},
+    "picks_moved": 0
+   },
+   "seasons": {
+    "2023": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2024": {
+     "leagues": [],
+     "trades": 0
+    },
+    "2025": {
+     "leagues": [
+      {
+       "league_id": "1258179147939717120",
+       "superflex": false,
+       "dynasty": false,
+       "keeper": false,
+       "teams": 14,
+       "name": "Playoffs?!?! Year 14",
+       "their_trades": 0
+      }
+     ],
+     "trades": 0
+    }
+   }
+  }
+ }
+}

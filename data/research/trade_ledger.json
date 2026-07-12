@@ -1,0 +1,5045 @@
+{
+ "generated": "2026-07-12",
+ "seasons": [
+  2023,
+  2024,
+  2025
+ ],
+ "method": {
+  "grade": "rest-of-season points swung: sum of weekly points in weeks (trade week+1)..17 for players received minus players sent, per side",
+  "scoring": "pts_half_ppr; fallback pts_ppr - 0.5*rec",
+  "picks_and_faab": "listed as assets, graded 0 points"
+ },
+ "trade_counts_by_season": {
+  "2023": 20,
+  "2024": 17,
+  "2025": 8
+ },
+ "trades": [
+  {
+   "season": 2023,
+   "week": 2,
+   "transaction_id": "1008029285306621952",
+   "parties": [
+    {
+     "manager": "dibach215",
+     "roster_id": 2,
+     "received": {
+      "players": [
+       {
+        "id": "7525",
+        "name": "DeVonta Smith",
+        "pos": "WR",
+        "ros_pts": 151.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 12
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 2
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 151.8
+    },
+    {
+     "manager": "BigDickNicholas",
+     "roster_id": 12,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 2
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7525",
+        "name": "DeVonta Smith",
+        "pos": "WR",
+        "ros_pts": 151.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 12
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -151.8
+    }
+   ],
+   "winner": "dibach215",
+   "margin_ros_pts": 151.8
+  },
+  {
+   "season": 2023,
+   "week": 3,
+   "transaction_id": "1011440235413483520",
+   "parties": [
+    {
+     "manager": "troymullings",
+     "roster_id": 4,
+     "received": {
+      "players": [
+       {
+        "id": "4983",
+        "name": "DJ Moore",
+        "pos": "WR",
+        "ros_pts": 202.6
+       },
+       {
+        "id": "4984",
+        "name": "Josh Allen",
+        "pos": "QB",
+        "ros_pts": 327.6
+       },
+       {
+        "id": "5995",
+        "name": "Justice Hill",
+        "pos": "RB",
+        "ros_pts": 71.5
+       },
+       {
+        "id": "8110",
+        "name": "Jake Ferguson",
+        "pos": "TE",
+        "ros_pts": 113.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 8
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "1479",
+        "name": "Keenan Allen",
+        "pos": "WR",
+        "ros_pts": 150.1
+       },
+       {
+        "id": "1837",
+        "name": "Jimmy Garoppolo",
+        "pos": "QB",
+        "ros_pts": 26.8
+       },
+       {
+        "id": "8150",
+        "name": "Kyren Williams",
+        "pos": "RB",
+        "ros_pts": 189.1
+       },
+       {
+        "id": "9229",
+        "name": "Anthony Richardson",
+        "pos": "QB",
+        "ros_pts": 34.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 4
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 315.4
+    },
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [
+       {
+        "id": "1479",
+        "name": "Keenan Allen",
+        "pos": "WR",
+        "ros_pts": 150.1
+       },
+       {
+        "id": "1837",
+        "name": "Jimmy Garoppolo",
+        "pos": "QB",
+        "ros_pts": 26.8
+       },
+       {
+        "id": "8150",
+        "name": "Kyren Williams",
+        "pos": "RB",
+        "ros_pts": 189.1
+       },
+       {
+        "id": "9229",
+        "name": "Anthony Richardson",
+        "pos": "QB",
+        "ros_pts": 34.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 4
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4983",
+        "name": "DJ Moore",
+        "pos": "WR",
+        "ros_pts": 202.6
+       },
+       {
+        "id": "4984",
+        "name": "Josh Allen",
+        "pos": "QB",
+        "ros_pts": 327.6
+       },
+       {
+        "id": "5995",
+        "name": "Justice Hill",
+        "pos": "RB",
+        "ros_pts": 71.5
+       },
+       {
+        "id": "8110",
+        "name": "Jake Ferguson",
+        "pos": "TE",
+        "ros_pts": 113.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 8
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -315.4
+    }
+   ],
+   "winner": "troymullings",
+   "margin_ros_pts": 315.4
+  },
+  {
+   "season": 2023,
+   "week": 3,
+   "transaction_id": "1012428440340971520",
+   "parties": [
+    {
+     "manager": "BigDickNicholas",
+     "roster_id": 12,
+     "received": {
+      "players": [
+       {
+        "id": "7528",
+        "name": "Najee Harris",
+        "pos": "RB",
+        "ros_pts": 143.6
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "6790",
+        "name": "D'Andre Swift",
+        "pos": "RB",
+        "ros_pts": 139.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 4.5
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "6790",
+        "name": "D'Andre Swift",
+        "pos": "RB",
+        "ros_pts": 139.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7528",
+        "name": "Najee Harris",
+        "pos": "RB",
+        "ros_pts": 143.6
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -4.5
+    }
+   ],
+   "winner": "BigDickNicholas",
+   "margin_ros_pts": 4.5
+  },
+  {
+   "season": 2023,
+   "week": 4,
+   "transaction_id": "1012851936858669056",
+   "parties": [
+    {
+     "manager": "BigDickNicholas",
+     "roster_id": 12,
+     "received": {
+      "players": [
+       {
+        "id": "4033",
+        "name": "David Njoku",
+        "pos": "TE",
+        "ros_pts": 140.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "5022",
+        "name": "Dallas Goedert",
+        "pos": "TE",
+        "ros_pts": 90.6
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 50.3
+    },
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [
+       {
+        "id": "5022",
+        "name": "Dallas Goedert",
+        "pos": "TE",
+        "ros_pts": 90.6
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4033",
+        "name": "David Njoku",
+        "pos": "TE",
+        "ros_pts": 140.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -50.3
+    }
+   ],
+   "winner": "BigDickNicholas",
+   "margin_ros_pts": 50.3
+  },
+  {
+   "season": 2023,
+   "week": 5,
+   "transaction_id": "1015341107233832960",
+   "parties": [
+    {
+     "manager": "emattessich",
+     "roster_id": 7,
+     "received": {
+      "players": [
+       {
+        "id": "6845",
+        "name": "Zack Moss",
+        "pos": "RB",
+        "ros_pts": 71.4
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [],
+      "faab": 12
+     },
+     "swing_ros_pts": 71.4
+    },
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [],
+      "picks": [],
+      "faab": 12
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "6845",
+        "name": "Zack Moss",
+        "pos": "RB",
+        "ros_pts": 71.4
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": -71.4
+    }
+   ],
+   "winner": "emattessich",
+   "margin_ros_pts": 71.4
+  },
+  {
+   "season": 2023,
+   "week": 5,
+   "transaction_id": "1015788707909414912",
+   "parties": [
+    {
+     "manager": "TBreswick",
+     "roster_id": 1,
+     "received": {
+      "players": [
+       {
+        "id": "8136",
+        "name": "Rachaad White",
+        "pos": "RB",
+        "ros_pts": 184.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "8146",
+        "name": "Garrett Wilson",
+        "pos": "WR",
+        "ros_pts": 109.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 75.5
+    },
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [
+       {
+        "id": "8146",
+        "name": "Garrett Wilson",
+        "pos": "WR",
+        "ros_pts": 109.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "8136",
+        "name": "Rachaad White",
+        "pos": "RB",
+        "ros_pts": 184.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -75.5
+    }
+   ],
+   "winner": "TBreswick",
+   "margin_ros_pts": 75.5
+  },
+  {
+   "season": 2023,
+   "week": 6,
+   "transaction_id": "1020055182471720960",
+   "parties": [
+    {
+     "manager": "emattessich",
+     "roster_id": 7,
+     "received": {
+      "players": [
+       {
+        "id": "4066",
+        "name": "Evan Engram",
+        "pos": "TE",
+        "ros_pts": 106.3
+       },
+       {
+        "id": "8155",
+        "name": "Breece Hall",
+        "pos": "RB",
+        "ros_pts": 152.1
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "5012",
+        "name": "Mark Andrews",
+        "pos": "TE",
+        "ros_pts": 53.5
+       },
+       {
+        "id": "6943",
+        "name": "Gabe Davis",
+        "pos": "WR",
+        "ros_pts": 72.5
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": 132.4
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "5012",
+        "name": "Mark Andrews",
+        "pos": "TE",
+        "ros_pts": 53.5
+       },
+       {
+        "id": "6943",
+        "name": "Gabe Davis",
+        "pos": "WR",
+        "ros_pts": 72.5
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4066",
+        "name": "Evan Engram",
+        "pos": "TE",
+        "ros_pts": 106.3
+       },
+       {
+        "id": "8155",
+        "name": "Breece Hall",
+        "pos": "RB",
+        "ros_pts": 152.1
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": -132.4
+    }
+   ],
+   "winner": "emattessich",
+   "margin_ros_pts": 132.4
+  },
+  {
+   "season": 2023,
+   "week": 7,
+   "transaction_id": "1022706219657666560",
+   "parties": [
+    {
+     "manager": "wvw5022",
+     "roster_id": 10,
+     "received": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 111.6
+       },
+       {
+        "id": "4981",
+        "name": "Calvin Ridley",
+        "pos": "WR",
+        "ros_pts": 109.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "1466",
+        "name": "Travis Kelce",
+        "pos": "TE",
+        "ros_pts": 72.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 148.2
+    },
+    {
+     "manager": "troymullings",
+     "roster_id": 4,
+     "received": {
+      "players": [
+       {
+        "id": "1466",
+        "name": "Travis Kelce",
+        "pos": "TE",
+        "ros_pts": 72.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 111.6
+       },
+       {
+        "id": "4981",
+        "name": "Calvin Ridley",
+        "pos": "WR",
+        "ros_pts": 109.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -148.2
+    }
+   ],
+   "winner": "wvw5022",
+   "margin_ros_pts": 148.2
+  },
+  {
+   "season": 2023,
+   "week": 8,
+   "transaction_id": "1022997233496588288",
+   "parties": [
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 92.2
+       },
+       {
+        "id": "6797",
+        "name": "Justin Herbert",
+        "pos": "QB",
+        "ros_pts": 87.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "11199",
+        "name": "Emari Demercado",
+        "pos": "RB",
+        "ros_pts": 24.9
+       },
+       {
+        "id": "8162",
+        "name": "Sam Howell",
+        "pos": "QB",
+        "ros_pts": 120.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 34.5
+    },
+    {
+     "manager": "wvw5022",
+     "roster_id": 10,
+     "received": {
+      "players": [
+       {
+        "id": "11199",
+        "name": "Emari Demercado",
+        "pos": "RB",
+        "ros_pts": 24.9
+       },
+       {
+        "id": "8162",
+        "name": "Sam Howell",
+        "pos": "QB",
+        "ros_pts": 120.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 92.2
+       },
+       {
+        "id": "6797",
+        "name": "Justin Herbert",
+        "pos": "QB",
+        "ros_pts": 87.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -34.5
+    }
+   ],
+   "winner": "tjt5055",
+   "margin_ros_pts": 34.5
+  },
+  {
+   "season": 2023,
+   "week": 9,
+   "transaction_id": "1027635549277880320",
+   "parties": [
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 92.2
+       },
+       {
+        "id": "6797",
+        "name": "Justin Herbert",
+        "pos": "QB",
+        "ros_pts": 80.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 12,
+        "orig_slot": 11
+       },
+       {
+        "season": "2026",
+        "round": 15,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "10866",
+        "name": "Aidan O'Connell",
+        "pos": "QB",
+        "ros_pts": 89.8
+       },
+       {
+        "id": "9753",
+        "name": "Zach Charbonnet",
+        "pos": "RB",
+        "ros_pts": 55.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 4
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 26.8
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "10866",
+        "name": "Aidan O'Connell",
+        "pos": "QB",
+        "ros_pts": 89.8
+       },
+       {
+        "id": "9753",
+        "name": "Zach Charbonnet",
+        "pos": "RB",
+        "ros_pts": 55.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 4
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 92.2
+       },
+       {
+        "id": "6797",
+        "name": "Justin Herbert",
+        "pos": "QB",
+        "ros_pts": 80.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 12,
+        "orig_slot": 11
+       },
+       {
+        "season": "2026",
+        "round": 15,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -26.8
+    }
+   ],
+   "winner": "kbrower",
+   "margin_ros_pts": 26.8
+  },
+  {
+   "season": 2023,
+   "week": 9,
+   "transaction_id": "1027638562528804864",
+   "parties": [
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 12,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 12,
+        "orig_slot": 11
+       },
+       {
+        "season": "2026",
+        "round": 15,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 12,
+        "orig_slot": 11
+       },
+       {
+        "season": "2026",
+        "round": 15,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 12,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    }
+   ],
+   "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_ros_pts": 0.0
+  },
+  {
+   "season": 2023,
+   "week": 10,
+   "transaction_id": "1030163506827575296",
+   "parties": [
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "6904",
+        "name": "Jalen Hurts",
+        "pos": "QB",
+        "ros_pts": 156.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "10866",
+        "name": "Aidan O'Connell",
+        "pos": "QB",
+        "ros_pts": 80.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 76.3
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "10866",
+        "name": "Aidan O'Connell",
+        "pos": "QB",
+        "ros_pts": 80.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "6904",
+        "name": "Jalen Hurts",
+        "pos": "QB",
+        "ros_pts": 156.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -76.3
+    }
+   ],
+   "winner": "tjt5055",
+   "margin_ros_pts": 76.3
+  },
+  {
+   "season": 2023,
+   "week": 10,
+   "transaction_id": "1030164369147080704",
+   "parties": [
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "5846",
+        "name": "DK Metcalf",
+        "pos": "WR",
+        "ros_pts": 106.2
+       },
+       {
+        "id": "7526",
+        "name": "Jaylen Waddle",
+        "pos": "WR",
+        "ros_pts": 71.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 6
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 6
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4144",
+        "name": "Jonnu Smith",
+        "pos": "TE",
+        "ros_pts": 19.0
+       },
+       {
+        "id": "8676",
+        "name": "Rashid Shaheed",
+        "pos": "WR",
+        "ros_pts": 25.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 133.3
+    },
+    {
+     "manager": "LEMVP",
+     "roster_id": 6,
+     "received": {
+      "players": [
+       {
+        "id": "4144",
+        "name": "Jonnu Smith",
+        "pos": "TE",
+        "ros_pts": 19.0
+       },
+       {
+        "id": "8676",
+        "name": "Rashid Shaheed",
+        "pos": "WR",
+        "ros_pts": 25.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "5846",
+        "name": "DK Metcalf",
+        "pos": "WR",
+        "ros_pts": 106.2
+       },
+       {
+        "id": "7526",
+        "name": "Jaylen Waddle",
+        "pos": "WR",
+        "ros_pts": 71.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 6
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 6
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -133.3
+    }
+   ],
+   "winner": "tjt5055",
+   "margin_ros_pts": 133.3
+  },
+  {
+   "season": 2023,
+   "week": 10,
+   "transaction_id": "1030239356952383488",
+   "parties": [
+    {
+     "manager": "emattessich",
+     "roster_id": 7,
+     "received": {
+      "players": [
+       {
+        "id": "2133",
+        "name": "Davante Adams",
+        "pos": "WR",
+        "ros_pts": 88.4
+       },
+       {
+        "id": "5012",
+        "name": "Mark Andrews",
+        "pos": "TE",
+        "ros_pts": 3.3
+       },
+       {
+        "id": "5892",
+        "name": "David Montgomery",
+        "pos": "RB",
+        "ros_pts": 89.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 10,
+        "orig_slot": 9
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 9
+       },
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4066",
+        "name": "Evan Engram",
+        "pos": "TE",
+        "ros_pts": 84.3
+       },
+       {
+        "id": "6845",
+        "name": "Zack Moss",
+        "pos": "RB",
+        "ros_pts": 33.1
+       },
+       {
+        "id": "8134",
+        "name": "Khalil Shakir",
+        "pos": "WR",
+        "ros_pts": 39.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 24.0
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "4066",
+        "name": "Evan Engram",
+        "pos": "TE",
+        "ros_pts": 84.3
+       },
+       {
+        "id": "6845",
+        "name": "Zack Moss",
+        "pos": "RB",
+        "ros_pts": 33.1
+       },
+       {
+        "id": "8134",
+        "name": "Khalil Shakir",
+        "pos": "WR",
+        "ros_pts": 39.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "2133",
+        "name": "Davante Adams",
+        "pos": "WR",
+        "ros_pts": 88.4
+       },
+       {
+        "id": "5012",
+        "name": "Mark Andrews",
+        "pos": "TE",
+        "ros_pts": 3.3
+       },
+       {
+        "id": "5892",
+        "name": "David Montgomery",
+        "pos": "RB",
+        "ros_pts": 89.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 10,
+        "orig_slot": 9
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 9
+       },
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -24.0
+    }
+   ],
+   "winner": "emattessich",
+   "margin_ros_pts": 24.0
+  },
+  {
+   "season": 2023,
+   "week": 10,
+   "transaction_id": "1030288292660477952",
+   "parties": [
+    {
+     "manager": "dibach215",
+     "roster_id": 2,
+     "received": {
+      "players": [
+       {
+        "id": "4881",
+        "name": "Lamar Jackson",
+        "pos": "QB",
+        "ros_pts": 150.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "1234",
+        "name": "Russell Wilson",
+        "pos": "QB",
+        "ros_pts": 107.6
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 42.4
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "1234",
+        "name": "Russell Wilson",
+        "pos": "QB",
+        "ros_pts": 107.6
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4881",
+        "name": "Lamar Jackson",
+        "pos": "QB",
+        "ros_pts": 150.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -42.4
+    }
+   ],
+   "winner": "dibach215",
+   "margin_ros_pts": 42.4
+  },
+  {
+   "season": 2023,
+   "week": 10,
+   "transaction_id": "1030324811559493632",
+   "parties": [
+    {
+     "manager": "kylefiggy",
+     "roster_id": 5,
+     "received": {
+      "players": [
+       {
+        "id": "4137",
+        "name": "James Conner",
+        "pos": "RB",
+        "ros_pts": 96.9
+       },
+       {
+        "id": "6794",
+        "name": "Justin Jefferson",
+        "pos": "WR",
+        "ros_pts": 47.1
+       },
+       {
+        "id": "8162",
+        "name": "Sam Howell",
+        "pos": "QB",
+        "ros_pts": 77.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4335",
+        "name": "P.J. Walker",
+        "pos": "QB",
+        "ros_pts": 0.1
+       },
+       {
+        "id": "7567",
+        "name": "Kenny Gainwell",
+        "pos": "RB",
+        "ros_pts": 31.8
+       },
+       {
+        "id": "9502",
+        "name": "Tank Dell",
+        "pos": "WR",
+        "ros_pts": 39.6
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 5
+       },
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 5
+       },
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 149.9
+    },
+    {
+     "manager": "wvw5022",
+     "roster_id": 10,
+     "received": {
+      "players": [
+       {
+        "id": "4335",
+        "name": "P.J. Walker",
+        "pos": "QB",
+        "ros_pts": 0.1
+       },
+       {
+        "id": "7567",
+        "name": "Kenny Gainwell",
+        "pos": "RB",
+        "ros_pts": 31.8
+       },
+       {
+        "id": "9502",
+        "name": "Tank Dell",
+        "pos": "WR",
+        "ros_pts": 39.6
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 5
+       },
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 5
+       },
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4137",
+        "name": "James Conner",
+        "pos": "RB",
+        "ros_pts": 96.9
+       },
+       {
+        "id": "6794",
+        "name": "Justin Jefferson",
+        "pos": "WR",
+        "ros_pts": 47.1
+       },
+       {
+        "id": "8162",
+        "name": "Sam Howell",
+        "pos": "QB",
+        "ros_pts": 77.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -149.9
+    }
+   ],
+   "winner": "kylefiggy",
+   "margin_ros_pts": 149.9
+  },
+  {
+   "season": 2023,
+   "week": 11,
+   "transaction_id": "1030626283367026688",
+   "parties": [
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "5844",
+        "name": "T.J. Hockenson",
+        "pos": "TE",
+        "ros_pts": 38.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 3
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 3
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4381",
+        "name": "Taysom Hill",
+        "pos": "TE",
+        "ros_pts": 33.2
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 6
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 5.2
+    },
+    {
+     "manager": "apatel185",
+     "roster_id": 3,
+     "received": {
+      "players": [
+       {
+        "id": "4381",
+        "name": "Taysom Hill",
+        "pos": "TE",
+        "ros_pts": 33.2
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 6
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "5844",
+        "name": "T.J. Hockenson",
+        "pos": "TE",
+        "ros_pts": 38.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 3
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 3
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -5.2
+    }
+   ],
+   "winner": "tjt5055",
+   "margin_ros_pts": 5.2
+  },
+  {
+   "season": 2023,
+   "week": 11,
+   "transaction_id": "1030636119693684736",
+   "parties": [
+    {
+     "manager": "kylefiggy",
+     "roster_id": 5,
+     "received": {
+      "players": [
+       {
+        "id": "6770",
+        "name": "Joe Burrow",
+        "pos": "QB",
+        "ros_pts": 0.0
+       },
+       {
+        "id": "9221",
+        "name": "Jahmyr Gibbs",
+        "pos": "RB",
+        "ros_pts": 81.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 12,
+        "orig_slot": 1
+       },
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "2251",
+        "name": "Logan Thomas",
+        "pos": "TE",
+        "ros_pts": 21.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 5
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 60.2
+    },
+    {
+     "manager": "TBreswick",
+     "roster_id": 1,
+     "received": {
+      "players": [
+       {
+        "id": "2251",
+        "name": "Logan Thomas",
+        "pos": "TE",
+        "ros_pts": 21.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 5
+       },
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "6770",
+        "name": "Joe Burrow",
+        "pos": "QB",
+        "ros_pts": 0.0
+       },
+       {
+        "id": "9221",
+        "name": "Jahmyr Gibbs",
+        "pos": "RB",
+        "ros_pts": 81.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 12,
+        "orig_slot": 1
+       },
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -60.2
+    }
+   ],
+   "winner": "kylefiggy",
+   "margin_ros_pts": 60.2
+  },
+  {
+   "season": 2023,
+   "week": 11,
+   "transaction_id": "1030715592900251648",
+   "parties": [
+    {
+     "manager": "dibach215",
+     "roster_id": 2,
+     "received": {
+      "players": [
+       {
+        "id": "6826",
+        "name": "Cole Kmet",
+        "pos": "TE",
+        "ros_pts": 40.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7946",
+        "name": "Jack Stoll",
+        "pos": "TE",
+        "ros_pts": 1.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 38.5
+    },
+    {
+     "manager": "BigDickNicholas",
+     "roster_id": 12,
+     "received": {
+      "players": [
+       {
+        "id": "7946",
+        "name": "Jack Stoll",
+        "pos": "TE",
+        "ros_pts": 1.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 4,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "6826",
+        "name": "Cole Kmet",
+        "pos": "TE",
+        "ros_pts": 40.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -38.5
+    }
+   ],
+   "winner": "dibach215",
+   "margin_ros_pts": 38.5
+  },
+  {
+   "season": 2023,
+   "week": 11,
+   "transaction_id": "1032191074602921984",
+   "parties": [
+    {
+     "manager": "emattessich",
+     "roster_id": 7,
+     "received": {
+      "players": [
+       {
+        "id": "4066",
+        "name": "Evan Engram",
+        "pos": "TE",
+        "ros_pts": 79.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "2747",
+        "name": "Jason Myers",
+        "pos": "K",
+        "ros_pts": 47.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 11,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 32.4
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "2747",
+        "name": "Jason Myers",
+        "pos": "K",
+        "ros_pts": 47.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 11,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4066",
+        "name": "Evan Engram",
+        "pos": "TE",
+        "ros_pts": 79.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -32.4
+    }
+   ],
+   "winner": "emattessich",
+   "margin_ros_pts": 32.4
+  },
+  {
+   "season": 2024,
+   "week": 1,
+   "transaction_id": "1119415139586895872",
+   "parties": [
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 13,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 13,
+        "orig_slot": 8
+       },
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 8
+       },
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 13,
+        "orig_slot": 8
+       },
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 8
+       },
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 13,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 16,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    }
+   ],
+   "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_ros_pts": 0.0
+  },
+  {
+   "season": 2024,
+   "week": 1,
+   "transaction_id": "1128803925865541632",
+   "parties": [
+    {
+     "manager": "TBreswick",
+     "roster_id": 1,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 8
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 1
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    },
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 1
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 8
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    }
+   ],
+   "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_ros_pts": 0.0
+  },
+  {
+   "season": 2024,
+   "week": 1,
+   "transaction_id": "1129157615692496896",
+   "parties": [
+    {
+     "manager": "emattessich",
+     "roster_id": 7,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 11,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 13,
+        "orig_slot": 9
+       },
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 13,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 10,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 13,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 15,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 10,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 11,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 13,
+        "orig_slot": 9
+       },
+       {
+        "season": "2024",
+        "round": 14,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    }
+   ],
+   "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_ros_pts": 0.0
+  },
+  {
+   "season": 2024,
+   "week": 1,
+   "transaction_id": "1129140899033825280",
+   "parties": [
+    {
+     "manager": "troymullings",
+     "roster_id": 4,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 4
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 4
+       },
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    },
+    {
+     "manager": "emattessich",
+     "roster_id": 7,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 2,
+        "orig_slot": 4
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 4
+       },
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 1,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 3,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    }
+   ],
+   "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_ros_pts": 0.0
+  },
+  {
+   "season": 2024,
+   "week": 1,
+   "transaction_id": "1130192676508307456",
+   "parties": [
+    {
+     "manager": "emattessich",
+     "roster_id": 7,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 9
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 7
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 9
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    }
+   ],
+   "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_ros_pts": 0.0
+  },
+  {
+   "season": 2024,
+   "week": 1,
+   "transaction_id": "1130164934995894272",
+   "parties": [
+    {
+     "manager": "kylefiggy",
+     "roster_id": 5,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 12,
+        "orig_slot": 12
+       },
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    },
+    {
+     "manager": "BigDickNicholas",
+     "roster_id": 12,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 12,
+        "orig_slot": 12
+       },
+       {
+        "season": "2024",
+        "round": 7,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    }
+   ],
+   "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_ros_pts": 0.0
+  },
+  {
+   "season": 2024,
+   "week": 1,
+   "transaction_id": "1133481471207088128",
+   "parties": [
+    {
+     "manager": "TBreswick",
+     "roster_id": 1,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 1
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 1
+       },
+       {
+        "season": "2024",
+        "round": 8,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 17,
+        "orig_slot": 11
+       },
+       {
+        "season": "2024",
+        "round": 9,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    }
+   ],
+   "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_ros_pts": 0.0
+  },
+  {
+   "season": 2024,
+   "week": 1,
+   "transaction_id": "1133481816041725952",
+   "parties": [
+    {
+     "manager": "kylefiggy",
+     "roster_id": 5,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 5
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    },
+    {
+     "manager": "wvw5022",
+     "roster_id": 10,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 5
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2024",
+        "round": 5,
+        "orig_slot": 10
+       },
+       {
+        "season": "2024",
+        "round": 6,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 0
+    }
+   ],
+   "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_ros_pts": 0.0
+  },
+  {
+   "season": 2024,
+   "week": 9,
+   "transaction_id": "1158973172814897152",
+   "parties": [
+    {
+     "manager": "BigDickNicholas",
+     "roster_id": 12,
+     "received": {
+      "players": [
+       {
+        "id": "6797",
+        "name": "Justin Herbert",
+        "pos": "QB",
+        "ros_pts": 145.9
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 87.6
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": 58.3
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 87.6
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "6797",
+        "name": "Justin Herbert",
+        "pos": "QB",
+        "ros_pts": 145.9
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": -58.3
+    }
+   ],
+   "winner": "BigDickNicholas",
+   "margin_ros_pts": 58.3
+  },
+  {
+   "season": 2024,
+   "week": 9,
+   "transaction_id": "1159486090278182912",
+   "parties": [
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "11566",
+        "name": "Jayden Daniels",
+        "pos": "QB",
+        "ros_pts": 176.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "9506",
+        "name": "Sean Tucker",
+        "pos": "RB",
+        "ros_pts": 18.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 1,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 158.1
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "9506",
+        "name": "Sean Tucker",
+        "pos": "RB",
+        "ros_pts": 18.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 1,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "11566",
+        "name": "Jayden Daniels",
+        "pos": "QB",
+        "ros_pts": 176.9
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -158.1
+    }
+   ],
+   "winner": "bigguap69",
+   "margin_ros_pts": 158.1
+  },
+  {
+   "season": 2024,
+   "week": 10,
+   "transaction_id": "1159945009022623744",
+   "parties": [
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 74.4
+       },
+       {
+        "id": "8137",
+        "name": "George Pickens",
+        "pos": "WR",
+        "ros_pts": 41.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 16,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4066",
+        "name": "Evan Engram",
+        "pos": "TE",
+        "ros_pts": 18.2
+       },
+       {
+        "id": "8676",
+        "name": "Rashid Shaheed",
+        "pos": "WR",
+        "ros_pts": 0.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 2,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 97.3
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "4066",
+        "name": "Evan Engram",
+        "pos": "TE",
+        "ros_pts": 18.2
+       },
+       {
+        "id": "8676",
+        "name": "Rashid Shaheed",
+        "pos": "WR",
+        "ros_pts": 0.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 2,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 74.4
+       },
+       {
+        "id": "8137",
+        "name": "George Pickens",
+        "pos": "WR",
+        "ros_pts": 41.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 16,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -97.3
+    }
+   ],
+   "winner": "kbrower",
+   "margin_ros_pts": 97.3
+  },
+  {
+   "season": 2024,
+   "week": 10,
+   "transaction_id": "1161537029504176128",
+   "parties": [
+    {
+     "manager": "troymullings",
+     "roster_id": 4,
+     "received": {
+      "players": [
+       {
+        "id": "2216",
+        "name": "Mike Evans",
+        "pos": "WR",
+        "ros_pts": 107.5
+       },
+       {
+        "id": "4984",
+        "name": "Josh Allen",
+        "pos": "QB",
+        "ros_pts": 181.7
+       },
+       {
+        "id": "5927",
+        "name": "Terry McLaurin",
+        "pos": "WR",
+        "ros_pts": 81.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 16,
+        "orig_slot": 3
+       },
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 3
+       },
+       {
+        "season": "2025",
+        "round": 4,
+        "orig_slot": 3
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "5947",
+        "name": "Jakobi Meyers",
+        "pos": "WR",
+        "ros_pts": 74.9
+       },
+       {
+        "id": "9756",
+        "name": "Jordan Addison",
+        "pos": "WR",
+        "ros_pts": 120.2
+       },
+       {
+        "id": "9999",
+        "name": "Will Levis",
+        "pos": "QB",
+        "ros_pts": 55.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 1,
+        "orig_slot": 4
+       },
+       {
+        "season": "2025",
+        "round": 2,
+        "orig_slot": 4
+       },
+       {
+        "season": "2025",
+        "round": 4,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 120.4
+    },
+    {
+     "manager": "apatel185",
+     "roster_id": 3,
+     "received": {
+      "players": [
+       {
+        "id": "5947",
+        "name": "Jakobi Meyers",
+        "pos": "WR",
+        "ros_pts": 74.9
+       },
+       {
+        "id": "9756",
+        "name": "Jordan Addison",
+        "pos": "WR",
+        "ros_pts": 120.2
+       },
+       {
+        "id": "9999",
+        "name": "Will Levis",
+        "pos": "QB",
+        "ros_pts": 55.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 1,
+        "orig_slot": 4
+       },
+       {
+        "season": "2025",
+        "round": 2,
+        "orig_slot": 4
+       },
+       {
+        "season": "2025",
+        "round": 4,
+        "orig_slot": 4
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "2216",
+        "name": "Mike Evans",
+        "pos": "WR",
+        "ros_pts": 107.5
+       },
+       {
+        "id": "4984",
+        "name": "Josh Allen",
+        "pos": "QB",
+        "ros_pts": 181.7
+       },
+       {
+        "id": "5927",
+        "name": "Terry McLaurin",
+        "pos": "WR",
+        "ros_pts": 81.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 16,
+        "orig_slot": 3
+       },
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 3
+       },
+       {
+        "season": "2025",
+        "round": 4,
+        "orig_slot": 3
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -120.4
+    }
+   ],
+   "winner": "troymullings",
+   "margin_ros_pts": 120.4
+  },
+  {
+   "season": 2024,
+   "week": 10,
+   "transaction_id": "1162183176840904704",
+   "parties": [
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "4574",
+        "name": "Cooper Rush",
+        "pos": "QB",
+        "ros_pts": 104.4
+       },
+       {
+        "id": "7527",
+        "name": "Mac Jones",
+        "pos": "QB",
+        "ros_pts": 84.0
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7608",
+        "name": "Khalil Herbert",
+        "pos": "RB",
+        "ros_pts": 5.7
+       },
+       {
+        "id": "8676",
+        "name": "Rashid Shaheed",
+        "pos": "WR",
+        "ros_pts": 0.0
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": 182.7
+    },
+    {
+     "manager": "kylefiggy",
+     "roster_id": 5,
+     "received": {
+      "players": [
+       {
+        "id": "7608",
+        "name": "Khalil Herbert",
+        "pos": "RB",
+        "ros_pts": 5.7
+       },
+       {
+        "id": "8676",
+        "name": "Rashid Shaheed",
+        "pos": "WR",
+        "ros_pts": 0.0
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4574",
+        "name": "Cooper Rush",
+        "pos": "QB",
+        "ros_pts": 104.4
+       },
+       {
+        "id": "7527",
+        "name": "Mac Jones",
+        "pos": "QB",
+        "ros_pts": 84.0
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": -182.7
+    }
+   ],
+   "winner": "tjt5055",
+   "margin_ros_pts": 182.7
+  },
+  {
+   "season": 2024,
+   "week": 10,
+   "transaction_id": "1162190785224265728",
+   "parties": [
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "8111",
+        "name": "Cade Otton",
+        "pos": "TE",
+        "ros_pts": 19.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 8,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "10236",
+        "name": "Dalton Kincaid",
+        "pos": "TE",
+        "ros_pts": 14.2
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 5,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 5.2
+    },
+    {
+     "manager": "dibach215",
+     "roster_id": 2,
+     "received": {
+      "players": [
+       {
+        "id": "10236",
+        "name": "Dalton Kincaid",
+        "pos": "TE",
+        "ros_pts": 14.2
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 5,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "8111",
+        "name": "Cade Otton",
+        "pos": "TE",
+        "ros_pts": 19.4
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 8,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -5.2
+    }
+   ],
+   "winner": "bigguap69",
+   "margin_ros_pts": 5.2
+  },
+  {
+   "season": 2024,
+   "week": 10,
+   "transaction_id": "1162190778450452480",
+   "parties": [
+    {
+     "manager": "kbrower",
+     "roster_id": 8,
+     "received": {
+      "players": [
+       {
+        "id": "8151",
+        "name": "Kenneth Walker",
+        "pos": "RB",
+        "ros_pts": 39.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "10235",
+        "name": "Roschon Johnson",
+        "pos": "RB",
+        "ros_pts": 19.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 3,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 20.6
+    },
+    {
+     "manager": "TBreswick",
+     "roster_id": 1,
+     "received": {
+      "players": [
+       {
+        "id": "10235",
+        "name": "Roschon Johnson",
+        "pos": "RB",
+        "ros_pts": 19.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 3,
+        "orig_slot": 8
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "8151",
+        "name": "Kenneth Walker",
+        "pos": "RB",
+        "ros_pts": 39.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -20.6
+    }
+   ],
+   "winner": "kbrower",
+   "margin_ros_pts": 20.6
+  },
+  {
+   "season": 2024,
+   "week": 11,
+   "transaction_id": "1162812379919597568",
+   "parties": [
+    {
+     "manager": "wvw5022",
+     "roster_id": 10,
+     "received": {
+      "players": [
+       {
+        "id": "5859",
+        "name": "A.J. Brown",
+        "pos": "WR",
+        "ros_pts": 87.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "11620",
+        "name": "Rome Odunze",
+        "pos": "WR",
+        "ros_pts": 42.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 2,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 44.4
+    },
+    {
+     "manager": "dibach215",
+     "roster_id": 2,
+     "received": {
+      "players": [
+       {
+        "id": "11620",
+        "name": "Rome Odunze",
+        "pos": "WR",
+        "ros_pts": 42.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 2,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "5859",
+        "name": "A.J. Brown",
+        "pos": "WR",
+        "ros_pts": 87.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -44.4
+    }
+   ],
+   "winner": "wvw5022",
+   "margin_ros_pts": 44.4
+  },
+  {
+   "season": 2024,
+   "week": 11,
+   "transaction_id": "1162844050404470784",
+   "parties": [
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "7547",
+        "name": "Amon-Ra St. Brown",
+        "pos": "WR",
+        "ros_pts": 89.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "2309",
+        "name": "Amari Cooper",
+        "pos": "WR",
+        "ros_pts": 29.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 2,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 59.3
+    },
+    {
+     "manager": "emattessich",
+     "roster_id": 7,
+     "received": {
+      "players": [
+       {
+        "id": "2309",
+        "name": "Amari Cooper",
+        "pos": "WR",
+        "ros_pts": 29.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 2,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7547",
+        "name": "Amon-Ra St. Brown",
+        "pos": "WR",
+        "ros_pts": 89.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 17,
+        "orig_slot": 7
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -59.3
+    }
+   ],
+   "winner": "bigguap69",
+   "margin_ros_pts": 59.3
+  },
+  {
+   "season": 2025,
+   "week": 3,
+   "transaction_id": "1274630498622132224",
+   "parties": [
+    {
+     "manager": "Wi1dboy",
+     "roster_id": 10,
+     "received": {
+      "players": [
+       {
+        "id": "9221",
+        "name": "Jahmyr Gibbs",
+        "pos": "RB",
+        "ros_pts": 257.3
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "6794",
+        "name": "Justin Jefferson",
+        "pos": "WR",
+        "ros_pts": 112.7
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": 144.6
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "6794",
+        "name": "Justin Jefferson",
+        "pos": "WR",
+        "ros_pts": 112.7
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "9221",
+        "name": "Jahmyr Gibbs",
+        "pos": "RB",
+        "ros_pts": 257.3
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": -144.6
+    }
+   ],
+   "winner": "Wi1dboy",
+   "margin_ros_pts": 144.6
+  },
+  {
+   "season": 2025,
+   "week": 6,
+   "transaction_id": "1281657241358839808",
+   "parties": [
+    {
+     "manager": "Wi1dboy",
+     "roster_id": 10,
+     "received": {
+      "players": [
+       {
+        "id": "12527",
+        "name": "Ashton Jeanty",
+        "pos": "RB",
+        "ros_pts": 122.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 17,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 2,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 122.0
+    },
+    {
+     "manager": "BigDickNicholas",
+     "roster_id": 12,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 2,
+        "orig_slot": 10
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "12527",
+        "name": "Ashton Jeanty",
+        "pos": "RB",
+        "ros_pts": 122.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 17,
+        "orig_slot": 12
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -122.0
+    }
+   ],
+   "winner": "Wi1dboy",
+   "margin_ros_pts": 122.0
+  },
+  {
+   "season": 2025,
+   "week": 6,
+   "transaction_id": "1282531446707220480",
+   "parties": [
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "12518",
+        "name": "Tyler Warren",
+        "pos": "TE",
+        "ros_pts": 75.3
+       },
+       {
+        "id": "6786",
+        "name": "CeeDee Lamb",
+        "pos": "WR",
+        "ros_pts": 132.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 13,
+        "orig_slot": 5
+       },
+       {
+        "season": "2026",
+        "round": 4,
+        "orig_slot": 5
+       },
+       {
+        "season": "2026",
+        "round": 8,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 1,
+        "orig_slot": 11
+       },
+       {
+        "season": "2026",
+        "round": 2,
+        "orig_slot": 11
+       },
+       {
+        "season": "2026",
+        "round": 4,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 207.6
+    },
+    {
+     "manager": "kylefiggy",
+     "roster_id": 5,
+     "received": {
+      "players": [],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 1,
+        "orig_slot": 11
+       },
+       {
+        "season": "2026",
+        "round": 2,
+        "orig_slot": 11
+       },
+       {
+        "season": "2026",
+        "round": 4,
+        "orig_slot": 11
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "12518",
+        "name": "Tyler Warren",
+        "pos": "TE",
+        "ros_pts": 75.3
+       },
+       {
+        "id": "6786",
+        "name": "CeeDee Lamb",
+        "pos": "WR",
+        "ros_pts": 132.3
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 13,
+        "orig_slot": 5
+       },
+       {
+        "season": "2026",
+        "round": 4,
+        "orig_slot": 5
+       },
+       {
+        "season": "2026",
+        "round": 8,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -207.6
+    }
+   ],
+   "winner": "tjt5055",
+   "margin_ros_pts": 207.6
+  },
+  {
+   "season": 2025,
+   "week": 6,
+   "transaction_id": "1283522336259063808",
+   "parties": [
+    {
+     "manager": "apatel185",
+     "roster_id": 3,
+     "received": {
+      "players": [
+       {
+        "id": "5850",
+        "name": "Josh Jacobs",
+        "pos": "RB",
+        "ros_pts": 122.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 14,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7607",
+        "name": "Michael Carter",
+        "pos": "RB",
+        "ros_pts": 53.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 1,
+        "orig_slot": 3
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 68.3
+    },
+    {
+     "manager": "kylefiggy",
+     "roster_id": 5,
+     "received": {
+      "players": [
+       {
+        "id": "7607",
+        "name": "Michael Carter",
+        "pos": "RB",
+        "ros_pts": 53.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 1,
+        "orig_slot": 3
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "5850",
+        "name": "Josh Jacobs",
+        "pos": "RB",
+        "ros_pts": 122.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 14,
+        "orig_slot": 5
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -68.3
+    }
+   ],
+   "winner": "apatel185",
+   "margin_ros_pts": 68.3
+  },
+  {
+   "season": 2025,
+   "week": 9,
+   "transaction_id": "1289331710097383424",
+   "parties": [
+    {
+     "manager": "apatel185",
+     "roster_id": 3,
+     "received": {
+      "players": [
+       {
+        "id": "7564",
+        "name": "Ja'Marr Chase",
+        "pos": "WR",
+        "ros_pts": 81.8
+       },
+       {
+        "id": "8155",
+        "name": "Breece Hall",
+        "pos": "RB",
+        "ros_pts": 89.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 14,
+        "orig_slot": 6
+       },
+       {
+        "season": "2026",
+        "round": 15,
+        "orig_slot": 6
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "12501",
+        "name": "Matthew Golden",
+        "pos": "WR",
+        "ros_pts": 12.0
+       },
+       {
+        "id": "7594",
+        "name": "Chuba Hubbard",
+        "pos": "RB",
+        "ros_pts": 40.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 2,
+        "orig_slot": 3
+       },
+       {
+        "season": "2026",
+        "round": 4,
+        "orig_slot": 3
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 118.4
+    },
+    {
+     "manager": "LEMVP",
+     "roster_id": 6,
+     "received": {
+      "players": [
+       {
+        "id": "12501",
+        "name": "Matthew Golden",
+        "pos": "WR",
+        "ros_pts": 12.0
+       },
+       {
+        "id": "7594",
+        "name": "Chuba Hubbard",
+        "pos": "RB",
+        "ros_pts": 40.5
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 2,
+        "orig_slot": 3
+       },
+       {
+        "season": "2026",
+        "round": 4,
+        "orig_slot": 3
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7564",
+        "name": "Ja'Marr Chase",
+        "pos": "WR",
+        "ros_pts": 81.8
+       },
+       {
+        "id": "8155",
+        "name": "Breece Hall",
+        "pos": "RB",
+        "ros_pts": 89.1
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 14,
+        "orig_slot": 6
+       },
+       {
+        "season": "2026",
+        "round": 15,
+        "orig_slot": 6
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -118.4
+    }
+   ],
+   "winner": "apatel185",
+   "margin_ros_pts": 118.4
+  },
+  {
+   "season": 2025,
+   "week": 9,
+   "transaction_id": "1290090076704878592",
+   "parties": [
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "12492",
+        "name": "Pat Bryant",
+        "pos": "WR",
+        "ros_pts": 33.1
+       }
+      ],
+      "picks": [],
+      "faab": 5
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "9225",
+        "name": "Tank Bigsby",
+        "pos": "RB",
+        "ros_pts": 22.1
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": 11.0
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "9225",
+        "name": "Tank Bigsby",
+        "pos": "RB",
+        "ros_pts": 22.1
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "12492",
+        "name": "Pat Bryant",
+        "pos": "WR",
+        "ros_pts": 33.1
+       }
+      ],
+      "picks": [],
+      "faab": 5
+     },
+     "swing_ros_pts": -11.0
+    }
+   ],
+   "winner": "tjt5055",
+   "margin_ros_pts": 11.0
+  },
+  {
+   "season": 2025,
+   "week": 9,
+   "transaction_id": "1290833250293395456",
+   "parties": [
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "8154",
+        "name": "Brian Robinson",
+        "pos": "RB",
+        "ros_pts": 28.3
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7591",
+        "name": "Justin Fields",
+        "pos": "QB",
+        "ros_pts": 27.3
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": 1.0
+    },
+    {
+     "manager": "LEMVP",
+     "roster_id": 6,
+     "received": {
+      "players": [
+       {
+        "id": "7591",
+        "name": "Justin Fields",
+        "pos": "QB",
+        "ros_pts": 27.3
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "8154",
+        "name": "Brian Robinson",
+        "pos": "RB",
+        "ros_pts": 28.3
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": -1.0
+    }
+   ],
+   "winner": "tjt5055",
+   "margin_ros_pts": 1.0
+  },
+  {
+   "season": 2025,
+   "week": 10,
+   "transaction_id": "1291897333448990720",
+   "parties": [
+    {
+     "manager": "TBreswick",
+     "roster_id": 1,
+     "received": {
+      "players": [
+       {
+        "id": "8137",
+        "name": "George Pickens",
+        "pos": "WR",
+        "ros_pts": 107.1
+       },
+       {
+        "id": "8138",
+        "name": "James Cook",
+        "pos": "RB",
+        "ros_pts": 130.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 13,
+        "orig_slot": 2
+       },
+       {
+        "season": "2026",
+        "round": 14,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "3200",
+        "name": "Sterling Shepard",
+        "pos": "WR",
+        "ros_pts": 12.8
+       },
+       {
+        "id": "9753",
+        "name": "Zach Charbonnet",
+        "pos": "RB",
+        "ros_pts": 77.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 1,
+        "orig_slot": 1
+       },
+       {
+        "season": "2026",
+        "round": 3,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 147.4
+    },
+    {
+     "manager": "dibach215",
+     "roster_id": 2,
+     "received": {
+      "players": [
+       {
+        "id": "3200",
+        "name": "Sterling Shepard",
+        "pos": "WR",
+        "ros_pts": 12.8
+       },
+       {
+        "id": "9753",
+        "name": "Zach Charbonnet",
+        "pos": "RB",
+        "ros_pts": 77.7
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 1,
+        "orig_slot": 1
+       },
+       {
+        "season": "2026",
+        "round": 3,
+        "orig_slot": 1
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "8137",
+        "name": "George Pickens",
+        "pos": "WR",
+        "ros_pts": 107.1
+       },
+       {
+        "id": "8138",
+        "name": "James Cook",
+        "pos": "RB",
+        "ros_pts": 130.8
+       }
+      ],
+      "picks": [
+       {
+        "season": "2026",
+        "round": 13,
+        "orig_slot": 2
+       },
+       {
+        "season": "2026",
+        "round": 14,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": -147.4
+    }
+   ],
+   "winner": "TBreswick",
+   "margin_ros_pts": 147.4
+  }
+ ],
+ "standings": [
+  {
+   "manager": "troymullings",
+   "deals": 4,
+   "wins": 2,
+   "losses": 1,
+   "pushes": 1,
+   "net_ros_pts": 287.6,
+   "biggest_heist": {
+    "season": 2023,
+    "week": 3,
+    "swing_ros_pts": 315.4,
+    "counterparty": "kbrower",
+    "received": [
+     "DJ Moore",
+     "Josh Allen",
+     "Justice Hill",
+     "Jake Ferguson",
+     "R1 '24 pick",
+     "R3 '24 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2023,
+    "week": 7,
+    "swing_ros_pts": -148.2,
+    "counterparty": "wvw5022",
+    "received": [
+     "Travis Kelce",
+     "R14 '24 pick"
+    ]
+   }
+  },
+  {
+   "manager": "Wi1dboy",
+   "deals": 2,
+   "wins": 2,
+   "losses": 0,
+   "pushes": 0,
+   "net_ros_pts": 266.6,
+   "biggest_heist": {
+    "season": 2025,
+    "week": 3,
+    "swing_ros_pts": 144.6,
+    "counterparty": "tjt5055",
+    "received": [
+     "Jahmyr Gibbs"
+    ]
+   },
+   "worst_deal": null
+  },
+  {
+   "manager": "emattessich",
+   "deals": 8,
+   "wins": 4,
+   "losses": 1,
+   "pushes": 3,
+   "net_ros_pts": 200.9,
+   "biggest_heist": {
+    "season": 2023,
+    "week": 6,
+    "swing_ros_pts": 132.4,
+    "counterparty": "bigguap69",
+    "received": [
+     "Evan Engram",
+     "Breece Hall"
+    ]
+   },
+   "worst_deal": {
+    "season": 2024,
+    "week": 11,
+    "swing_ros_pts": -59.3,
+    "counterparty": "bigguap69",
+    "received": [
+     "Amari Cooper",
+     "R2 '25 pick"
+    ]
+   }
+  },
+  {
+   "manager": "tjt5055",
+   "deals": 16,
+   "wins": 8,
+   "losses": 5,
+   "pushes": 3,
+   "net_ros_pts": 166.5,
+   "biggest_heist": {
+    "season": 2025,
+    "week": 6,
+    "swing_ros_pts": 207.6,
+    "counterparty": "kylefiggy",
+    "received": [
+     "Tyler Warren",
+     "CeeDee Lamb",
+     "R13 '26 pick",
+     "R4 '26 pick",
+     "R8 '26 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2024,
+    "week": 9,
+    "swing_ros_pts": -158.1,
+    "counterparty": "bigguap69",
+    "received": [
+     "Sean Tucker",
+     "R1 '25 pick"
+    ]
+   }
+  },
+  {
+   "manager": "TBreswick",
+   "deals": 6,
+   "wins": 2,
+   "losses": 2,
+   "pushes": 2,
+   "net_ros_pts": 142.1,
+   "biggest_heist": {
+    "season": 2025,
+    "week": 10,
+    "swing_ros_pts": 147.4,
+    "counterparty": "dibach215",
+    "received": [
+     "George Pickens",
+     "James Cook",
+     "R13 '26 pick",
+     "R14 '26 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2023,
+    "week": 11,
+    "swing_ros_pts": -60.2,
+    "counterparty": "kylefiggy",
+    "received": [
+     "Logan Thomas",
+     "R2 '24 pick",
+     "R4 '24 pick"
+    ]
+   }
+  },
+  {
+   "manager": "apatel185",
+   "deals": 4,
+   "wins": 2,
+   "losses": 2,
+   "pushes": 0,
+   "net_ros_pts": 61.1,
+   "biggest_heist": {
+    "season": 2025,
+    "week": 9,
+    "swing_ros_pts": 118.4,
+    "counterparty": "LEMVP",
+    "received": [
+     "Ja'Marr Chase",
+     "Breece Hall",
+     "R14 '26 pick",
+     "R15 '26 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2024,
+    "week": 10,
+    "swing_ros_pts": -120.4,
+    "counterparty": "troymullings",
+    "received": [
+     "Jakobi Meyers",
+     "Jordan Addison",
+     "Will Levis",
+     "R1 '25 pick",
+     "R2 '25 pick",
+     "R4 '25 pick"
+    ]
+   }
+  },
+  {
+   "manager": "dibach215",
+   "deals": 6,
+   "wins": 3,
+   "losses": 3,
+   "pushes": 0,
+   "net_ros_pts": 35.7,
+   "biggest_heist": {
+    "season": 2023,
+    "week": 2,
+    "swing_ros_pts": 151.8,
+    "counterparty": "BigDickNicholas",
+    "received": [
+     "DeVonta Smith",
+     "R17 '24 pick",
+     "R8 '24 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2025,
+    "week": 10,
+    "swing_ros_pts": -147.4,
+    "counterparty": "TBreswick",
+    "received": [
+     "Sterling Shepard",
+     "Zach Charbonnet",
+     "R1 '26 pick",
+     "R3 '26 pick"
+    ]
+   }
+  },
+  {
+   "manager": "wvw5022",
+   "deals": 5,
+   "wins": 2,
+   "losses": 2,
+   "pushes": 1,
+   "net_ros_pts": 8.2,
+   "biggest_heist": {
+    "season": 2023,
+    "week": 7,
+    "swing_ros_pts": 148.2,
+    "counterparty": "troymullings",
+    "received": [
+     "George Kittle",
+     "Calvin Ridley",
+     "R1 '24 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2023,
+    "week": 10,
+    "swing_ros_pts": -149.9,
+    "counterparty": "kylefiggy",
+    "received": [
+     "P.J. Walker",
+     "Kenny Gainwell",
+     "Tank Dell",
+     "R1 '24 pick",
+     "R15 '24 pick",
+     "R7 '24 pick"
+    ]
+   }
+  },
+  {
+   "manager": "bigguap69",
+   "deals": 12,
+   "wins": 3,
+   "losses": 7,
+   "pushes": 2,
+   "net_ros_pts": -100.4,
+   "biggest_heist": {
+    "season": 2024,
+    "week": 9,
+    "swing_ros_pts": 158.1,
+    "counterparty": "tjt5055",
+    "received": [
+     "Jayden Daniels",
+     "R17 '25 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2023,
+    "week": 6,
+    "swing_ros_pts": -132.4,
+    "counterparty": "emattessich",
+    "received": [
+     "Mark Andrews",
+     "Gabe Davis"
+    ]
+   }
+  },
+  {
+   "manager": "BigDickNicholas",
+   "deals": 7,
+   "wins": 3,
+   "losses": 3,
+   "pushes": 1,
+   "net_ros_pts": -199.2,
+   "biggest_heist": {
+    "season": 2024,
+    "week": 9,
+    "swing_ros_pts": 58.3,
+    "counterparty": "tjt5055",
+    "received": [
+     "Justin Herbert"
+    ]
+   },
+   "worst_deal": {
+    "season": 2023,
+    "week": 2,
+    "swing_ros_pts": -151.8,
+    "counterparty": "dibach215",
+    "received": [
+     "R2 '24 pick",
+     "R6 '24 pick"
+    ]
+   }
+  },
+  {
+   "manager": "kylefiggy",
+   "deals": 7,
+   "wins": 2,
+   "losses": 3,
+   "pushes": 2,
+   "net_ros_pts": -248.5,
+   "biggest_heist": {
+    "season": 2023,
+    "week": 10,
+    "swing_ros_pts": 149.9,
+    "counterparty": "wvw5022",
+    "received": [
+     "James Conner",
+     "Justin Jefferson",
+     "Sam Howell",
+     "R16 '24 pick",
+     "R8 '24 pick",
+     "R9 '24 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2025,
+    "week": 6,
+    "swing_ros_pts": -207.6,
+    "counterparty": "tjt5055",
+    "received": [
+     "R1 '26 pick",
+     "R2 '26 pick",
+     "R4 '26 pick"
+    ]
+   }
+  },
+  {
+   "manager": "LEMVP",
+   "deals": 3,
+   "wins": 0,
+   "losses": 3,
+   "pushes": 0,
+   "net_ros_pts": -252.7,
+   "biggest_heist": null,
+   "worst_deal": {
+    "season": 2023,
+    "week": 10,
+    "swing_ros_pts": -133.3,
+    "counterparty": "tjt5055",
+    "received": [
+     "Jonnu Smith",
+     "Rashid Shaheed",
+     "R15 '24 pick",
+     "R3 '24 pick"
+    ]
+   }
+  },
+  {
+   "manager": "kbrower",
+   "deals": 10,
+   "wins": 3,
+   "losses": 4,
+   "pushes": 3,
+   "net_ros_pts": -367.9,
+   "biggest_heist": {
+    "season": 2024,
+    "week": 10,
+    "swing_ros_pts": 97.3,
+    "counterparty": "tjt5055",
+    "received": [
+     "George Kittle",
+     "George Pickens",
+     "R16 '25 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2023,
+    "week": 3,
+    "swing_ros_pts": -315.4,
+    "counterparty": "troymullings",
+    "received": [
+     "Keenan Allen",
+     "Jimmy Garoppolo",
+     "Kyren Williams",
+     "Anthony Richardson",
+     "R1 '24 pick",
+     "R4 '24 pick"
+    ]
+   }
+  }
+ ]
+}
