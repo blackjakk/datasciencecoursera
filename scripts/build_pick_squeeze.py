@@ -197,7 +197,10 @@ asset in the league. Based on PREDICTED keepers until the league locks
 (then data/keepers_2026_actual.json takes over); house rule (confirmed): a keeper
 missing its exact round seats at the next EARLIER owned free round — so
 sell against the BUMP TAX and the burned draft slot, not the keeper's
-full value. Only a manager with no earlier free round is truly squeezed.</p>
+full value. Only a manager with no earlier free round is truly squeezed.
+League convention: pick trades run EQUAL COUNT both ways (e.g. R1+R17
+for R3+R5) — structure any seat sale as a same-count package where the
+round-quality difference carries the price.</p>
 </section>
 """
 

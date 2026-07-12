@@ -42,7 +42,10 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
    owned free round (bump-up). Nobody is ever hard-blocked while an
    earlier round is free — the cost of a missing seat is the BUMP TAX
    (earlier pick consumed), not the keeper itself.
-6. The league drafts LIVE IN PERSON; rivals bring their own printed
+6. Pick-trade convention (user-confirmed): trades run EQUAL COUNT both
+   ways (1-for-1, 2-for-2 — e.g. R1+R17 for R3+R5); value balances via
+   round quality, not pick quantity. Structure all pick asks this way.
+7. The league drafts LIVE IN PERSON; rivals bring their own printed
    analysis — popular (often Reddit-sourced) rankings, and they are
    smart enough to bring SUPERFLEX/2QB versions (user-confirmed; do NOT
    assume a 1QB naivety discount). Model the room's paper as ≈ the
