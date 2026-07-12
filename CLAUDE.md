@@ -55,6 +55,8 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
    online ADP disagrees with it.
 
 ## Season plumbing (2026)
+- 2026 Sleeper league EXISTS: id `1364055104709230592` (auto-discovered
+  via trade-intel scouting; 0 transactions as of Jul 2026)
 - `configs/season_2026.json` — slot→rid map (predicted order; update when
   Sleeper posts the real one), my_roster_id, league dir
 - Keepers lock → write `data/keepers_2026_actual.json` (same schema);
@@ -84,16 +86,58 @@ restoration in refresh()), SR live regions (#sr-clock), phone-clean at
 `scripts/check_a11y.py` (inside verify) guards it; use the `a11y-review`
 skill for any helper/design diff. Record: docs/A11Y_AUDIT.md.
 
+## Research Desk (July 2026 — the analyst layer, 9 sections)
+`data/MONEYLEAGUE_RESEARCH_DESK.pdf`, assembled by
+`scripts/build_research_desk.py` from fragments in `data/research/`
+(contract: docs/GOAL_RESEARCH.md — one <section>, ml classes, no hex;
+goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
+(trade intel, cache-first, `--refresh-current`), `data/league_history/`
+(matchups). Findings ON RECORD:
+- Trade Ledger (PAR-graded): Josh is the real shark (+188 PAR); Troy's
+  raw +288 was QB volume; BRIAN grades PAR fish (−187 over 12 deals).
+- 2025 Autopsy verdict: ROSTER STRENGTH killed 2025 (optimal PF 364 below
+  median); lineup-setting −12 vs median (rank 4/12); luck +1.3 wins.
+  Consistent with backtest: drafting fine → edge is deals + rosters.
+- Option Book (`scripts/stash_curve.py`, empirical 2023-24): late picks
+  carry real 2027 keeper option value — R9 +30 (50% hit), R7 +17, R17
+  +13; composed_round_values() = max(0,redraft)+option feeds advisor,
+  squeeze, helper SIM.
+- Market screen: MODEL vs THE ROOM'S PAPER is the edge (truth #7); edges
+  carry reach% (survival to Brian's seat) — Bowers top reachable edge.
+- Pick Squeeze: bump rule (truth #5) + negative-tail curve ⇒ keeper
+  seats ~free; pick market that matters is R1-R8.
+- Keeper sensitivity: no rival declaration hurts Brian; upside if coop
+  keeps Rodriguez over Darnold (+7.6) or Tim keeps Monangai (+4.9).
+- Survival calibration (period-honest 2025): Brier 0.10 vs 0.23 base
+  (+56% skill); 60-80% band realizes ~58% — pad it.
+- Timing Study doctrine: sell mid-season (W6-10, +33/deal), buy at the
+  deadline (−2.7 ≈ free); contender-buyers lose in EVERY window.
+
 ## Key analyses on record
 - Backtest (`scripts/backtest_recommender.py`): tool vs real-Brian
   2023-2025 = ~break-even (+19/season). Brian already drafts QB-early
   superflex structure; tool's value = variance reduction + live facts
   (survival %, keeper costs), not superior player-picking.
 - Keeper optimizer (`scripts/optimize_my_keepers.py`): predictor's set #1/50.
-- Trade advisor (`scripts/trade_advisor.py`): capital table + swap pricing
-  (Kyle 620 VBD capital, Ankur 136, Brian 351).
-- Helper features: live Sleeper sync (GO LIVE), PRACTICE mode (bot drafts),
-  CEILING mode, survival "Next✓" column, keeper-cost tags, 2-away alert.
+- Trade advisor (`scripts/trade_advisor.py`): swap pricing now prints
+  redraft + keeper-option components (Option Book).
+- Helper features: live Sleeper sync (GO LIVE), PRACTICE (market-anchored
+  bots), CEILING, Next✓ survival, SIM column (= recs brain incl. 2027
+  option term R10+), sortable order book, movers tape + Δwk, LEAGUE
+  PORTFOLIOS (auto-follows the clock), saves (Ctrl+S/Save As/Open, dirty
+  dot), reset board (Back restores via pushState), full interaction
+  states (skeleton/empty/error/aria-disabled/receipts).
+
+## Deploy mechanics (hard-won)
+- Pages = STATIC workflow on the hosting branch (assembles _site: hq/ →
+  root, draft_helper/); pushing files to the branch ≠ live until its
+  workflow runs. Manual sync = temp worktree of the hosting branch, write
+  files, push (cd OUT of a worktree before `git worktree remove`).
+- Release PDFs republish via workflow_dispatch of weekly_refresh.yml
+  (MCP actions_run_trigger). Weekly runs push to master → expect races:
+  fetch + rebase + regenerate + force-with-lease the feature branch.
+- Session proxy blocks unauthenticated api.github.com and release-asset
+  downloads — use the GitHub MCP tools instead of curl for those.
 
 ## Conventions
 - Verify gate before trusting any rebuild: `scripts/refresh_all.sh verify`
