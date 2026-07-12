@@ -139,56 +139,62 @@ def compute_screen(top_n: int = TOP_N) -> dict:
     }
 
 
-def compute_room_sheet(top_n: int = TOP_N) -> dict:
-    """THE SHEET THE ROOM BRINGS — this league drafts live, in person, and
-    rivals typically print popular (Reddit-circulated) rankings, which are
-    overwhelmingly STANDARD 1QB lists. Compare FantasyPros 1QB consensus
-    (their sheet) against superflex consensus (this league's truth):
+def compute_model_vs_paper(top_n: int = TOP_N) -> dict:
+    """MODEL vs THE ROOM'S PAPER — this league drafts live, in person, and
+    rivals bring popular printed rankings in SUPERFLEX/2QB form (they're
+    not bringing 1QB sheets). So the room's paper is, to first order, the
+    FantasyPros OP consensus itself. The exploitable edge is therefore
+    where OUR league-specific model (superflex VBD board) disagrees with
+    the paper everyone else is holding:
 
-        sheet_gap = rank_1qb - rank_superflex
+        gap = fp_rank - model_rank
 
-      gap > 0 → their sheet BURIES him (QBs, mostly) → he slides to you
-      gap < 0 → their sheet INFLATES him → the room reaches, let them
+      gap > 0 → the sheets sleep on him (our board is higher) → he
+                slides past the room to you
+      gap < 0 → the sheets love him more than our model does → let the
+                room pay the paper price
     """
-    sf = json.loads(FP_PATH.read_text(encoding="utf-8"))
-    q1 = json.loads(FP_1QB_PATH.read_text(encoding="utf-8"))
-    q1_by_key = {(_norm(p["name"]), p["position"].upper()): p
-                 for p in q1.get("players", [])
-                 if p.get("fp_rank_overall") is not None}
+    helper = json.loads((ROOT / "docs" / "draft_helper" / "data.json")
+                        .read_text(encoding="utf-8"))
+    board = [(pl["name"], pl["pos"], pl["vbd"]) for pl in helper["players"]
+             if pl.get("pos") not in ("K", "DEF", "DST")
+             and pl.get("vbd") is not None]
+    board.sort(key=lambda t: -t[2])
+    model_rank = {(_norm(n), pos.upper()): i + 1
+                  for i, (n, pos, _) in enumerate(board)}
+
+    fp = json.loads(FP_PATH.read_text(encoding="utf-8"))
     rows = []
-    for p in sf.get("players", []):
-        r_sf = p.get("fp_rank_overall")
-        if r_sf is None or r_sf > 150:
+    for p in fp.get("players", []):
+        r_fp = p.get("fp_rank_overall")
+        if r_fp is None or r_fp > 150:
             continue
-        o = q1_by_key.get((_norm(p["name"]), p["position"].upper()))
-        if o is None:
+        key = (_norm(p["name"]), p["position"].upper())
+        r_model = model_rank.get(key)
+        if r_model is None or r_model > 200:
             continue
-        gap = o["fp_rank_overall"] - r_sf
+        gap = r_fp - r_model
         rows.append({
             "name": p["name"], "position": p["position"],
             "team": p.get("team", ""),
-            "rank_sf": r_sf, "round_sf": _round_of(r_sf),
-            "rank_1qb": o["fp_rank_overall"],
-            "round_1qb": _round_of(o["fp_rank_overall"]),
-            "sheet_gap": gap,
-            "read": (f"their sheet says R{_round_of(o['fp_rank_overall'])} · "
-                     f"superflex truth R{_round_of(r_sf)}"),
+            "model_rank": r_model, "model_round": _round_of(r_model),
+            "fp_rank": r_fp, "fp_round": _round_of(r_fp),
+            "gap": gap,
+            "read": (f"our board R{_round_of(r_model)} · "
+                     f"their paper R{_round_of(r_fp)}"),
         })
-    qb_gaps = [r["sheet_gap"] for r in rows if r["position"] == "QB"]
     return {
         "meta": {
             "generated": date.today().isoformat(),
-            "sf_source": f"FP OP consensus ({sf.get('total_experts', '?')} experts)",
-            "q1_source": f"FP standard 1QB consensus ({q1.get('total_experts', '?')} experts)",
+            "model_source": "helper data.json superflex VBD board (K/DEF excluded)",
+            "paper_source": (f"FP OP consensus ({fp.get('total_experts', '?')} "
+                             "experts) — the room brings superflex paper"),
             "players_compared": len(rows),
-            "qb_avg_discount_ranks": (round(sum(qb_gaps) / len(qb_gaps), 1)
-                                      if qb_gaps else None),
-            "qb_count": len(qb_gaps),
         },
-        "sheet_buries": sorted((r for r in rows if r["sheet_gap"] > 0),
-                               key=lambda r: -r["sheet_gap"])[:top_n],
-        "sheet_inflates": sorted((r for r in rows if r["sheet_gap"] < 0),
-                                 key=lambda r: r["sheet_gap"])[:top_n],
+        "sheets_sleep": sorted((r for r in rows if r["gap"] > 0),
+                               key=lambda r: -r["gap"])[:top_n],
+        "sheets_love": sorted((r for r in rows if r["gap"] < 0),
+                              key=lambda r: r["gap"])[:top_n],
     }
 
 
@@ -219,18 +225,17 @@ def summary_lines(result: dict | None = None, top_n: int = 5) -> list[str]:
     lines += block("OVERPRICED — the room is early (let them reach):",
                    result["room_early"])
     try:
-        sheet = compute_room_sheet()
-        disc = sheet["meta"]["qb_avg_discount_ranks"]
-        lines += ["", "THE SHEET THE ROOM BRINGS (in-person draft; rivals "
-                      "print 1QB rankings):"]
-        if disc is not None:
-            lines.append(f"- QBs sit {disc:+.0f} ranks deeper on their sheet "
-                         f"than superflex truth (avg, {sheet['meta']['qb_count']} QBs)")
-        for e in sheet["sheet_buries"][:3]:
+        mvp = compute_model_vs_paper()
+        lines += ["", "MODEL vs THE ROOM'S PAPER (rivals bring superflex "
+                      "consensus — edge = where our board disagrees):"]
+        for e in mvp["sheets_sleep"][:3]:
             lines.append(f"- {e['name']} ({e['position']}): {e['read']} "
-                         f"({e['sheet_gap']:+d} ranks)")
+                         f"(+{e['gap']} ranks, slides to you)")
+        for e in mvp["sheets_love"][:2]:
+            lines.append(f"- {e['name']} ({e['position']}): {e['read']} "
+                         f"({e['gap']} ranks, let them pay it)")
     except FileNotFoundError:
-        pass  # 1QB consensus not fetched yet — screen still valid
+        pass  # players csv missing — screen still valid
     return lines
 
 
@@ -263,10 +268,10 @@ def _table(entries: list[dict], gap_cls: str) -> str:
             f"<thead>{head}</thead><tbody>{''.join(body)}</tbody></table>")
 
 
-def _sheet_table(entries: list[dict], gap_cls: str) -> str:
+def _mvp_table(entries: list[dict], gap_cls: str) -> str:
     head = ("<tr><th>Asset</th><th>Pos</th>"
-            '<th class="ml-num">Superflex truth</th>'
-            '<th class="ml-num">Their sheet</th>'
+            '<th class="ml-num">Our board</th>'
+            '<th class="ml-num">Their paper</th>'
             '<th class="ml-num">Gap</th></tr>')
     body = []
     for e in entries:
@@ -275,40 +280,42 @@ def _sheet_table(entries: list[dict], gap_cls: str) -> str:
             f'<td>{html.escape(e["name"])} '
             f'<span class="ml-note">{html.escape(e["team"] or "FA")}</span></td>'
             f"<td>{_badge(e['position'])}</td>"
-            f'<td class="ml-num">#{e["rank_sf"]} · R{e["round_sf"]}</td>'
-            f'<td class="ml-num">#{e["rank_1qb"]} · R{e["round_1qb"]}</td>'
-            f'<td class="ml-num {gap_cls}">{e["sheet_gap"]:+d}</td>'
+            f'<td class="ml-num">#{e["model_rank"]} · R{e["model_round"]}</td>'
+            f'<td class="ml-num">#{e["fp_rank"]} · R{e["fp_round"]}</td>'
+            f'<td class="ml-num {gap_cls}">{e["gap"]:+d}</td>'
             "</tr>")
+    if not body:
+        body = ['<tr><td colspan="5" class="ml-empty">Our board and the '
+                "paper agree — no edges here.</td></tr>"]
     return ('<table class="ml-table ml-table--compact">'
             f"<thead>{head}</thead><tbody>{''.join(body)}</tbody></table>")
 
 
-def build_sheet_block() -> str:
+def build_model_block() -> str:
+    """MODEL vs THE ROOM'S PAPER — the headline block. The room brings
+    superflex consensus paper (user-confirmed), so the edge is where OUR
+    board disagrees with it."""
     try:
-        sheet = compute_room_sheet(top_n=10)
+        mvp = compute_model_vs_paper(top_n=10)
     except FileNotFoundError:
         return ""
-    m = sheet["meta"]
-    disc = m["qb_avg_discount_ranks"]
-    disc_line = (f"QBs sit an average of <strong>{disc:+.0f} ranks</strong> "
-                 f"deeper on their sheet than superflex truth "
-                 f"({m['qb_count']} QBs compared)." if disc is not None else "")
+    m = mvp["meta"]
     return "\n".join([
-        '<div class="ml-h-label">The sheet the room brings '
-        "(in-person draft · popular 1QB rankings)</div>",
-        f"<p>{disc_line}</p>",
-        '<div class="ml-h-label">Their sheet buries — he slides to you</div>',
-        _sheet_table(sheet["sheet_buries"], "ml-sv-hi"),
-        '<div class="ml-h-label">Their sheet inflates — let them reach</div>',
-        _sheet_table(sheet["sheet_inflates"], "ml-sv-lo"),
-        '<p class="ml-fineprint">MONEYLEAGUE drafts live and in person; '
-        "rivals typically bring popular (Reddit-circulated) printed "
-        "rankings, which are standard 1QB lists. Gap = the player's rank "
-        "on the 1QB consensus minus his superflex rank — the pull their "
-        "reference material exerts. Tempered in practice: three seasons of "
-        "history show this room DOES draft QBs early, so treat the top of "
-        f"the QB board as efficient and hunt the middle. Sources: "
-        f"{html.escape(m['sf_source'])} vs {html.escape(m['q1_source'])}.</p>",
+        '<div class="ml-h-label">Model vs the room\u2019s paper '
+        "(they bring superflex consensus \u2014 this is the real edge)</div>",
+        '<div class="ml-h-label">The sheets sleep on \u2014 slides to you</div>',
+        _mvp_table(mvp["sheets_sleep"], "ml-sv-hi"),
+        '<div class="ml-h-label">The sheets love \u2014 let them pay the paper price</div>',
+        _mvp_table(mvp["sheets_love"], "ml-sv-lo"),
+        '<p class="ml-fineprint">This league drafts live and in person, and '
+        "rivals bring printed superflex/2QB rankings \u2014 assume every seat "
+        "sees what FantasyPros sees. The exploitable edge is therefore where "
+        "our league-specific board (superflex VBD + keeper context) departs "
+        "from that consensus: positive gap = the paper ranks him later than "
+        "we do, so he should reach your pick; negative gap = the paper is "
+        f"higher than our board, so someone else will pay it. Sources: "
+        f"{html.escape(m['model_source'])} vs {html.escape(m['paper_source'])}; "
+        f"{m['players_compared']} players compared.</p>",
     ]) + "\n"
 
 
@@ -330,13 +337,14 @@ def build_fragment(result: dict) -> str:
         '<div class="ml-h-label">Overpriced — the room is early '
         "(let them reach)</div>",
         _table(early, "ml-sv-lo"),
-        build_sheet_block(),
+        build_model_block(),
         '<p class="ml-fineprint">How to read: the room drafts on Sleeper, '
         "so Sleeper superflex ADP is the price MONEYLEAGUE actually pays; "
         "FantasyPros is what the experts say the asset is worth. When the "
         "experts are higher (positive gap, in picks), that’s your "
-        "window — the room will let the asset fall to you. When the "
-        "room is higher, let someone else pay the reach. "
+        "window ONLY if that seat drafts off online ADP — in THIS room, "
+        "everyone reads the paper, so treat these gaps as market context, "
+        "not guaranteed slides (the model-vs-paper block above is the real edge). "
         f"Sources: {html.escape(meta['fp_source'])}; Sleeper adp_2qb, "
         f"assets priced inside pick {meta['max_adp']} only (K/DEF not "
         "covered by the consensus). Consensus disagreement, injuries and "

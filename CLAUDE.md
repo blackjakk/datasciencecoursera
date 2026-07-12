@@ -38,12 +38,13 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
 4. rid↔manager stable 2023-2025 except rid 10 (handoff → josh_wildboy in
    2025; config `roster_handoffs`).
 5. The league drafts LIVE IN PERSON; rivals bring their own printed
-   analysis — typically popular/Reddit-circulated rankings, which are
-   standard 1QB lists. The Research Desk's "sheet the room brings"
-   section quantifies the resulting QB discount (~+68 ranks avg, July
-   2026); tempered by the fact the room's own history shows QB-early
-   drafting at the top of the board — the edge lives in the MIDDLE QB
-   tiers, not round 1-2.
+   analysis — popular (often Reddit-sourced) rankings, and they are
+   smart enough to bring SUPERFLEX/2QB versions (user-confirmed; do NOT
+   assume a 1QB naivety discount). Model the room's paper as ≈ the
+   FantasyPros OP consensus; the exploitable edge is where OUR
+   league-specific model (VBD + keeper/contract context + this room's
+   measured tendencies) disagrees with that consensus — not where
+   online ADP disagrees with it.
 
 ## Season plumbing (2026)
 - `configs/season_2026.json` — slot→rid map (predicted order; update when
