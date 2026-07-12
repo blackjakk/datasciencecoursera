@@ -6,9 +6,37 @@
   2025
  ],
  "method": {
-  "grade": "rest-of-season points swung: sum of weekly points in weeks (trade week+1)..17 for players received minus players sent, per side",
+  "grade": "v2 \u2014 rest-of-season points ABOVE POSITIONAL REPLACEMENT (PAR) swung: for players received minus sent, weeks (trade week+1)..17; a player-week's PAR = weekly pts minus the season's fixed replacement level for his position; weeks with no stat line contribute 0",
+  "replacement": "per season+position: median across weeks 1..17 of the rank-N weekly score, N = QB12, RB30, WR36, TE12, K12, DEF12",
+  "raw_secondary": "raw rest-of-season points kept as a secondary column (net_ros_pts / swing_ros_pts)",
   "scoring": "pts_half_ppr; fallback pts_ppr - 0.5*rec",
   "picks_and_faab": "listed as assets, graded 0 points"
+ },
+ "replacement_levels": {
+  "2023": {
+   "QB": 18.66,
+   "RB": 7.2,
+   "WR": 8.5,
+   "TE": 8.4,
+   "K": 9.0,
+   "DEF": 9.0
+  },
+  "2024": {
+   "QB": 19.36,
+   "RB": 8.2,
+   "WR": 8.9,
+   "TE": 8.4,
+   "K": 9.0,
+   "DEF": 8.0
+  },
+  "2025": {
+   "QB": 19.72,
+   "RB": 8.1,
+   "WR": 8.3,
+   "TE": 9.3,
+   "K": 10.0,
+   "DEF": 7.0
+  }
  },
  "trade_counts_by_season": {
   "2023": 20,
@@ -30,7 +58,8 @@
         "id": "7525",
         "name": "DeVonta Smith",
         "pos": "WR",
-        "ros_pts": 151.8
+        "ros_pts": 151.8,
+        "ros_par": 32.8
        }
       ],
       "picks": [
@@ -63,7 +92,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 151.8
+     "swing_ros_pts": 151.8,
+     "swing_par_pts": 32.8
     },
     {
      "manager": "BigDickNicholas",
@@ -90,7 +120,8 @@
         "id": "7525",
         "name": "DeVonta Smith",
         "pos": "WR",
-        "ros_pts": 151.8
+        "ros_pts": 151.8,
+        "ros_par": 32.8
        }
       ],
       "picks": [
@@ -107,10 +138,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -151.8
+     "swing_ros_pts": -151.8,
+     "swing_par_pts": -32.8
     }
    ],
    "winner": "dibach215",
+   "margin_par_pts": 32.8,
    "margin_ros_pts": 151.8
   },
   {
@@ -127,25 +160,29 @@
         "id": "4983",
         "name": "DJ Moore",
         "pos": "WR",
-        "ros_pts": 202.6
+        "ros_pts": 202.6,
+        "ros_par": 92.1
        },
        {
         "id": "4984",
         "name": "Josh Allen",
         "pos": "QB",
-        "ros_pts": 327.6
+        "ros_pts": 327.6,
+        "ros_par": 85.0
        },
        {
         "id": "5995",
         "name": "Justice Hill",
         "pos": "RB",
-        "ros_pts": 71.5
+        "ros_pts": 71.5,
+        "ros_par": -22.1
        },
        {
         "id": "8110",
         "name": "Jake Ferguson",
         "pos": "TE",
-        "ros_pts": 113.7
+        "ros_pts": 113.7,
+        "ros_par": 4.5
        }
       ],
       "picks": [
@@ -168,25 +205,29 @@
         "id": "1479",
         "name": "Keenan Allen",
         "pos": "WR",
-        "ros_pts": 150.1
+        "ros_pts": 150.1,
+        "ros_par": 65.1
        },
        {
         "id": "1837",
         "name": "Jimmy Garoppolo",
         "pos": "QB",
-        "ros_pts": 26.8
+        "ros_pts": 26.8,
+        "ros_par": -29.1
        },
        {
         "id": "8150",
         "name": "Kyren Williams",
         "pos": "RB",
-        "ros_pts": 189.1
+        "ros_pts": 189.1,
+        "ros_par": 124.3
        },
        {
         "id": "9229",
         "name": "Anthony Richardson",
         "pos": "QB",
-        "ros_pts": 34.0
+        "ros_pts": 34.0,
+        "ros_par": -3.3
        }
       ],
       "picks": [
@@ -203,7 +244,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 315.4
+     "swing_ros_pts": 315.4,
+     "swing_par_pts": 2.5
     },
     {
      "manager": "kbrower",
@@ -214,25 +256,29 @@
         "id": "1479",
         "name": "Keenan Allen",
         "pos": "WR",
-        "ros_pts": 150.1
+        "ros_pts": 150.1,
+        "ros_par": 65.1
        },
        {
         "id": "1837",
         "name": "Jimmy Garoppolo",
         "pos": "QB",
-        "ros_pts": 26.8
+        "ros_pts": 26.8,
+        "ros_par": -29.1
        },
        {
         "id": "8150",
         "name": "Kyren Williams",
         "pos": "RB",
-        "ros_pts": 189.1
+        "ros_pts": 189.1,
+        "ros_par": 124.3
        },
        {
         "id": "9229",
         "name": "Anthony Richardson",
         "pos": "QB",
-        "ros_pts": 34.0
+        "ros_pts": 34.0,
+        "ros_par": -3.3
        }
       ],
       "picks": [
@@ -255,25 +301,29 @@
         "id": "4983",
         "name": "DJ Moore",
         "pos": "WR",
-        "ros_pts": 202.6
+        "ros_pts": 202.6,
+        "ros_par": 92.1
        },
        {
         "id": "4984",
         "name": "Josh Allen",
         "pos": "QB",
-        "ros_pts": 327.6
+        "ros_pts": 327.6,
+        "ros_par": 85.0
        },
        {
         "id": "5995",
         "name": "Justice Hill",
         "pos": "RB",
-        "ros_pts": 71.5
+        "ros_pts": 71.5,
+        "ros_par": -22.1
        },
        {
         "id": "8110",
         "name": "Jake Ferguson",
         "pos": "TE",
-        "ros_pts": 113.7
+        "ros_pts": 113.7,
+        "ros_par": 4.5
        }
       ],
       "picks": [
@@ -290,10 +340,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -315.4
+     "swing_ros_pts": -315.4,
+     "swing_par_pts": -2.5
     }
    ],
    "winner": "troymullings",
+   "margin_par_pts": 2.5,
    "margin_ros_pts": 315.4
   },
   {
@@ -310,7 +362,8 @@
         "id": "7528",
         "name": "Najee Harris",
         "pos": "RB",
-        "ros_pts": 143.6
+        "ros_pts": 143.6,
+        "ros_par": 50.0
        }
       ],
       "picks": [
@@ -328,7 +381,8 @@
         "id": "6790",
         "name": "D'Andre Swift",
         "pos": "RB",
-        "ros_pts": 139.1
+        "ros_pts": 139.1,
+        "ros_par": 45.5
        }
       ],
       "picks": [
@@ -340,7 +394,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 4.5
+     "swing_ros_pts": 4.5,
+     "swing_par_pts": 4.5
     },
     {
      "manager": "bigguap69",
@@ -351,7 +406,8 @@
         "id": "6790",
         "name": "D'Andre Swift",
         "pos": "RB",
-        "ros_pts": 139.1
+        "ros_pts": 139.1,
+        "ros_par": 45.5
        }
       ],
       "picks": [
@@ -369,7 +425,8 @@
         "id": "7528",
         "name": "Najee Harris",
         "pos": "RB",
-        "ros_pts": 143.6
+        "ros_pts": 143.6,
+        "ros_par": 50.0
        }
       ],
       "picks": [
@@ -381,10 +438,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -4.5
+     "swing_ros_pts": -4.5,
+     "swing_par_pts": -4.5
     }
    ],
    "winner": "BigDickNicholas",
+   "margin_par_pts": 4.5,
    "margin_ros_pts": 4.5
   },
   {
@@ -401,7 +460,8 @@
         "id": "4033",
         "name": "David Njoku",
         "pos": "TE",
-        "ros_pts": 140.9
+        "ros_pts": 140.9,
+        "ros_par": 40.1
        }
       ],
       "picks": [
@@ -419,7 +479,8 @@
         "id": "5022",
         "name": "Dallas Goedert",
         "pos": "TE",
-        "ros_pts": 90.6
+        "ros_pts": 90.6,
+        "ros_par": 15.0
        }
       ],
       "picks": [
@@ -431,7 +492,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 50.3
+     "swing_ros_pts": 50.3,
+     "swing_par_pts": 25.1
     },
     {
      "manager": "kbrower",
@@ -442,7 +504,8 @@
         "id": "5022",
         "name": "Dallas Goedert",
         "pos": "TE",
-        "ros_pts": 90.6
+        "ros_pts": 90.6,
+        "ros_par": 15.0
        }
       ],
       "picks": [
@@ -460,7 +523,8 @@
         "id": "4033",
         "name": "David Njoku",
         "pos": "TE",
-        "ros_pts": 140.9
+        "ros_pts": 140.9,
+        "ros_par": 40.1
        }
       ],
       "picks": [
@@ -472,10 +536,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -50.3
+     "swing_ros_pts": -50.3,
+     "swing_par_pts": -25.1
     }
    ],
    "winner": "BigDickNicholas",
+   "margin_par_pts": 25.1,
    "margin_ros_pts": 50.3
   },
   {
@@ -492,7 +558,8 @@
         "id": "6845",
         "name": "Zack Moss",
         "pos": "RB",
-        "ros_pts": 71.4
+        "ros_pts": 71.4,
+        "ros_par": 6.6
        }
       ],
       "picks": [],
@@ -503,7 +570,8 @@
       "picks": [],
       "faab": 12
      },
-     "swing_ros_pts": 71.4
+     "swing_ros_pts": 71.4,
+     "swing_par_pts": 6.6
     },
     {
      "manager": "kbrower",
@@ -519,16 +587,19 @@
         "id": "6845",
         "name": "Zack Moss",
         "pos": "RB",
-        "ros_pts": 71.4
+        "ros_pts": 71.4,
+        "ros_par": 6.6
        }
       ],
       "picks": [],
       "faab": 0
      },
-     "swing_ros_pts": -71.4
+     "swing_ros_pts": -71.4,
+     "swing_par_pts": -6.6
     }
    ],
    "winner": "emattessich",
+   "margin_par_pts": 6.6,
    "margin_ros_pts": 71.4
   },
   {
@@ -545,7 +616,8 @@
         "id": "8136",
         "name": "Rachaad White",
         "pos": "RB",
-        "ros_pts": 184.9
+        "ros_pts": 184.9,
+        "ros_par": 98.5
        }
       ],
       "picks": [
@@ -563,7 +635,8 @@
         "id": "8146",
         "name": "Garrett Wilson",
         "pos": "WR",
-        "ros_pts": 109.4
+        "ros_pts": 109.4,
+        "ros_par": 15.9
        }
       ],
       "picks": [
@@ -575,7 +648,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 75.5
+     "swing_ros_pts": 75.5,
+     "swing_par_pts": 82.6
     },
     {
      "manager": "kbrower",
@@ -586,7 +660,8 @@
         "id": "8146",
         "name": "Garrett Wilson",
         "pos": "WR",
-        "ros_pts": 109.4
+        "ros_pts": 109.4,
+        "ros_par": 15.9
        }
       ],
       "picks": [
@@ -604,7 +679,8 @@
         "id": "8136",
         "name": "Rachaad White",
         "pos": "RB",
-        "ros_pts": 184.9
+        "ros_pts": 184.9,
+        "ros_par": 98.5
        }
       ],
       "picks": [
@@ -616,10 +692,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -75.5
+     "swing_ros_pts": -75.5,
+     "swing_par_pts": -82.6
     }
    ],
    "winner": "TBreswick",
+   "margin_par_pts": 82.6,
    "margin_ros_pts": 75.5
   },
   {
@@ -636,13 +714,15 @@
         "id": "4066",
         "name": "Evan Engram",
         "pos": "TE",
-        "ros_pts": 106.3
+        "ros_pts": 106.3,
+        "ros_par": 22.3
        },
        {
         "id": "8155",
         "name": "Breece Hall",
         "pos": "RB",
-        "ros_pts": 152.1
+        "ros_pts": 152.1,
+        "ros_par": 80.1
        }
       ],
       "picks": [],
@@ -654,19 +734,22 @@
         "id": "5012",
         "name": "Mark Andrews",
         "pos": "TE",
-        "ros_pts": 53.5
+        "ros_pts": 53.5,
+        "ros_par": 11.5
        },
        {
         "id": "6943",
         "name": "Gabe Davis",
         "pos": "WR",
-        "ros_pts": 72.5
+        "ros_pts": 72.5,
+        "ros_par": 21.5
        }
       ],
       "picks": [],
       "faab": 0
      },
-     "swing_ros_pts": 132.4
+     "swing_ros_pts": 132.4,
+     "swing_par_pts": 69.4
     },
     {
      "manager": "bigguap69",
@@ -677,13 +760,15 @@
         "id": "5012",
         "name": "Mark Andrews",
         "pos": "TE",
-        "ros_pts": 53.5
+        "ros_pts": 53.5,
+        "ros_par": 11.5
        },
        {
         "id": "6943",
         "name": "Gabe Davis",
         "pos": "WR",
-        "ros_pts": 72.5
+        "ros_pts": 72.5,
+        "ros_par": 21.5
        }
       ],
       "picks": [],
@@ -695,22 +780,26 @@
         "id": "4066",
         "name": "Evan Engram",
         "pos": "TE",
-        "ros_pts": 106.3
+        "ros_pts": 106.3,
+        "ros_par": 22.3
        },
        {
         "id": "8155",
         "name": "Breece Hall",
         "pos": "RB",
-        "ros_pts": 152.1
+        "ros_pts": 152.1,
+        "ros_par": 80.1
        }
       ],
       "picks": [],
       "faab": 0
      },
-     "swing_ros_pts": -132.4
+     "swing_ros_pts": -132.4,
+     "swing_par_pts": -69.4
     }
    ],
    "winner": "emattessich",
+   "margin_par_pts": 69.4,
    "margin_ros_pts": 132.4
   },
   {
@@ -727,13 +816,15 @@
         "id": "4217",
         "name": "George Kittle",
         "pos": "TE",
-        "ros_pts": 111.6
+        "ros_pts": 111.6,
+        "ros_par": 36.0
        },
        {
         "id": "4981",
         "name": "Calvin Ridley",
         "pos": "WR",
-        "ros_pts": 109.0
+        "ros_pts": 109.0,
+        "ros_par": 32.5
        }
       ],
       "picks": [
@@ -751,7 +842,8 @@
         "id": "1466",
         "name": "Travis Kelce",
         "pos": "TE",
-        "ros_pts": 72.4
+        "ros_pts": 72.4,
+        "ros_par": -3.2
        }
       ],
       "picks": [
@@ -763,7 +855,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 148.2
+     "swing_ros_pts": 148.2,
+     "swing_par_pts": 71.7
     },
     {
      "manager": "troymullings",
@@ -774,7 +867,8 @@
         "id": "1466",
         "name": "Travis Kelce",
         "pos": "TE",
-        "ros_pts": 72.4
+        "ros_pts": 72.4,
+        "ros_par": -3.2
        }
       ],
       "picks": [
@@ -792,13 +886,15 @@
         "id": "4217",
         "name": "George Kittle",
         "pos": "TE",
-        "ros_pts": 111.6
+        "ros_pts": 111.6,
+        "ros_par": 36.0
        },
        {
         "id": "4981",
         "name": "Calvin Ridley",
         "pos": "WR",
-        "ros_pts": 109.0
+        "ros_pts": 109.0,
+        "ros_par": 32.5
        }
       ],
       "picks": [
@@ -810,10 +906,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -148.2
+     "swing_ros_pts": -148.2,
+     "swing_par_pts": -71.7
     }
    ],
    "winner": "wvw5022",
+   "margin_par_pts": 71.7,
    "margin_ros_pts": 148.2
   },
   {
@@ -830,13 +928,15 @@
         "id": "4217",
         "name": "George Kittle",
         "pos": "TE",
-        "ros_pts": 92.2
+        "ros_pts": 92.2,
+        "ros_par": 25.0
        },
        {
         "id": "6797",
         "name": "Justin Herbert",
         "pos": "QB",
-        "ros_pts": 87.5
+        "ros_pts": 87.5,
+        "ros_par": -24.5
        }
       ],
       "picks": [
@@ -859,13 +959,15 @@
         "id": "11199",
         "name": "Emari Demercado",
         "pos": "RB",
-        "ros_pts": 24.9
+        "ros_pts": 24.9,
+        "ros_par": -3.9
        },
        {
         "id": "8162",
         "name": "Sam Howell",
         "pos": "QB",
-        "ros_pts": 120.3
+        "ros_pts": 120.3,
+        "ros_par": -29.0
        }
       ],
       "picks": [
@@ -882,7 +984,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 34.5
+     "swing_ros_pts": 34.5,
+     "swing_par_pts": 33.4
     },
     {
      "manager": "wvw5022",
@@ -893,13 +996,15 @@
         "id": "11199",
         "name": "Emari Demercado",
         "pos": "RB",
-        "ros_pts": 24.9
+        "ros_pts": 24.9,
+        "ros_par": -3.9
        },
        {
         "id": "8162",
         "name": "Sam Howell",
         "pos": "QB",
-        "ros_pts": 120.3
+        "ros_pts": 120.3,
+        "ros_par": -29.0
        }
       ],
       "picks": [
@@ -922,13 +1027,15 @@
         "id": "4217",
         "name": "George Kittle",
         "pos": "TE",
-        "ros_pts": 92.2
+        "ros_pts": 92.2,
+        "ros_par": 25.0
        },
        {
         "id": "6797",
         "name": "Justin Herbert",
         "pos": "QB",
-        "ros_pts": 87.5
+        "ros_pts": 87.5,
+        "ros_par": -24.5
        }
       ],
       "picks": [
@@ -945,10 +1052,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -34.5
+     "swing_ros_pts": -34.5,
+     "swing_par_pts": -33.4
     }
    ],
    "winner": "tjt5055",
+   "margin_par_pts": 33.4,
    "margin_ros_pts": 34.5
   },
   {
@@ -965,13 +1074,15 @@
         "id": "4217",
         "name": "George Kittle",
         "pos": "TE",
-        "ros_pts": 92.2
+        "ros_pts": 92.2,
+        "ros_par": 25.0
        },
        {
         "id": "6797",
         "name": "Justin Herbert",
         "pos": "QB",
-        "ros_pts": 80.3
+        "ros_pts": 80.3,
+        "ros_par": -13.0
        }
       ],
       "picks": [
@@ -994,13 +1105,15 @@
         "id": "10866",
         "name": "Aidan O'Connell",
         "pos": "QB",
-        "ros_pts": 89.8
+        "ros_pts": 89.8,
+        "ros_par": -40.8
        },
        {
         "id": "9753",
         "name": "Zach Charbonnet",
         "pos": "RB",
-        "ros_pts": 55.9
+        "ros_pts": 55.9,
+        "ros_par": -1.7
        }
       ],
       "picks": [
@@ -1017,7 +1130,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 26.8
+     "swing_ros_pts": 26.8,
+     "swing_par_pts": 54.5
     },
     {
      "manager": "tjt5055",
@@ -1028,13 +1142,15 @@
         "id": "10866",
         "name": "Aidan O'Connell",
         "pos": "QB",
-        "ros_pts": 89.8
+        "ros_pts": 89.8,
+        "ros_par": -40.8
        },
        {
         "id": "9753",
         "name": "Zach Charbonnet",
         "pos": "RB",
-        "ros_pts": 55.9
+        "ros_pts": 55.9,
+        "ros_par": -1.7
        }
       ],
       "picks": [
@@ -1057,13 +1173,15 @@
         "id": "4217",
         "name": "George Kittle",
         "pos": "TE",
-        "ros_pts": 92.2
+        "ros_pts": 92.2,
+        "ros_par": 25.0
        },
        {
         "id": "6797",
         "name": "Justin Herbert",
         "pos": "QB",
-        "ros_pts": 80.3
+        "ros_pts": 80.3,
+        "ros_par": -13.0
        }
       ],
       "picks": [
@@ -1080,10 +1198,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -26.8
+     "swing_ros_pts": -26.8,
+     "swing_par_pts": -54.5
     }
    ],
    "winner": "kbrower",
+   "margin_par_pts": 54.5,
    "margin_ros_pts": 26.8
   },
   {
@@ -1126,7 +1246,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     },
     {
      "manager": "tjt5055",
@@ -1163,10 +1284,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     }
    ],
    "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_par_pts": 0.0,
    "margin_ros_pts": 0.0
   },
   {
@@ -1183,7 +1306,8 @@
         "id": "6904",
         "name": "Jalen Hurts",
         "pos": "QB",
-        "ros_pts": 156.7
+        "ros_pts": 156.7,
+        "ros_par": 26.1
        }
       ],
       "picks": [
@@ -1201,7 +1325,8 @@
         "id": "10866",
         "name": "Aidan O'Connell",
         "pos": "QB",
-        "ros_pts": 80.4
+        "ros_pts": 80.4,
+        "ros_par": -31.6
        }
       ],
       "picks": [
@@ -1213,7 +1338,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 76.3
+     "swing_ros_pts": 76.3,
+     "swing_par_pts": 57.7
     },
     {
      "manager": "bigguap69",
@@ -1224,7 +1350,8 @@
         "id": "10866",
         "name": "Aidan O'Connell",
         "pos": "QB",
-        "ros_pts": 80.4
+        "ros_pts": 80.4,
+        "ros_par": -31.6
        }
       ],
       "picks": [
@@ -1242,7 +1369,8 @@
         "id": "6904",
         "name": "Jalen Hurts",
         "pos": "QB",
-        "ros_pts": 156.7
+        "ros_pts": 156.7,
+        "ros_par": 26.1
        }
       ],
       "picks": [
@@ -1254,10 +1382,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -76.3
+     "swing_ros_pts": -76.3,
+     "swing_par_pts": -57.7
     }
    ],
    "winner": "tjt5055",
+   "margin_par_pts": 57.7,
    "margin_ros_pts": 76.3
   },
   {
@@ -1274,13 +1404,15 @@
         "id": "5846",
         "name": "DK Metcalf",
         "pos": "WR",
-        "ros_pts": 106.2
+        "ros_pts": 106.2,
+        "ros_par": 46.7
        },
        {
         "id": "7526",
         "name": "Jaylen Waddle",
         "pos": "WR",
-        "ros_pts": 71.4
+        "ros_pts": 71.4,
+        "ros_par": 20.4
        }
       ],
       "picks": [
@@ -1303,13 +1435,15 @@
         "id": "4144",
         "name": "Jonnu Smith",
         "pos": "TE",
-        "ros_pts": 19.0
+        "ros_pts": 19.0,
+        "ros_par": -14.6
        },
        {
         "id": "8676",
         "name": "Rashid Shaheed",
         "pos": "WR",
-        "ros_pts": 25.3
+        "ros_pts": 25.3,
+        "ros_par": -8.7
        }
       ],
       "picks": [
@@ -1326,7 +1460,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 133.3
+     "swing_ros_pts": 133.3,
+     "swing_par_pts": 90.4
     },
     {
      "manager": "LEMVP",
@@ -1337,13 +1472,15 @@
         "id": "4144",
         "name": "Jonnu Smith",
         "pos": "TE",
-        "ros_pts": 19.0
+        "ros_pts": 19.0,
+        "ros_par": -14.6
        },
        {
         "id": "8676",
         "name": "Rashid Shaheed",
         "pos": "WR",
-        "ros_pts": 25.3
+        "ros_pts": 25.3,
+        "ros_par": -8.7
        }
       ],
       "picks": [
@@ -1366,13 +1503,15 @@
         "id": "5846",
         "name": "DK Metcalf",
         "pos": "WR",
-        "ros_pts": 106.2
+        "ros_pts": 106.2,
+        "ros_par": 46.7
        },
        {
         "id": "7526",
         "name": "Jaylen Waddle",
         "pos": "WR",
-        "ros_pts": 71.4
+        "ros_pts": 71.4,
+        "ros_par": 20.4
        }
       ],
       "picks": [
@@ -1389,10 +1528,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -133.3
+     "swing_ros_pts": -133.3,
+     "swing_par_pts": -90.4
     }
    ],
    "winner": "tjt5055",
+   "margin_par_pts": 90.4,
    "margin_ros_pts": 133.3
   },
   {
@@ -1409,19 +1550,22 @@
         "id": "2133",
         "name": "Davante Adams",
         "pos": "WR",
-        "ros_pts": 88.4
+        "ros_pts": 88.4,
+        "ros_par": 37.4
        },
        {
         "id": "5012",
         "name": "Mark Andrews",
         "pos": "TE",
-        "ros_pts": 3.3
+        "ros_pts": 3.3,
+        "ros_par": -5.1
        },
        {
         "id": "5892",
         "name": "David Montgomery",
         "pos": "RB",
-        "ros_pts": 89.5
+        "ros_pts": 89.5,
+        "ros_par": 39.1
        }
       ],
       "picks": [
@@ -1449,19 +1593,22 @@
         "id": "4066",
         "name": "Evan Engram",
         "pos": "TE",
-        "ros_pts": 84.3
+        "ros_pts": 84.3,
+        "ros_par": 25.5
        },
        {
         "id": "6845",
         "name": "Zack Moss",
         "pos": "RB",
-        "ros_pts": 33.1
+        "ros_pts": 33.1,
+        "ros_par": 4.3
        },
        {
         "id": "8134",
         "name": "Khalil Shakir",
         "pos": "WR",
-        "ros_pts": 39.8
+        "ros_pts": 39.8,
+        "ros_par": -2.7
        }
       ],
       "picks": [
@@ -1483,7 +1630,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 24.0
+     "swing_ros_pts": 24.0,
+     "swing_par_pts": 44.3
     },
     {
      "manager": "bigguap69",
@@ -1494,19 +1642,22 @@
         "id": "4066",
         "name": "Evan Engram",
         "pos": "TE",
-        "ros_pts": 84.3
+        "ros_pts": 84.3,
+        "ros_par": 25.5
        },
        {
         "id": "6845",
         "name": "Zack Moss",
         "pos": "RB",
-        "ros_pts": 33.1
+        "ros_pts": 33.1,
+        "ros_par": 4.3
        },
        {
         "id": "8134",
         "name": "Khalil Shakir",
         "pos": "WR",
-        "ros_pts": 39.8
+        "ros_pts": 39.8,
+        "ros_par": -2.7
        }
       ],
       "picks": [
@@ -1534,19 +1685,22 @@
         "id": "2133",
         "name": "Davante Adams",
         "pos": "WR",
-        "ros_pts": 88.4
+        "ros_pts": 88.4,
+        "ros_par": 37.4
        },
        {
         "id": "5012",
         "name": "Mark Andrews",
         "pos": "TE",
-        "ros_pts": 3.3
+        "ros_pts": 3.3,
+        "ros_par": -5.1
        },
        {
         "id": "5892",
         "name": "David Montgomery",
         "pos": "RB",
-        "ros_pts": 89.5
+        "ros_pts": 89.5,
+        "ros_par": 39.1
        }
       ],
       "picks": [
@@ -1568,10 +1722,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -24.0
+     "swing_ros_pts": -24.0,
+     "swing_par_pts": -44.3
     }
    ],
    "winner": "emattessich",
+   "margin_par_pts": 44.3,
    "margin_ros_pts": 24.0
   },
   {
@@ -1588,7 +1744,8 @@
         "id": "4881",
         "name": "Lamar Jackson",
         "pos": "QB",
-        "ros_pts": 150.0
+        "ros_pts": 150.0,
+        "ros_par": 38.1
        }
       ],
       "picks": [
@@ -1606,7 +1763,8 @@
         "id": "1234",
         "name": "Russell Wilson",
         "pos": "QB",
-        "ros_pts": 107.6
+        "ros_pts": 107.6,
+        "ros_par": -4.4
        }
       ],
       "picks": [
@@ -1618,7 +1776,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 42.4
+     "swing_ros_pts": 42.4,
+     "swing_par_pts": 42.5
     },
     {
      "manager": "bigguap69",
@@ -1629,7 +1788,8 @@
         "id": "1234",
         "name": "Russell Wilson",
         "pos": "QB",
-        "ros_pts": 107.6
+        "ros_pts": 107.6,
+        "ros_par": -4.4
        }
       ],
       "picks": [
@@ -1647,7 +1807,8 @@
         "id": "4881",
         "name": "Lamar Jackson",
         "pos": "QB",
-        "ros_pts": 150.0
+        "ros_pts": 150.0,
+        "ros_par": 38.1
        }
       ],
       "picks": [
@@ -1659,10 +1820,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -42.4
+     "swing_ros_pts": -42.4,
+     "swing_par_pts": -42.5
     }
    ],
    "winner": "dibach215",
+   "margin_par_pts": 42.5,
    "margin_ros_pts": 42.4
   },
   {
@@ -1679,19 +1842,22 @@
         "id": "4137",
         "name": "James Conner",
         "pos": "RB",
-        "ros_pts": 96.9
+        "ros_pts": 96.9,
+        "ros_par": 53.7
        },
        {
         "id": "6794",
         "name": "Justin Jefferson",
         "pos": "WR",
-        "ros_pts": 47.1
+        "ros_pts": 47.1,
+        "ros_par": 13.1
        },
        {
         "id": "8162",
         "name": "Sam Howell",
         "pos": "QB",
-        "ros_pts": 77.4
+        "ros_pts": 77.4,
+        "ros_par": -34.6
        }
       ],
       "picks": [
@@ -1719,19 +1885,22 @@
         "id": "4335",
         "name": "P.J. Walker",
         "pos": "QB",
-        "ros_pts": 0.1
+        "ros_pts": 0.1,
+        "ros_par": -18.5
        },
        {
         "id": "7567",
         "name": "Kenny Gainwell",
         "pos": "RB",
-        "ros_pts": 31.8
+        "ros_pts": 31.8,
+        "ros_par": -18.6
        },
        {
         "id": "9502",
         "name": "Tank Dell",
         "pos": "WR",
-        "ros_pts": 39.6
+        "ros_pts": 39.6,
+        "ros_par": 22.6
        }
       ],
       "picks": [
@@ -1753,7 +1922,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 149.9
+     "swing_ros_pts": 149.9,
+     "swing_par_pts": 46.7
     },
     {
      "manager": "wvw5022",
@@ -1764,19 +1934,22 @@
         "id": "4335",
         "name": "P.J. Walker",
         "pos": "QB",
-        "ros_pts": 0.1
+        "ros_pts": 0.1,
+        "ros_par": -18.5
        },
        {
         "id": "7567",
         "name": "Kenny Gainwell",
         "pos": "RB",
-        "ros_pts": 31.8
+        "ros_pts": 31.8,
+        "ros_par": -18.6
        },
        {
         "id": "9502",
         "name": "Tank Dell",
         "pos": "WR",
-        "ros_pts": 39.6
+        "ros_pts": 39.6,
+        "ros_par": 22.6
        }
       ],
       "picks": [
@@ -1804,19 +1977,22 @@
         "id": "4137",
         "name": "James Conner",
         "pos": "RB",
-        "ros_pts": 96.9
+        "ros_pts": 96.9,
+        "ros_par": 53.7
        },
        {
         "id": "6794",
         "name": "Justin Jefferson",
         "pos": "WR",
-        "ros_pts": 47.1
+        "ros_pts": 47.1,
+        "ros_par": 13.1
        },
        {
         "id": "8162",
         "name": "Sam Howell",
         "pos": "QB",
-        "ros_pts": 77.4
+        "ros_pts": 77.4,
+        "ros_par": -34.6
        }
       ],
       "picks": [
@@ -1838,10 +2014,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -149.9
+     "swing_ros_pts": -149.9,
+     "swing_par_pts": -46.7
     }
    ],
    "winner": "kylefiggy",
+   "margin_par_pts": 46.7,
    "margin_ros_pts": 149.9
   },
   {
@@ -1858,7 +2036,8 @@
         "id": "5844",
         "name": "T.J. Hockenson",
         "pos": "TE",
-        "ros_pts": 38.4
+        "ros_pts": 38.4,
+        "ros_par": 4.8
        }
       ],
       "picks": [
@@ -1881,7 +2060,8 @@
         "id": "4381",
         "name": "Taysom Hill",
         "pos": "TE",
-        "ros_pts": 33.2
+        "ros_pts": 33.2,
+        "ros_par": -8.8
        }
       ],
       "picks": [
@@ -1898,7 +2078,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 5.2
+     "swing_ros_pts": 5.2,
+     "swing_par_pts": 13.6
     },
     {
      "manager": "apatel185",
@@ -1909,7 +2090,8 @@
         "id": "4381",
         "name": "Taysom Hill",
         "pos": "TE",
-        "ros_pts": 33.2
+        "ros_pts": 33.2,
+        "ros_par": -8.8
        }
       ],
       "picks": [
@@ -1932,7 +2114,8 @@
         "id": "5844",
         "name": "T.J. Hockenson",
         "pos": "TE",
-        "ros_pts": 38.4
+        "ros_pts": 38.4,
+        "ros_par": 4.8
        }
       ],
       "picks": [
@@ -1949,10 +2132,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -5.2
+     "swing_ros_pts": -5.2,
+     "swing_par_pts": -13.6
     }
    ],
    "winner": "tjt5055",
+   "margin_par_pts": 13.6,
    "margin_ros_pts": 5.2
   },
   {
@@ -1969,13 +2154,15 @@
         "id": "6770",
         "name": "Joe Burrow",
         "pos": "QB",
-        "ros_pts": 0.0
+        "ros_pts": 0.0,
+        "ros_par": 0.0
        },
        {
         "id": "9221",
         "name": "Jahmyr Gibbs",
         "pos": "RB",
-        "ros_pts": 81.5
+        "ros_pts": 81.5,
+        "ros_par": 38.3
        }
       ],
       "picks": [
@@ -1998,7 +2185,8 @@
         "id": "2251",
         "name": "Logan Thomas",
         "pos": "TE",
-        "ros_pts": 21.3
+        "ros_pts": 21.3,
+        "ros_par": -20.7
        }
       ],
       "picks": [
@@ -2015,7 +2203,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 60.2
+     "swing_ros_pts": 60.2,
+     "swing_par_pts": 59.0
     },
     {
      "manager": "TBreswick",
@@ -2026,7 +2215,8 @@
         "id": "2251",
         "name": "Logan Thomas",
         "pos": "TE",
-        "ros_pts": 21.3
+        "ros_pts": 21.3,
+        "ros_par": -20.7
        }
       ],
       "picks": [
@@ -2049,13 +2239,15 @@
         "id": "6770",
         "name": "Joe Burrow",
         "pos": "QB",
-        "ros_pts": 0.0
+        "ros_pts": 0.0,
+        "ros_par": 0.0
        },
        {
         "id": "9221",
         "name": "Jahmyr Gibbs",
         "pos": "RB",
-        "ros_pts": 81.5
+        "ros_pts": 81.5,
+        "ros_par": 38.3
        }
       ],
       "picks": [
@@ -2072,10 +2264,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -60.2
+     "swing_ros_pts": -60.2,
+     "swing_par_pts": -59.0
     }
    ],
    "winner": "kylefiggy",
+   "margin_par_pts": 59.0,
    "margin_ros_pts": 60.2
   },
   {
@@ -2092,7 +2286,8 @@
         "id": "6826",
         "name": "Cole Kmet",
         "pos": "TE",
-        "ros_pts": 40.4
+        "ros_pts": 40.4,
+        "ros_par": 6.8
        }
       ],
       "picks": [
@@ -2110,7 +2305,8 @@
         "id": "7946",
         "name": "Jack Stoll",
         "pos": "TE",
-        "ros_pts": 1.9
+        "ros_pts": 1.9,
+        "ros_par": -6.5
        }
       ],
       "picks": [
@@ -2122,7 +2318,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 38.5
+     "swing_ros_pts": 38.5,
+     "swing_par_pts": 13.3
     },
     {
      "manager": "BigDickNicholas",
@@ -2133,7 +2330,8 @@
         "id": "7946",
         "name": "Jack Stoll",
         "pos": "TE",
-        "ros_pts": 1.9
+        "ros_pts": 1.9,
+        "ros_par": -6.5
        }
       ],
       "picks": [
@@ -2151,7 +2349,8 @@
         "id": "6826",
         "name": "Cole Kmet",
         "pos": "TE",
-        "ros_pts": 40.4
+        "ros_pts": 40.4,
+        "ros_par": 6.8
        }
       ],
       "picks": [
@@ -2163,10 +2362,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -38.5
+     "swing_ros_pts": -38.5,
+     "swing_par_pts": -13.3
     }
    ],
    "winner": "dibach215",
+   "margin_par_pts": 13.3,
    "margin_ros_pts": 38.5
   },
   {
@@ -2183,7 +2384,8 @@
         "id": "4066",
         "name": "Evan Engram",
         "pos": "TE",
-        "ros_pts": 79.4
+        "ros_pts": 79.4,
+        "ros_par": 29.0
        }
       ],
       "picks": [
@@ -2201,7 +2403,8 @@
         "id": "2747",
         "name": "Jason Myers",
         "pos": "K",
-        "ros_pts": 47.0
+        "ros_pts": 47.0,
+        "ros_par": -7.0
        }
       ],
       "picks": [
@@ -2213,7 +2416,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 32.4
+     "swing_ros_pts": 32.4,
+     "swing_par_pts": 36.0
     },
     {
      "manager": "bigguap69",
@@ -2224,7 +2428,8 @@
         "id": "2747",
         "name": "Jason Myers",
         "pos": "K",
-        "ros_pts": 47.0
+        "ros_pts": 47.0,
+        "ros_par": -7.0
        }
       ],
       "picks": [
@@ -2242,7 +2447,8 @@
         "id": "4066",
         "name": "Evan Engram",
         "pos": "TE",
-        "ros_pts": 79.4
+        "ros_pts": 79.4,
+        "ros_par": 29.0
        }
       ],
       "picks": [
@@ -2254,10 +2460,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -32.4
+     "swing_ros_pts": -32.4,
+     "swing_par_pts": -36.0
     }
    ],
    "winner": "emattessich",
+   "margin_par_pts": 36.0,
    "margin_ros_pts": 32.4
   },
   {
@@ -2310,7 +2518,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     },
     {
      "manager": "tjt5055",
@@ -2357,10 +2566,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     }
    ],
    "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_par_pts": 0.0,
    "margin_ros_pts": 0.0
   },
   {
@@ -2403,7 +2614,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     },
     {
      "manager": "kbrower",
@@ -2440,10 +2652,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     }
    ],
    "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_par_pts": 0.0,
    "margin_ros_pts": 0.0
   },
   {
@@ -2496,7 +2710,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     },
     {
      "manager": "bigguap69",
@@ -2543,10 +2758,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     }
    ],
    "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_par_pts": 0.0,
    "margin_ros_pts": 0.0
   },
   {
@@ -2599,7 +2816,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     },
     {
      "manager": "emattessich",
@@ -2646,10 +2864,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     }
    ],
    "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_par_pts": 0.0,
    "margin_ros_pts": 0.0
   },
   {
@@ -2692,7 +2912,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     },
     {
      "manager": "bigguap69",
@@ -2729,10 +2950,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     }
    ],
    "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_par_pts": 0.0,
    "margin_ros_pts": 0.0
   },
   {
@@ -2775,7 +2998,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     },
     {
      "manager": "BigDickNicholas",
@@ -2812,10 +3036,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     }
    ],
    "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_par_pts": 0.0,
    "margin_ros_pts": 0.0
   },
   {
@@ -2858,7 +3084,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     },
     {
      "manager": "tjt5055",
@@ -2895,10 +3122,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     }
    ],
    "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_par_pts": 0.0,
    "margin_ros_pts": 0.0
   },
   {
@@ -2941,7 +3170,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     },
     {
      "manager": "wvw5022",
@@ -2978,10 +3208,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 0
+     "swing_ros_pts": 0,
+     "swing_par_pts": 0
     }
    ],
    "winner": "PUSH \u2014 picks/FAAB only (graded 0)",
+   "margin_par_pts": 0.0,
    "margin_ros_pts": 0.0
   },
   {
@@ -2989,35 +3221,6 @@
    "week": 9,
    "transaction_id": "1158973172814897152",
    "parties": [
-    {
-     "manager": "BigDickNicholas",
-     "roster_id": 12,
-     "received": {
-      "players": [
-       {
-        "id": "6797",
-        "name": "Justin Herbert",
-        "pos": "QB",
-        "ros_pts": 145.9
-       }
-      ],
-      "picks": [],
-      "faab": 0
-     },
-     "sent": {
-      "players": [
-       {
-        "id": "4217",
-        "name": "George Kittle",
-        "pos": "TE",
-        "ros_pts": 87.6
-       }
-      ],
-      "picks": [],
-      "faab": 0
-     },
-     "swing_ros_pts": 58.3
-    },
     {
      "manager": "tjt5055",
      "roster_id": 11,
@@ -3027,7 +3230,8 @@
         "id": "4217",
         "name": "George Kittle",
         "pos": "TE",
-        "ros_pts": 87.6
+        "ros_pts": 87.6,
+        "ros_par": 28.8
        }
       ],
       "picks": [],
@@ -3039,17 +3243,52 @@
         "id": "6797",
         "name": "Justin Herbert",
         "pos": "QB",
-        "ros_pts": 145.9
+        "ros_pts": 145.9,
+        "ros_par": -9.0
        }
       ],
       "picks": [],
       "faab": 0
      },
-     "swing_ros_pts": -58.3
+     "swing_ros_pts": -58.3,
+     "swing_par_pts": 37.8
+    },
+    {
+     "manager": "BigDickNicholas",
+     "roster_id": 12,
+     "received": {
+      "players": [
+       {
+        "id": "6797",
+        "name": "Justin Herbert",
+        "pos": "QB",
+        "ros_pts": 145.9,
+        "ros_par": -9.0
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "4217",
+        "name": "George Kittle",
+        "pos": "TE",
+        "ros_pts": 87.6,
+        "ros_par": 28.8
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": 58.3,
+     "swing_par_pts": -37.8
     }
    ],
-   "winner": "BigDickNicholas",
-   "margin_ros_pts": 58.3
+   "winner": "tjt5055",
+   "margin_par_pts": 37.8,
+   "margin_ros_pts": -58.3
   },
   {
    "season": 2024,
@@ -3065,7 +3304,8 @@
         "id": "11566",
         "name": "Jayden Daniels",
         "pos": "QB",
-        "ros_pts": 176.9
+        "ros_pts": 176.9,
+        "ros_par": 41.4
        }
       ],
       "picks": [
@@ -3083,7 +3323,8 @@
         "id": "9506",
         "name": "Sean Tucker",
         "pos": "RB",
-        "ros_pts": 18.8
+        "ros_pts": 18.8,
+        "ros_par": -14.0
        }
       ],
       "picks": [
@@ -3095,7 +3336,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 158.1
+     "swing_ros_pts": 158.1,
+     "swing_par_pts": 55.4
     },
     {
      "manager": "tjt5055",
@@ -3106,7 +3348,8 @@
         "id": "9506",
         "name": "Sean Tucker",
         "pos": "RB",
-        "ros_pts": 18.8
+        "ros_pts": 18.8,
+        "ros_par": -14.0
        }
       ],
       "picks": [
@@ -3124,7 +3367,8 @@
         "id": "11566",
         "name": "Jayden Daniels",
         "pos": "QB",
-        "ros_pts": 176.9
+        "ros_pts": 176.9,
+        "ros_par": 41.4
        }
       ],
       "picks": [
@@ -3136,10 +3380,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -158.1
+     "swing_ros_pts": -158.1,
+     "swing_par_pts": -55.4
     }
    ],
    "winner": "bigguap69",
+   "margin_par_pts": 55.4,
    "margin_ros_pts": 158.1
   },
   {
@@ -3156,13 +3402,15 @@
         "id": "4217",
         "name": "George Kittle",
         "pos": "TE",
-        "ros_pts": 74.4
+        "ros_pts": 74.4,
+        "ros_par": 24.0
        },
        {
         "id": "8137",
         "name": "George Pickens",
         "pos": "WR",
-        "ros_pts": 41.1
+        "ros_pts": 41.1,
+        "ros_par": 5.5
        }
       ],
       "picks": [
@@ -3180,13 +3428,15 @@
         "id": "4066",
         "name": "Evan Engram",
         "pos": "TE",
-        "ros_pts": 18.2
+        "ros_pts": 18.2,
+        "ros_par": -7.0
        },
        {
         "id": "8676",
         "name": "Rashid Shaheed",
         "pos": "WR",
-        "ros_pts": 0.0
+        "ros_pts": 0.0,
+        "ros_par": 0.0
        }
       ],
       "picks": [
@@ -3198,7 +3448,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 97.3
+     "swing_ros_pts": 97.3,
+     "swing_par_pts": 36.5
     },
     {
      "manager": "tjt5055",
@@ -3209,13 +3460,15 @@
         "id": "4066",
         "name": "Evan Engram",
         "pos": "TE",
-        "ros_pts": 18.2
+        "ros_pts": 18.2,
+        "ros_par": -7.0
        },
        {
         "id": "8676",
         "name": "Rashid Shaheed",
         "pos": "WR",
-        "ros_pts": 0.0
+        "ros_pts": 0.0,
+        "ros_par": 0.0
        }
       ],
       "picks": [
@@ -3233,13 +3486,15 @@
         "id": "4217",
         "name": "George Kittle",
         "pos": "TE",
-        "ros_pts": 74.4
+        "ros_pts": 74.4,
+        "ros_par": 24.0
        },
        {
         "id": "8137",
         "name": "George Pickens",
         "pos": "WR",
-        "ros_pts": 41.1
+        "ros_pts": 41.1,
+        "ros_par": 5.5
        }
       ],
       "picks": [
@@ -3251,10 +3506,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -97.3
+     "swing_ros_pts": -97.3,
+     "swing_par_pts": -36.5
     }
    ],
    "winner": "kbrower",
+   "margin_par_pts": 36.5,
    "margin_ros_pts": 97.3
   },
   {
@@ -3271,19 +3528,22 @@
         "id": "2216",
         "name": "Mike Evans",
         "pos": "WR",
-        "ros_pts": 107.5
+        "ros_pts": 107.5,
+        "ros_par": 54.1
        },
        {
         "id": "4984",
         "name": "Josh Allen",
         "pos": "QB",
-        "ros_pts": 181.7
+        "ros_pts": 181.7,
+        "ros_par": 65.5
        },
        {
         "id": "5927",
         "name": "Terry McLaurin",
         "pos": "WR",
-        "ros_pts": 81.8
+        "ros_pts": 81.8,
+        "ros_par": 28.4
        }
       ],
       "picks": [
@@ -3311,19 +3571,22 @@
         "id": "5947",
         "name": "Jakobi Meyers",
         "pos": "WR",
-        "ros_pts": 74.9
+        "ros_pts": 74.9,
+        "ros_par": 12.6
        },
        {
         "id": "9756",
         "name": "Jordan Addison",
         "pos": "WR",
-        "ros_pts": 120.2
+        "ros_pts": 120.2,
+        "ros_par": 57.9
        },
        {
         "id": "9999",
         "name": "Will Levis",
         "pos": "QB",
-        "ros_pts": 55.5
+        "ros_pts": 55.5,
+        "ros_par": -41.3
        }
       ],
       "picks": [
@@ -3345,7 +3608,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 120.4
+     "swing_ros_pts": 120.4,
+     "swing_par_pts": 118.8
     },
     {
      "manager": "apatel185",
@@ -3356,19 +3620,22 @@
         "id": "5947",
         "name": "Jakobi Meyers",
         "pos": "WR",
-        "ros_pts": 74.9
+        "ros_pts": 74.9,
+        "ros_par": 12.6
        },
        {
         "id": "9756",
         "name": "Jordan Addison",
         "pos": "WR",
-        "ros_pts": 120.2
+        "ros_pts": 120.2,
+        "ros_par": 57.9
        },
        {
         "id": "9999",
         "name": "Will Levis",
         "pos": "QB",
-        "ros_pts": 55.5
+        "ros_pts": 55.5,
+        "ros_par": -41.3
        }
       ],
       "picks": [
@@ -3396,19 +3663,22 @@
         "id": "2216",
         "name": "Mike Evans",
         "pos": "WR",
-        "ros_pts": 107.5
+        "ros_pts": 107.5,
+        "ros_par": 54.1
        },
        {
         "id": "4984",
         "name": "Josh Allen",
         "pos": "QB",
-        "ros_pts": 181.7
+        "ros_pts": 181.7,
+        "ros_par": 65.5
        },
        {
         "id": "5927",
         "name": "Terry McLaurin",
         "pos": "WR",
-        "ros_pts": 81.8
+        "ros_pts": 81.8,
+        "ros_par": 28.4
        }
       ],
       "picks": [
@@ -3430,10 +3700,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -120.4
+     "swing_ros_pts": -120.4,
+     "swing_par_pts": -118.8
     }
    ],
    "winner": "troymullings",
+   "margin_par_pts": 118.8,
    "margin_ros_pts": 120.4
   },
   {
@@ -3441,47 +3713,6 @@
    "week": 10,
    "transaction_id": "1162183176840904704",
    "parties": [
-    {
-     "manager": "tjt5055",
-     "roster_id": 11,
-     "received": {
-      "players": [
-       {
-        "id": "4574",
-        "name": "Cooper Rush",
-        "pos": "QB",
-        "ros_pts": 104.4
-       },
-       {
-        "id": "7527",
-        "name": "Mac Jones",
-        "pos": "QB",
-        "ros_pts": 84.0
-       }
-      ],
-      "picks": [],
-      "faab": 0
-     },
-     "sent": {
-      "players": [
-       {
-        "id": "7608",
-        "name": "Khalil Herbert",
-        "pos": "RB",
-        "ros_pts": 5.7
-       },
-       {
-        "id": "8676",
-        "name": "Rashid Shaheed",
-        "pos": "WR",
-        "ros_pts": 0.0
-       }
-      ],
-      "picks": [],
-      "faab": 0
-     },
-     "swing_ros_pts": 182.7
-    },
     {
      "manager": "kylefiggy",
      "roster_id": 5,
@@ -3491,13 +3722,15 @@
         "id": "7608",
         "name": "Khalil Herbert",
         "pos": "RB",
-        "ros_pts": 5.7
+        "ros_pts": 5.7,
+        "ros_par": -27.1
        },
        {
         "id": "8676",
         "name": "Rashid Shaheed",
         "pos": "WR",
-        "ros_pts": 0.0
+        "ros_pts": 0.0,
+        "ros_par": 0.0
        }
       ],
       "picks": [],
@@ -3509,70 +3742,79 @@
         "id": "4574",
         "name": "Cooper Rush",
         "pos": "QB",
-        "ros_pts": 104.4
+        "ros_pts": 104.4,
+        "ros_par": -31.1
        },
        {
         "id": "7527",
         "name": "Mac Jones",
         "pos": "QB",
-        "ros_pts": 84.0
+        "ros_pts": 84.0,
+        "ros_par": -32.1
        }
       ],
       "picks": [],
       "faab": 0
      },
-     "swing_ros_pts": -182.7
+     "swing_ros_pts": -182.7,
+     "swing_par_pts": 36.1
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "4574",
+        "name": "Cooper Rush",
+        "pos": "QB",
+        "ros_pts": 104.4,
+        "ros_par": -31.1
+       },
+       {
+        "id": "7527",
+        "name": "Mac Jones",
+        "pos": "QB",
+        "ros_pts": 84.0,
+        "ros_par": -32.1
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7608",
+        "name": "Khalil Herbert",
+        "pos": "RB",
+        "ros_pts": 5.7,
+        "ros_par": -27.1
+       },
+       {
+        "id": "8676",
+        "name": "Rashid Shaheed",
+        "pos": "WR",
+        "ros_pts": 0.0,
+        "ros_par": 0.0
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": 182.7,
+     "swing_par_pts": -36.1
     }
    ],
-   "winner": "tjt5055",
-   "margin_ros_pts": 182.7
+   "winner": "kylefiggy",
+   "margin_par_pts": 36.1,
+   "margin_ros_pts": -182.7
   },
   {
    "season": 2024,
    "week": 10,
    "transaction_id": "1162190785224265728",
    "parties": [
-    {
-     "manager": "bigguap69",
-     "roster_id": 9,
-     "received": {
-      "players": [
-       {
-        "id": "8111",
-        "name": "Cade Otton",
-        "pos": "TE",
-        "ros_pts": 19.4
-       }
-      ],
-      "picks": [
-       {
-        "season": "2025",
-        "round": 8,
-        "orig_slot": 2
-       }
-      ],
-      "faab": 0
-     },
-     "sent": {
-      "players": [
-       {
-        "id": "10236",
-        "name": "Dalton Kincaid",
-        "pos": "TE",
-        "ros_pts": 14.2
-       }
-      ],
-      "picks": [
-       {
-        "season": "2025",
-        "round": 5,
-        "orig_slot": 9
-       }
-      ],
-      "faab": 0
-     },
-     "swing_ros_pts": 5.2
-    },
     {
      "manager": "dibach215",
      "roster_id": 2,
@@ -3582,7 +3824,8 @@
         "id": "10236",
         "name": "Dalton Kincaid",
         "pos": "TE",
-        "ros_pts": 14.2
+        "ros_pts": 14.2,
+        "ros_par": -11.0
        }
       ],
       "picks": [
@@ -3600,7 +3843,8 @@
         "id": "8111",
         "name": "Cade Otton",
         "pos": "TE",
-        "ros_pts": 19.4
+        "ros_pts": 19.4,
+        "ros_par": -14.2
        }
       ],
       "picks": [
@@ -3612,11 +3856,57 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -5.2
+     "swing_ros_pts": -5.2,
+     "swing_par_pts": 3.2
+    },
+    {
+     "manager": "bigguap69",
+     "roster_id": 9,
+     "received": {
+      "players": [
+       {
+        "id": "8111",
+        "name": "Cade Otton",
+        "pos": "TE",
+        "ros_pts": 19.4,
+        "ros_par": -14.2
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 8,
+        "orig_slot": 2
+       }
+      ],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "10236",
+        "name": "Dalton Kincaid",
+        "pos": "TE",
+        "ros_pts": 14.2,
+        "ros_par": -11.0
+       }
+      ],
+      "picks": [
+       {
+        "season": "2025",
+        "round": 5,
+        "orig_slot": 9
+       }
+      ],
+      "faab": 0
+     },
+     "swing_ros_pts": 5.2,
+     "swing_par_pts": -3.2
     }
    ],
-   "winner": "bigguap69",
-   "margin_ros_pts": 5.2
+   "winner": "dibach215",
+   "margin_par_pts": 3.2,
+   "margin_ros_pts": -5.2
   },
   {
    "season": 2024,
@@ -3632,7 +3922,8 @@
         "id": "8151",
         "name": "Kenneth Walker",
         "pos": "RB",
-        "ros_pts": 39.7
+        "ros_pts": 39.7,
+        "ros_par": 6.9
        }
       ],
       "picks": [
@@ -3650,7 +3941,8 @@
         "id": "10235",
         "name": "Roschon Johnson",
         "pos": "RB",
-        "ros_pts": 19.1
+        "ros_pts": 19.1,
+        "ros_par": -13.7
        }
       ],
       "picks": [
@@ -3662,7 +3954,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 20.6
+     "swing_ros_pts": 20.6,
+     "swing_par_pts": 20.6
     },
     {
      "manager": "TBreswick",
@@ -3673,7 +3966,8 @@
         "id": "10235",
         "name": "Roschon Johnson",
         "pos": "RB",
-        "ros_pts": 19.1
+        "ros_pts": 19.1,
+        "ros_par": -13.7
        }
       ],
       "picks": [
@@ -3691,7 +3985,8 @@
         "id": "8151",
         "name": "Kenneth Walker",
         "pos": "RB",
-        "ros_pts": 39.7
+        "ros_pts": 39.7,
+        "ros_par": 6.9
        }
       ],
       "picks": [
@@ -3703,10 +3998,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -20.6
+     "swing_ros_pts": -20.6,
+     "swing_par_pts": -20.6
     }
    ],
    "winner": "kbrower",
+   "margin_par_pts": 20.6,
    "margin_ros_pts": 20.6
   },
   {
@@ -3723,7 +4020,8 @@
         "id": "5859",
         "name": "A.J. Brown",
         "pos": "WR",
-        "ros_pts": 87.1
+        "ros_pts": 87.1,
+        "ros_par": 33.7
        }
       ],
       "picks": [
@@ -3741,7 +4039,8 @@
         "id": "11620",
         "name": "Rome Odunze",
         "pos": "WR",
-        "ros_pts": 42.7
+        "ros_pts": 42.7,
+        "ros_par": -10.7
        }
       ],
       "picks": [
@@ -3753,7 +4052,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 44.4
+     "swing_ros_pts": 44.4,
+     "swing_par_pts": 44.4
     },
     {
      "manager": "dibach215",
@@ -3764,7 +4064,8 @@
         "id": "11620",
         "name": "Rome Odunze",
         "pos": "WR",
-        "ros_pts": 42.7
+        "ros_pts": 42.7,
+        "ros_par": -10.7
        }
       ],
       "picks": [
@@ -3782,7 +4083,8 @@
         "id": "5859",
         "name": "A.J. Brown",
         "pos": "WR",
-        "ros_pts": 87.1
+        "ros_pts": 87.1,
+        "ros_par": 33.7
        }
       ],
       "picks": [
@@ -3794,10 +4096,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -44.4
+     "swing_ros_pts": -44.4,
+     "swing_par_pts": -44.4
     }
    ],
    "winner": "wvw5022",
+   "margin_par_pts": 44.4,
    "margin_ros_pts": 44.4
   },
   {
@@ -3814,7 +4118,8 @@
         "id": "7547",
         "name": "Amon-Ra St. Brown",
         "pos": "WR",
-        "ros_pts": 89.1
+        "ros_pts": 89.1,
+        "ros_par": 35.7
        }
       ],
       "picks": [
@@ -3832,7 +4137,8 @@
         "id": "2309",
         "name": "Amari Cooper",
         "pos": "WR",
-        "ros_pts": 29.8
+        "ros_pts": 29.8,
+        "ros_par": -5.8
        }
       ],
       "picks": [
@@ -3844,7 +4150,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 59.3
+     "swing_ros_pts": 59.3,
+     "swing_par_pts": 41.5
     },
     {
      "manager": "emattessich",
@@ -3855,7 +4162,8 @@
         "id": "2309",
         "name": "Amari Cooper",
         "pos": "WR",
-        "ros_pts": 29.8
+        "ros_pts": 29.8,
+        "ros_par": -5.8
        }
       ],
       "picks": [
@@ -3873,7 +4181,8 @@
         "id": "7547",
         "name": "Amon-Ra St. Brown",
         "pos": "WR",
-        "ros_pts": 89.1
+        "ros_pts": 89.1,
+        "ros_par": 35.7
        }
       ],
       "picks": [
@@ -3885,10 +4194,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -59.3
+     "swing_ros_pts": -59.3,
+     "swing_par_pts": -41.5
     }
    ],
    "winner": "bigguap69",
+   "margin_par_pts": 41.5,
    "margin_ros_pts": 59.3
   },
   {
@@ -3905,7 +4216,8 @@
         "id": "9221",
         "name": "Jahmyr Gibbs",
         "pos": "RB",
-        "ros_pts": 257.3
+        "ros_pts": 257.3,
+        "ros_par": 152.0
        }
       ],
       "picks": [],
@@ -3917,13 +4229,15 @@
         "id": "6794",
         "name": "Justin Jefferson",
         "pos": "WR",
-        "ros_pts": 112.7
+        "ros_pts": 112.7,
+        "ros_par": 4.8
        }
       ],
       "picks": [],
       "faab": 0
      },
-     "swing_ros_pts": 144.6
+     "swing_ros_pts": 144.6,
+     "swing_par_pts": 147.2
     },
     {
      "manager": "tjt5055",
@@ -3934,7 +4248,8 @@
         "id": "6794",
         "name": "Justin Jefferson",
         "pos": "WR",
-        "ros_pts": 112.7
+        "ros_pts": 112.7,
+        "ros_par": 4.8
        }
       ],
       "picks": [],
@@ -3946,16 +4261,19 @@
         "id": "9221",
         "name": "Jahmyr Gibbs",
         "pos": "RB",
-        "ros_pts": 257.3
+        "ros_pts": 257.3,
+        "ros_par": 152.0
        }
       ],
       "picks": [],
       "faab": 0
      },
-     "swing_ros_pts": -144.6
+     "swing_ros_pts": -144.6,
+     "swing_par_pts": -147.2
     }
    ],
    "winner": "Wi1dboy",
+   "margin_par_pts": 147.2,
    "margin_ros_pts": 144.6
   },
   {
@@ -3972,7 +4290,8 @@
         "id": "12527",
         "name": "Ashton Jeanty",
         "pos": "RB",
-        "ros_pts": 122.0
+        "ros_pts": 122.0,
+        "ros_par": 41.0
        }
       ],
       "picks": [
@@ -3995,7 +4314,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 122.0
+     "swing_ros_pts": 122.0,
+     "swing_par_pts": 41.0
     },
     {
      "manager": "BigDickNicholas",
@@ -4017,7 +4337,8 @@
         "id": "12527",
         "name": "Ashton Jeanty",
         "pos": "RB",
-        "ros_pts": 122.0
+        "ros_pts": 122.0,
+        "ros_par": 41.0
        }
       ],
       "picks": [
@@ -4029,10 +4350,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -122.0
+     "swing_ros_pts": -122.0,
+     "swing_par_pts": -41.0
     }
    ],
    "winner": "Wi1dboy",
+   "margin_par_pts": 41.0,
    "margin_ros_pts": 122.0
   },
   {
@@ -4049,13 +4372,15 @@
         "id": "12518",
         "name": "Tyler Warren",
         "pos": "TE",
-        "ros_pts": 75.3
+        "ros_pts": 75.3,
+        "ros_par": -17.7
        },
        {
         "id": "6786",
         "name": "CeeDee Lamb",
         "pos": "WR",
-        "ros_pts": 132.3
+        "ros_pts": 132.3,
+        "ros_par": 49.3
        }
       ],
       "picks": [
@@ -4098,7 +4423,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 207.6
+     "swing_ros_pts": 207.6,
+     "swing_par_pts": 31.6
     },
     {
      "manager": "kylefiggy",
@@ -4130,13 +4456,15 @@
         "id": "12518",
         "name": "Tyler Warren",
         "pos": "TE",
-        "ros_pts": 75.3
+        "ros_pts": 75.3,
+        "ros_par": -17.7
        },
        {
         "id": "6786",
         "name": "CeeDee Lamb",
         "pos": "WR",
-        "ros_pts": 132.3
+        "ros_pts": 132.3,
+        "ros_par": 49.3
        }
       ],
       "picks": [
@@ -4158,10 +4486,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -207.6
+     "swing_ros_pts": -207.6,
+     "swing_par_pts": -31.6
     }
    ],
    "winner": "tjt5055",
+   "margin_par_pts": 31.6,
    "margin_ros_pts": 207.6
   },
   {
@@ -4178,7 +4508,8 @@
         "id": "5850",
         "name": "Josh Jacobs",
         "pos": "RB",
-        "ros_pts": 122.1
+        "ros_pts": 122.1,
+        "ros_par": 41.1
        }
       ],
       "picks": [
@@ -4196,7 +4527,8 @@
         "id": "7607",
         "name": "Michael Carter",
         "pos": "RB",
-        "ros_pts": 53.8
+        "ros_pts": 53.8,
+        "ros_par": -19.1
        }
       ],
       "picks": [
@@ -4208,7 +4540,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 68.3
+     "swing_ros_pts": 68.3,
+     "swing_par_pts": 60.2
     },
     {
      "manager": "kylefiggy",
@@ -4219,7 +4552,8 @@
         "id": "7607",
         "name": "Michael Carter",
         "pos": "RB",
-        "ros_pts": 53.8
+        "ros_pts": 53.8,
+        "ros_par": -19.1
        }
       ],
       "picks": [
@@ -4237,7 +4571,8 @@
         "id": "5850",
         "name": "Josh Jacobs",
         "pos": "RB",
-        "ros_pts": 122.1
+        "ros_pts": 122.1,
+        "ros_par": 41.1
        }
       ],
       "picks": [
@@ -4249,10 +4584,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -68.3
+     "swing_ros_pts": -68.3,
+     "swing_par_pts": -60.2
     }
    ],
    "winner": "apatel185",
+   "margin_par_pts": 60.2,
    "margin_ros_pts": 68.3
   },
   {
@@ -4269,13 +4606,15 @@
         "id": "7564",
         "name": "Ja'Marr Chase",
         "pos": "WR",
-        "ros_pts": 81.8
+        "ros_pts": 81.8,
+        "ros_par": 32.0
        },
        {
         "id": "8155",
         "name": "Breece Hall",
         "pos": "RB",
-        "ros_pts": 89.1
+        "ros_pts": 89.1,
+        "ros_par": 24.3
        }
       ],
       "picks": [
@@ -4298,13 +4637,15 @@
         "id": "12501",
         "name": "Matthew Golden",
         "pos": "WR",
-        "ros_pts": 12.0
+        "ros_pts": 12.0,
+        "ros_par": -21.2
        },
        {
         "id": "7594",
         "name": "Chuba Hubbard",
         "pos": "RB",
-        "ros_pts": 40.5
+        "ros_pts": 40.5,
+        "ros_par": -16.2
        }
       ],
       "picks": [
@@ -4321,7 +4662,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 118.4
+     "swing_ros_pts": 118.4,
+     "swing_par_pts": 93.7
     },
     {
      "manager": "LEMVP",
@@ -4332,13 +4674,15 @@
         "id": "12501",
         "name": "Matthew Golden",
         "pos": "WR",
-        "ros_pts": 12.0
+        "ros_pts": 12.0,
+        "ros_par": -21.2
        },
        {
         "id": "7594",
         "name": "Chuba Hubbard",
         "pos": "RB",
-        "ros_pts": 40.5
+        "ros_pts": 40.5,
+        "ros_par": -16.2
        }
       ],
       "picks": [
@@ -4361,13 +4705,15 @@
         "id": "7564",
         "name": "Ja'Marr Chase",
         "pos": "WR",
-        "ros_pts": 81.8
+        "ros_pts": 81.8,
+        "ros_par": 32.0
        },
        {
         "id": "8155",
         "name": "Breece Hall",
         "pos": "RB",
-        "ros_pts": 89.1
+        "ros_pts": 89.1,
+        "ros_par": 24.3
        }
       ],
       "picks": [
@@ -4384,10 +4730,12 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -118.4
+     "swing_ros_pts": -118.4,
+     "swing_par_pts": -93.7
     }
    ],
    "winner": "apatel185",
+   "margin_par_pts": 93.7,
    "margin_ros_pts": 118.4
   },
   {
@@ -4404,7 +4752,8 @@
         "id": "12492",
         "name": "Pat Bryant",
         "pos": "WR",
-        "ros_pts": 33.1
+        "ros_pts": 33.1,
+        "ros_par": -8.4
        }
       ],
       "picks": [],
@@ -4416,13 +4765,15 @@
         "id": "9225",
         "name": "Tank Bigsby",
         "pos": "RB",
-        "ros_pts": 22.1
+        "ros_pts": 22.1,
+        "ros_par": -34.6
        }
       ],
       "picks": [],
       "faab": 0
      },
-     "swing_ros_pts": 11.0
+     "swing_ros_pts": 11.0,
+     "swing_par_pts": 26.2
     },
     {
      "manager": "bigguap69",
@@ -4433,7 +4784,8 @@
         "id": "9225",
         "name": "Tank Bigsby",
         "pos": "RB",
-        "ros_pts": 22.1
+        "ros_pts": 22.1,
+        "ros_par": -34.6
        }
       ],
       "picks": [],
@@ -4445,16 +4797,19 @@
         "id": "12492",
         "name": "Pat Bryant",
         "pos": "WR",
-        "ros_pts": 33.1
+        "ros_pts": 33.1,
+        "ros_par": -8.4
        }
       ],
       "picks": [],
       "faab": 5
      },
-     "swing_ros_pts": -11.0
+     "swing_ros_pts": -11.0,
+     "swing_par_pts": -26.2
     }
    ],
    "winner": "tjt5055",
+   "margin_par_pts": 26.2,
    "margin_ros_pts": 11.0
   },
   {
@@ -4462,35 +4817,6 @@
    "week": 9,
    "transaction_id": "1290833250293395456",
    "parties": [
-    {
-     "manager": "tjt5055",
-     "roster_id": 11,
-     "received": {
-      "players": [
-       {
-        "id": "8154",
-        "name": "Brian Robinson",
-        "pos": "RB",
-        "ros_pts": 28.3
-       }
-      ],
-      "picks": [],
-      "faab": 0
-     },
-     "sent": {
-      "players": [
-       {
-        "id": "7591",
-        "name": "Justin Fields",
-        "pos": "QB",
-        "ros_pts": 27.3
-       }
-      ],
-      "picks": [],
-      "faab": 0
-     },
-     "swing_ros_pts": 1.0
-    },
     {
      "manager": "LEMVP",
      "roster_id": 6,
@@ -4500,7 +4826,8 @@
         "id": "7591",
         "name": "Justin Fields",
         "pos": "QB",
-        "ros_pts": 27.3
+        "ros_pts": 27.3,
+        "ros_par": -12.1
        }
       ],
       "picks": [],
@@ -4512,17 +4839,52 @@
         "id": "8154",
         "name": "Brian Robinson",
         "pos": "RB",
-        "ros_pts": 28.3
+        "ros_pts": 28.3,
+        "ros_par": -28.4
        }
       ],
       "picks": [],
       "faab": 0
      },
-     "swing_ros_pts": -1.0
+     "swing_ros_pts": -1.0,
+     "swing_par_pts": 16.3
+    },
+    {
+     "manager": "tjt5055",
+     "roster_id": 11,
+     "received": {
+      "players": [
+       {
+        "id": "8154",
+        "name": "Brian Robinson",
+        "pos": "RB",
+        "ros_pts": 28.3,
+        "ros_par": -28.4
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "sent": {
+      "players": [
+       {
+        "id": "7591",
+        "name": "Justin Fields",
+        "pos": "QB",
+        "ros_pts": 27.3,
+        "ros_par": -12.1
+       }
+      ],
+      "picks": [],
+      "faab": 0
+     },
+     "swing_ros_pts": 1.0,
+     "swing_par_pts": -16.3
     }
    ],
-   "winner": "tjt5055",
-   "margin_ros_pts": 1.0
+   "winner": "LEMVP",
+   "margin_par_pts": 16.3,
+   "margin_ros_pts": -1.0
   },
   {
    "season": 2025,
@@ -4538,13 +4900,15 @@
         "id": "8137",
         "name": "George Pickens",
         "pos": "WR",
-        "ros_pts": 107.1
+        "ros_pts": 107.1,
+        "ros_par": 49.0
        },
        {
         "id": "8138",
         "name": "James Cook",
         "pos": "RB",
-        "ros_pts": 130.8
+        "ros_pts": 130.8,
+        "ros_par": 74.1
        }
       ],
       "picks": [
@@ -4567,13 +4931,15 @@
         "id": "3200",
         "name": "Sterling Shepard",
         "pos": "WR",
-        "ros_pts": 12.8
+        "ros_pts": 12.8,
+        "ros_par": -20.4
        },
        {
         "id": "9753",
         "name": "Zach Charbonnet",
         "pos": "RB",
-        "ros_pts": 77.7
+        "ros_pts": 77.7,
+        "ros_par": 21.0
        }
       ],
       "picks": [
@@ -4590,7 +4956,8 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": 147.4
+     "swing_ros_pts": 147.4,
+     "swing_par_pts": 122.5
     },
     {
      "manager": "dibach215",
@@ -4601,13 +4968,15 @@
         "id": "3200",
         "name": "Sterling Shepard",
         "pos": "WR",
-        "ros_pts": 12.8
+        "ros_pts": 12.8,
+        "ros_par": -20.4
        },
        {
         "id": "9753",
         "name": "Zach Charbonnet",
         "pos": "RB",
-        "ros_pts": 77.7
+        "ros_pts": 77.7,
+        "ros_par": 21.0
        }
       ],
       "picks": [
@@ -4630,13 +4999,15 @@
         "id": "8137",
         "name": "George Pickens",
         "pos": "WR",
-        "ros_pts": 107.1
+        "ros_pts": 107.1,
+        "ros_par": 49.0
        },
        {
         "id": "8138",
         "name": "James Cook",
         "pos": "RB",
-        "ros_pts": 130.8
+        "ros_pts": 130.8,
+        "ros_par": 74.1
        }
       ],
       "picks": [
@@ -4653,122 +5024,37 @@
       ],
       "faab": 0
      },
-     "swing_ros_pts": -147.4
+     "swing_ros_pts": -147.4,
+     "swing_par_pts": -122.5
     }
    ],
    "winner": "TBreswick",
+   "margin_par_pts": 122.5,
    "margin_ros_pts": 147.4
   }
  ],
  "standings": [
-  {
-   "manager": "troymullings",
-   "deals": 4,
-   "wins": 2,
-   "losses": 1,
-   "pushes": 1,
-   "net_ros_pts": 287.6,
-   "biggest_heist": {
-    "season": 2023,
-    "week": 3,
-    "swing_ros_pts": 315.4,
-    "counterparty": "kbrower",
-    "received": [
-     "DJ Moore",
-     "Josh Allen",
-     "Justice Hill",
-     "Jake Ferguson",
-     "R1 '24 pick",
-     "R3 '24 pick"
-    ]
-   },
-   "worst_deal": {
-    "season": 2023,
-    "week": 7,
-    "swing_ros_pts": -148.2,
-    "counterparty": "wvw5022",
-    "received": [
-     "Travis Kelce",
-     "R14 '24 pick"
-    ]
-   }
-  },
   {
    "manager": "Wi1dboy",
    "deals": 2,
    "wins": 2,
    "losses": 0,
    "pushes": 0,
+   "net_par_pts": 188.2,
    "net_ros_pts": 266.6,
    "biggest_heist": {
     "season": 2025,
     "week": 3,
+    "swing_par_pts": 147.2,
     "swing_ros_pts": 144.6,
     "counterparty": "tjt5055",
     "received": [
      "Jahmyr Gibbs"
     ]
    },
-   "worst_deal": null
-  },
-  {
-   "manager": "emattessich",
-   "deals": 8,
-   "wins": 4,
-   "losses": 1,
-   "pushes": 3,
-   "net_ros_pts": 200.9,
-   "biggest_heist": {
-    "season": 2023,
-    "week": 6,
-    "swing_ros_pts": 132.4,
-    "counterparty": "bigguap69",
-    "received": [
-     "Evan Engram",
-     "Breece Hall"
-    ]
-   },
-   "worst_deal": {
-    "season": 2024,
-    "week": 11,
-    "swing_ros_pts": -59.3,
-    "counterparty": "bigguap69",
-    "received": [
-     "Amari Cooper",
-     "R2 '25 pick"
-    ]
-   }
-  },
-  {
-   "manager": "tjt5055",
-   "deals": 16,
-   "wins": 8,
-   "losses": 5,
-   "pushes": 3,
-   "net_ros_pts": 166.5,
-   "biggest_heist": {
-    "season": 2025,
-    "week": 6,
-    "swing_ros_pts": 207.6,
-    "counterparty": "kylefiggy",
-    "received": [
-     "Tyler Warren",
-     "CeeDee Lamb",
-     "R13 '26 pick",
-     "R4 '26 pick",
-     "R8 '26 pick"
-    ]
-   },
-   "worst_deal": {
-    "season": 2024,
-    "week": 9,
-    "swing_ros_pts": -158.1,
-    "counterparty": "bigguap69",
-    "received": [
-     "Sean Tucker",
-     "R1 '25 pick"
-    ]
-   }
+   "worst_deal": null,
+   "rank_par": 1,
+   "rank_raw": 2
   },
   {
    "manager": "TBreswick",
@@ -4776,10 +5062,12 @@
    "wins": 2,
    "losses": 2,
    "pushes": 2,
+   "net_par_pts": 125.5,
    "net_ros_pts": 142.1,
    "biggest_heist": {
     "season": 2025,
     "week": 10,
+    "swing_par_pts": 122.5,
     "swing_ros_pts": 147.4,
     "counterparty": "dibach215",
     "received": [
@@ -4792,6 +5080,7 @@
    "worst_deal": {
     "season": 2023,
     "week": 11,
+    "swing_par_pts": -59.0,
     "swing_ros_pts": -60.2,
     "counterparty": "kylefiggy",
     "received": [
@@ -4799,7 +5088,152 @@
      "R2 '24 pick",
      "R4 '24 pick"
     ]
-   }
+   },
+   "rank_par": 2,
+   "rank_raw": 5
+  },
+  {
+   "manager": "emattessich",
+   "deals": 8,
+   "wins": 4,
+   "losses": 1,
+   "pushes": 3,
+   "net_par_pts": 114.8,
+   "net_ros_pts": 200.9,
+   "biggest_heist": {
+    "season": 2023,
+    "week": 6,
+    "swing_par_pts": 69.4,
+    "swing_ros_pts": 132.4,
+    "counterparty": "bigguap69",
+    "received": [
+     "Evan Engram",
+     "Breece Hall"
+    ]
+   },
+   "worst_deal": {
+    "season": 2024,
+    "week": 11,
+    "swing_par_pts": -41.5,
+    "swing_ros_pts": -59.3,
+    "counterparty": "bigguap69",
+    "received": [
+     "Amari Cooper",
+     "R2 '25 pick"
+    ]
+   },
+   "rank_par": 3,
+   "rank_raw": 3
+  },
+  {
+   "manager": "kylefiggy",
+   "deals": 7,
+   "wins": 3,
+   "losses": 2,
+   "pushes": 2,
+   "net_par_pts": 50.0,
+   "net_ros_pts": -248.5,
+   "biggest_heist": {
+    "season": 2023,
+    "week": 11,
+    "swing_par_pts": 59.0,
+    "swing_ros_pts": 60.2,
+    "counterparty": "TBreswick",
+    "received": [
+     "Joe Burrow",
+     "Jahmyr Gibbs",
+     "R12 '24 pick",
+     "R14 '24 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2025,
+    "week": 6,
+    "swing_par_pts": -60.2,
+    "swing_ros_pts": -68.3,
+    "counterparty": "apatel185",
+    "received": [
+     "Michael Carter",
+     "R1 '26 pick"
+    ]
+   },
+   "rank_par": 4,
+   "rank_raw": 11
+  },
+  {
+   "manager": "troymullings",
+   "deals": 4,
+   "wins": 2,
+   "losses": 1,
+   "pushes": 1,
+   "net_par_pts": 49.6,
+   "net_ros_pts": 287.6,
+   "biggest_heist": {
+    "season": 2024,
+    "week": 10,
+    "swing_par_pts": 118.8,
+    "swing_ros_pts": 120.4,
+    "counterparty": "apatel185",
+    "received": [
+     "Mike Evans",
+     "Josh Allen",
+     "Terry McLaurin",
+     "R16 '25 pick",
+     "R17 '25 pick",
+     "R4 '25 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2023,
+    "week": 7,
+    "swing_par_pts": -71.7,
+    "swing_ros_pts": -148.2,
+    "counterparty": "wvw5022",
+    "received": [
+     "Travis Kelce",
+     "R14 '24 pick"
+    ]
+   },
+   "rank_par": 5,
+   "rank_raw": 1
+  },
+  {
+   "manager": "wvw5022",
+   "deals": 5,
+   "wins": 2,
+   "losses": 2,
+   "pushes": 1,
+   "net_par_pts": 36.0,
+   "net_ros_pts": 8.2,
+   "biggest_heist": {
+    "season": 2023,
+    "week": 7,
+    "swing_par_pts": 71.7,
+    "swing_ros_pts": 148.2,
+    "counterparty": "troymullings",
+    "received": [
+     "George Kittle",
+     "Calvin Ridley",
+     "R1 '24 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2023,
+    "week": 10,
+    "swing_par_pts": -46.7,
+    "swing_ros_pts": -149.9,
+    "counterparty": "kylefiggy",
+    "received": [
+     "P.J. Walker",
+     "Kenny Gainwell",
+     "Tank Dell",
+     "R1 '24 pick",
+     "R15 '24 pick",
+     "R7 '24 pick"
+    ]
+   },
+   "rank_par": 6,
+   "rank_raw": 8
   },
   {
    "manager": "apatel185",
@@ -4807,10 +5241,12 @@
    "wins": 2,
    "losses": 2,
    "pushes": 0,
+   "net_par_pts": 21.5,
    "net_ros_pts": 61.1,
    "biggest_heist": {
     "season": 2025,
     "week": 9,
+    "swing_par_pts": 93.7,
     "swing_ros_pts": 118.4,
     "counterparty": "LEMVP",
     "received": [
@@ -4823,6 +5259,7 @@
    "worst_deal": {
     "season": 2024,
     "week": 10,
+    "swing_par_pts": -118.8,
     "swing_ros_pts": -120.4,
     "counterparty": "troymullings",
     "received": [
@@ -4833,29 +5270,102 @@
      "R2 '25 pick",
      "R4 '25 pick"
     ]
-   }
+   },
+   "rank_par": 7,
+   "rank_raw": 6
   },
   {
-   "manager": "dibach215",
-   "deals": 6,
+   "manager": "kbrower",
+   "deals": 10,
    "wins": 3,
-   "losses": 3,
-   "pushes": 0,
-   "net_ros_pts": 35.7,
+   "losses": 4,
+   "pushes": 3,
+   "net_par_pts": -5.2,
+   "net_ros_pts": -367.9,
    "biggest_heist": {
     "season": 2023,
-    "week": 2,
-    "swing_ros_pts": 151.8,
-    "counterparty": "BigDickNicholas",
+    "week": 9,
+    "swing_par_pts": 54.5,
+    "swing_ros_pts": 26.8,
+    "counterparty": "tjt5055",
     "received": [
-     "DeVonta Smith",
+     "George Kittle",
+     "Justin Herbert",
+     "R12 '26 pick",
+     "R15 '26 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2023,
+    "week": 5,
+    "swing_par_pts": -82.6,
+    "swing_ros_pts": -75.5,
+    "counterparty": "TBreswick",
+    "received": [
+     "Garrett Wilson",
+     "R7 '24 pick"
+    ]
+   },
+   "rank_par": 8,
+   "rank_raw": 13
+  },
+  {
+   "manager": "tjt5055",
+   "deals": 16,
+   "wins": 7,
+   "losses": 6,
+   "pushes": 3,
+   "net_par_pts": -55.3,
+   "net_ros_pts": 166.5,
+   "biggest_heist": {
+    "season": 2023,
+    "week": 10,
+    "swing_par_pts": 90.4,
+    "swing_ros_pts": 133.3,
+    "counterparty": "LEMVP",
+    "received": [
+     "DK Metcalf",
+     "Jaylen Waddle",
      "R17 '24 pick",
      "R8 '24 pick"
     ]
    },
    "worst_deal": {
     "season": 2025,
+    "week": 3,
+    "swing_par_pts": -147.2,
+    "swing_ros_pts": -144.6,
+    "counterparty": "Wi1dboy",
+    "received": [
+     "Justin Jefferson"
+    ]
+   },
+   "rank_par": 9,
+   "rank_raw": 4
+  },
+  {
+   "manager": "dibach215",
+   "deals": 6,
+   "wins": 4,
+   "losses": 2,
+   "pushes": 0,
+   "net_par_pts": -75.1,
+   "net_ros_pts": 35.7,
+   "biggest_heist": {
+    "season": 2023,
     "week": 10,
+    "swing_par_pts": 42.5,
+    "swing_ros_pts": 42.4,
+    "counterparty": "bigguap69",
+    "received": [
+     "Lamar Jackson",
+     "R5 '24 pick"
+    ]
+   },
+   "worst_deal": {
+    "season": 2025,
+    "week": 10,
+    "swing_par_pts": -122.5,
     "swing_ros_pts": -147.4,
     "counterparty": "TBreswick",
     "received": [
@@ -4864,51 +5374,88 @@
      "R1 '26 pick",
      "R3 '26 pick"
     ]
-   }
+   },
+   "rank_par": 10,
+   "rank_raw": 7
   },
   {
-   "manager": "wvw5022",
-   "deals": 5,
+   "manager": "BigDickNicholas",
+   "deals": 7,
    "wins": 2,
-   "losses": 2,
+   "losses": 4,
    "pushes": 1,
-   "net_ros_pts": 8.2,
+   "net_par_pts": -95.3,
+   "net_ros_pts": -199.2,
    "biggest_heist": {
     "season": 2023,
-    "week": 7,
-    "swing_ros_pts": 148.2,
-    "counterparty": "troymullings",
+    "week": 4,
+    "swing_par_pts": 25.1,
+    "swing_ros_pts": 50.3,
+    "counterparty": "kbrower",
     "received": [
-     "George Kittle",
-     "Calvin Ridley",
-     "R1 '24 pick"
+     "David Njoku",
+     "R4 '24 pick"
     ]
    },
    "worst_deal": {
-    "season": 2023,
-    "week": 10,
-    "swing_ros_pts": -149.9,
-    "counterparty": "kylefiggy",
+    "season": 2025,
+    "week": 6,
+    "swing_par_pts": -41.0,
+    "swing_ros_pts": -122.0,
+    "counterparty": "Wi1dboy",
     "received": [
-     "P.J. Walker",
-     "Kenny Gainwell",
-     "Tank Dell",
-     "R1 '24 pick",
-     "R15 '24 pick",
-     "R7 '24 pick"
+     "R2 '26 pick"
     ]
-   }
+   },
+   "rank_par": 11,
+   "rank_raw": 10
+  },
+  {
+   "manager": "LEMVP",
+   "deals": 3,
+   "wins": 1,
+   "losses": 2,
+   "pushes": 0,
+   "net_par_pts": -167.8,
+   "net_ros_pts": -252.7,
+   "biggest_heist": {
+    "season": 2025,
+    "week": 9,
+    "swing_par_pts": 16.3,
+    "swing_ros_pts": -1.0,
+    "counterparty": "tjt5055",
+    "received": [
+     "Justin Fields"
+    ]
+   },
+   "worst_deal": {
+    "season": 2025,
+    "week": 9,
+    "swing_par_pts": -93.7,
+    "swing_ros_pts": -118.4,
+    "counterparty": "apatel185",
+    "received": [
+     "Matthew Golden",
+     "Chuba Hubbard",
+     "R2 '26 pick",
+     "R4 '26 pick"
+    ]
+   },
+   "rank_par": 12,
+   "rank_raw": 12
   },
   {
    "manager": "bigguap69",
    "deals": 12,
-   "wins": 3,
-   "losses": 7,
+   "wins": 2,
+   "losses": 8,
    "pushes": 2,
+   "net_par_pts": -186.9,
    "net_ros_pts": -100.4,
    "biggest_heist": {
     "season": 2024,
     "week": 9,
+    "swing_par_pts": 55.4,
     "swing_ros_pts": 158.1,
     "counterparty": "tjt5055",
     "received": [
@@ -4919,127 +5466,16 @@
    "worst_deal": {
     "season": 2023,
     "week": 6,
+    "swing_par_pts": -69.4,
     "swing_ros_pts": -132.4,
     "counterparty": "emattessich",
     "received": [
      "Mark Andrews",
      "Gabe Davis"
     ]
-   }
-  },
-  {
-   "manager": "BigDickNicholas",
-   "deals": 7,
-   "wins": 3,
-   "losses": 3,
-   "pushes": 1,
-   "net_ros_pts": -199.2,
-   "biggest_heist": {
-    "season": 2024,
-    "week": 9,
-    "swing_ros_pts": 58.3,
-    "counterparty": "tjt5055",
-    "received": [
-     "Justin Herbert"
-    ]
    },
-   "worst_deal": {
-    "season": 2023,
-    "week": 2,
-    "swing_ros_pts": -151.8,
-    "counterparty": "dibach215",
-    "received": [
-     "R2 '24 pick",
-     "R6 '24 pick"
-    ]
-   }
-  },
-  {
-   "manager": "kylefiggy",
-   "deals": 7,
-   "wins": 2,
-   "losses": 3,
-   "pushes": 2,
-   "net_ros_pts": -248.5,
-   "biggest_heist": {
-    "season": 2023,
-    "week": 10,
-    "swing_ros_pts": 149.9,
-    "counterparty": "wvw5022",
-    "received": [
-     "James Conner",
-     "Justin Jefferson",
-     "Sam Howell",
-     "R16 '24 pick",
-     "R8 '24 pick",
-     "R9 '24 pick"
-    ]
-   },
-   "worst_deal": {
-    "season": 2025,
-    "week": 6,
-    "swing_ros_pts": -207.6,
-    "counterparty": "tjt5055",
-    "received": [
-     "R1 '26 pick",
-     "R2 '26 pick",
-     "R4 '26 pick"
-    ]
-   }
-  },
-  {
-   "manager": "LEMVP",
-   "deals": 3,
-   "wins": 0,
-   "losses": 3,
-   "pushes": 0,
-   "net_ros_pts": -252.7,
-   "biggest_heist": null,
-   "worst_deal": {
-    "season": 2023,
-    "week": 10,
-    "swing_ros_pts": -133.3,
-    "counterparty": "tjt5055",
-    "received": [
-     "Jonnu Smith",
-     "Rashid Shaheed",
-     "R15 '24 pick",
-     "R3 '24 pick"
-    ]
-   }
-  },
-  {
-   "manager": "kbrower",
-   "deals": 10,
-   "wins": 3,
-   "losses": 4,
-   "pushes": 3,
-   "net_ros_pts": -367.9,
-   "biggest_heist": {
-    "season": 2024,
-    "week": 10,
-    "swing_ros_pts": 97.3,
-    "counterparty": "tjt5055",
-    "received": [
-     "George Kittle",
-     "George Pickens",
-     "R16 '25 pick"
-    ]
-   },
-   "worst_deal": {
-    "season": 2023,
-    "week": 3,
-    "swing_ros_pts": -315.4,
-    "counterparty": "troymullings",
-    "received": [
-     "Keenan Allen",
-     "Jimmy Garoppolo",
-     "Kyren Williams",
-     "Anthony Richardson",
-     "R1 '24 pick",
-     "R4 '24 pick"
-    ]
-   }
+   "rank_par": 13,
+   "rank_raw": 9
   }
  ]
 }

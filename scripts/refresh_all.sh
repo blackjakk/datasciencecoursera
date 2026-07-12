@@ -82,6 +82,8 @@ do_sim() {
 
 # ---------- LAYER 4: reports ----------
 do_reports() {
+  log "Option Book: empirical stash curve (feeds helper data + advisor)"
+  python3 scripts/stash_curve.py
   log "Render Power Rankings PDF"
   python3 scripts/build_power_rankings.py
   log "Render 2026 Preseason GUAP Rankings PDF"
@@ -98,6 +100,8 @@ do_reports() {
   python3 scripts/build_trade_ledger.py
   python3 scripts/build_autopsy_2025.py
   python3 scripts/build_pick_squeeze.py
+  python3 scripts/build_keeper_sensitivity.py
+  python3 scripts/backtest_survival_calibration.py
   python3 scripts/build_research_desk.py
 }
 

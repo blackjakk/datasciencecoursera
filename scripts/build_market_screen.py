@@ -78,6 +78,41 @@ def _read_phrase(entry: dict) -> str:
     return f"the room pays R{sr} · experts see R{fr}"
 
 
+def _survival_at(q: list[int] | None, overall: float) -> float:
+    """P(player still available at overall pick N) from the Monte Carlo
+    draft-position quantiles svq = [p0, p10, ..., p100] of where he left
+    the board across the sims (helper data.json). Same 11-point linear
+    interpolation as the helper's survivalAt() — avail(N) = 1 - F(N).
+    No svq = never drafted in any sim = always there."""
+    if not q:
+        return 1.0
+    if overall <= q[0]:
+        return 1.0
+    if overall > q[10]:
+        return 0.0
+    for i in range(1, 11):
+        if overall <= q[i]:
+            span = (q[i] - q[i - 1]) or 1
+            f = (i - 1 + (overall - q[i - 1]) / span) / 10
+            return max(0.0, min(1.0, 1.0 - f))
+    return 0.0
+
+
+def _my_live_picks(helper: dict) -> list[dict]:
+    """Brian's own picks that actually go on the clock: slot-6 schedule
+    minus the rounds his keepers consume (seats spent before pick 1)."""
+    my_idx = helper["my_team_idx"]
+    my_rid = next(m["roster_id"] for m in helper["managers"]
+                  if m["team_idx"] == my_idx)
+    keeper_rounds = {k["effective_forfeit_round"] for k in helper["keepers"]
+                     if k["roster_id"] == my_rid
+                     and k.get("status") == "carryover"}
+    return sorted((s for s in helper["schedule"]
+                   if s["team_idx"] == my_idx
+                   and s["round"] not in keeper_rounds),
+                  key=lambda s: s["overall"])
+
+
 def _kept_names() -> set[str]:
     """Names off the board before pick 1: every carryover keeper league-wide
     (Christian Watson is Brian's keeper — he slides to nobody)."""
@@ -178,6 +213,9 @@ def compute_model_vs_paper(top_n: int = TOP_N) -> dict:
     board.sort(key=lambda t: -t[2])
     model_rank = {(_norm(n), pos.upper()): i + 1
                   for i, (n, pos, _) in enumerate(board)}
+    svq_by_key = {(_norm(pl["name"]), pl["pos"].upper()): pl.get("svq")
+                  for pl in helper["players"]}
+    my_picks = _my_live_picks(helper)
 
     fp = json.loads(FP_PATH.read_text(encoding="utf-8"))
     rows = []
@@ -192,7 +230,7 @@ def compute_model_vs_paper(top_n: int = TOP_N) -> dict:
         if r_model is None or r_model > 200:
             continue
         gap = r_fp - r_model
-        rows.append({
+        row = {
             "name": p["name"], "position": p["position"],
             "team": p.get("team", ""),
             "model_rank": r_model, "model_round": _round_of(r_model),
@@ -200,7 +238,22 @@ def compute_model_vs_paper(top_n: int = TOP_N) -> dict:
             "gap": gap,
             "read": (f"our board R{_round_of(r_model)} · "
                      f"their paper R{_round_of(r_fp)}"),
-        })
+        }
+        if gap > 0:
+            # REACHABILITY: an edge that can't reach Brian isn't an edge.
+            # The player's paper price is fp_round; the earliest seat where
+            # Brian can act on the sleep is his nearest own live pick at or
+            # after that round. reach = MC survival probability there.
+            seat = next((s for s in my_picks if s["round"] >= row["fp_round"]),
+                        None)
+            reach = (_survival_at(svq_by_key.get(key), seat["overall"])
+                     if seat else 0.0)
+            row["reach"] = round(reach, 3)
+            row["reach_pct"] = int(round(reach * 100))
+            row["reach_pick"] = seat["overall"] if seat else None
+            row["reach_round"] = seat["round"] if seat else None
+            row["edge_score"] = round(gap * reach, 1)
+        rows.append(row)
     return {
         "meta": {
             "generated": date.today().isoformat(),
@@ -208,9 +261,15 @@ def compute_model_vs_paper(top_n: int = TOP_N) -> dict:
             "paper_source": (f"FP OP consensus ({fp.get('total_experts', '?')} "
                              "experts) — the room brings superflex paper"),
             "players_compared": len(rows),
+            "reach_source": ("MC survival (svq quantiles, helper data.json) "
+                             "at Brian's nearest own live pick at/after the "
+                             "player's paper round; keeper rounds 8/9/14/15 "
+                             "consumed"),
+            "sheets_sleep_sort": "gap × reach (edge_score), desc",
         },
         "sheets_sleep": sorted((r for r in rows if r["gap"] > 0),
-                               key=lambda r: -r["gap"])[:top_n],
+                               key=lambda r: (-r["edge_score"], -r["gap"])
+                               )[:top_n],
         "sheets_love": sorted((r for r in rows if r["gap"] < 0),
                               key=lambda r: r["gap"])[:top_n],
     }
@@ -245,10 +304,14 @@ def summary_lines(result: dict | None = None, top_n: int = 5) -> list[str]:
     try:
         mvp = compute_model_vs_paper()
         lines += ["", "MODEL vs THE ROOM'S PAPER (rivals bring superflex "
-                      "consensus — edge = where our board disagrees):"]
+                      "consensus — edge = where our board disagrees, "
+                      "sorted gap x reach):"]
         for e in mvp["sheets_sleep"][:3]:
+            reach = (f", {e['reach_pct']}% still there at your R"
+                     f"{e['reach_round']} seat" if e.get("reach_pct")
+                     is not None else "")
             lines.append(f"- {e['name']} ({e['position']}): {e['read']} "
-                         f"(+{e['gap']} ranks, slides to you)")
+                         f"(+{e['gap']} ranks{reach})")
         for e in mvp["sheets_love"][:2]:
             lines.append(f"- {e['name']} ({e['position']}): {e['read']} "
                          f"({e['gap']} ranks, let them pay it)")
@@ -286,13 +349,26 @@ def _table(entries: list[dict], gap_cls: str) -> str:
             f"<thead>{head}</thead><tbody>{''.join(body)}</tbody></table>")
 
 
-def _mvp_table(entries: list[dict], gap_cls: str) -> str:
+def _reach_cell(e: dict) -> str:
+    """Reach% styled like the helper's survival column (sv classes carry
+    the same hi/mid/lo thresholds: >=70 / >=30)."""
+    pct = e.get("reach_pct")
+    if pct is None or e.get("reach_pick") is None:
+        return '<td class="ml-num">—</td>'
+    cls = "ml-sv-hi" if pct >= 70 else ("ml-sv-mid" if pct >= 30 else "ml-sv-lo")
+    return (f'<td class="ml-num"><span class="{cls}">{pct}%</span> '
+            f'<span class="ml-note">R{e["reach_round"]}</span></td>')
+
+
+def _mvp_table(entries: list[dict], gap_cls: str, with_reach: bool = False) -> str:
+    reach_th = ('<th class="ml-num">Reach</th>' if with_reach else "")
     head = ("<tr><th>Asset</th><th>Pos</th>"
             '<th class="ml-num">Our board</th>'
             '<th class="ml-num">Their paper</th>'
-            '<th class="ml-num">Gap</th></tr>')
+            f'<th class="ml-num">Gap</th>{reach_th}</tr>')
     body = []
     for e in entries:
+        reach_td = _reach_cell(e) if with_reach else ""
         body.append(
             "<tr>"
             f'<td>{html.escape(e["name"])} '
@@ -301,28 +377,33 @@ def _mvp_table(entries: list[dict], gap_cls: str) -> str:
             f'<td class="ml-num">#{e["model_rank"]} · R{e["model_round"]}</td>'
             f'<td class="ml-num">#{e["fp_rank"]} · R{e["fp_round"]}</td>'
             f'<td class="ml-num {gap_cls}">{e["gap"]:+d}</td>'
+            f"{reach_td}"
             "</tr>")
     if not body:
-        body = ['<tr><td colspan="5" class="ml-empty">Our board and the '
-                "paper agree — no edges here.</td></tr>"]
+        cols = 6 if with_reach else 5
+        body = [f'<tr><td colspan="{cols}" class="ml-empty">Our board and '
+                "the paper agree — no edges here.</td></tr>"]
     return ('<table class="ml-table ml-table--compact">'
             f"<thead>{head}</thead><tbody>{''.join(body)}</tbody></table>")
 
 
-def build_model_block() -> str:
+def build_model_block(mvp: dict | None = None) -> str:
     """MODEL vs THE ROOM'S PAPER — the headline block. The room brings
     superflex consensus paper (user-confirmed), so the edge is where OUR
-    board disagrees with it."""
-    try:
-        mvp = compute_model_vs_paper(top_n=10)
-    except FileNotFoundError:
-        return ""
+    board disagrees with it — discounted by whether the edge can
+    actually reach Brian's seat (reach%)."""
+    if mvp is None:
+        try:
+            mvp = compute_model_vs_paper(top_n=10)
+        except FileNotFoundError:
+            return ""
     m = mvp["meta"]
     return "\n".join([
         '<div class="ml-h-label">Model vs the room\u2019s paper '
         "(they bring superflex consensus \u2014 this is the real edge)</div>",
-        '<div class="ml-h-label">The sheets sleep on \u2014 slides to you</div>',
-        _mvp_table(mvp["sheets_sleep"], "ml-sv-hi"),
+        '<div class="ml-h-label">The sheets sleep on \u2014 slides to you '
+        "(sorted by gap \u00d7 reach)</div>",
+        _mvp_table(mvp["sheets_sleep"], "ml-sv-hi", with_reach=True),
         '<div class="ml-h-label">The sheets love \u2014 let them pay the paper price</div>',
         _mvp_table(mvp["sheets_love"], "ml-sv-lo"),
         '<p class="ml-fineprint">This league drafts live and in person, and '
@@ -331,8 +412,15 @@ def build_model_block() -> str:
         "our league-specific board (superflex VBD + keeper context) departs "
         "from that consensus: positive gap = the paper ranks him later than "
         "we do, so he should reach your pick; negative gap = the paper is "
-        f"higher than our board, so someone else will pay it. Sources: "
-        f"{html.escape(m['model_source'])} vs {html.escape(m['paper_source'])}; "
+        "higher than our board, so someone else will pay it. REACH = Monte "
+        "Carlo survival probability (the helper\u2019s 300-sim draft-position "
+        "quantiles, same 11-point interpolation) at Brian\u2019s nearest own "
+        "live pick at or after the player\u2019s paper round \u2014 slot 6, "
+        "keeper rounds 8/9/14/15 already spent. The sleep table is ordered "
+        "by gap \u00d7 reach because an edge that can\u2019t reach your seat "
+        "isn\u2019t an edge: a big gap at single-digit reach is trivia, not "
+        f"a plan. Sources: {html.escape(m['model_source'])} vs "
+        f"{html.escape(m['paper_source'])}; "
         f"{m['players_compared']} players compared.</p>",
     ]) + "\n"
 
@@ -355,7 +443,7 @@ def build_fragment(result: dict) -> str:
         '<div class="ml-h-label">Overpriced — the room is early '
         "(let them reach)</div>",
         _table(early, "ml-sv-lo"),
-        build_model_block(),
+        build_model_block(result.get("model_vs_paper")),
         '<p class="ml-fineprint">How to read: the room drafts on Sleeper, '
         "so Sleeper superflex ADP is the price MONEYLEAGUE actually pays; "
         "FantasyPros is what the experts say the asset is worth. When the "
@@ -375,6 +463,10 @@ def build_fragment(result: dict) -> str:
 
 def main() -> None:
     result = compute_screen()
+    try:
+        result["model_vs_paper"] = compute_model_vs_paper(top_n=10)
+    except FileNotFoundError:
+        pass  # helper data.json missing — ADP screen still valid
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     jpath = OUT_DIR / "market_screen.json"
     hpath = OUT_DIR / "market_screen.html"
@@ -390,6 +482,13 @@ def main() -> None:
         if top:
             print(f"  #1 {label}: {top['name']} ({top['position']}) "
                   f"{top['gap']:+.0f} picks — {top['read']}")
+    mvp = result.get("model_vs_paper")
+    if mvp and mvp["sheets_sleep"]:
+        e = mvp["sheets_sleep"][0]
+        print(f"  #1 reachable edge: {e['name']} ({e['position']}) "
+              f"+{e['gap']} ranks x {e.get('reach_pct', '?')}% reach "
+              f"at R{e.get('reach_round', '?')} "
+              f"(edge_score {e.get('edge_score')})")
     print(f"  Wrote {jpath.relative_to(ROOT)} and {hpath.relative_to(ROOT)}")
 
 

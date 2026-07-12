@@ -66,6 +66,18 @@ RIVALS = {  # display name -> user_id (the 11 current counterparties)
 
 POS_ORDER = ("QB", "RB", "WR", "TE", "K", "DEF")
 
+# GRADING v2 — points ABOVE positional replacement (PAR). Raw half-PPR
+# points let QB volume dominate every grade (a mediocre QB outscores a
+# good WR most weeks in raw points). Replacement level per position =
+# the season's MEDIAN weekly score of the rank-N player that week, where
+# N is the last body a 12-team room is starting anyway:
+#   QB12 (12 starters even before superflex), RB30 (2 RB + flex share),
+#   WR36 (3 WR starters), TE12, K12, DEF12.
+# A player-week's PAR = weekly pts - replacement level for his position;
+# weeks with no stat line contribute 0 (a replacement body fills in).
+REPLACEMENT_RANKS = {"QB": 12, "RB": 30, "WR": 36, "TE": 12,
+                     "K": 12, "DEF": 12}
+
 
 def _load(path: Path):
     return json.loads(path.read_text())
@@ -101,6 +113,35 @@ class Desk:
         p = self.players.get(pid) or {}
         return p.get("position") or (p.get("fantasy_positions") or ["?"])[0]
 
+    def replacement_level(self, season: int, pos: str) -> float:
+        """Fixed per-position weekly replacement level for a season: the
+        median across weeks 1..17 of the rank-N weekly score at the
+        position (N per REPLACEMENT_RANKS). Cached per season."""
+        if not hasattr(self, "_repl"):
+            self._repl: dict[int, dict[str, float]] = {}
+        if season not in self._repl:
+            import statistics
+            levels: dict[str, float] = {}
+            for p, n in REPLACEMENT_RANKS.items():
+                weekly = []
+                for w in range(1, LAST_GRADED_WEEK + 1):
+                    rows = self.stats[season].get(str(w), {})
+                    pts = sorted((self._row_pts(r) for r in rows.values()
+                                  if r.get("pos") == p), reverse=True)
+                    if len(pts) >= n:
+                        weekly.append(pts[n - 1])
+                levels[p] = round(statistics.median(weekly), 2) if weekly else 0.0
+            self._repl[season] = levels
+        return self._repl[season].get(pos, 0.0)
+
+    @staticmethod
+    def _row_pts(row: dict) -> float:
+        if row.get("pts_half_ppr") is not None:
+            return float(row["pts_half_ppr"])
+        if row.get("pts_ppr") is not None:
+            return float(row["pts_ppr"]) - 0.5 * float(row.get("rec") or 0)
+        return 0.0
+
     def week_pts(self, season: int, week: int, pid: str) -> float:
         row = self.stats[season].get(str(week), {}).get(pid)
         if not row:
@@ -114,6 +155,19 @@ class Desk:
     def ros_pts(self, season: int, after_week: int, pid: str) -> float:
         return round(sum(self.week_pts(season, w, pid)
                          for w in range(after_week + 1, LAST_GRADED_WEEK + 1)), 1)
+
+    def ros_par(self, season: int, after_week: int, pid: str) -> float:
+        """Rest-of-season points ABOVE positional replacement: for each
+        week the player has a stat line, weekly pts minus the season's
+        fixed replacement level for his position; no line = 0 PAR."""
+        total = 0.0
+        for w in range(after_week + 1, LAST_GRADED_WEEK + 1):
+            row = self.stats[season].get(str(w), {}).get(pid)
+            if not row:
+                continue
+            pos = row.get("pos") or self.ppos(pid)
+            total += self._row_pts(row) - self.replacement_level(season, pos)
+        return round(total, 1)
 
     def inleague_trades(self, season: int) -> list[dict]:
         out = []
@@ -139,10 +193,12 @@ def grade_trade(desk: Desk, season: int, t: dict) -> dict:
         recv_players = [{
             "id": pid, "name": desk.pname(pid), "pos": desk.ppos(pid),
             "ros_pts": desk.ros_pts(season, week, pid),
+            "ros_par": desk.ros_par(season, week, pid),
         } for pid, to in adds.items() if to == rid]
         sent_players = [{
             "id": pid, "name": desk.pname(pid), "pos": desk.ppos(pid),
             "ros_pts": desk.ros_pts(season, week, pid),
+            "ros_par": desk.ros_par(season, week, pid),
         } for pid, frm in drops.items() if frm == rid]
         recv_picks = [{"season": p["season"], "round": p["round"],
                        "orig_slot": p["roster_id"]}
@@ -154,6 +210,8 @@ def grade_trade(desk: Desk, season: int, t: dict) -> dict:
         faab_out = sum(f["amount"] for f in faab if f["sender"] == rid)
         swing = round(sum(p["ros_pts"] for p in recv_players)
                       - sum(p["ros_pts"] for p in sent_players), 1)
+        swing_par = round(sum(p["ros_par"] for p in recv_players)
+                          - sum(p["ros_par"] for p in sent_players), 1)
         parties.append({
             "manager": desk.rid_to_mgr[season].get(rid, f"roster {rid}"),
             "roster_id": rid,
@@ -162,9 +220,12 @@ def grade_trade(desk: Desk, season: int, t: dict) -> dict:
             "sent": {"players": sent_players, "picks": sent_picks,
                      "faab": faab_out},
             "swing_ros_pts": swing,
+            "swing_par_pts": swing_par,
         })
-    parties.sort(key=lambda p: -p["swing_ros_pts"])
-    top = parties[0]["swing_ros_pts"]
+    # v2: verdicts and ordering run on PAR (points above positional
+    # replacement); raw points ride along as the secondary column.
+    parties.sort(key=lambda p: -p["swing_par_pts"])
+    top = parties[0]["swing_par_pts"]
     players_moved = any(p["received"]["players"] for p in parties)
     if not players_moved:
         verdict, margin = "PUSH — picks/FAAB only (graded 0)", 0.0
@@ -175,7 +236,9 @@ def grade_trade(desk: Desk, season: int, t: dict) -> dict:
     return {
         "season": season, "week": week,
         "transaction_id": t.get("transaction_id"),
-        "parties": parties, "winner": verdict, "margin_ros_pts": margin,
+        "parties": parties, "winner": verdict, "margin_par_pts": margin,
+        "margin_ros_pts": (parties[0]["swing_ros_pts"]
+                           if players_moved and top > 0 else 0.0),
     }
 
 
@@ -183,44 +246,64 @@ def build_ledger(desk: Desk) -> dict:
     trades = [grade_trade(desk, s, t) for s in SEASONS
               for t in desk.inleague_trades(s)]
     book: dict[str, dict] = defaultdict(lambda: {
-        "deals": 0, "wins": 0, "losses": 0, "pushes": 0, "net_ros_pts": 0.0,
+        "deals": 0, "wins": 0, "losses": 0, "pushes": 0,
+        "net_par_pts": 0.0, "net_ros_pts": 0.0,
         "biggest_heist": None, "worst_deal": None})
     for tr in trades:
         for p in tr["parties"]:
             row = book[p["manager"]]
             row["deals"] += 1
             row["net_ros_pts"] = round(row["net_ros_pts"] + p["swing_ros_pts"], 1)
-            if tr["margin_ros_pts"] == 0:
+            row["net_par_pts"] = round(row["net_par_pts"] + p["swing_par_pts"], 1)
+            if tr["margin_par_pts"] == 0:
                 row["pushes"] += 1
-            elif p["swing_ros_pts"] > 0:
+            elif p["swing_par_pts"] > 0:
                 row["wins"] += 1
             else:
                 row["losses"] += 1
             note = {"season": tr["season"], "week": tr["week"],
+                    "swing_par_pts": p["swing_par_pts"],
                     "swing_ros_pts": p["swing_ros_pts"],
                     "counterparty": next(q["manager"] for q in tr["parties"]
                                          if q is not p),
                     "received": [x["name"] for x in p["received"]["players"]] +
                                 [f"R{k['round']} '{str(k['season'])[2:]} pick"
                                  for k in p["received"]["picks"]]}
-            if p["swing_ros_pts"] > 0 and (row["biggest_heist"] is None or
-                    p["swing_ros_pts"] > row["biggest_heist"]["swing_ros_pts"]):
+            if p["swing_par_pts"] > 0 and (row["biggest_heist"] is None or
+                    p["swing_par_pts"] > row["biggest_heist"]["swing_par_pts"]):
                 row["biggest_heist"] = note
-            if p["swing_ros_pts"] < 0 and (row["worst_deal"] is None or
-                    p["swing_ros_pts"] < row["worst_deal"]["swing_ros_pts"]):
+            if p["swing_par_pts"] < 0 and (row["worst_deal"] is None or
+                    p["swing_par_pts"] < row["worst_deal"]["swing_par_pts"]):
                 row["worst_deal"] = note
     standings = sorted(({"manager": m, **v} for m, v in book.items()),
-                       key=lambda r: -r["net_ros_pts"])
+                       key=lambda r: -r["net_par_pts"])
+    raw_order = sorted(standings, key=lambda r: -r["net_ros_pts"])
+    raw_rank = {r["manager"]: i + 1 for i, r in enumerate(raw_order)}
+    for i, r in enumerate(standings, 1):
+        r["rank_par"] = i
+        r["rank_raw"] = raw_rank[r["manager"]]
     return {
         "generated": time.strftime("%Y-%m-%d"),
         "seasons": list(SEASONS),
         "method": {
-            "grade": "rest-of-season points swung: sum of weekly points in "
-                     f"weeks (trade week+1)..{LAST_GRADED_WEEK} for players "
-                     "received minus players sent, per side",
+            "grade": "v2 — rest-of-season points ABOVE POSITIONAL "
+                     "REPLACEMENT (PAR) swung: for players received minus "
+                     f"sent, weeks (trade week+1)..{LAST_GRADED_WEEK}; a "
+                     "player-week's PAR = weekly pts minus the season's "
+                     "fixed replacement level for his position; weeks with "
+                     "no stat line contribute 0",
+            "replacement": "per season+position: median across weeks 1..17 "
+                           "of the rank-N weekly score, N = "
+                           + ", ".join(f"{p}{n}" for p, n
+                                       in REPLACEMENT_RANKS.items()),
+            "raw_secondary": "raw rest-of-season points kept as a secondary "
+                             "column (net_ros_pts / swing_ros_pts)",
             "scoring": "pts_half_ppr; fallback pts_ppr - 0.5*rec",
             "picks_and_faab": "listed as assets, graded 0 points",
         },
+        "replacement_levels": {str(s): {p: desk.replacement_level(s, p)
+                                        for p in REPLACEMENT_RANKS}
+                               for s in SEASONS},
         "trade_counts_by_season": dict(Counter(t["season"] for t in trades)),
         "trades": trades,
         "standings": standings,
@@ -368,7 +451,7 @@ def ledger_html(ledger: dict) -> str:
     rows = []
     for tr in ledger["trades"]:
         a, b = tr["parties"][0], tr["parties"][1]
-        if tr["margin_ros_pts"] > 0:
+        if tr["margin_par_pts"] > 0:
             verdict = f"<strong>{esc(tr['winner'])}</strong>"
         else:
             verdict = f'<span class="ml-stat">{esc(tr["winner"])}</span>'
@@ -378,6 +461,7 @@ def ledger_html(ledger: dict) -> str:
             f'<td><strong>{esc(a["manager"])}</strong> &rlarr; {esc(b["manager"])}</td>'
             f'<td>{assets_str(a["received"])}</td>'
             f'<td>{assets_str(b["received"])}</td>'
+            f'<td class="ml-num">{swing_html(a["swing_par_pts"])}</td>'
             f'<td class="ml-num">{swing_html(a["swing_ros_pts"])}</td>'
             f"<td>{verdict}</td>"
             "</tr>")
@@ -391,35 +475,43 @@ def render_ledger_fragment(ledger: dict) -> str:
     stand_rows = []
     for i, r in enumerate(ledger["standings"], 1):
         heist = r["biggest_heist"]
-        heist_s = (f'+{heist["swing_ros_pts"]:g} v {esc(heist["counterparty"])} '
+        heist_s = (f'+{heist["swing_par_pts"]:g} v {esc(heist["counterparty"])} '
                    f'(w{heist["week"]} &rsquo;{str(heist["season"])[2:]})') if heist else "&mdash;"
+        moved = r["rank_raw"] - r["rank_par"]
+        moved_s = (f' <span class="ml-note">({moved:+d} v raw)</span>'
+                   if moved else "")
         stand_rows.append(
             "<tr>"
-            f'<td class="ml-num">{i}</td>'
+            f'<td class="ml-num">{i}{moved_s}</td>'
             f'<td><strong>{esc(r["manager"])}</strong></td>'
             f'<td class="ml-num">{r["deals"]}</td>'
             f'<td class="ml-num">{r["wins"]}&ndash;{r["losses"]}&ndash;{r["pushes"]}</td>'
+            f'<td class="ml-num">{swing_html(r["net_par_pts"])}</td>'
+            f'<td class="ml-num">{swing_html(round(r["net_par_pts"] / r["deals"], 1))}</td>'
             f'<td class="ml-num">{swing_html(r["net_ros_pts"])}</td>'
-            f'<td class="ml-num">{swing_html(round(r["net_ros_pts"] / r["deals"], 1))}</td>'
             f"<td>{heist_s}</td>"
             "</tr>")
     shark = ledger["standings"][0]
     fish = ledger["standings"][-1]
     deal_rows = ledger_html(ledger)
+    repl = ledger["replacement_levels"]
+    repl_s = " &middot; ".join(
+        f'{s}: ' + " / ".join(f'{p} {v:g}' for p, v in lv.items())
+        for s, lv in sorted(repl.items()))
     return f"""<section id="trade_ledger" class="ml-panel">
 <h2>The Book &mdash; In-League Trade Ledger 2023&ndash;25</h2>
-<div class="ml-tape"><span>THE BOOK:</span> <span><b>{n}</b> deals closed</span> <span>{by_season}</span> <span>SHARK <b>{esc(shark["manager"])}</b> {shark["net_ros_pts"]:+g}</span> <span>FISH <b>{esc(fish["manager"])}</b> {fish["net_ros_pts"]:+g}</span></div>
-<h3 class="ml-h-label">Sharks &amp; fish &mdash; all-time net points swung</h3>
+<div class="ml-tape"><span>THE BOOK:</span> <span><b>{n}</b> deals closed</span> <span>{by_season}</span> <span>SHARK <b>{esc(shark["manager"])}</b> {shark["net_par_pts"]:+g} PAR</span> <span>FISH <b>{esc(fish["manager"])}</b> {fish["net_par_pts"]:+g} PAR</span></div>
+<h3 class="ml-h-label">Sharks &amp; fish &mdash; all-time net points above replacement swung</h3>
 <table class="ml-table">
-<thead><tr><th>#</th><th>Counterparty</th><th>Deals</th><th>W&ndash;L&ndash;P</th><th>Net ROS pts</th><th>Pts/deal</th><th>Biggest heist</th></tr></thead>
+<thead><tr><th>#</th><th>Counterparty</th><th>Deals</th><th>W&ndash;L&ndash;P</th><th>Net PAR</th><th>PAR/deal</th><th>Net raw pts</th><th>Biggest heist (PAR)</th></tr></thead>
 <tbody>{"".join(stand_rows)}</tbody>
 </table>
 <h3 class="ml-h-label">Every deal closed</h3>
 <table class="ml-table ml-table--compact">
-<thead><tr><th>Closed</th><th>Counterparties (A &rlarr; B)</th><th>A received</th><th>B received</th><th>Swing to A</th><th>Verdict</th></tr></thead>
+<thead><tr><th>Closed</th><th>Counterparties (A &rlarr; B)</th><th>A received</th><th>B received</th><th>PAR to A</th><th>Raw pts to A</th><th>Verdict</th></tr></thead>
 <tbody>{deal_rows}</tbody>
 </table>
-<p class="ml-fineprint">Grading: rest-of-season points swung &mdash; each side's received-minus-sent player points over the weeks AFTER the trade week through week 17, scored as Sleeper pts_half_ppr (fallback pts_ppr &minus; 0.5&times;rec). Draft picks and FAAB are listed on the ledger but graded 0 points: a pick's value realizes at a future draft and grading it here would be guesswork dressed as arithmetic. Picks-only deals are marked PUSH, not wins. W&ndash;L&ndash;P counts a win when a side's swing is positive. Verdict names the side that gained more rest-of-season points; it is hindsight, not intent.</p>
+<p class="ml-fineprint">Grading v2: rest-of-season points ABOVE POSITIONAL REPLACEMENT (PAR) swung &mdash; each side's received-minus-sent PAR over the weeks AFTER the trade week through week 17. A player-week's PAR = his Sleeper pts_half_ppr (fallback pts_ppr &minus; 0.5&times;rec) minus a fixed per-position weekly replacement level; weeks without a stat line count 0 (a replacement body starts instead). Replacement level = that season's median weekly score of the rank-N player at the position, N = QB12 / RB30 / WR36 / TE12 / K12 / DEF12 (the last body a 12-team room starts anyway); computed levels &mdash; {repl_s}. PAR keeps QB volume from buying every verdict: raw half-PPR points ride along in the raw column for reference, and rank shifts vs the raw table are flagged in the # column. Draft picks and FAAB are listed on the ledger but graded 0: a pick's value realizes at a future draft and grading it here would be guesswork dressed as arithmetic. Picks-only deals are marked PUSH, not wins. W&ndash;L&ndash;P counts a win when a side's PAR swing is positive. Verdict names the side that gained more PAR; it is hindsight, not intent.</p>
 </section>
 """
 
@@ -471,6 +563,18 @@ def render_dossiers_fragment(doss: dict) -> str:
 def main() -> int:
     desk = Desk()
     ledger = build_ledger(desk)
+
+    # Invariant: every deal is zero-sum — what A received, B sent — so the
+    # party swings of each trade must cancel, in BOTH gradings (rounding
+    # slack only). If this drifts, the grader is double-counting an asset.
+    for tr in ledger["trades"]:
+        for key in ("swing_ros_pts", "swing_par_pts"):
+            s = sum(p[key] for p in tr["parties"])
+            assert abs(s) < 0.5, (
+                f"trade {tr['transaction_id']} {key} sum {s} != 0")
+    print(f"invariant OK: {len(ledger['trades'])} deals zero-sum "
+          f"in raw and PAR grading")
+
     doss = build_dossiers(desk, ledger)
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "trade_ledger.json").write_text(json.dumps(ledger, indent=1))
@@ -478,12 +582,22 @@ def main() -> int:
     (OUT / "counterparty_dossiers.json").write_text(json.dumps(doss, indent=1))
     (OUT / "counterparty_dossiers.html").write_text(render_dossiers_fragment(doss))
     n = len(ledger["trades"])
-    graded = sum(1 for t in ledger["trades"] if t["margin_ros_pts"] > 0)
+    graded = sum(1 for t in ledger["trades"] if t["margin_par_pts"] > 0)
     print(f"ledger: {n} trades ({ledger['trade_counts_by_season']}), "
           f"{graded} with a graded winner; shark={ledger['standings'][0]['manager']} "
-          f"({ledger['standings'][0]['net_ros_pts']:+g}), "
+          f"({ledger['standings'][0]['net_par_pts']:+g} PAR), "
           f"fish={ledger['standings'][-1]['manager']} "
-          f"({ledger['standings'][-1]['net_ros_pts']:+g})")
+          f"({ledger['standings'][-1]['net_par_pts']:+g} PAR)")
+    print("replacement levels:", ledger["replacement_levels"])
+    flips = [r for r in ledger["standings"] if r["rank_par"] != r["rank_raw"]]
+    if flips:
+        print("rank changes vs raw grading:")
+        for r in flips:
+            print(f"  {r['manager']}: raw #{r['rank_raw']} -> PAR "
+                  f"#{r['rank_par']} (net {r['net_ros_pts']:+g} raw, "
+                  f"{r['net_par_pts']:+g} PAR)")
+    else:
+        print("rank changes vs raw grading: none")
     tot_out = sum(d["outside"]["trades_total"] for d in doss["rivals"].values())
     print(f"dossiers: 11 rivals, "
           f"{sum(d['outside']['leagues_total'] for d in doss['rivals'].values())} "

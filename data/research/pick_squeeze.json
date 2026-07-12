@@ -14,7 +14,7 @@
       "round": 3,
       "net_vbd": 6.8,
       "bump_to": 2,
-      "bump_tax": 14.9,
+      "bump_tax": 8.5,
       "is_me": false,
       "brian_can_sell": true
     },
@@ -25,18 +25,7 @@
       "round": 15,
       "net_vbd": 49.1,
       "bump_to": 14,
-      "bump_tax": 0.0,
-      "is_me": false,
-      "brian_can_sell": false
-    },
-    {
-      "manager": "brower_barry",
-      "player": "Romeo Doubs",
-      "position": "WR",
-      "round": 15,
-      "net_vbd": 47.1,
-      "bump_to": 13,
-      "bump_tax": 0.0,
+      "bump_tax": 2.6,
       "is_me": false,
       "brian_can_sell": false
     },
@@ -47,7 +36,18 @@
       "round": 15,
       "net_vbd": 43.3,
       "bump_to": 14,
-      "bump_tax": 0.0,
+      "bump_tax": 2.6,
+      "is_me": false,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "josh_wildboy",
+      "player": "Kayshon Boutte",
+      "position": "WR",
+      "round": 15,
+      "net_vbd": 4.0,
+      "bump_to": 14,
+      "bump_tax": 2.6,
       "is_me": false,
       "brian_can_sell": false
     },
@@ -58,7 +58,7 @@
       "round": 15,
       "net_vbd": 42.6,
       "bump_to": 11,
-      "bump_tax": 0.0,
+      "bump_tax": -0.1,
       "is_me": false,
       "brian_can_sell": false
     },
@@ -69,7 +69,7 @@
       "round": 11,
       "net_vbd": 30.2,
       "bump_to": 10,
-      "bump_tax": 0.0,
+      "bump_tax": -3.4,
       "is_me": false,
       "brian_can_sell": true
     },
@@ -80,7 +80,7 @@
       "round": 15,
       "net_vbd": 20.1,
       "bump_to": 10,
-      "bump_tax": 0.0,
+      "bump_tax": -3.5,
       "is_me": false,
       "brian_can_sell": false
     },
@@ -91,7 +91,18 @@
       "round": 15,
       "net_vbd": 12.2,
       "bump_to": 10,
-      "bump_tax": 0.0,
+      "bump_tax": -3.5,
+      "is_me": false,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "brower_barry",
+      "player": "Romeo Doubs",
+      "position": "WR",
+      "round": 15,
+      "net_vbd": 47.1,
+      "bump_to": 13,
+      "bump_tax": -3.7,
       "is_me": false,
       "brian_can_sell": false
     },
@@ -102,7 +113,18 @@
       "round": 15,
       "net_vbd": 6.5,
       "bump_to": 13,
-      "bump_tax": 0.0,
+      "bump_tax": -3.7,
+      "is_me": true,
+      "brian_can_sell": false
+    },
+    {
+      "manager": "brian_bigguap",
+      "player": "Theo Johnson",
+      "position": "TE",
+      "round": 15,
+      "net_vbd": 4.1,
+      "bump_to": 13,
+      "bump_tax": -3.7,
       "is_me": true,
       "brian_can_sell": false
     },
@@ -113,31 +135,9 @@
       "round": 12,
       "net_vbd": 4.8,
       "bump_to": 10,
-      "bump_tax": 0.0,
+      "bump_tax": -6.5,
       "is_me": false,
       "brian_can_sell": true
-    },
-    {
-      "manager": "brian_bigguap",
-      "player": "Theo Johnson",
-      "position": "TE",
-      "round": 15,
-      "net_vbd": 4.1,
-      "bump_to": 13,
-      "bump_tax": 0.0,
-      "is_me": true,
-      "brian_can_sell": false
-    },
-    {
-      "manager": "josh_wildboy",
-      "player": "Kayshon Boutte",
-      "position": "WR",
-      "round": 15,
-      "net_vbd": 4.0,
-      "bump_to": 14,
-      "bump_tax": 0.0,
-      "is_me": false,
-      "brian_can_sell": false
     }
   ],
   "round_market": [

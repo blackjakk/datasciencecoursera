@@ -33,6 +33,9 @@ SECTIONS = [
     ("counterparty_dossiers", "III. Counterparty Dossiers"),
     ("pick_squeeze", "IV. Pick Squeeze"),
     ("autopsy_2025", "V. The 2025 Autopsy"),
+    ("stash_curve", "VI. The Option Book — what late picks really pay"),
+    ("keeper_sensitivity", "VII. Keeper Sensitivity — declarations worth probing"),
+    ("survival_calibration", "VIII. Survival Calibration — the model audits itself"),
 ]
 
 PAGE_CSS = """

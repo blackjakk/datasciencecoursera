@@ -50,6 +50,9 @@ HEX_SCAN_TARGETS = [
     "scripts/build_trade_ledger.py",
     "scripts/build_autopsy_2025.py",
     "scripts/build_pick_squeeze.py",
+    "scripts/stash_curve.py",
+    "scripts/build_keeper_sensitivity.py",
+    "scripts/backtest_survival_calibration.py",
     "scripts/build_research_desk.py",
 ]
 

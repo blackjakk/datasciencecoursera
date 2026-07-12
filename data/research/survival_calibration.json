@@ -1,0 +1,64 @@
+{
+ "generated": "2026-07-12",
+ "method": {
+  "world": "real 2025 draft, period-honest: ADP-only board (synthesized projections), keeper seats pre-filled (explicit flag + implicit ADP-gap rule), xlsx pick attribution for Brian",
+  "machinery": "build_mock_draft_sim bot, 100 sims, temperature 0.25, top-15 softmax, tendency model OFF (it is fit on 2023-25 \u2014 using it here would leak the answer)",
+  "sample": "top-150 period-ADP players x 14 Brian live picks"
+ },
+ "brian_picks": [
+  33,
+  40,
+  64,
+  81,
+  88,
+  95,
+  105,
+  112,
+  136,
+  160,
+  184,
+  195,
+  196,
+  201
+ ],
+ "n_sims": 100,
+ "n_pairs": 2100,
+ "base_rate": 0.37,
+ "brier": 0.1015,
+ "brier_base_rate": 0.233,
+ "skill_vs_base": 0.564,
+ "buckets": [
+  {
+   "band": "0-20%",
+   "n": 1095,
+   "mean_predicted": 2.4,
+   "realized": 5.0
+  },
+  {
+   "band": "20-40%",
+   "n": 160,
+   "mean_predicted": 27.3,
+   "realized": 32.5
+  },
+  {
+   "band": "40-60%",
+   "n": 86,
+   "mean_predicted": 48.4,
+   "realized": 47.7
+  },
+  {
+   "band": "60-80%",
+   "n": 125,
+   "mean_predicted": 70.0,
+   "realized": 57.6
+  },
+  {
+   "band": "80-100%",
+   "n": 634,
+   "mean_predicted": 98.3,
+   "realized": 87.7
+  }
+ ],
+ "verdict": "Directionally right but miscalibrated: Brier 0.102 beats the base rate (0.233), but the 60-80% bucket realizes 58% vs 70% predicted \u2014 pad that band before betting a pick on it.",
+ "runtime_sec": 10.9
+}
