@@ -8,10 +8,12 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
 
 ## Branch map
 - `master` — the project (pipeline, data, docs, design system)
-- `claude/football-sim-blockchain-game-b3sdq` — GitHub Pages source ONLY:
-  hosts `/draft_helper/` (auto-synced from master by the weekly workflow;
-  never develop here). Also carries the old gridiron-chain game, which is
-  UNRELATED to this project (user-confirmed) — ignore it entirely.
+- `claude/football-sim-blockchain-game-b3sdq` — GitHub Pages source ONLY
+  (name is historical): hosts the HQ landing page (site root) +
+  `/draft_helper/`, auto-synced from master by the weekly workflow; never
+  develop here. Deploy = static workflow (`.github/workflows/pages.yml`
+  on that branch). The old gridiron-chain game was deleted at user
+  request (July 2026, commit 042055b; recoverable from branch history).
 - `claude/trusting-hamilton-3MNt9` — frozen pre-migration archive
 - Weekly automation: `.github/workflows/weekly_refresh.yml`, Tuesdays
   ~9:23am ET — full pipeline, verify-gated push to master, PDFs to the
@@ -19,8 +21,8 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
   briefing as commit body, auto-issue on failure
 
 ## Live URLs (Pages paths are CASE-SENSITIVE; old-name paths don't redirect)
+- HQ landing: https://blackjakk.github.io/MONEYLEAGUE/ (old /hq/ redirects)
 - Helper: https://blackjakk.github.io/MONEYLEAGUE/draft_helper/
-- Game: https://blackjakk.github.io/MONEYLEAGUE/
 - PDFs: https://github.com/blackjakk/MONEYLEAGUE/releases/tag/latest-artifacts
 
 ## Hard-won data truths (do not relearn these)
