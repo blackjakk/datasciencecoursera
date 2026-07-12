@@ -67,8 +67,11 @@ def compute() -> dict:
     try:
         from scripts.build_2026_keepers import _load_adp_baselines
         blind, _ = _load_adp_baselines()
+        # Empirical round values go NEGATIVE in the tail (typical R10+ pick
+        # is below replacement). A rational manager never values a pick
+        # below zero — floor it, so bump taxes reflect real forgone value.
         def round_value(r: int) -> float:
-            return float(blind.get(r, 0.0))
+            return max(0.0, float(blind.get(r, 0.0)))
     except Exception:
         def round_value(r: int) -> float:
             return 0.0
@@ -198,7 +201,11 @@ asset in the league. Based on PREDICTED keepers until the league locks
 missing its exact round seats at the next EARLIER owned free round — so
 sell against the BUMP TAX and the burned draft slot, not the keeper's
 full value. Only a manager with no earlier free round is truly squeezed.
-League convention: pick trades run EQUAL COUNT both ways (e.g. R1+R17
+The empirical value curve is negative past ~R9 (a typical
+late pick returns a below-replacement player), so most bump taxes floor
+to zero: in THIS league, keeper seats are close to free and late-round
+pick trades move almost no expected value — the pick market that
+matters is R1-R8. League convention: pick trades run EQUAL COUNT both ways (e.g. R1+R17
 for R3+R5) — structure any seat sale as a same-count package where the
 round-quality difference carries the price.</p>
 </section>
