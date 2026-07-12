@@ -1,0 +1,501 @@
+{
+  "meta": {
+    "generated": "2026-07-12",
+    "seasons_used": [
+      2023,
+      2024
+    ],
+    "excluded": "2025 draft (no 2026 outcomes yet); keepers (explicit flag + ADP-gap rule, 90 picks); waiver adds (different acquisition channel)",
+    "method": "option payoff = max(0, following-season half-PPR VBD - floor0(blind[round-2])); mean includes zeros",
+    "replacement_ranks": {
+      "QB": 22,
+      "RB": 31,
+      "WR": 42,
+      "TE": 13,
+      "K": 12,
+      "DEF": 12
+    },
+    "keeper_rule": "cost = draft round - 2; R1/R2 ineligible (option value 0 by rule)"
+  },
+  "curve": [
+    {
+      "round": 3,
+      "option_value": 6.4,
+      "n": 23,
+      "hit_rate": 0.087,
+      "hits": 2,
+      "best_hit": {
+        "player": "Jahmyr Gibbs",
+        "pos": "RB",
+        "year": 2023,
+        "payoff": 97.7,
+        "manager": "tim_breswick"
+      }
+    },
+    {
+      "round": 4,
+      "option_value": 2.3,
+      "n": 23,
+      "hit_rate": 0.13,
+      "hits": 3,
+      "best_hit": {
+        "player": "Justin Herbert",
+        "pos": "QB",
+        "year": 2024,
+        "payoff": 35.9,
+        "manager": "trevor_bergerboy"
+      }
+    },
+    {
+      "round": 5,
+      "option_value": 12.1,
+      "n": 22,
+      "hit_rate": 0.227,
+      "hits": 5,
+      "best_hit": {
+        "player": "James Cook",
+        "pos": "RB",
+        "year": 2024,
+        "payoff": 93.9,
+        "manager": "donnie"
+      }
+    },
+    {
+      "round": 6,
+      "option_value": 15.3,
+      "n": 22,
+      "hit_rate": 0.273,
+      "hits": 6,
+      "best_hit": {
+        "player": "Matthew Stafford",
+        "pos": "QB",
+        "year": 2024,
+        "payoff": 127.4,
+        "manager": "eric_m"
+      }
+    },
+    {
+      "round": 7,
+      "option_value": 17.3,
+      "n": 18,
+      "hit_rate": 0.389,
+      "hits": 7,
+      "best_hit": {
+        "player": "James Cook",
+        "pos": "RB",
+        "year": 2023,
+        "payoff": 92.8,
+        "manager": "donnie"
+      }
+    },
+    {
+      "round": 8,
+      "option_value": 4.1,
+      "n": 16,
+      "hit_rate": 0.25,
+      "hits": 4,
+      "best_hit": {
+        "player": "Courtland Sutton",
+        "pos": "WR",
+        "year": 2023,
+        "payoff": 34.5,
+        "manager": "brian_bigguap"
+      }
+    },
+    {
+      "round": 9,
+      "option_value": 30.4,
+      "n": 18,
+      "hit_rate": 0.5,
+      "hits": 9,
+      "best_hit": {
+        "player": "Jaxon Smith-Njigba",
+        "pos": "WR",
+        "year": 2024,
+        "payoff": 178.3,
+        "manager": "brower_barry"
+      }
+    },
+    {
+      "round": 10,
+      "option_value": 5.3,
+      "n": 17,
+      "hit_rate": 0.176,
+      "hits": 3,
+      "best_hit": {
+        "player": "Rico Dowdle",
+        "pos": "RB",
+        "year": 2024,
+        "payoff": 44.8,
+        "manager": "lem"
+      }
+    },
+    {
+      "round": 11,
+      "option_value": 8.7,
+      "n": 19,
+      "hit_rate": 0.053,
+      "hits": 1,
+      "best_hit": {
+        "player": "Drake Maye",
+        "pos": "QB",
+        "year": 2024,
+        "payoff": 164.5,
+        "manager": "tim_breswick"
+      }
+    },
+    {
+      "round": 12,
+      "option_value": 11.8,
+      "n": 15,
+      "hit_rate": 0.133,
+      "hits": 2,
+      "best_hit": {
+        "player": "De'Von Achane",
+        "pos": "RB",
+        "year": 2023,
+        "payoff": 129.0,
+        "manager": "trevor_bergerboy"
+      }
+    },
+    {
+      "round": 13,
+      "option_value": 5.1,
+      "n": 15,
+      "hit_rate": 0.2,
+      "hits": 3,
+      "best_hit": {
+        "player": "Jayden Reed",
+        "pos": "WR",
+        "year": 2023,
+        "payoff": 34.6,
+        "manager": "dave_aka_wang"
+      }
+    },
+    {
+      "round": 14,
+      "option_value": 11.4,
+      "n": 17,
+      "hit_rate": 0.059,
+      "hits": 1,
+      "best_hit": {
+        "player": "Baker Mayfield",
+        "pos": "QB",
+        "year": 2023,
+        "payoff": 193.2,
+        "manager": "eric_m"
+      }
+    },
+    {
+      "round": 15,
+      "option_value": 8.8,
+      "n": 9,
+      "hit_rate": 0.444,
+      "hits": 4,
+      "best_hit": {
+        "player": "Brandon Aubrey",
+        "pos": "K",
+        "year": 2024,
+        "payoff": 42.6,
+        "manager": "troy_mullings"
+      }
+    },
+    {
+      "round": 16,
+      "option_value": 6.1,
+      "n": 18,
+      "hit_rate": 0.278,
+      "hits": 5,
+      "best_hit": {
+        "player": "Ka'imi Fairbairn",
+        "pos": "K",
+        "year": 2024,
+        "payoff": 52.0,
+        "manager": "tim_breswick"
+      }
+    },
+    {
+      "round": 17,
+      "option_value": 13.3,
+      "n": 18,
+      "hit_rate": 0.333,
+      "hits": 6,
+      "best_hit": {
+        "player": "Chase Brown",
+        "pos": "RB",
+        "year": 2023,
+        "payoff": 96.1,
+        "manager": "donnie"
+      }
+    }
+  ],
+  "option_values": {
+    "1": 0.0,
+    "2": 0.0,
+    "3": 6.4,
+    "4": 2.3,
+    "5": 12.1,
+    "6": 15.3,
+    "7": 17.3,
+    "8": 4.1,
+    "9": 30.4,
+    "10": 5.3,
+    "11": 8.7,
+    "12": 11.8,
+    "13": 5.1,
+    "14": 11.4,
+    "15": 8.8,
+    "16": 6.1,
+    "17": 13.3
+  },
+  "brian_stash_board": [
+    {
+      "round": 10,
+      "overall": 115,
+      "option_value": 5.3,
+      "candidates": [
+        {
+          "name": "Fernando Mendoza",
+          "pos": "QB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 114.7,
+          "keeper_cost": "R8"
+        },
+        {
+          "name": "Jonathon Brooks",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 137.2,
+          "keeper_cost": "R8"
+        },
+        {
+          "name": "Braelon Allen",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 171.8,
+          "keeper_cost": "R8"
+        }
+      ]
+    },
+    {
+      "round": 11,
+      "overall": 126,
+      "option_value": 8.7,
+      "candidates": [
+        {
+          "name": "Shedeur Sanders",
+          "pos": "QB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 171.9,
+          "keeper_cost": "R9"
+        },
+        {
+          "name": "Travis Hunter",
+          "pos": "WR",
+          "stash": 1.0,
+          "survival": 0.56,
+          "adp": 175.7,
+          "keeper_cost": "R9"
+        },
+        {
+          "name": "Emmett Johnson",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 182.4,
+          "keeper_cost": "R9"
+        }
+      ]
+    },
+    {
+      "round": 12,
+      "overall": 139,
+      "option_value": 11.8,
+      "candidates": [
+        {
+          "name": "Antonio Williams",
+          "pos": "WR",
+          "stash": 1.0,
+          "survival": 0.99,
+          "adp": 185.8,
+          "keeper_cost": "R10"
+        },
+        {
+          "name": "Kenyon Sadiq",
+          "pos": "TE",
+          "stash": 1.0,
+          "survival": 0.74,
+          "adp": 186.8,
+          "keeper_cost": "R10"
+        },
+        {
+          "name": "Kimani Vidal",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 186.9,
+          "keeper_cost": "R10"
+        }
+      ]
+    },
+    {
+      "round": 13,
+      "overall": 150,
+      "option_value": 5.1,
+      "candidates": [
+        {
+          "name": "J.J. McCarthy",
+          "pos": "QB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 190.1,
+          "keeper_cost": "R11"
+        },
+        {
+          "name": "Nicholas Singleton",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 194.4,
+          "keeper_cost": "R11"
+        },
+        {
+          "name": "Kaytron Allen",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 195.2,
+          "keeper_cost": "R11"
+        }
+      ]
+    },
+    {
+      "round": 14,
+      "overall": 163,
+      "option_value": 11.4,
+      "candidates": [
+        {
+          "name": "Jaylin Noel",
+          "pos": "WR",
+          "stash": 1.0,
+          "survival": 0.6,
+          "adp": 196.9,
+          "keeper_cost": "R12"
+        },
+        {
+          "name": "Ty Simpson",
+          "pos": "QB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 205.2,
+          "keeper_cost": "R12"
+        },
+        {
+          "name": "Gunnar Helm",
+          "pos": "TE",
+          "stash": 1.0,
+          "survival": 0.7,
+          "adp": 207.6,
+          "keeper_cost": "R12"
+        }
+      ]
+    },
+    {
+      "round": 15,
+      "overall": 174,
+      "option_value": 8.8,
+      "candidates": [
+        {
+          "name": "Chimere Dike",
+          "pos": "WR",
+          "stash": 1.0,
+          "survival": 0.7,
+          "adp": 211.9,
+          "keeper_cost": "R13"
+        },
+        {
+          "name": "Germie Bernard",
+          "pos": "WR",
+          "stash": 1.0,
+          "survival": 0.9,
+          "adp": 216.1,
+          "keeper_cost": "R13"
+        },
+        {
+          "name": "Demond Claiborne",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 218.1,
+          "keeper_cost": "R13"
+        }
+      ]
+    },
+    {
+      "round": 16,
+      "overall": 187,
+      "option_value": 6.1,
+      "candidates": [
+        {
+          "name": "Chris Bell",
+          "pos": "WR",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 219.9,
+          "keeper_cost": "R14"
+        },
+        {
+          "name": "Elic Ayomanor",
+          "pos": "WR",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 220.0,
+          "keeper_cost": "R14"
+        },
+        {
+          "name": "Zachariah Branch",
+          "pos": "WR",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 221.2,
+          "keeper_cost": "R14"
+        }
+      ]
+    },
+    {
+      "round": 17,
+      "overall": 198,
+      "option_value": 13.3,
+      "candidates": [
+        {
+          "name": "Kaleb Johnson",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 224.8,
+          "keeper_cost": "R15"
+        },
+        {
+          "name": "Jaydon Blue",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 226.4,
+          "keeper_cost": "R15"
+        },
+        {
+          "name": "Devin Neal",
+          "pos": "RB",
+          "stash": 1.0,
+          "survival": 1.0,
+          "adp": 227.2,
+          "keeper_cost": "R15"
+        }
+      ]
+    }
+  ]
+}

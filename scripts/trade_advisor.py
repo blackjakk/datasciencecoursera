@@ -1,8 +1,13 @@
 """Pick-trade advisor: price 2026 pick swaps and map the league's capital.
 
-Pick values are FORWARD-LOOKING: mean projected VBD of players whose
-current superflex ADP lands in that round (same baselines the keeper
-predictor uses) — not historical hit rates.
+Pick values are COMPOSED: max(0, redraft) + keeper option.
+  redraft = mean projected VBD of players whose current superflex ADP
+            lands in that round (keeper predictor's baselines), floored
+            at 0 — a pick is never worth negative.
+  option  = empirical 2027 keeper option value of the round (mean
+            next-season keeper surplus it delivered in our 2023-24
+            drafts; scripts/stash_curve.py "The Option Book").
+Both components are printed so you can argue either half at the table.
 
 Usage:
   # League capital table (who owns what, who's surplus/deficient)
@@ -27,14 +32,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def round_values() -> dict[int, float]:
-    """Mean projected VBD of players with ADP in each round (forward-looking
-    opportunity cost). Reuses the keeper predictor's ADP baselines."""
-    from scripts.build_2026_keepers import _load_adp_baselines
-    blind, _pos = _load_adp_baselines()
-    # Fill gaps + floor at 0 (a pick is never worth negative — you can
-    # always take the best available or a stash).
-    return {r: max(0.0, blind.get(r, 0.0)) for r in range(1, 18)}
+def round_values() -> dict[int, dict[str, float]]:
+    """Composed round value: max(0, redraft blind) + empirical keeper
+    OPTION value (scripts/stash_curve.py — mean next-season keeper surplus
+    the round delivered in our 2023-24 drafts). The redraft part keeps its
+    0-floor; the option term is why a 'worthless' R14 still trades.
+    Returns per round {redraft, option, total}."""
+    from scripts.stash_curve import composed_round_values
+    return composed_round_values()
 
 
 def parse_picks(tokens: list[str]) -> list[int]:
@@ -60,7 +65,7 @@ def capital_table() -> None:
         counts = defaultdict(int)
         for r in rounds:
             counts[r] += 1
-        total = sum(vals[r] for r in rounds)
+        total = sum(vals[r]["total"] for r in rounds)
         rows.append((total, mgr, counts))
     for total, mgr, counts in sorted(rows, reverse=True):
         cells = "".join(
@@ -74,30 +79,38 @@ def capital_table() -> None:
             cells += f"{('·' if c == 1 else c):>4}"
         print(f"{mgr:<22}{cells}  {total:>11.0f}")
     print("\n(· = owns exactly its own pick; numbers = extra/missing; "
-          "capitalVBD = sum of forward-looking round values)")
-    print("\nRound values (mean projected VBD at that round's ADP):")
-    print("  " + "  ".join(f"R{r}:{vals[r]:.0f}" for r in range(1, 18)))
+          "capitalVBD = sum of composed round values: redraft + keeper option)")
+    print("\nRound values (max(0, redraft blind) + empirical keeper option):")
+    print("  total:   " + " ".join(f"R{r}:{vals[r]['total']:.0f}"
+                                   for r in range(1, 18)))
+    print("  redraft: " + " ".join(f"R{r}:{vals[r]['redraft']:.0f}"
+                                   for r in range(1, 18)))
+    print("  option:  " + " ".join(f"R{r}:{vals[r]['option']:.0f}"
+                                   for r in range(1, 18)))
 
 
 def price_trade(give: list[int], get: list[int]) -> None:
     vals = round_values()
-    gv = sum(vals[r] for r in give)
-    rv = sum(vals[r] for r in get)
-    print("YOU GIVE: " + ", ".join(f"R{r} ({vals[r]:.0f})" for r in give)
-          + f"  = {gv:.0f} VBD")
-    print("YOU GET:  " + ", ".join(f"R{r} ({vals[r]:.0f})" for r in get)
-          + f"  = {rv:.0f} VBD")
+
+    def leg(r: int) -> str:
+        v = vals[r]
+        return (f"R{r} ({v['total']:.0f} = {v['redraft']:.0f} redraft "
+                f"+ {v['option']:.0f} option)")
+
+    gv = sum(vals[r]["total"] for r in give)
+    rv = sum(vals[r]["total"] for r in get)
+    g_opt = sum(vals[r]["option"] for r in give)
+    r_opt = sum(vals[r]["option"] for r in get)
+    print("YOU GIVE: " + ", ".join(leg(r) for r in give) + f"  = {gv:.0f} VBD")
+    print("YOU GET:  " + ", ".join(leg(r) for r in get) + f"  = {rv:.0f} VBD")
     delta = rv - gv
     verdict = ("WIN" if delta > 8 else "LOSS" if delta < -8 else "≈ FAIR")
-    print(f"NET: {delta:+.0f} VBD -> {verdict} for you")
-    # Keeper-league wrinkle: later picks carry 2027 keeper option value
-    # (cost = round - 2). Flag when the trade moves stash rounds.
-    stash_gained = [r for r in get if r >= 10]
-    stash_lost = [r for r in give if r >= 10]
-    if stash_gained or stash_lost:
-        print("Keeper-league note: R10+ picks double as 2027 stash slots "
-              f"(gain {len(stash_gained)}, lose {len(stash_lost)}) — worth "
-              "a few extra VBD beyond the number above.")
+    print(f"NET: {delta:+.0f} VBD ({rv - r_opt - (gv - g_opt):+.0f} redraft, "
+          f"{r_opt - g_opt:+.0f} keeper option) -> {verdict} for you")
+    if any(vals[r]["option"] for r in give + get):
+        print("Option component = empirical 2027 keeper surplus that round "
+              "delivered in our 2023-24 drafts (scripts/stash_curve.py, "
+              "The Option Book) — no longer a hand-wave.")
 
 
 def main():

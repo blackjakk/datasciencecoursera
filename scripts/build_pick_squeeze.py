@@ -65,13 +65,17 @@ def compute() -> dict:
     # lost while any earlier seat is free — the cost is the BUMP TAX: the
     # chart value of the earlier pick consumed minus the exact round's.
     try:
-        from scripts.build_2026_keepers import _load_adp_baselines
-        blind, _ = _load_adp_baselines()
-        # Empirical round values go NEGATIVE in the tail (typical R10+ pick
-        # is below replacement). A rational manager never values a pick
-        # below zero — floor it, so bump taxes reflect real forgone value.
+        from scripts.stash_curve import composed_round_values
+        # Composed round value (The Option Book): max(0, redraft blind) +
+        # empirical 2027 keeper option value. The redraft part keeps its
+        # 0-floor (the blind curve goes negative past ~R9 and a rational
+        # manager never values a pick below zero); the option term prices
+        # the stash lottery a live late pick carries, so bump taxes now
+        # reflect BOTH kinds of forgone value.
+        _rv = composed_round_values()
+
         def round_value(r: int) -> float:
-            return max(0.0, float(blind.get(r, 0.0)))
+            return _rv.get(r, {}).get("total", 0.0)
     except Exception:
         def round_value(r: int) -> float:
             return 0.0
