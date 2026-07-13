@@ -76,7 +76,10 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
   R15 (+15 proj pts) — Loveland (TE −25 tax, fair price) and Pierce
   (free-round fair price, the worst historical tier) grade as ceremony
   keeps; drafting fresh at R8/R14 is better. Decide at lock; write
-  keepers_2026_actual.json with whatever Brian declares
+  keepers_2026_actual.json with whatever Brian declares. Jordan Love is
+  INELIGIBLE (years_kept=3, at the cap — user-confirmed): in
+  keepers_2026.json, status forced_drop MEANS ineligible, never a
+  testable keep (he re-enters the draft pool at market ~R4)
 
 ## Design system (July 2026 refactor — enforced, no bypassing)
 `design/tokens.json` → `design/build_design.py` → generated `design/ml.css`
