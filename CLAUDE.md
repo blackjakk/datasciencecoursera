@@ -69,9 +69,14 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
   Sleeper posts the real one), my_roster_id, league dir
 - Keepers lock → write `data/keepers_2026_actual.json` (same schema);
   derive prefers it over the model prediction
-- Brian's keepers (predicted, optimizer-confirmed #1 of 50 sets):
-  Loveland R8, Burden R9, Pierce R14, Watson R15 — Watson USER-CONFIRMED
-  as kept (Jul 2026); write keepers_2026_actual.json once all four lock
+- Brian's keepers: predictor says Loveland R8, Burden R9, Pierce R14,
+  Watson R15 — Watson USER-CONFIRMED (Jul 2026). BUT the tax-aware
+  optimizer (regression tax from the keep-side book, Jul 2026) drops
+  that set to #5/50; its best set is KEEP 2 ONLY: Burden R9 + Watson
+  R15 (+15 proj pts) — Loveland (TE −25 tax, fair price) and Pierce
+  (free-round fair price, the worst historical tier) grade as ceremony
+  keeps; drafting fresh at R8/R14 is better. Decide at lock; write
+  keepers_2026_actual.json with whatever Brian declares
 
 ## Design system (July 2026 refactor — enforced, no bypassing)
 `design/tokens.json` → `design/build_design.py` → generated `design/ml.css`
@@ -161,7 +166,17 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   2023-2025 = ~break-even (+19/season). Brian already drafts QB-early
   superflex structure; tool's value = variance reduction + live facts
   (survival %, keeper costs), not superior player-picking.
-- Keeper optimizer (`scripts/optimize_my_keepers.py`): predictor's set #1/50.
+- Keeper optimizer (`scripts/optimize_my_keepers.py`): now applies the
+  keep-side regression tax to Brian's kept players (rivals untaxed —
+  they don't price with our book). Taxed verdict: Burden+Watson
+  2-keeper set #1/50; predictor's 4-set drops to #5 (−15).
+- Keep-side tier book (in Option Book VI, `stash_curve.py`): 541
+  keepers, 12 league-seasons. All keeper profit = locked discount −
+  regression tax (QB 0 / RB 14 / WR 14 / TE 25; alpha vs own ADP).
+  7+ rd discounts +50/keeper (76% hit); <4 rds discount = ceremony
+  (73% of all keeps, ~0 EV); fair-price R14-17 keeps are the WORST
+  tier (−34, 21% hit); discounted QBs the best cell (+36, no tax);
+  kept TEs underperform their price by −28.
 - Trade advisor (`scripts/trade_advisor.py`): swap pricing now prints
   redraft + keeper-option components (Option Book).
 - Helper features: live Sleeper sync (GO LIVE), PRACTICE (market-anchored
