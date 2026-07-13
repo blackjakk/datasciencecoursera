@@ -19,6 +19,11 @@ Seasons are discovered from data/sleeper/league_*/ — a season folds in
 automatically once its winners bracket is decided and its backtest
 period files (proj/stats) exist.
 
+When data/research/benchmark_validation.json exists (built by
+scripts/build_benchmark_validation.py from the owner-free benchmark
+corpus), the fragment gains an out-of-sample replication block: the same
+signals graded in MONEYLEAGUE-format leagues none of us play in.
+
 Outputs per the fragment contract:
 data/research/champion_profile.{json,html}.
 """
@@ -316,6 +321,9 @@ def compute() -> dict:
                                 "pct_waiver", "keeper_vbd")}
              for r in rows if r["rid"] == MY_RID]
 
+    bench_f = OUT_DIR / "benchmark_validation.json"
+    benchmark = json.loads(bench_f.read_text()) if bench_f.exists() else None
+
     return {
         "meta": {
             "generated": date.today().isoformat(),
@@ -334,6 +342,7 @@ def compute() -> dict:
         "champ_keeper_hits": sorted(champ_keeper_hits,
                                     key=lambda k: -k["vbd"]),
         "brian": brian,
+        "benchmark": benchmark,
         "doctrine": "Champions are built a year early and finished "
                     "mid-season: two QBs locked by R6, a late-pick or "
                     "waiver find riding as a mega-discount keeper, and "
@@ -419,6 +428,78 @@ def build_fragment(res: dict) -> str:
         f'<th class="ml-num">Keeper VBD</th></tr></thead><tbody>{brian_rows}'
         "</tbody></table>")
 
+    bench_block = ""
+    if res.get("benchmark"):
+        b = res["benchmark"]
+        bs, bm = b["signals"], b["meta"]
+        names = sorted({ls["name"] for ls in bm["league_seasons"]})
+
+        def verdict(ml_gap: float, bench_gap: float) -> str:
+            if abs(bench_gap) < 0.15 * abs(ml_gap):
+                return "MIXED"
+            if bench_gap * ml_gap > 0:
+                return '<span class="ml-sv-hi">REPLICATES</span>'
+            return '<span class="ml-sv-lo">FAILS</span>'
+
+        kv, q2 = bs["keeper_vbd"], bs["early_2qb"]
+        wv, tr, pf_ = bs["waiver_share"], bs["trade_share"], bs["pf"]
+        sig_rows = [
+            ("Champion keeper VBD vs field",
+             f'{g["CHAMP"]["keeper_vbd"]:+.0f} vs {g["field"]["keeper_vbd"]:+.0f}',
+             f'{kv["champ_mean"]:+.0f} vs {kv["field_mean"]:+.0f}',
+             verdict(g["CHAMP"]["keeper_vbd"] - g["field"]["keeper_vbd"],
+                     kv["champ_mean"] - kv["field_mean"])),
+            (f"Champs holding a ≥{KEEPER_HIT_DISC:.0f}-round keeper hit",
+             f'{sum(1 for _ in {h["season"] for h in res["champ_keeper_hits"]})}'
+             f'/{len(res["meta"]["seasons"])}',
+             f'{kv["champs_with_hit"]}/{kv["n_champs"]}',
+             verdict(1, kv["champs_with_hit"] / kv["n_champs"] - 0.5)),
+            (f"2QB-by-R{EARLY_QB_ROUND} playoff rate",
+             f'{q["early"]["rate"]}% vs {q["late"]["rate"]}%',
+             f'{q2["po_rate_early"]}% vs {q2["po_rate_late"]}%',
+             verdict(q["early"]["rate"] - q["late"]["rate"],
+                     (q2["po_rate_early"] or 0) - (q2["po_rate_late"] or 0))),
+            ("Waiver share (champ vs field, lower wins)",
+             f'{g["CHAMP"]["pct_waiver"]:.0f}% vs {g["field"]["pct_waiver"]:.0f}%',
+             f'{wv["champ_mean"]:.0f}% vs {wv["field_mean"]:.0f}%',
+             verdict(g["field"]["pct_waiver"] - g["CHAMP"]["pct_waiver"],
+                     wv["field_mean"] - wv["champ_mean"])),
+            ("Trade share (finalists vs field)",
+             f'{(g["CHAMP"]["pct_trade"] + g["RUNNER"]["pct_trade"]) / 2:.0f}%'
+             f' vs {g["field"]["pct_trade"]:.0f}%',
+             f'{tr["finalist_mean"]:.0f}% vs {tr["field_mean"]:.0f}%',
+             verdict((g["CHAMP"]["pct_trade"] + g["RUNNER"]["pct_trade"]) / 2
+                     - g["field"]["pct_trade"],
+                     tr["finalist_mean"] - tr["field_mean"])),
+            ("Champion PF rank (mean; league middle ≈ 5.5)",
+             "2.0", f'{pf_["champ_mean_rank"]:.1f}',
+             verdict(1.0, 5.5 - pf_["champ_mean_rank"])),
+        ]
+        bench_tbl = (
+            '<table class="ml-table ml-table--compact"><thead><tr>'
+            '<th>Signal</th><th class="ml-num">MONEYLEAGUE</th>'
+            '<th class="ml-num">Outside rooms</th><th>Verdict</th>'
+            "</tr></thead><tbody>"
+            + "".join(f'<tr><td>{e(s)}</td><td class="ml-num">{m}</td>'
+                      f'<td class="ml-num">{o}</td><td>{v}</td></tr>'
+                      for s, m, o, v in sig_rows)
+            + "</tbody></table>")
+        bench_block = f"""
+<div class="ml-h-label">Out-of-sample check — do the signals replicate
+where we don't play?</div>
+<p class="ml-serial">{bm["leagues_graded"]} LEAGUE-SEASONS ·
+{e(" / ".join(names))} · ZERO SHARED OWNERS</p>
+{bench_tbl}
+<p class="ml-fineprint">Benchmark method: {e(bm["method"])}. Corpus found
+by snowball crawl through the superflex neighborhood two-plus hops from
+our rivals' leaguemates; every league verified owner-free. Verdicts are
+directional (REPLICATES = same sign, MIXED = near-flat, FAILS =
+opposite); no xlsx overlay exists for outside leagues, so their draft
+feeds are trusted as-is. Read a FAILS as calibration, not refutation:
+the 2QB-by-R{EARLY_QB_ROUND} edge is negative outside in BOTH size
+classes, so treat it as pricing THIS room's QB-late minority — an
+exploit of our rivals, not a law of superflex.</p>"""
+
     meta = res["meta"]
     yrs = ", ".join(str(s) for s in meta["seasons"])
     return f"""<section class="ml-panel" id="champion-profile">
@@ -457,6 +538,7 @@ rounds under ADP that produced ≥{KEEPER_HIT_VBD:.0f} VBD — all built from
 late picks or waivers the season before. Runner-ups average
 {g["RUNNER"]["keeper_vbd"]:+.0f} keeper VBD: surplus keepers are champion
 fuel specifically, not merely finals fuel.</p>
+{bench_block}
 <div class="ml-h-label">Brian vs the template</div>
 {brian_tbl}
 <p class="ml-fineprint">Method: {e(meta["method"])}. Small sample
@@ -480,7 +562,10 @@ def main() -> None:
           f"{g['field']['keeper_vbd']:+.0f}; early-2QB playoff rate "
           f"{res['qb_split']['early']['rate']}% vs "
           f"{res['qb_split']['late']['rate']}%; "
-          f"{len(res['champ_keeper_hits'])} champion keeper hits")
+          f"{len(res['champ_keeper_hits'])} champion keeper hits; "
+          + (f"benchmark block: {res['benchmark']['meta']['leagues_graded']} "
+             f"outside league-seasons" if res.get("benchmark")
+             else "no benchmark data (replication block omitted)"))
 
 
 if __name__ == "__main__":

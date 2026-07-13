@@ -46,6 +46,8 @@ do_fetch() {
   python3 scripts/fetch_trade_intel.py --refresh-current
   log "Refresh league history cache (matchups)"
   python3 scripts/fetch_league_history.py
+  log "Benchmark corpus (cache-first; no-op when fully cached)"
+  python3 scripts/fetch_benchmark_leagues.py
 }
 
 # ---------- LAYER 2: derived data ----------
@@ -103,6 +105,7 @@ do_reports() {
   python3 scripts/build_keeper_sensitivity.py
   python3 scripts/backtest_survival_calibration.py
   python3 scripts/build_timing_study.py
+  python3 scripts/build_benchmark_validation.py
   python3 scripts/build_champion_profile.py
   python3 scripts/build_research_desk.py
 }

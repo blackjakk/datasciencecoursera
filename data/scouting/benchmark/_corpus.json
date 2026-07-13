@@ -1,0 +1,98 @@
+{
+ "_meta": {
+  "discovered": "2026-07-13",
+  "how": "snowball crawl: rivals' leaguemates -> their leagues -> SF-redraft neighborhoods -> members' leagues; filter SUPER_FLEX + rec 0.5 + max_keepers>1 + redraft + 10-12 teams + complete; previous_league_id chains walked; every league verified to contain none of our 13 owner uids",
+  "grow": "append league entries here and rerun scripts/fetch_benchmark_leagues.py"
+ },
+ "1257100824320933888": {
+  "season": "2025",
+  "name": "Ciely-Style",
+  "teams": 12,
+  "max_keepers": 5,
+  "previous_league_id": "1052008407978369024"
+ },
+ "1052008407978369024": {
+  "season": "2024",
+  "name": "Ciely-Style",
+  "teams": 12,
+  "max_keepers": 5,
+  "previous_league_id": "992210401221480448"
+ },
+ "992210401221480448": {
+  "season": "2023",
+  "name": "Ciely-Style",
+  "teams": 12,
+  "max_keepers": 5,
+  "previous_league_id": "870425344015003648"
+ },
+ "870425344015003648": {
+  "season": "2022",
+  "name": "Ciely-Style",
+  "teams": 12,
+  "max_keepers": 5,
+  "previous_league_id": "733409295487643648"
+ },
+ "733409295487643648": {
+  "season": "2021",
+  "name": "Ciely-Style",
+  "teams": 12,
+  "max_keepers": 5,
+  "previous_league_id": "516018320408178688"
+ },
+ "1187583766968250368": {
+  "season": "2025",
+  "name": "6th Floor Crew",
+  "teams": 12,
+  "max_keepers": 3,
+  "previous_league_id": "1110597217695571968"
+ },
+ "1110597217695571968": {
+  "season": "2024",
+  "name": "6th Floor Crew",
+  "teams": 12,
+  "max_keepers": 3,
+  "previous_league_id": "973609140352339968"
+ },
+ "973609140352339968": {
+  "season": "2023",
+  "name": "6th Floor Crew",
+  "teams": 12,
+  "max_keepers": 3,
+  "previous_league_id": "843528901492867072"
+ },
+ "1258264789176549376": {
+  "season": "2025",
+  "name": "Warren Keeper League",
+  "teams": 10,
+  "max_keepers": 3,
+  "previous_league_id": "1122749607806668800"
+ },
+ "1122749607806668800": {
+  "season": "2024",
+  "name": "Warren Keeper League",
+  "teams": 10,
+  "max_keepers": 3,
+  "previous_league_id": "997583974715236352"
+ },
+ "997583974715236352": {
+  "season": "2023",
+  "name": "Warren Keeper League",
+  "teams": 10,
+  "max_keepers": 3,
+  "previous_league_id": "857300193643716608"
+ },
+ "857300193643716608": {
+  "season": "2022",
+  "name": "Warren Keeper League",
+  "teams": 10,
+  "max_keepers": 3,
+  "previous_league_id": "650968826728493056"
+ },
+ "650968826728493056": {
+  "season": "2021",
+  "name": "Warren Keeper League",
+  "teams": 10,
+  "max_keepers": 3,
+  "previous_league_id": "600902989795889152"
+ }
+}

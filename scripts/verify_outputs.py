@@ -148,6 +148,15 @@ def main() -> None:
         check(f"research fragment {frag}",
               p.exists() and p.stat().st_size > 500,
               "missing or empty — its builder didn't run")
+    bench = ROOT / "data" / "research" / "benchmark_validation.json"
+    check("benchmark validation json (corpus is committed, so this must "
+          "build)", bench.exists() and bench.stat().st_size > 200,
+          "missing — build_benchmark_validation.py didn't run or found "
+          "no gradable leagues")
+    cp = (ROOT / "data" / "research" / "champion_profile.html").read_text()
+    check("champion profile carries the replication block",
+          "Out-of-sample check" in cp,
+          "benchmark json exists but section X omitted it")
 
     print("Design system:")
     ds = subprocess.run([sys.executable, "scripts/check_design_system.py"],

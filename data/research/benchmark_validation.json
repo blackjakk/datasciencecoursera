@@ -1,0 +1,117 @@
+{
+  "meta": {
+    "generated": "2026-07-13",
+    "leagues_graded": 9,
+    "league_seasons": [
+      {
+        "name": "Ciely-Style",
+        "season": 2025,
+        "teams": 12,
+        "league_id": "1257100824320933888"
+      },
+      {
+        "name": "Ciely-Style",
+        "season": 2024,
+        "teams": 12,
+        "league_id": "1052008407978369024"
+      },
+      {
+        "name": "Ciely-Style",
+        "season": 2023,
+        "teams": 12,
+        "league_id": "992210401221480448"
+      },
+      {
+        "name": "6th Floor Crew",
+        "season": 2025,
+        "teams": 12,
+        "league_id": "1187583766968250368"
+      },
+      {
+        "name": "6th Floor Crew",
+        "season": 2024,
+        "teams": 12,
+        "league_id": "1110597217695571968"
+      },
+      {
+        "name": "6th Floor Crew",
+        "season": 2023,
+        "teams": 12,
+        "league_id": "973609140352339968"
+      },
+      {
+        "name": "Warren Keeper League",
+        "season": 2025,
+        "teams": 10,
+        "league_id": "1258264789176549376"
+      },
+      {
+        "name": "Warren Keeper League",
+        "season": 2024,
+        "teams": 10,
+        "league_id": "1122749607806668800"
+      },
+      {
+        "name": "Warren Keeper League",
+        "season": 2023,
+        "teams": 10,
+        "league_id": "997583974715236352"
+      }
+    ],
+    "skipped": [
+      "Ciely-Style 2022 (no period files)",
+      "Ciely-Style 2021 (no period files)",
+      "Warren Keeper League 2022 (no period files)",
+      "Warren Keeper League 2021 (no period files)"
+    ],
+    "method": "Sleeper-native draft ownership; keepers = is_keeper flag or period-ADP gap >= 1.5 rounds (team-count scaled); our 12-team superflex VBD baselines throughout"
+  },
+  "signals": {
+    "early_2qb": {
+      "po_rate_early": 43,
+      "n_early": 46,
+      "po_rate_late": 50,
+      "n_late": 56,
+      "champs_early": 2,
+      "n_champs": 9,
+      "by_team_size": {
+        "10": {
+          "po_rate_early": 33,
+          "po_rate_late": 44
+        },
+        "12": {
+          "po_rate_early": 47,
+          "po_rate_late": 53
+        }
+      }
+    },
+    "keeper_vbd": {
+      "champ_mean": 211.0,
+      "field_mean": 73.2,
+      "champs_with_hit": 3,
+      "n_champs": 9
+    },
+    "waiver_share": {
+      "champ_mean": 12.4,
+      "field_mean": 18.1
+    },
+    "trade_share": {
+      "finalist_mean": 4.1,
+      "field_mean": 3.8
+    },
+    "pf": {
+      "champ_mean_rank": 2.4,
+      "champ_ranks": [
+        1,
+        1,
+        1,
+        2,
+        2,
+        3,
+        3,
+        4,
+        5
+      ]
+    }
+  }
+}

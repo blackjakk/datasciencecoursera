@@ -122,6 +122,16 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   land W6-10 (lose the trade on paper, win the title); waiver-point
   share is a LOSING signal (field 32% vs champs 11%); wins don't
   separate finalists from playoff-outs — PF does (champs #1,#1,#4).
+- Benchmark corpus (out-of-sample validation, July 2026): 13 owner-free
+  MONEYLEAGUE-format league-seasons (6th Floor Crew, Ciely-Style 12tm;
+  Warren 10tm) found by snowball crawl through rivals' leaguemates;
+  cached data/scouting/benchmark/ (cache-first fetcher; grow corpus by
+  appending _corpus.json). Verdicts (9 gradable): keeper VBD REPLICATES
+  (champs 211 vs field 73), waiver-share REPLICATES, champ PF rank
+  REPLICATES (mean 2.4); trade share MIXED (outside rooms barely
+  trade); 2QB-by-R6 FAILS outside (43% vs 50%, negative in BOTH size
+  classes) → the QB edge prices THIS room's QB-late minority, not a
+  superflex law.
 
 ## Key analyses on record
 - Backtest (`scripts/backtest_recommender.py`): tool vs real-Brian
