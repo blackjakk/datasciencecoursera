@@ -163,7 +163,7 @@ def screen_current() -> dict:
 # ------------------------------------------------------ the expiry board
 
 def expiry_board(mgr_of: dict[int, str]) -> dict:
-    """Every 2026 keeper's 2027 fate, per the contract rules (truth #8):
+    """Every 2026 keeper's 2027 fate, per the contract rules (truth #9):
     cost escalates {ROUND_PENALTY} rounds/yr, {MAX_YEARS} consecutive
     years max, R1/R2 forfeits ineligible — and the clock FOLLOWS THE
     PLAYER (no reset on trade), so an expiring keeper is a pure rental

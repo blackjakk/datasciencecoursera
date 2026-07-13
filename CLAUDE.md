@@ -53,7 +53,18 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
    league-specific model (VBD + keeper/contract context + this room's
    measured tendencies) disagrees with that consensus — not where
    online ADP disagrees with it.
-8. Keeper contract rules (user-confirmed, Jul 2026): cost escalates 2
+8. Room social map (user-provided, Jul 2026): Troy=Bills fan, Eric=Jets,
+   Figgy=Packers, Lem=Seahawks, Brian="Jets" (ironic quotes), everyone
+   else ≈ Eagles fans; nearly all Penn State alumni except Donnie. BUT
+   measured: NO fan/alumni price premium exists — PSU alumni reach
+   +1.36 vs +1.32 baseline (n=12; Saquon went at/below market 3x in a
+   PSU-Eagles room), and drafted-team clusters do NOT match stated
+   fandom (Bills-fan Troy drafts zero Bills). Do not model a fan tax;
+   the room drafts mercenary. Caveat: team-at-draft tests need
+   historical rosters (players_nfl.json carries CURRENT team only —
+   burned once on Bigsby JAX→PHI). Live test pending: 2026 PSU rookie
+   class (Allar/Singleton) + Tyler Warren (Figgy paid +1.8 in 2025).
+9. Keeper contract rules (user-confirmed, Jul 2026): cost escalates 2
    rounds/yr, MAX 3 consecutive years kept, R1/R2 forfeits ineligible —
    and the 3-year clock FOLLOWS THE PLAYER; it does NOT reset on trade.
    An expiring keeper is therefore a pure rental to any acquirer. 2027
@@ -149,7 +160,7 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   classes) → the QB edge prices THIS room's QB-late minority, not a
   superflex law.
 - Stack Screen (XI, `build_keeper_stack_screen.py`, + lines in weekly
-  movers briefing; also carries the EXPIRY BOARD — truth #8 rental
+  movers briefing; also carries the EXPIRY BOARD — truth #9 rental
   shelf, forced-seller flags Trevor 3 / coop 2, W9-11 buy window): preseason keeper surplus is a COIN FLIP for titles
   (champs ranked 6/9/1 preseason; 12-league backtest percentile ~49);
   the "title watch" shape (rank-1 surplus ≥120 + proven majority) went
