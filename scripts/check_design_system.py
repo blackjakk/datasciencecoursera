@@ -56,6 +56,7 @@ HEX_SCAN_TARGETS = [
     "scripts/build_timing_study.py",
     "scripts/build_benchmark_validation.py",
     "scripts/build_champion_profile.py",
+    "scripts/build_keeper_stack_screen.py",
     "scripts/build_research_desk.py",
 ]
 

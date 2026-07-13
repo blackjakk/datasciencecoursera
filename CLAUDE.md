@@ -86,7 +86,7 @@ restoration in refresh()), SR live regions (#sr-clock), phone-clean at
 `scripts/check_a11y.py` (inside verify) guards it; use the `a11y-review`
 skill for any helper/design diff. Record: docs/A11Y_AUDIT.md.
 
-## Research Desk (July 2026 — the analyst layer, 10 sections)
+## Research Desk (July 2026 — the analyst layer, 11 sections)
 `data/MONEYLEAGUE_RESEARCH_DESK.pdf`, assembled by
 `scripts/build_research_desk.py` from fragments in `data/research/`
 (contract: docs/GOAL_RESEARCH.md — one <section>, ml classes, no hex;
@@ -132,6 +132,15 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   trade); 2QB-by-R6 FAILS outside (43% vs 50%, negative in BOTH size
   classes) → the QB edge prices THIS room's QB-late minority, not a
   superflex law.
+- Stack Screen (XI, `build_keeper_stack_screen.py`, + line in weekly
+  movers briefing): preseason keeper surplus is a COIN FLIP for titles
+  (champs ranked 6/9/1 preseason; 12-league backtest percentile ~49);
+  the "title watch" shape (rank-1 surplus ≥120 + proven majority) went
+  1-for-3 (2025 Trevor hit; 2024 coop same shape missed) ≈ 4x base
+  rate, not a crown. 2026 predicted: WATCH FIRES ON TREVOR AGAIN
+  (Puka/Achane/Collins/Fields, 167 vs Kyle 127; Brian 7th at 55).
+  Auto-regrades on real declarations when keepers_2026_actual.json
+  lands (derive copies it over keepers_2026.json).
 
 ## Key analyses on record
 - Backtest (`scripts/backtest_recommender.py`): tool vs real-Brian

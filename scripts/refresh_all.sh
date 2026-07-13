@@ -107,6 +107,7 @@ do_reports() {
   python3 scripts/build_timing_study.py
   python3 scripts/build_benchmark_validation.py
   python3 scripts/build_champion_profile.py
+  python3 scripts/build_keeper_stack_screen.py
   python3 scripts/build_research_desk.py
 }
 

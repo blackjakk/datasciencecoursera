@@ -1,0 +1,497 @@
+{
+  "meta": {
+    "generated": "2026-07-13",
+    "season": 2026,
+    "basis": "model-predicted keepers (actuals auto-load at lock)",
+    "criteria": "rank-1 surplus >= 120 blind-curve pts with >= 50% of keepers proven (kept-again or positive realized VBD the season before)",
+    "record": "1 title(s) in 3 firings, 2023-25"
+  },
+  "stacks": [
+    {
+      "roster_id": 11,
+      "manager": "trevor_bergerboy",
+      "is_me": false,
+      "n_keepers": 4,
+      "surplus": 166.7,
+      "proven": 4,
+      "proven_share": 1.0,
+      "keepers": [
+        {
+          "player": "Puka Nacua",
+          "pos": "WR",
+          "cost_round": 11,
+          "adp_round": 1.0,
+          "surplus": 107.3,
+          "proven": true
+        },
+        {
+          "player": "De'Von Achane",
+          "pos": "RB",
+          "cost_round": 6,
+          "adp_round": 1.8,
+          "surplus": 40.0,
+          "proven": true
+        },
+        {
+          "player": "Nico Collins",
+          "pos": "WR",
+          "cost_round": 4,
+          "adp_round": 2.7,
+          "surplus": 18.1,
+          "proven": true
+        },
+        {
+          "player": "Chuba Hubbard",
+          "pos": "RB",
+          "cost_round": 12,
+          "adp_round": 9.0,
+          "surplus": 1.3,
+          "proven": true
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "roster_id": 8,
+      "manager": "brower_barry",
+      "is_me": false,
+      "n_keepers": 4,
+      "surplus": 127.1,
+      "proven": 3,
+      "proven_share": 0.75,
+      "keepers": [
+        {
+          "player": "Jaxon Smith-Njigba",
+          "pos": "WR",
+          "cost_round": 5,
+          "adp_round": 1.0,
+          "surplus": 81.3,
+          "proven": true
+        },
+        {
+          "player": "Kyren Williams",
+          "pos": "RB",
+          "cost_round": 11,
+          "adp_round": 4.2,
+          "surplus": 37.3,
+          "proven": true
+        },
+        {
+          "player": "Harold Fannin",
+          "pos": "TE",
+          "cost_round": 15,
+          "adp_round": 6.6,
+          "surplus": 7.2,
+          "proven": true
+        },
+        {
+          "player": "Oronde Gadsden",
+          "pos": "TE",
+          "cost_round": 14,
+          "adp_round": 8.9,
+          "surplus": 1.3,
+          "proven": false
+        }
+      ],
+      "rank": 2
+    },
+    {
+      "roster_id": 1,
+      "manager": "tim_breswick",
+      "is_me": false,
+      "n_keepers": 4,
+      "surplus": 126.2,
+      "proven": 3,
+      "proven_share": 0.75,
+      "keepers": [
+        {
+          "player": "Drake Maye",
+          "pos": "QB",
+          "cost_round": 7,
+          "adp_round": 1.0,
+          "surplus": 100.1,
+          "proven": true
+        },
+        {
+          "player": "Javonte Williams",
+          "pos": "RB",
+          "cost_round": 9,
+          "adp_round": 4.6,
+          "surplus": 24.7,
+          "proven": true
+        },
+        {
+          "player": "Ricky Pearsall",
+          "pos": "WR",
+          "cost_round": 11,
+          "adp_round": 9.1,
+          "surplus": 1.3,
+          "proven": true
+        },
+        {
+          "player": "AJ Barner",
+          "pos": "TE",
+          "cost_round": 15,
+          "adp_round": 11.9,
+          "surplus": 0.0,
+          "proven": false
+        }
+      ],
+      "rank": 3
+    },
+    {
+      "roster_id": 6,
+      "manager": "lem",
+      "is_me": false,
+      "n_keepers": 4,
+      "surplus": 100.3,
+      "proven": 4,
+      "proven_share": 1.0,
+      "keepers": [
+        {
+          "player": "Chase Brown",
+          "pos": "RB",
+          "cost_round": 11,
+          "adp_round": 2.9,
+          "surplus": 55.4,
+          "proven": true
+        },
+        {
+          "player": "Chris Olave",
+          "pos": "WR",
+          "cost_round": 5,
+          "adp_round": 3.2,
+          "surplus": 29.4,
+          "proven": true
+        },
+        {
+          "player": "Michael Wilson",
+          "pos": "WR",
+          "cost_round": 13,
+          "adp_round": 8.0,
+          "surplus": 15.6,
+          "proven": true
+        },
+        {
+          "player": "Juwan Johnson",
+          "pos": "TE",
+          "cost_round": 12,
+          "adp_round": 10.3,
+          "surplus": 0.0,
+          "proven": true
+        }
+      ],
+      "rank": 4
+    },
+    {
+      "roster_id": 7,
+      "manager": "eric_m",
+      "is_me": false,
+      "n_keepers": 4,
+      "surplus": 92.2,
+      "proven": 1,
+      "proven_share": 0.25,
+      "keepers": [
+        {
+          "player": "Bucky Irving",
+          "pos": "RB",
+          "cost_round": 10,
+          "adp_round": 3.5,
+          "surplus": 37.3,
+          "proven": true
+        },
+        {
+          "player": "Bhayshul Tuten",
+          "pos": "RB",
+          "cost_round": 11,
+          "adp_round": 5.9,
+          "surplus": 30.4,
+          "proven": false
+        },
+        {
+          "player": "Cam Skattebo",
+          "pos": "RB",
+          "cost_round": 7,
+          "adp_round": 5.9,
+          "surplus": 23.2,
+          "proven": false
+        },
+        {
+          "player": "Blake Corum",
+          "pos": "RB",
+          "cost_round": 13,
+          "adp_round": 9.0,
+          "surplus": 1.3,
+          "proven": false
+        }
+      ],
+      "rank": 5
+    },
+    {
+      "roster_id": 12,
+      "manager": "coop",
+      "is_me": false,
+      "n_keepers": 4,
+      "surplus": 71.7,
+      "proven": 4,
+      "proven_share": 1.0,
+      "keepers": [
+        {
+          "player": "Trey McBride",
+          "pos": "TE",
+          "cost_round": 11,
+          "adp_round": 1.9,
+          "surplus": 70.3,
+          "proven": true
+        },
+        {
+          "player": "Parker Washington",
+          "pos": "WR",
+          "cost_round": 15,
+          "adp_round": 9.3,
+          "surplus": 1.3,
+          "proven": true
+        },
+        {
+          "player": "Sam Darnold",
+          "pos": "QB",
+          "cost_round": 7,
+          "adp_round": 6.7,
+          "surplus": 0.0,
+          "proven": true
+        },
+        {
+          "player": "Jameson Williams",
+          "pos": "WR",
+          "cost_round": 6,
+          "adp_round": 5.1,
+          "surplus": 0.0,
+          "proven": true
+        }
+      ],
+      "rank": 6
+    },
+    {
+      "roster_id": 9,
+      "manager": "brian_bigguap",
+      "is_me": true,
+      "n_keepers": 4,
+      "surplus": 55.0,
+      "proven": 2,
+      "proven_share": 0.5,
+      "keepers": [
+        {
+          "player": "Luther Burden",
+          "pos": "WR",
+          "cost_round": 9,
+          "adp_round": 4.4,
+          "surplus": 36.0,
+          "proven": false
+        },
+        {
+          "player": "Colston Loveland",
+          "pos": "TE",
+          "cost_round": 8,
+          "adp_round": 4.9,
+          "surplus": 10.5,
+          "proven": true
+        },
+        {
+          "player": "Christian Watson",
+          "pos": "WR",
+          "cost_round": 15,
+          "adp_round": 6.8,
+          "surplus": 7.2,
+          "proven": false
+        },
+        {
+          "player": "Alec Pierce",
+          "pos": "WR",
+          "cost_round": 14,
+          "adp_round": 9.2,
+          "surplus": 1.3,
+          "proven": true
+        }
+      ],
+      "rank": 7
+    },
+    {
+      "roster_id": 3,
+      "manager": "ankur_patel",
+      "is_me": false,
+      "n_keepers": 3,
+      "surplus": 29.4,
+      "proven": 2,
+      "proven_share": 0.67,
+      "keepers": [
+        {
+          "player": "Bo Nix",
+          "pos": "QB",
+          "cost_round": 5,
+          "adp_round": 2.8,
+          "surplus": 29.4,
+          "proven": true
+        },
+        {
+          "player": "Jalen Coker",
+          "pos": "WR",
+          "cost_round": 15,
+          "adp_round": 12.8,
+          "surplus": 0.0,
+          "proven": false
+        },
+        {
+          "player": "Jauan Jennings",
+          "pos": "WR",
+          "cost_round": 13,
+          "adp_round": 11.8,
+          "surplus": 0.0,
+          "proven": true
+        }
+      ],
+      "rank": 8
+    },
+    {
+      "roster_id": 10,
+      "manager": "josh_wildboy",
+      "is_me": false,
+      "n_keepers": 3,
+      "surplus": 21.2,
+      "proven": 3,
+      "proven_share": 1.0,
+      "keepers": [
+        {
+          "player": "Sam LaPorta",
+          "pos": "TE",
+          "cost_round": 9,
+          "adp_round": 8.4,
+          "surplus": 14.2,
+          "proven": true
+        },
+        {
+          "player": "Travis Etienne",
+          "pos": "RB",
+          "cost_round": 6,
+          "adp_round": 4.5,
+          "surplus": 7.0,
+          "proven": true
+        },
+        {
+          "player": "Dallas Goedert",
+          "pos": "TE",
+          "cost_round": 15,
+          "adp_round": 9.5,
+          "surplus": 0.0,
+          "proven": true
+        }
+      ],
+      "rank": 9
+    },
+    {
+      "roster_id": 5,
+      "manager": "kyle_figgy",
+      "is_me": false,
+      "n_keepers": 3,
+      "surplus": 8.5,
+      "proven": 3,
+      "proven_share": 1.0,
+      "keepers": [
+        {
+          "player": "Tucker Kraft",
+          "pos": "TE",
+          "cost_round": 10,
+          "adp_round": 7.5,
+          "surplus": 7.2,
+          "proven": true
+        },
+        {
+          "player": "Hunter Henry",
+          "pos": "TE",
+          "cost_round": 12,
+          "adp_round": 9.5,
+          "surplus": 1.3,
+          "proven": true
+        },
+        {
+          "player": "Wan'Dale Robinson",
+          "pos": "WR",
+          "cost_round": 15,
+          "adp_round": 10.4,
+          "surplus": 0.0,
+          "proven": true
+        }
+      ],
+      "rank": 10
+    },
+    {
+      "roster_id": 4,
+      "manager": "troy_mullings",
+      "is_me": false,
+      "n_keepers": 2,
+      "surplus": 1.3,
+      "proven": 2,
+      "proven_share": 1.0,
+      "keepers": [
+        {
+          "player": "Rico Dowdle",
+          "pos": "RB",
+          "cost_round": 15,
+          "adp_round": 8.8,
+          "surplus": 1.3,
+          "proven": true
+        },
+        {
+          "player": "Jake Ferguson",
+          "pos": "TE",
+          "cost_round": 10,
+          "adp_round": 9.8,
+          "surplus": 0.0,
+          "proven": true
+        }
+      ],
+      "rank": 11
+    }
+  ],
+  "watch": {
+    "fired": true,
+    "top": "trevor_bergerboy",
+    "top_surplus": 166.7,
+    "second_surplus": 127.1,
+    "top_proven_share": 1.0
+  },
+  "backtest": [
+    {
+      "season": 2023,
+      "fired": true,
+      "top": "dibach215",
+      "top_surplus": 177.6,
+      "second_surplus": 113.1,
+      "top_proven_share": null,
+      "champ": "emattessich",
+      "champ_rank": 6,
+      "watch_correct": false
+    },
+    {
+      "season": 2024,
+      "fired": true,
+      "top": "wvw5022",
+      "top_surplus": 194.6,
+      "second_surplus": 182.0,
+      "top_proven_share": 0.8,
+      "champ": "BigDickNicholas",
+      "champ_rank": 9,
+      "watch_correct": false
+    },
+    {
+      "season": 2025,
+      "fired": true,
+      "top": "tjt5055",
+      "top_surplus": 195.4,
+      "second_surplus": 174.0,
+      "top_proven_share": 1.0,
+      "champ": "tjt5055",
+      "champ_rank": 1,
+      "watch_correct": true
+    }
+  ]
+}

@@ -38,6 +38,7 @@ SECTIONS = [
     ("survival_calibration", "VIII. Survival Calibration — the model audits itself"),
     ("timing_study", "IX. The Timing Study — trading against the calendar"),
     ("champion_profile", "X. The Champion Profile — what finals teams do differently"),
+    ("keeper_stack_screen", "XI. The Stack Screen — keeper firepower, priced honestly"),
 ]
 
 PAGE_CSS = """

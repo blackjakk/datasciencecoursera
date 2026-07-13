@@ -200,6 +200,16 @@ def inefficiency_screen() -> list[str]:
                 f"- screen unavailable this week ({type(e).__name__})."]
 
 
+def stack_screen() -> list[str]:
+    try:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import build_keeper_stack_screen
+        return build_keeper_stack_screen.summary_lines()
+    except Exception as e:  # same doctrine: never sink the report
+        return ["", "STACK SCREEN",
+                f"- unavailable this week ({type(e).__name__})."]
+
+
 def main() -> None:
     wk = date.today().isocalendar()[1]
     lines = [f"MARKET REPORT — WEEK {wk} · SERIES 2026",
@@ -210,6 +220,7 @@ def main() -> None:
     lines += keeper_changes()
     lines += injury_changes()
     lines += inefficiency_screen()
+    lines += stack_screen()
     lines += ["",
               "Past performance (2025: 12th of 12) is not indicative of "
               "future results."]
