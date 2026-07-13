@@ -53,6 +53,14 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
    league-specific model (VBD + keeper/contract context + this room's
    measured tendencies) disagrees with that consensus — not where
    online ADP disagrees with it.
+8. Keeper contract rules (user-confirmed, Jul 2026): cost escalates 2
+   rounds/yr, MAX 3 consecutive years kept, R1/R2 forfeits ineligible —
+   and the 3-year clock FOLLOWS THE PLAYER; it does NOT reset on trade.
+   An expiring keeper is therefore a pure rental to any acquirer. 2027
+   expiry board (from 2026 predicted keeps): Trevor loses Collins+
+   Achane+Puka simultaneously, coop loses McBride+Jamo — half the
+   league holds ≥1 expiring asset; Brian holds ZERO (all fresh) and a
+   full 2027 pick set (the currency forced sellers want).
 
 ## Season plumbing (2026)
 - 2026 Sleeper league EXISTS: id `1364055104709230592` (auto-discovered
