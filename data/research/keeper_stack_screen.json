@@ -521,6 +521,196 @@
     "war_leader": "kyle_figgy",
     "war_leader_chest": 628.7
   },
+  "expiry": {
+    "rental_shelf": [
+      {
+        "manager": "trevor_bergerboy",
+        "roster_id": 11,
+        "player": "Puka Nacua",
+        "pos": "WR",
+        "cost_2026": 11,
+        "market_round": 1.0,
+        "market_value": 107.3,
+        "fate": "EXPIRES (3-yr cap)",
+        "expires": true
+      },
+      {
+        "manager": "trevor_bergerboy",
+        "roster_id": 11,
+        "player": "De'Von Achane",
+        "pos": "RB",
+        "cost_2026": 6,
+        "market_round": 1.8,
+        "market_value": 70.3,
+        "fate": "EXPIRES (3-yr cap)",
+        "expires": true
+      },
+      {
+        "manager": "coop",
+        "roster_id": 12,
+        "player": "Trey McBride",
+        "pos": "TE",
+        "cost_2026": 11,
+        "market_round": 1.9,
+        "market_value": 70.3,
+        "fate": "EXPIRES (3-yr cap)",
+        "expires": true
+      },
+      {
+        "manager": "lem",
+        "roster_id": 6,
+        "player": "Chase Brown",
+        "pos": "RB",
+        "cost_2026": 11,
+        "market_round": 2.9,
+        "market_value": 55.4,
+        "fate": "EXPIRES (3-yr cap)",
+        "expires": true
+      },
+      {
+        "manager": "trevor_bergerboy",
+        "roster_id": 11,
+        "player": "Nico Collins",
+        "pos": "WR",
+        "cost_2026": 4,
+        "market_round": 2.7,
+        "market_value": 55.4,
+        "fate": "EXPIRES (3-yr cap)",
+        "expires": true
+      },
+      {
+        "manager": "brower_barry",
+        "roster_id": 8,
+        "player": "Kyren Williams",
+        "pos": "RB",
+        "cost_2026": 11,
+        "market_round": 4.2,
+        "market_value": 37.3,
+        "fate": "EXPIRES (3-yr cap)",
+        "expires": true
+      },
+      {
+        "manager": "coop",
+        "roster_id": 12,
+        "player": "Jameson Williams",
+        "pos": "WR",
+        "cost_2026": 6,
+        "market_round": 5.1,
+        "market_value": 26.0,
+        "fate": "EXPIRES (3-yr cap)",
+        "expires": true
+      },
+      {
+        "manager": "josh_wildboy",
+        "roster_id": 10,
+        "player": "Sam LaPorta",
+        "pos": "TE",
+        "cost_2026": 9,
+        "market_round": 8.4,
+        "market_value": 15.6,
+        "fate": "EXPIRES (3-yr cap)",
+        "expires": true
+      },
+      {
+        "manager": "troy_mullings",
+        "roster_id": 4,
+        "player": "Jake Ferguson",
+        "pos": "TE",
+        "cost_2026": 10,
+        "market_round": 9.8,
+        "market_value": 0.0,
+        "fate": "EXPIRES (3-yr cap)",
+        "expires": true
+      }
+    ],
+    "forced_sellers": [
+      {
+        "manager": "trevor_bergerboy",
+        "n": 3,
+        "assets": [
+          "Nico Collins",
+          "De'Von Achane",
+          "Puka Nacua"
+        ]
+      },
+      {
+        "manager": "coop",
+        "n": 2,
+        "assets": [
+          "Trey McBride",
+          "Jameson Williams"
+        ]
+      }
+    ],
+    "durables": [
+      {
+        "manager": "tim_breswick",
+        "roster_id": 1,
+        "player": "Drake Maye",
+        "pos": "QB",
+        "cost_2026": 7,
+        "market_round": 1.0,
+        "market_value": 107.3,
+        "fate": "keepable @R5 (+81)",
+        "expires": false
+      },
+      {
+        "manager": "brower_barry",
+        "roster_id": 8,
+        "player": "Jaxon Smith-Njigba",
+        "pos": "WR",
+        "cost_2026": 5,
+        "market_round": 1.0,
+        "market_value": 107.3,
+        "fate": "keepable @R3 (+52)",
+        "expires": false
+      },
+      {
+        "manager": "eric_m",
+        "roster_id": 7,
+        "player": "Bucky Irving",
+        "pos": "RB",
+        "cost_2026": 10,
+        "market_round": 3.5,
+        "market_value": 37.3,
+        "fate": "keepable @R8 (+22)",
+        "expires": false
+      },
+      {
+        "manager": "brian_bigguap",
+        "roster_id": 9,
+        "player": "Luther Burden",
+        "pos": "WR",
+        "cost_2026": 9,
+        "market_round": 4.4,
+        "market_value": 37.3,
+        "fate": "keepable @R7 (+30)",
+        "expires": false
+      },
+      {
+        "manager": "eric_m",
+        "roster_id": 7,
+        "player": "Bhayshul Tuten",
+        "pos": "RB",
+        "cost_2026": 11,
+        "market_round": 5.9,
+        "market_value": 30.4,
+        "fate": "keepable @R9 (+29)",
+        "expires": false
+      },
+      {
+        "manager": "tim_breswick",
+        "roster_id": 1,
+        "player": "Javonte Williams",
+        "pos": "RB",
+        "cost_2026": 9,
+        "market_round": 4.6,
+        "market_value": 26.0,
+        "fate": "keepable @R7 (+19)",
+        "expires": false
+      }
+    ]
+  },
   "backtest": [
     {
       "season": 2023,

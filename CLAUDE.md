@@ -140,8 +140,9 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   trade); 2QB-by-R6 FAILS outside (43% vs 50%, negative in BOTH size
   classes) → the QB edge prices THIS room's QB-late minority, not a
   superflex law.
-- Stack Screen (XI, `build_keeper_stack_screen.py`, + line in weekly
-  movers briefing): preseason keeper surplus is a COIN FLIP for titles
+- Stack Screen (XI, `build_keeper_stack_screen.py`, + lines in weekly
+  movers briefing; also carries the EXPIRY BOARD — truth #8 rental
+  shelf, forced-seller flags Trevor 3 / coop 2, W9-11 buy window): preseason keeper surplus is a COIN FLIP for titles
   (champs ranked 6/9/1 preseason; 12-league backtest percentile ~49);
   the "title watch" shape (rank-1 surplus ≥120 + proven majority) went
   1-for-3 (2025 Trevor hit; 2024 coop same shape missed) ≈ 4x base

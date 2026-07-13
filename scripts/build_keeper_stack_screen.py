@@ -34,7 +34,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.stash_curve import _period_adp, _season_vbd  # noqa: E402
-from scripts.build_2026_keepers import _load_adp_baselines  # noqa: E402
+from scripts.build_2026_keepers import (  # noqa: E402
+    _load_adp_baselines, MAX_YEARS, ROUND_PENALTY)
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = ROOT / "data" / "research"
@@ -159,6 +160,59 @@ def screen_current() -> dict:
             "rows": rows, "watch": watch}
 
 
+# ------------------------------------------------------ the expiry board
+
+def expiry_board(mgr_of: dict[int, str]) -> dict:
+    """Every 2026 keeper's 2027 fate, per the contract rules (truth #8):
+    cost escalates {ROUND_PENALTY} rounds/yr, {MAX_YEARS} consecutive
+    years max, R1/R2 forfeits ineligible — and the clock FOLLOWS THE
+    PLAYER (no reset on trade), so an expiring keeper is a pure rental
+    to any acquirer."""
+    keepers = json.loads((ROOT / "data" / "keepers_2026.json").read_text())
+    per_keeper, sellers = [], defaultdict(list)
+    for k in keepers:
+        if k.get("status") != "carryover":
+            continue
+        yrs_after = k.get("years_kept", 0) + 1        # after keeping in 2026
+        cost27 = k["forfeit_round"] - ROUND_PENALTY
+        adp_rd = max(1.0, k["adp"] / 12.0) if k.get("adp") else None
+        sur27 = (round(max(0.0, blind(adp_rd) - blind(cost27)), 1)
+                 if adp_rd and cost27 >= 3 else None)
+        if yrs_after >= MAX_YEARS:
+            fate = "EXPIRES (3-yr cap)"
+        elif cost27 < 3:
+            fate = "EXPIRES (cost hits R1/R2)"
+        elif sur27 is not None and sur27 < 10:
+            fate = "marginal (surplus ~0)"
+        else:
+            fate = f"keepable @R{cost27} (+{sur27:.0f})"
+        row = {
+            "manager": mgr_of.get(k["roster_id"], f"rid{k['roster_id']}"),
+            "roster_id": k["roster_id"], "player": k["player_name"],
+            "pos": k.get("position", "?"), "cost_2026": k["forfeit_round"],
+            "market_round": round(adp_rd, 1) if adp_rd else None,
+            "market_value": round(blind(adp_rd), 1) if adp_rd else 0.0,
+            "fate": fate, "expires": fate.startswith("EXPIRES"),
+        }
+        per_keeper.append(row)
+        if row["expires"]:
+            sellers[row["manager"]].append(row)
+    shelf = sorted((r for r in per_keeper if r["expires"]),
+                   key=lambda r: -r["market_value"])
+    return {
+        "rental_shelf": shelf,
+        "forced_sellers": [
+            {"manager": m, "n": len(rs),
+             "assets": [r["player"] for r in rs]}
+            for m, rs in sorted(sellers.items(),
+                                key=lambda kv: -len(kv[1]))
+            if len(rs) >= 2],
+        "durables": sorted(
+            (r for r in per_keeper if r["fate"].startswith("keepable")),
+            key=lambda r: -r["market_value"])[:6],
+    }
+
+
 # --------------------------------------------- self-calibration backtest
 
 def backtest() -> list[dict]:
@@ -242,6 +296,7 @@ def backtest() -> list[dict]:
 def compute() -> dict:
     cur = screen_current()
     hist = backtest()
+    mgr_of = {r["roster_id"]: r["manager"] for r in cur["rows"]}
     fired = [b for b in hist if b["fired"]]
     return {
         "meta": {
@@ -256,6 +311,7 @@ def compute() -> dict:
         },
         "stacks": cur["rows"],
         "watch": cur["watch"],
+        "expiry": expiry_board(mgr_of),
         "backtest": hist,
     }
 
@@ -284,6 +340,14 @@ def summary_lines(res: dict | None = None) -> list[str]:
                          for r in res["stacks"][:3])
         lines.append(f"- no title watch ({res['meta']['basis']}); "
                      f"war chests: {top3}.")
+    sellers = (res.get("expiry") or {}).get("forced_sellers") or []
+    if sellers:
+        lines.append("- expiry board: forced sellers "
+                     + "; ".join(f"{s['manager']} "
+                                 f"({', '.join(s['assets'])})"
+                                 for s in sellers)
+                     + " — rentals to any acquirer (clock follows the "
+                     "player); optimal buy window W9-11.")
     return lines
 
 
@@ -346,6 +410,34 @@ def build_fragment(res: dict) -> str:
                 f"<td>{verdict}</td></tr>")
 
     bt_rows = "".join(bt_row(b) for b in res["backtest"])
+
+    ex = res.get("expiry") or {}
+    shelf_rows = "".join(
+        f'<tr><td>{e(r["manager"])}</td>'
+        f'<td>{e(r["player"])} <span class="ml-fineprint">{e(r["pos"])}</span></td>'
+        f'<td class="ml-num">R{r["cost_2026"]}</td>'
+        f'<td class="ml-num">R{r["market_round"]:.0f}</td>'
+        f'<td class="ml-num">{r["market_value"]:.0f}</td>'
+        f'<td>{e(r["fate"])}</td></tr>'
+        for r in ex.get("rental_shelf", []))
+    sellers = " · ".join(f'{e(s["manager"])} ({s["n"]}: '
+                         f'{e(", ".join(s["assets"]))})'
+                         for s in ex.get("forced_sellers", []))
+    durables = " · ".join(f'{e(r["player"])} {e(r["fate"].split(" (")[0])}'
+                          for r in ex.get("durables", []))
+    expiry_block = f"""
+<div class="ml-h-label">The Expiry Board — 2027 forward supply (clock
+follows the player: expiring = pure rental to ANY acquirer)</div>
+<table class="ml-table ml-table--compact"><thead><tr>
+<th>Seller</th><th>Asset</th><th class="ml-num">2026 cost</th>
+<th class="ml-num">Market</th><th class="ml-num">Value</th>
+<th>Why it dies</th></tr></thead><tbody>{shelf_rows}</tbody></table>
+<p>Forced sellers (≥2 expiring): <strong>{sellers or "none"}</strong>.
+Rentals price at rest-of-season only and the seller's leverage decays
+weekly — the equilibrium buy window is W9-11, at close to the Timing
+Study's deadline discount. Durable 2027 stacks worth protecting:
+{durables or "—"}.</p>"""
+
     return f"""<section class="ml-panel" id="stack-screen">
 <h2>The Stack Screen — keeper firepower, priced honestly</h2>
 <p class="ml-serial">2026 KEEPER STACKS · {e(res["meta"]["basis"]).upper()}
@@ -358,6 +450,7 @@ market + live picks, trades applied · * = proven)</div>
 <th class="ml-num">Keep + picks</th><th class="ml-num">Surplus</th>
 <th class="ml-num">Proven</th><th>Keepers</th></tr></thead>
 <tbody>{rows}</tbody></table>
+{expiry_block}
 <div class="ml-h-label">The watch rule's own record (same rule, 2023-25)</div>
 <table class="ml-table ml-table--compact"><thead><tr>
 <th class="ml-num">Yr</th><th>Watch</th><th>Top stack</th><th>Champion</th>
