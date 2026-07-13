@@ -88,9 +88,13 @@ def main():
     all_keepers = json.loads(KEEPERS_JSON.read_text())
     others = [k for k in all_keepers
               if k.get("status") == "carryover" and k["roster_id"] != MY_RID]
+    # forced_drop candidates are predictor collision artifacts — the bump
+    # rule (truth #5) means nobody is hard-blocked, so they're testable
+    # keeps here (resolve_collisions seats them). Love R9 is the case that
+    # matters: discounted QB = the best cell in the keep-side book.
     mine = [k for k in all_keepers
             if k["roster_id"] == MY_RID
-            and k.get("status") in ("carryover", "alternate")]
+            and k.get("status") in ("carryover", "alternate", "forced_drop")]
     rid_to_slot = {rid: slot for slot, rid in PREDICTED_SLOT_TO_RID.items()}
     my_team_idx = rid_to_slot[MY_RID] - 1
 
