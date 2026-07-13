@@ -98,30 +98,61 @@ def screen_current() -> dict:
         s["surplus"] += surplus
         s["proven"] += proven
 
+    # WAR CHEST = keeper value at ADP + value of remaining live picks
+    # (helper schedule has pick trades applied; keepers consume their
+    # effective forfeit seats, bump rule included).
+    rid_of = {m["team_idx"]: m["roster_id"] for m in helper["managers"]}
+    owned: dict[int, list[int]] = defaultdict(list)
+    for p in helper["schedule"]:
+        owned[rid_of[p["team_idx"]]].append(p["round"])
+    keeper_val: dict[int, float] = defaultdict(float)
+    for k in keepers:
+        if k.get("status") != "carryover":
+            continue
+        rid = k["roster_id"]
+        seat = k.get("effective_forfeit_round") or k["forfeit_round"]
+        if seat in owned[rid]:
+            owned[rid].remove(seat)
+        adp_rd = max(1.0, k["adp"] / 12.0) if k.get("adp") else None
+        keeper_val[rid] += blind(adp_rd) if adp_rd else 0.0
+
     rows = []
-    for rid, s in stacks.items():
+    for rid in sorted(owned):          # every team, keepers or not
+        s = stacks.get(rid) or {"keepers": [], "surplus": 0.0, "proven": 0}
         n = len(s["keepers"])
+        pick_value = round(sum(blind(r) for r in owned[rid]), 1)
         rows.append({
             "roster_id": rid, "manager": mgr_of.get(rid, f"rid{rid}"),
             "is_me": rid == MY_RID, "n_keepers": n,
             "surplus": round(s["surplus"], 1),
             "proven": s["proven"],
             "proven_share": round(s["proven"] / n, 2) if n else 0.0,
+            "keeper_value": round(keeper_val[rid], 1),
+            "pick_value": pick_value,
+            "war_chest": round(keeper_val[rid] + pick_value, 1),
             "keepers": sorted(s["keepers"], key=lambda k: -k["surplus"]),
         })
     rows.sort(key=lambda r: -r["surplus"])
     for i, r in enumerate(rows, 1):
         r["rank"] = i
+    for i, r in enumerate(sorted(rows, key=lambda r: -r["war_chest"]), 1):
+        r["war_rank"] = i
+    rows.sort(key=lambda r: -r["war_chest"])
 
     watch = None
     if len(rows) > 1:
-        top, second = rows[0], rows[1]
+        by_sur = sorted(rows, key=lambda r: -r["surplus"])
+        top, second = by_sur[0], by_sur[1]
+        war_leader = rows[0]           # rows now sorted by war chest
         watch = {
             "fired": (top["surplus"] >= MIN_SURPLUS
                       and top["proven_share"] >= PROVEN_MIN),
             "top": top["manager"], "top_surplus": top["surplus"],
             "second_surplus": second["surplus"],
             "top_proven_share": top["proven_share"],
+            "top_war_rank": top["war_rank"],
+            "war_leader": war_leader["manager"],
+            "war_leader_chest": war_leader["war_chest"],
         }
     return {"basis": "ACTUAL declarations" if actual
             else "model-predicted keepers (actuals auto-load at lock)",
@@ -133,18 +164,27 @@ def screen_current() -> dict:
 def backtest() -> list[dict]:
     """Apply the watch rule to 2023-25: when did it fire, and on whom?"""
     def keepers_of(season):
+        """rid -> keeper picks; also rid -> war chest (keepers at ADP
+        value + every other pick at its round's blind value — trades are
+        inherent in who actually made each pick)."""
         d = ROOT / SEASON_LEAGUES[season]
         adp = _period_adp(season)
         out = defaultdict(list)
+        war = defaultdict(float)
         for p in json.loads(next(d.glob("draft_*_picks.json")).read_text()):
             a = adp.get(p["player_id"], 999.0)
             ar = max(1.0, a / 12.0) if a < 999 else None
             if bool(p.get("is_keeper")) or (ar is not None
                                             and p["round"] - ar >= 1.5):
                 out[p["roster_id"]].append((p["player_id"], p["round"], ar))
-        return out
+                war[p["roster_id"]] += blind(ar) if ar else 0.0
+            else:
+                war[p["roster_id"]] += blind(p["round"])
+        return out, war
 
-    kp = {s: keepers_of(s) for s in SEASON_LEAGUES}
+    both = {s: keepers_of(s) for s in SEASON_LEAGUES}
+    kp = {s: b[0] for s, b in both.items()}
+    war_by = {s: b[1] for s, b in both.items()}
     out = []
     for season, rel in SEASON_LEAGUES.items():
         d = ROOT / rel
@@ -181,6 +221,7 @@ def backtest() -> list[dict]:
         champ = final["w"] if final else None
         champ_rank = next((i for i, (_, rid, _, _) in enumerate(table, 1)
                            if rid == champ), None)
+        war_order = sorted(war_by[season], key=lambda r: -war_by[season][r])
         out.append({
             "season": season, "fired": fired,
             "top": rid_mgr.get(top_rid, "?"),
@@ -188,6 +229,9 @@ def backtest() -> list[dict]:
             "second_surplus": round(second_s, 1),
             "top_proven_share": proven_share,
             "champ": rid_mgr.get(champ, "?"), "champ_rank": champ_rank,
+            "champ_war_rank": (war_order.index(champ) + 1
+                               if champ in war_order else None),
+            "war_leader": rid_mgr.get(war_order[0], "?"),
             "watch_correct": fired and top_rid == champ,
         })
     return out
@@ -230,14 +274,16 @@ def summary_lines(res: dict | None = None) -> list[str]:
             f"- TITLE WATCH: {w['top']} holds the champion-shape stack "
             f"({w['top_surplus']:.0f} surplus vs next "
             f"{w['second_surplus']:.0f}, {w['top_proven_share']:.0%} "
-            f"proven). Record of this shape: "
+            f"proven) but ranks #{w['top_war_rank']} on total capital; "
+            f"war-chest leader is {w['war_leader']} "
+            f"({w['war_leader_chest']:.0f}). Shape record: "
             f"{res['meta']['record']} — ~4x base title odds, not a "
-            "crown. Price them into every deal.")
+            "crown. Price both into every deal.")
     else:
-        top3 = ", ".join(f"{r['manager']} {r['surplus']:.0f}"
+        top3 = ", ".join(f"{r['manager']} {r['war_chest']:.0f}"
                          for r in res["stacks"][:3])
         lines.append(f"- no title watch ({res['meta']['basis']}); "
-                     f"top stacks: {top3}.")
+                     f"war chests: {top3}.")
     return lines
 
 
@@ -248,12 +294,15 @@ def build_fragment(res: dict) -> str:
         klist = ", ".join(
             "{}{} R{}".format(k["player"], "*" if k["proven"] else "",
                               k["cost_round"])
-            for k in r["keepers"])
+            for k in r["keepers"]) or "—"
         me = ' class="ml-sv-hi"' if r["is_me"] else ""
         tag = " (me)" if r["is_me"] else ""
-        return (f'<tr{me}><td class="ml-num">{r["rank"]}</td>'
+        return (f'<tr{me}><td class="ml-num">{r["war_rank"]}</td>'
                 f'<td>{e(r["manager"])}{tag}</td>'
-                f'<td class="ml-num">{r["surplus"]:.0f}</td>'
+                f'<td class="ml-num">{r["war_chest"]:.0f}</td>'
+                f'<td class="ml-num">{r["keeper_value"]:.0f} + '
+                f'{r["pick_value"]:.0f}</td>'
+                f'<td class="ml-num">{r["surplus"]:.0f} (#{r["rank"]})</td>'
                 f'<td class="ml-num">{r["proven"]}/{r["n_keepers"]}</td>'
                 f"<td>{e(klist)}</td></tr>")
 
@@ -267,15 +316,22 @@ def build_fragment(res: dict) -> str:
             f'{w.get("second_surplus", 0):.0f}), '
             f'{w.get("top_proven_share", 0):.0%} proven. This shape has '
             f'gone {e(res["meta"]["record"])} — roughly 4x the 1-in-12 '
-            "base rate, and nothing more. Price them into every trade "
-            "and draft-day decision.</p>")
+            "base rate, and nothing more. But surplus is only half the "
+            f'ledger: on TOTAL capital (keepers + live picks, trades '
+            f'applied) they rank <strong>#{w.get("top_war_rank", "?")}'
+            f'</strong>, and the war-chest leader is '
+            f'<strong>{e(w.get("war_leader", "?"))}</strong> '
+            f'({w.get("war_leader_chest", 0):.0f}). Price both into '
+            "every deal.</p>")
     else:
         watch_p = (
             f'<p><strong>No title watch.</strong> Top stack '
             f'{e(w.get("top", "?"))} at {w.get("top_surplus", 0):.0f} '
-            f"(needs {MIN_SURPLUS:.0f}+ with a proven majority). Below "
-            "watch level, preseason keeper surplus is a coin flip for "
-            "titles — read the ranking as playoff odds, not destiny.</p>")
+            f"(needs {MIN_SURPLUS:.0f}+ with a proven majority). "
+            f'War-chest leader: {e(w.get("war_leader", "?"))} '
+            f'({w.get("war_leader_chest", 0):.0f}). Below watch level, '
+            "preseason keeper surplus is a coin flip for titles — read "
+            "the ranking as playoff odds, not destiny.</p>")
 
     def bt_row(b: dict) -> str:
         pr = (f'{b["top_proven_share"]:.0%}'
@@ -285,7 +341,8 @@ def build_fragment(res: dict) -> str:
         return (f'<tr><td class="ml-num">{b["season"]}</td>'
                 f'<td>{"FIRED" if b["fired"] else "quiet"}</td>'
                 f'<td>{e(b["top"])} ({b["top_surplus"]:.0f}, {pr} proven)</td>'
-                f'<td>{e(b["champ"])} (pre rank {b["champ_rank"]})</td>'
+                f'<td>{e(b["champ"])} (surplus #{b["champ_rank"]}, '
+                f'war chest #{b["champ_war_rank"]})</td>'
                 f"<td>{verdict}</td></tr>")
 
     bt_rows = "".join(bt_row(b) for b in res["backtest"])
@@ -294,24 +351,29 @@ def build_fragment(res: dict) -> str:
 <p class="ml-serial">2026 KEEPER STACKS · {e(res["meta"]["basis"]).upper()}
 · {e(res["meta"]["generated"])}</p>
 {watch_p}
-<div class="ml-h-label">Declared stacks, ranked (blind-curve surplus ·
-* = proven)</div>
+<div class="ml-h-label">Total preseason capital (war chest = keepers at
+market + live picks, trades applied · * = proven)</div>
 <table class="ml-table ml-table--compact"><thead><tr>
-<th class="ml-num">#</th><th>Manager</th><th class="ml-num">Surplus</th>
+<th class="ml-num">#</th><th>Manager</th><th class="ml-num">War chest</th>
+<th class="ml-num">Keep + picks</th><th class="ml-num">Surplus</th>
 <th class="ml-num">Proven</th><th>Keepers</th></tr></thead>
 <tbody>{rows}</tbody></table>
 <div class="ml-h-label">The watch rule's own record (same rule, 2023-25)</div>
 <table class="ml-table ml-table--compact"><thead><tr>
 <th class="ml-num">Yr</th><th>Watch</th><th>Top stack</th><th>Champion</th>
 <th>Verdict</th></tr></thead><tbody>{bt_rows}</tbody></table>
-<p class="ml-fineprint">Criteria: {e(res["meta"]["criteria"])}. The full
-backtest (12 league-seasons incl. the benchmark corpus) says preseason
-keeper surplus is a coin flip for champions — our champs ranked
-6th/9th/1st. The watch shape is the best of a weak field: nothing
-knowable preseason separates the 2025 hit (Trevor) from the 2024 miss
-(coop, same shape). 2023 proven-share is unknowable (needs 2022 stats).
-Recomputes weekly; switches to real declarations the moment
-keepers_2026_actual.json lands.</p>
+<p class="ml-fineprint">Criteria: {e(res["meta"]["criteria"])}. War chest
+= keepers valued at market (blind curve at ADP round) + every remaining
+live pick at its round value, pick trades applied and keeper seats
+consumed (bump rule included) — surplus measures the DISCOUNT, war chest
+the whole ledger; a team can lead one and trail the other by shipping
+premium picks. The full backtest (12 league-seasons incl. the benchmark
+corpus) says preseason keeper surplus is a coin flip for champions — our
+champs ranked 6th/9th/1st (war chest: see table). The watch shape is the
+best of a weak field: nothing knowable preseason separates the 2025 hit
+(Trevor) from the 2024 miss (coop, same shape). 2023 proven-share is
+unknowable (needs 2022 stats). Recomputes weekly; switches to real
+declarations the moment keepers_2026_actual.json lands.</p>
 </section>
 """
 

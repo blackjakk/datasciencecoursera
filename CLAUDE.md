@@ -137,10 +137,15 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   (champs ranked 6/9/1 preseason; 12-league backtest percentile ~49);
   the "title watch" shape (rank-1 surplus ≥120 + proven majority) went
   1-for-3 (2025 Trevor hit; 2024 coop same shape missed) ≈ 4x base
-  rate, not a crown. 2026 predicted: WATCH FIRES ON TREVOR AGAIN
-  (Puka/Achane/Collins/Fields, 167 vs Kyle 127; Brian 7th at 55).
-  Auto-regrades on real declarations when keepers_2026_actual.json
-  lands (derive copies it over keepers_2026.json).
+  rate, not a crown. v2 adds WAR CHEST (keepers at market + live picks,
+  trades applied, keeper seats consumed) — user-prompted fix: surplus
+  alone ignored total capital. 2026 predicted: watch fires on Trevor
+  (surplus #1, 167, 100% proven) BUT he's war chest #8 (355) having
+  shipped R1+R2; war-chest leader is FIGGY (629 — 3 R1s, no keepers);
+  Brian surplus #7 / war #7 (406). 2025 champ was #1 in BOTH; 2026
+  Trevor is NOT the 2025 configuration. Champ war ranks 6/3/1 (mildly
+  better signal than surplus 6/9/1). Auto-regrades on real declarations
+  when keepers_2026_actual.json lands.
 
 ## Key analyses on record
 - Backtest (`scripts/backtest_recommender.py`): tool vs real-Brian
