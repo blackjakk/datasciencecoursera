@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated": "2026-07-12",
+    "generated": "2026-07-13",
     "seasons_used": [
       2023,
       2024
@@ -497,5 +497,92 @@
         }
       ]
     }
-  ]
+  ],
+  "keeper_tiers": {
+    "n_keepers": 541,
+    "league_seasons": 12,
+    "by_discount": [
+      {
+        "tier": "<2 rds (fair price)",
+        "n": 181,
+        "net": -2.1,
+        "locked": -0.6,
+        "alpha": -1.5,
+        "hit": 50,
+        "smash": 26
+      },
+      {
+        "tier": "2-4 rds",
+        "n": 214,
+        "net": -2.7,
+        "locked": 15.5,
+        "alpha": -18.2,
+        "hit": 47,
+        "smash": 24
+      },
+      {
+        "tier": "4-7 rds",
+        "n": 101,
+        "net": 19.0,
+        "locked": 30.3,
+        "alpha": -11.3,
+        "hit": 58,
+        "smash": 28
+      },
+      {
+        "tier": "7+ rds (mega)",
+        "n": 45,
+        "net": 49.9,
+        "locked": 63.8,
+        "alpha": -13.9,
+        "hit": 76,
+        "smash": 49
+      }
+    ],
+    "by_position": [
+      {
+        "tier": "QB",
+        "n": 136,
+        "net": 24.9,
+        "locked": 22.0,
+        "alpha": 2.9,
+        "hit": 58,
+        "smash": 45
+      },
+      {
+        "tier": "RB",
+        "n": 138,
+        "net": -0.2,
+        "locked": 14.0,
+        "alpha": -14.2,
+        "hit": 49,
+        "smash": 29
+      },
+      {
+        "tier": "WR",
+        "n": 172,
+        "net": 5.2,
+        "locked": 18.7,
+        "alpha": -13.5,
+        "hit": 55,
+        "smash": 23
+      },
+      {
+        "tier": "TE",
+        "n": 86,
+        "net": -12.9,
+        "locked": 11.7,
+        "alpha": -24.6,
+        "hit": 41,
+        "smash": 10
+      }
+    ],
+    "regression_tax": {
+      "QB": 0.0,
+      "RB": 14.2,
+      "WR": 13.5,
+      "TE": 24.6
+    },
+    "formula": "keeper value \u2248 locked discount (blind-curve pts) \u2212 regression tax (QB 0 \u00b7 RB 14 \u00b7 WR 14 \u00b7 TE 25); keep only if clearly positive"
+  }
 }

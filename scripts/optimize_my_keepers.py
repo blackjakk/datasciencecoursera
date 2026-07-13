@@ -30,6 +30,7 @@ from scripts.build_mock_draft_sim import (  # noqa: E402
     apply_keeper_set, build_skeleton, load_inputs, load_tendencies,
     simulate_full_draft_with_tendencies, _norm,
 )
+from scripts.stash_curve import keeper_regression_tax  # noqa: E402
 from fantasy_draft.team_identity import manager_for_sleeper_roster  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -112,9 +113,21 @@ def main():
     print(f"{len(mine)} candidates, {len(scenarios)} scenarios × {N_SIMS} sims "
           f"(default = predictor's {len(default_idx)}-keeper set)\n")
 
+    # Keep-side book (Option Book VI): kept players underperform their own
+    # market price by a measured position tax (QB ~0, RB/WR ~14, TE ~25) —
+    # haircut MY kept players' projections so scenarios pay it natively.
+    TAX = keeper_regression_tax()
+    print("regression tax on kept players:",
+          ", ".join(f"{p} -{v:.0f}" for p, v in TAX.items()), "\n")
+
     results = []
     for combo in scenarios:
         scenario = resolve_collisions([mine[i] for i in combo])
+        kept_norm = {_norm(k["player_name"]) for k in scenario}
+        proj_taxed = {
+            nm: (pos, proj - (TAX.get(pos, 0.0)
+                              if _norm(nm) in kept_norm else 0.0))
+            for nm, (pos, proj) in proj_by_name.items()}
         totals = []
         for seed in seeds:
             draft = build_skeleton(league)
@@ -128,7 +141,7 @@ def main():
             )
             roster = [fp.player_name for fp in full
                       if fp.team_idx == my_team_idx]
-            totals.append(starters_proj(roster, proj_by_name))
+            totals.append(starters_proj(roster, proj_taxed))
         mean = sum(totals) / len(totals)
         results.append({
             "keepers": [f"{k['player_name']} (R{k['effective_forfeit_round']})"

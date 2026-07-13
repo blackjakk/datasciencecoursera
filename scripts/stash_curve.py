@@ -312,6 +312,108 @@ def composed_round_values() -> dict[int, dict[str, float]]:
     return out
 
 
+# ------------------------------------------------- keep-side tier book
+
+_ML_LEAGUES = {
+    2023: "data/sleeper/league_1001657805583077376",
+    2024: "data/sleeper/league_1085805164784664576",
+    2025: "data/sleeper/league_1245039290518360064",
+}
+_TIER_GHOST_VBD = -30.0        # kept player with no stats = hard bust
+
+
+def keeper_tier_analysis() -> dict:
+    """The keep-side of the book: every detected keeper 2023-25 (this
+    league + the owner-free benchmark corpus), graded THREE ways —
+      net    = season VBD − blind value of the pick burned
+      locked = blind(market/ADP round) − blind(cost round)  [arbitrage]
+      alpha  = season VBD − blind(market round)  [vs own price]
+    net = locked + alpha. The empirical law: alpha is NEGATIVE for
+    skill keepers (~−14 RB/WR, ~−25 TE — the regression tax; keepers
+    skew toward last year's breakouts and the market overprices
+    breakouts) and ~0 for QBs. All keeper profit is locked-in discount
+    minus that tax."""
+    blind = _blind_curve()
+
+    def b(r: float) -> float:
+        return max(0.0, blind.get(max(1, min(17, round(r))), 0.0))
+
+    players = json.loads(
+        (ROOT / "data/sleeper/players_nfl.json").read_text())
+
+    units: list[tuple[int, Path, int]] = [
+        (s, ROOT / rel, 12) for s, rel in _ML_LEAGUES.items()]
+    corpus_f = ROOT / "data/scouting/benchmark/_corpus.json"
+    if corpus_f.exists():
+        for lid, m in json.loads(corpus_f.read_text()).items():
+            if lid.startswith("_"):
+                continue
+            season = int(m["season"])
+            if (ROOT / "data/backtest" / f"proj_{season}.json").exists():
+                units.append((season,
+                              ROOT / "data/scouting/benchmark"
+                              / f"{m['season']}_{lid}", m["teams"]))
+
+    rows = []
+    for season, d, teams in units:
+        adp = _period_adp(season)
+        vbd = _season_vbd(season)
+        for p in json.loads(next(d.glob("draft_*_picks.json")).read_text()):
+            a = adp.get(p["player_id"], 999.0)
+            ar = max(1.0, a / teams) if a < 999 else None
+            if not (bool(p.get("is_keeper"))
+                    or (ar is not None and p["round"] - ar >= 1.5)):
+                continue
+            if ar is None:
+                continue
+            v = vbd.get(p["player_id"], _TIER_GHOST_VBD)
+            pos = (players.get(p["player_id"]) or {}).get("position") or "?"
+            rows.append({"pos": pos, "disc": p["round"] - ar,
+                         "locked": b(ar) - b(p["round"]),
+                         "alpha": v - b(ar), "net": v - b(p["round"])})
+
+    def bucket(grp: list[dict]) -> dict:
+        n = len(grp)
+        m = lambda k: round(sum(r[k] for r in grp) / n, 1)  # noqa: E731
+        return {"n": n, "net": m("net"), "locked": m("locked"),
+                "alpha": m("alpha"),
+                "hit": round(100 * sum(r["net"] > 0 for r in grp) / n),
+                "smash": round(100 * sum(r["net"] > 50 for r in grp) / n)}
+
+    by_disc = [
+        {"tier": name, **bucket(g)} for name, g in (
+            ("<2 rds (fair price)", [r for r in rows if r["disc"] < 2]),
+            ("2-4 rds", [r for r in rows if 2 <= r["disc"] < 4]),
+            ("4-7 rds", [r for r in rows if 4 <= r["disc"] < 7]),
+            ("7+ rds (mega)", [r for r in rows if r["disc"] >= 7]),
+        ) if g]
+    by_pos = [
+        {"tier": pos, **bucket(g)} for pos, g in (
+            (pos, [r for r in rows if r["pos"] == pos])
+            for pos in ("QB", "RB", "WR", "TE")) if g]
+    tax = {p["tier"]: round(max(0.0, -p["alpha"]), 1) for p in by_pos}
+    return {
+        "n_keepers": len(rows), "league_seasons": len(units),
+        "by_discount": by_disc, "by_position": by_pos,
+        "regression_tax": tax,
+        "formula": "keeper value ≈ locked discount (blind-curve pts) − "
+                   "regression tax (QB {QB} · RB {RB} · WR {WR} · TE {TE}); "
+                   "keep only if clearly positive".format(
+                       **{k: f"{v:.0f}" for k, v in tax.items()}),
+    }
+
+
+def keeper_regression_tax() -> dict[str, float]:
+    """Position regression tax for consumers (keeper optimizer): points a
+    KEPT player underperforms his own market price, empirically. Prefers
+    the cached book; recomputes if absent."""
+    if CURVE_JSON.exists():
+        cached = json.loads(CURVE_JSON.read_text()).get("keeper_tiers")
+        if cached and cached.get("regression_tax"):
+            return cached["regression_tax"]
+    return keeper_tier_analysis()["regression_tax"]
+
+
 # ----------------------------------------------------------- fragment
 
 def build_fragment(res: dict, board: list[dict]) -> str:
@@ -350,6 +452,44 @@ def build_fragment(res: dict, board: list[dict]) -> str:
         f'<td>{cand_txt(b["candidates"])}</td></tr>'
         for b in board)
 
+    kt = res.get("keeper_tiers")
+    tier_block = ""
+    if kt:
+        def tier_tbl(rows_):
+            body = "".join(
+                f'<tr><td>{e(t["tier"])}</td><td class="ml-num">{t["n"]}</td>'
+                f'<td class="ml-num">{t["net"]:+.1f}</td>'
+                f'<td class="ml-num">{t["locked"]:+.1f}</td>'
+                f'<td class="ml-num">{t["alpha"]:+.1f}</td>'
+                f'<td class="ml-num">{t["hit"]}%</td>'
+                f'<td class="ml-num">{t["smash"]}%</td></tr>'
+                for t in rows_)
+            return ('<table class="ml-table ml-table--compact"><thead><tr>'
+                    '<th>Tier</th><th class="ml-num">n</th>'
+                    '<th class="ml-num">Net</th><th class="ml-num">Locked</th>'
+                    '<th class="ml-num">Alpha</th><th class="ml-num">Hit</th>'
+                    '<th class="ml-num">Smash</th></tr></thead>'
+                    f"<tbody>{body}</tbody></table>")
+        tier_block = f"""
+<div class="ml-h-label">The keep-side book — which keeper tiers actually
+pay ({kt["n_keepers"]} keepers, {kt["league_seasons"]} league-seasons
+incl. the benchmark corpus)</div>
+<p><strong>{e(kt["formula"])}</strong> — net return over the pick burned
+splits into LOCKED (market price minus cost: the arbitrage) plus ALPHA
+(performance vs the player's own price). Alpha is the regression tax:
+kept players are last year's breakouts and the market overprices
+breakouts. QBs alone carry no tax.</p>
+{tier_tbl(kt["by_discount"])}
+{tier_tbl(kt["by_position"])}
+<p class="ml-fineprint">Discounts measured against period superflex ADP;
+value in blind-curve points; ghosted seasons (kept player, zero stats)
+counted as hard busts. Below 4 rounds of discount a keep is ceremony —
+73% of all keeps in the sample sit there at ≈0 EV. The "free" R14-17
+fair-price keep is the worst tier in keeper football (−34/keeper, 21%
+hit): a known-mediocre veteran over a fresh lottery pick that carries
+the option value priced above. The keeper optimizer scores Brian's
+candidates with this tax applied natively.</p>"""
+
     return f"""<section class="ml-panel" id="stash-curve">
 <h2>The Option Book — what a late pick's keeper option is worth</h2>
 <p class="ml-serial">EMPIRICAL 2027 KEEPER OPTION BY DRAFT ROUND ·
@@ -387,6 +527,7 @@ max(0, redraft chart) + this option value, so a "worthless" R14 is no
 longer free — it is a lottery ticket with a measured league-own premium.
 Stash candidates use the CEILING-mode breakout proxy (expert disagreement
 + youth) and the Monte-Carlo survival quantiles.</p>
+{tier_block}
 </section>
 """
 
@@ -397,6 +538,7 @@ def main() -> None:
     res = compute_curve()
     board = brian_stash_board(res["option_values"])
     res["brian_stash_board"] = board
+    res["keeper_tiers"] = keeper_tier_analysis()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     CURVE_JSON.write_text(json.dumps(res, indent=2))
     (OUT_DIR / "stash_curve.html").write_text(build_fragment(res, board))
