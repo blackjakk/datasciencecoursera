@@ -418,7 +418,7 @@ def build_fragment(res: dict) -> str:
     group_tbl = (
         '<table class="ml-table ml-table--compact"><thead><tr>'
         '<th>Finish</th><th class="ml-num">n</th><th class="ml-num">Wins</th>'
-        '<th class="ml-num">PF</th><th class="ml-num">Trades</th>'
+        '<th class="ml-num">Points-for</th><th class="ml-num">Trades</th>'
         '<th class="ml-num">Pts via trade</th><th class="ml-num">Pts via waiver</th>'
         '<th class="ml-num">Keeper VBD</th></tr></thead><tbody>'
         + "".join(grow(k, g[k]) for k in ("CHAMP", "RUNNER", "playoff-out",
@@ -498,7 +498,7 @@ and revocable — not a law of winning.{pf_line}</p>"""
     brian_tbl = (
         '<table class="ml-table ml-table--compact"><thead><tr>'
         '<th class="ml-num">Yr</th><th>Finish</th><th class="ml-num">W</th>'
-        '<th class="ml-num">PF</th><th class="ml-num">First 2 QBs</th>'
+        '<th class="ml-num">Points-for</th><th class="ml-num">First 2 QBs</th>'
         '<th class="ml-num">Pts via trade</th><th class="ml-num">Pts via waiver</th>'
         f'<th class="ml-num">Keeper VBD</th></tr></thead><tbody>{brian_rows}'
         "</tbody></table>")
@@ -546,7 +546,7 @@ and revocable — not a law of winning.{pf_line}</p>"""
              verdict((g["CHAMP"]["pct_trade"] + g["RUNNER"]["pct_trade"]) / 2
                      - g["field"]["pct_trade"],
                      tr["finalist_mean"] - tr["field_mean"])),
-            ("Champion PF rank (mean; league middle ≈ 5.5)",
+            ("Champion points-for rank (mean; league middle ≈ 5.5)",
              "2.0", f'{pf_["champ_mean_rank"]:.1f}',
              verdict(1.0, 5.5 - pf_["champ_mean_rank"])),
         ]

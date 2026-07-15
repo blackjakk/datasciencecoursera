@@ -113,6 +113,23 @@ def price_trade(give: list[int], get: list[int]) -> None:
               "The Option Book) — no longer a hand-wave.")
 
 
+HOUSE_RULES = """\
+HOUSE RULES (graded from 15 years of this league's book — see
+Research Desk II and CLAUDE.md decade cross-cuts):
+  1. SELL TO CONTENDERS. Counterparty status is the biggest measured
+     edge: trading with a top-half points-for team nets +34/deal to
+     you; being the contender who buys costs -38/deal.
+  2. NO DEALS BEFORE WEEK 6. Early-season swaps are history's most
+     lopsided window and Brian's personal worst (-62/deal).
+  3. NEVER SWAP FOR A QB. Brian's QB acquisitions grade -51/deal over
+     14 tries. QBs come from the draft, where the structure works.
+  4. THE LIVE SHARK IS COOP (wins in every era). Trevor's edge was
+     2011-16 vintage — respect the pair history (-686 over 11 deals),
+     but price his 2026 desperation, not his reputation.
+  5. Champions WIN their swaps (+174 title-year mean). Only accept a
+     paper loss when paying in PICKS, never in a player swap."""
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--give", nargs="+", default=[],
@@ -120,6 +137,7 @@ def main():
     ap.add_argument("--get", nargs="+", default=[],
                     help="picks you receive")
     args = ap.parse_args()
+    print(HOUSE_RULES + "\n")
     if args.give or args.get:
         price_trade(parse_picks(args.give), parse_picks(args.get))
     else:

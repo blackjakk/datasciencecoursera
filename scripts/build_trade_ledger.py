@@ -511,6 +511,7 @@ def render_ledger_fragment(ledger: dict) -> str:
 <thead><tr><th>Closed</th><th>Counterparties (A &rlarr; B)</th><th>A received</th><th>B received</th><th>PAR to A</th><th>Raw pts to A</th><th>Verdict</th></tr></thead>
 <tbody>{deal_rows}</tbody>
 </table>
+{decade_block()}
 <p class="ml-fineprint">Grading v2: rest-of-season points ABOVE POSITIONAL REPLACEMENT (PAR) swung &mdash; each side's received-minus-sent PAR over the weeks AFTER the trade week through week 17. A player-week's PAR = his Sleeper pts_half_ppr (fallback pts_ppr &minus; 0.5&times;rec) minus a fixed per-position weekly replacement level; weeks without a stat line count 0 (a replacement body starts instead). Replacement level = that season's median weekly score of the rank-N player at the position, N = QB12 / RB30 / WR36 / TE12 / K12 / DEF12 (the last body a 12-team room starts anyway); computed levels &mdash; {repl_s}. PAR keeps QB volume from buying every verdict: raw half-PPR points ride along in the raw column for reference, and rank shifts vs the raw table are flagged in the # column. Draft picks and FAAB are listed on the ledger but graded 0: a pick's value realizes at a future draft and grading it here would be guesswork dressed as arithmetic. Picks-only deals are marked PUSH, not wins. W&ndash;L&ndash;P counts a win when a side's PAR swing is positive. Verdict names the side that gained more PAR; it is hindsight, not intent.</p>
 </section>
 """
@@ -584,6 +585,52 @@ def dossier_card(name: str, d: dict) -> str:
 <p>Timing: early <b class="ml-num">{h["early"]}</b> &middot; mid <b class="ml-num">{h["mid"]}</b> &middot; deadline <b class="ml-num">{h["deadline"]}</b>. Positional flow: {flow}. Picks moved: <b class="ml-num">{o["picks_moved"]}</b>. Superflex deals: <b class="ml-num">{o["sf_trades"]}</b> of {o["trades_total"]}.</p>
 {fp_line}
 </div>"""
+
+
+def decade_block() -> str:
+    """THE DECADE BOOK — the Yahoo era (2011-2022), value-graded by
+    build_decade_ledger.py with the same PAR method (replacement scaled
+    to league size). Rendered here so section II is the league's full
+    trading history on one page; omitted gracefully if the file is
+    missing."""
+    f = ROOT / "data" / "research" / "decade_ledger.json"
+    if not f.exists():
+        return ""
+    d = json.loads(f.read_text())
+    rows = "".join(
+        f'<tr><td>{esc(m)}</td><td class="ml-num">{v["deals"]}</td>'
+        f'<td class="ml-num">{swing_html(v["net_par"])}</td>'
+        f'<td class="ml-num">{swing_html(round(v["net_par"] / v["deals"], 1))}</td></tr>'
+        for m, v in d["standings"].items())
+    pair = d["pairs"].get("brian_bigguap vs trevor_bergerboy", {})
+    return f"""
+<h3 class="ml-h-label">The Decade Book &mdash; Yahoo era, 2011&ndash;2022
+(value-graded)</h3>
+<table class="ml-table ml-table--compact">
+<thead><tr><th>Manager</th><th class="ml-num">Deals</th>
+<th class="ml-num">Net PAR</th><th class="ml-num">PAR/deal</th></tr></thead>
+<tbody>{rows}</tbody></table>
+<p>Cross-cuts (270 graded sides): <strong>counterparty status is the
+biggest edge ever measured</strong> &mdash; trading with a contender
+(top-half points-for) nets &minus;38/deal, with a bottom-half team
++34/deal: <em>sell to contenders</em>. Trading skill barely persists
+(3 of 8 heavy traders kept their sign across era halves):
+trevor_bergerboy's +1226 was all 2011&ndash;16 vintage (&minus;156
+since, &minus;55 on Sleeper &mdash; the reputation outlived the edge),
+while <strong>coop wins in every era</strong> &mdash; the live shark.
+Champions WON their title-year swaps (+174 mean, 9 of 11 positive), so
+"lose the trade, win the title" applies only to pick-funded buys.
+Early-season swaps are history's most lopsided window (mean |PAR| 100
+vs 79 mid, 45 deadline). The Brian&harr;Trevor pipeline:
+{pair.get("deals", "?")} deals, net {pair.get("net_to_first", 0):+.0f}
+to Brian &mdash; and excluding it, Brian grades near league average.</p>
+<p class="ml-fineprint">Method mirrors the grading above (rest-of-season
+PAR after the trade week) with replacement ranks scaled to that year's
+league size (8&rarr;10&rarr;12 teams); Yahoo-era deals were
+player-for-player (no pick legs). Trade weeks from timestamps vs a
+Sep-5 kickoff anchor (&plusmn;1 week). {d["meta"]["sides_graded"]} sides
+graded; a handful of legs (mostly defenses) unresolved and dropped, not
+guessed. Source: the one-shot Yahoo API backfill.</p>"""
 
 
 def render_dossiers_fragment(doss: dict) -> str:
