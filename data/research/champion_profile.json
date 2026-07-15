@@ -381,5 +381,84 @@
       }
     }
   },
+  "decade_champions": [
+    {
+      "year": 2015,
+      "champ": "donnie",
+      "qb1": 1,
+      "qb2": 6,
+      "early": true
+    },
+    {
+      "year": 2016,
+      "champ": "kyle_figgy",
+      "qb1": 1,
+      "qb2": 8,
+      "early": false
+    },
+    {
+      "year": 2017,
+      "champ": "coop",
+      "qb1": 9,
+      "qb2": 10,
+      "early": false
+    },
+    {
+      "year": 2018,
+      "champ": "dave_aka_wang",
+      "qb1": 8,
+      "qb2": 9,
+      "early": false
+    },
+    {
+      "year": 2019,
+      "champ": "troy_mullings",
+      "qb1": 4,
+      "qb2": 12,
+      "early": false
+    },
+    {
+      "year": 2020,
+      "champ": "trevor_bergerboy",
+      "qb1": 5,
+      "qb2": 10,
+      "early": false
+    },
+    {
+      "year": 2021,
+      "champ": "dave_aka_wang",
+      "qb1": 3,
+      "qb2": 7,
+      "early": false
+    },
+    {
+      "year": 2022,
+      "champ": "ankur_patel",
+      "qb1": 4,
+      "qb2": 9,
+      "early": false
+    },
+    {
+      "year": 2023,
+      "champ": "eric_m",
+      "qb1": 1,
+      "qb2": 4,
+      "early": true
+    },
+    {
+      "year": 2024,
+      "champ": "coop",
+      "qb1": 2,
+      "qb2": 2,
+      "early": true
+    },
+    {
+      "year": 2025,
+      "champ": "trevor_bergerboy",
+      "qb1": 1,
+      "qb2": 5,
+      "early": true
+    }
+  ],
   "doctrine": "Champions are built a year early and finished mid-season: two QBs locked by R6, a late-pick or waiver find riding as a mega-discount keeper, and one conviction trade for a blue-chip starter. Waiver churn is what losing looks like, not a way back."
 }

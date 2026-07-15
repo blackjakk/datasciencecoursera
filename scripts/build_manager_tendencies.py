@@ -102,6 +102,92 @@ def build_fingerprints() -> dict:
     return fingerprints
 
 
+def build_decade_history() -> dict:
+    """Per-owner draft-behavior series over EVERY xlsx draft (2015-2025 —
+    the format check passed: 2.2-2.8 QBs/team every year, a 2QB room the
+    whole recorded era). Yahoo years carry no ADP, so this is position
+    timing + youth appetite only (no reach, no keeper detection); the
+    ADP-era fingerprints stay the sim's tilt source — this block is the
+    evidence layer that says whether those habits are decade-stable."""
+    import statistics as st
+    from fantasy_draft.name_aliases import resolve_xlsx_name
+    from fantasy_draft.team_identity import manager_for_xlsx_nickname
+    from fantasy_draft.xlsx_drafts import load_xlsx_drafts
+
+    players = json.loads(
+        (ROOT / "data/sleeper/players_nfl.json").read_text())
+    byname: dict[str, tuple] = {}
+
+    def norm(s: str) -> str:
+        return (s.lower().replace(".", "").replace("'", "")
+                .replace("-", " ").strip())
+
+    for p in players.values():
+        nm = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
+        if nm:
+            byname.setdefault(norm(nm),
+                              (p.get("position"), p.get("years_exp"),
+                               p.get("age")))
+
+    drafts = load_xlsx_drafts(
+        str(ROOT / "data" / "historical" / "MONEY_LEAGUE.xlsx"))
+    series: dict[str, dict[int, dict]] = defaultdict(dict)
+    for year, picks in sorted(drafts.items()):
+        yrs_back = 2026 - year
+        per: dict[str, dict] = defaultdict(
+            lambda: {"qb": [], "rook": 0, "n": 0, "ages": []})
+        for xp in picks:
+            m = manager_for_xlsx_nickname(xp.manager_nickname)
+            canon = resolve_xlsx_name(xp.player_name)
+            if not m or not canon:
+                continue
+            rec = byname.get(norm(canon))
+            if not rec:
+                continue
+            pos, exp, age = rec
+            if pos in ("K", "DEF", None):
+                continue
+            s = per[m["id"]]
+            s["n"] += 1
+            if pos == "QB":
+                s["qb"].append(xp.round)
+            if exp is not None and exp - yrs_back == 0:
+                s["rook"] += 1
+            if age is not None:
+                s["ages"].append(age - yrs_back)
+        for mid, s in per.items():
+            if s["n"] < 8:
+                continue                    # partial-year parse — skip
+            qbs = sorted(s["qb"])
+            series[mid][year] = {
+                "qb1": qbs[0] if qbs else None,
+                "qb2": qbs[1] if len(qbs) > 1 else None,
+                "rook_share": round(s["rook"] / s["n"], 2),
+                "age": round(sum(s["ages"]) / len(s["ages"]), 1)
+                if s["ages"] else None,
+            }
+
+    history: dict[str, dict] = {}
+    for mid, yrs in series.items():
+        qb2s = [v["qb2"] for v in yrs.values() if v["qb2"] is not None]
+        rooks = [v["rook_share"] for v in yrs.values()]
+        ages = [v["age"] for v in yrs.values() if v["age"] is not None]
+        if not qb2s:
+            continue
+        q = sorted(qb2s)
+        iqr = (q[3 * len(q) // 4] - q[len(q) // 4]) if len(q) >= 4 else None
+        history[mid] = {
+            "years": len(yrs),
+            "qb2_median": st.median(qb2s),
+            "qb2_iqr": iqr,
+            "qb2_stable": iqr is not None and iqr <= 3,
+            "rook_share_mean": round(st.mean(rooks), 2),
+            "age_mean": round(st.mean(ages), 1) if ages else None,
+            "by_year": yrs,
+        }
+    return history
+
+
 def main():
     # mgr_first_per_year[mgr][pos] = [first_round_in_2023, ..., 2024, 2025]
     mgr_first: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
@@ -169,6 +255,7 @@ def main():
         'league_first_avg': {p: round(v, 2) for p, v in league_avg.items()},
         'tendencies': tendencies,
         'fingerprints': build_fingerprints(),
+        'decade_history': build_decade_history(),
     }
     OUT.write_text(json.dumps(out, indent=2))
     print(f"Wrote {OUT}")

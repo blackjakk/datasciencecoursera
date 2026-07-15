@@ -324,6 +324,34 @@ def compute() -> dict:
     bench_f = OUT_DIR / "benchmark_validation.json"
     benchmark = json.loads(bench_f.read_text()) if bench_f.exists() else None
 
+    # Decade view: champion QB shape across EVERY recorded title (xlsx
+    # boards 2015-2022 + Sleeper 2023-25; the room has drafted 2.2-2.8
+    # QBs/team every year — same 2QB format throughout).
+    decade = []
+    try:
+        from scripts.build_history_charts import KNOWN_CHAMPIONS
+        hist = json.loads(
+            (ROOT / "data" / "manager_tendencies.json").read_text()
+        ).get("decade_history") or {}
+        champ_mid_by_year = {y: m for y, m in KNOWN_CHAMPIONS.items()
+                             if y >= 2015}
+        for s, m in seasons.items():          # Sleeper-era champs by rid
+            rec = None
+            from fantasy_draft.team_identity import manager_for_sleeper_roster
+            rec = manager_for_sleeper_roster(m["champ"])
+            if rec:
+                champ_mid_by_year[s] = rec["id"]
+        for y in sorted(champ_mid_by_year):
+            mid = champ_mid_by_year[y]
+            yr = (hist.get(mid) or {}).get("by_year", {}).get(str(y)) or \
+                 (hist.get(mid) or {}).get("by_year", {}).get(y)
+            if yr and yr.get("qb2") is not None:
+                decade.append({"year": y, "champ": mid,
+                               "qb1": yr["qb1"], "qb2": yr["qb2"],
+                               "early": yr["qb2"] <= EARLY_QB_ROUND})
+    except Exception:
+        pass
+
     return {
         "meta": {
             "generated": date.today().isoformat(),
@@ -343,6 +371,7 @@ def compute() -> dict:
                                     key=lambda k: -k["vbd"]),
         "brian": brian,
         "benchmark": benchmark,
+        "decade_champions": decade,
         "doctrine": "Champions are built a year early and finished "
                     "mid-season: two QBs locked by R6, a late-pick or "
                     "waiver find riding as a mega-discount keeper, and "
@@ -381,6 +410,26 @@ def build_fragment(res: dict) -> str:
     q = res["qb_split"]
     champ_qbs = " · ".join(f"{s}: R{a}+R{b}" for s, (a, b)
                            in sorted(q["champ_qb_rounds"].items()))
+
+    dc = res.get("decade_champions") or []
+    decade_block = ""
+    if len(dc) >= 6:
+        n_early = sum(d["early"] for d in dc)
+        rows_d = " · ".join(
+            f'{d["year"]} {e(d["champ"])} R{d["qb1"]}+R{d["qb2"]}'
+            + ("&nbsp;✓" if d["early"] else "")
+            for d in dc)
+        decade_block = f"""
+<p class="ml-fineprint">Decade check (xlsx boards; same 2QB format all
+era): only <strong>{n_early} of {len(dc)}</strong> recorded champions had
+both QBs by R{EARLY_QB_ROUND} — {rows_d} — and three of the four are the
+Sleeper-era champs above. Read with one confound: Yahoo-era rounds
+include unflagged keepers at COST, so a champion's "R10 QB2" may be a
+kept elite at a discount seat — the decade refutes early QB
+<em>spending</em> as champion law, not QB <em>capital</em>. Together with
+the outside benchmark (which also fails this signal), treat 2QB-by-R6 as
+a current-regime exploit of this room's QB-late minority — real, priced,
+and revocable — not a law of winning.</p>"""
 
     champ_badge = ' <span class="ml-badge ml-badge--bluechip">CHAMP</span>'
     buys_rows = "".join(
@@ -525,6 +574,7 @@ a group holding {q["champs_early"]}/{len(meta["seasons"])} champions and
 {q["finalists_early"]}/{len(meta["seasons"]) * 2} finalists. The champion
 shape is one elite + one solid ({e(champ_qbs)}), <em>not</em> two premium
 picks: both R1+R2 double-QB starts finished bottom-two.</p>
+{decade_block}
 <div class="ml-h-label">The buys that won rings</div>
 {buys_tbl}
 <p>Title-relevant <em>trades</em> cluster in W6–10 — the exact window the Timing

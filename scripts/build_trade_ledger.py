@@ -533,10 +533,22 @@ def _draft_fingerprint(display_name: str) -> str | None:
                 (ROOT / "data" / "manager_tendencies.json").read_text())
             fps = tend.get("fingerprints") or {}
             ident = load_identity(ROOT / "data" / "team_identity.json")
+            hist = tend.get("decade_history") or {}
             for mid, rec in ident["managers"].items():
                 disp = rec.get("sleeper_display_name")
-                if disp and mid in fps:
-                    _FP_BY_DISPLAY[disp] = fingerprint_text(fps[mid])
+                if not disp:
+                    continue
+                line = fingerprint_text(fps[mid]) if mid in fps else None
+                h = hist.get(mid)
+                if h and h.get("years", 0) >= 7:
+                    decade = (f"decade book ({h['years']} drafts): QB2 "
+                              f"median R{h['qb2_median']:g}"
+                              + (" — STABLE habit" if h["qb2_stable"]
+                                 else " (swings)")
+                              + f" · rookies {h['rook_share_mean']:.0%}/yr")
+                    line = f"{line} · {decade}" if line else decade
+                if line:
+                    _FP_BY_DISPLAY[disp] = line
         except Exception:
             pass  # fingerprints are enrichment, never a dossier blocker
     return _FP_BY_DISPLAY.get(display_name)

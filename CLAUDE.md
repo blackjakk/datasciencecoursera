@@ -158,6 +158,21 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   land W6-10 (lose the trade on paper, win the title); waiver-point
   share is a LOSING signal (field 32% vs champs 11%); wins don't
   separate finalists from playoff-outs — PF does (champs #1,#1,#4).
+- YAHOO-ERA DECADE LAYER (Jul 2026, user-prompted): xlsx holds draft
+  boards 2015-2022 (8 more drafts; format CONSTANT — 2.2-2.8 QBs/team
+  every year since 2015); name_aliases.py resolves league dialect at
+  93-96%. manager_tendencies.json gains decade_history (per-owner QB
+  timing/rookie/age over 11 drafts): Troy QB2 median R10 STABLE 11 yrs,
+  Lem R4 stable early-QB, eric_m 21% rookies, Figgy punt long-run but
+  volatile (IQR 6). Dossiers carry DECADE BOOK lines. DECADE CHECK on
+  champion QB shape: only 4/11 recorded champs had 2QB-by-R6 and 3 of
+  4 are Sleeper-era (Figgy won 2016 at R1+R8, coop 2017 at R9+R10) —
+  CONFOUND: Yahoo rounds include unflagged keepers at cost (late "QB2"
+  may be kept elite), so it refutes early QB SPENDING as law, not QB
+  capital. Verdict everywhere now: 2QB-by-R6 = current-regime room
+  exploit, revocable. Yahoo API needs user OAuth for standings/PF/
+  matchups/trades 2011-22 (would power the burn tests); champions
+  2011-2022 known (KNOWN_CHAMPIONS incl. nark 2011, a departed member).
 - Benchmark corpus (out-of-sample validation, July 2026): 13 owner-free
   MONEYLEAGUE-format league-seasons (6th Floor Crew, Ciely-Style 12tm;
   Warren 10tm) found by snowball crawl through rivals' leaguemates;
@@ -174,7 +189,9 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   (champs ranked 6/9/1 preseason; 12-league backtest percentile ~49);
   the "title watch" shape (rank-1 surplus ≥120 + proven majority) went
   1-for-3 (2025 Trevor hit; 2024 coop same shape missed) ≈ 4x base
-  rate, not a crown. v2 adds WAR CHEST (keepers at market + live picks,
+  rate, not a crown. NOTE: coop = rid 12 (displays wvw5022 AND
+  BigDickNicholas across seasons — display names change, manager ids
+  don't). v2 adds WAR CHEST (keepers at market + live picks,
   trades applied, keeper seats consumed) — user-prompted fix: surplus
   alone ignored total capital. 2026 predicted: watch fires on Trevor
   (surplus #1, 167, 100% proven) BUT he's war chest #8 (355) having
