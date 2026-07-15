@@ -212,6 +212,20 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   worst rate in history. STANDING RULE: no deal with Trevor without
   running the advisor first — and 2026 is the year the leverage flips
   (he's the forced seller; Brian holds the picks).
+  DECADE CROSS-CUTS (Jul 15): (a) COUNTERPARTY-CONTENDER is the
+  biggest edge axis ever measured: trading vs top-half-PF teams
+  −38/deal, vs bottom-half +34/deal (n=270) — SELL TO CONTENDERS,
+  user-guessed, confirmed. (b) Skill persistence WEAK (3/8 same-sign
+  across halves): Trevor's +1226 was ALL 2011-16 (since 2017: −156 +
+  Sleeper −55 — reputation now exceeds reality, exploitable); the LIVE
+  shark is COOP (+638 recent + biggest heist ever + strong Sleeper) —
+  caution transfers Trevor→coop. (c) Champions WIN their swaps (+174
+  title-year mean, 9/11 positive) — "lose the trade win the title"
+  applies only to pick-funded buys. (d) Early swaps most lopsided
+  (|PAR| 100 vs 79 mid, 45 deadline). (e) Brian ex-Trevor = −162/24
+  ≈ league-average; his two fixable leaks: early-window deals
+  (−62/deal, don't trade before W6) and QB swap-acquisitions
+  (−51/deal n=14 — draft QBs, never swap for them).
 - Benchmark corpus (out-of-sample validation, July 2026): 13 owner-free
   MONEYLEAGUE-format league-seasons (6th Floor Crew, Ciely-Style 12tm;
   Warren 10tm) found by snowball crawl through rivals' leaguemates;
