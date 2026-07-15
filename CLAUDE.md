@@ -230,6 +230,16 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   Byproduct: TIM = serial SURPRISE-burner (war #5→PF11 '23, war #4→PF11
   '24) — good capital, bad rosters, the other autopsy case. Trade
   counterparty, not a threat: his players outrun his standings.
+  Injury layer (user refinement #2, value-weighted early-capital weeks
+  missed): explains Trevor'24 no-change (20% hurt) and reveals coop'23
+  "surprise" burn was a 36% injury wipeout — but Figgy'24 (7% = healthy,
+  dead last, changed nothing) breaks even the full attribution model:
+  the room's non-adjustment is habit, not rationality. 2025 was a
+  BLOODBATH (median 21% vs 12-15%): Troy 38 / Figgy 29 / coop 29 /
+  Brian 24 (Tim only 8 — no excuse, strengthens serial-underperformer
+  read). All burned-2025 owners have the injury excuse ⇒ maximum
+  strategy persistence in 2026; Brian's autopsy verdict survives but
+  his true 2025 talent gap was smaller than standings said.
 - Draft-day artifacts: MONEYLEAGUE_ROOM_CARD.pdf (1-page banknote crib
   sheet: room fingerprints, reachable edges, let-them-pay, keeper math,
   forward market; build_room_card.py, in release uploads). Keeper lock
