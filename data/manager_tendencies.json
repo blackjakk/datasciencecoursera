@@ -488,7 +488,7 @@
   },
   "fingerprints": {
     "donnie": {
-      "age_at_draft": 26.4,
+      "age_at_draft": 26.5,
       "rookie_share": 0.15,
       "yr2_share": 0.04,
       "reach": {
@@ -542,7 +542,7 @@
       }
     },
     "brower_barry": {
-      "age_at_draft": 24.5,
+      "age_at_draft": 24.6,
       "rookie_share": 0.22,
       "yr2_share": 0.22,
       "reach": {
@@ -1442,7 +1442,7 @@
           "qb1": 3,
           "qb2": 4,
           "rook_share": 0.2,
-          "age": 24.6
+          "age": 24.7
         },
         "2023": {
           "qb1": 1,
@@ -1640,7 +1640,7 @@
           "qb1": 3,
           "qb2": null,
           "rook_share": 0.0,
-          "age": 25.5
+          "age": 25.6
         },
         "2024": {
           "qb1": 2,
@@ -1694,7 +1694,7 @@
       "qb2_iqr": 2,
       "qb2_stable": true,
       "rook_share_mean": 0.2,
-      "age_mean": 25.1,
+      "age_mean": 25.2,
       "by_year": {
         "2021": {
           "qb1": 3,
@@ -1712,19 +1712,19 @@
           "qb1": 7,
           "qb2": 12,
           "rook_share": 0.21,
-          "age": 23.9
+          "age": 24.0
         },
         "2024": {
           "qb1": 2,
           "qb2": 9,
           "rook_share": 0.23,
-          "age": 25.4
+          "age": 25.5
         },
         "2025": {
           "qb1": 2,
           "qb2": 7,
           "rook_share": 0.14,
-          "age": 25.2
+          "age": 25.3
         }
       }
     },
