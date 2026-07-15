@@ -222,6 +222,14 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   QB again (dQB2=1). Do NOT model scared-off drift; the room repeats.
   This is WHY the 2QB-by-R6 edge persists here (the QB-late minority
   doesn't learn) and why fingerprints stay valid after bad years.
+  User refinement (surprise-conditional: expected burns teach nothing):
+  direction AGREES — surprise burns (rich war chest, bottom-4 PF) moved
+  QB timing 5.3 rds vs 3.2 for expected burns; Figgy'24 = expected burn,
+  changed nothing — but the FINE control churns 5.6 rds naturally, so
+  n=3 signal < noise floor; still no drift term (retest after 2026).
+  Byproduct: TIM = serial SURPRISE-burner (war #5→PF11 '23, war #4→PF11
+  '24) — good capital, bad rosters, the other autopsy case. Trade
+  counterparty, not a threat: his players outrun his standings.
 - Draft-day artifacts: MONEYLEAGUE_ROOM_CARD.pdf (1-page banknote crib
   sheet: room fingerprints, reachable edges, let-them-pay, keeper math,
   forward market; build_room_card.py, in release uploads). Keeper lock
