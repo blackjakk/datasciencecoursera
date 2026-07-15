@@ -215,6 +215,13 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   top-3 market FALLERS (≥2 rds past ADP) into every bot's candidate
   set + symmetric reach penalty (>1.5 rds ahead of market); helper
   bots got stronger fall-catch + R10+ stash term. Mendoza now R12.
+  ADJUSTMENT TEST (user-proposed "scared-off" drift, Jul 2026): burned
+  owners (bottom-4 PF) change next-year strategy NO more than baseline
+  — dQB2 4.0 vs 4.6 rds, dRook 0.07 vs 0.09, dReach 0.78 vs 0.66 over
+  22 transitions; Figgy finished DEAD LAST 2024 punting QB and punted
+  QB again (dQB2=1). Do NOT model scared-off drift; the room repeats.
+  This is WHY the 2QB-by-R6 edge persists here (the QB-late minority
+  doesn't learn) and why fingerprints stay valid after bad years.
 - Draft-day artifacts: MONEYLEAGUE_ROOM_CARD.pdf (1-page banknote crib
   sheet: room fingerprints, reachable edges, let-them-pay, keeper math,
   forward market; build_room_card.py, in release uploads). Keeper lock
