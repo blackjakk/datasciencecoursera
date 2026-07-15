@@ -130,6 +130,61 @@ def load_tendencies() -> tuple[dict, dict]:
     return mgr_expected, league_first
 
 
+def load_fingerprints() -> dict:
+    """Robust per-owner fingerprints (median positional reach, rookie/yr2
+    appetite) from manager_tendencies.json — absent key tolerated so old
+    tendency files keep working."""
+    data = json.loads(TENDENCIES_JSON.read_text())
+    return data.get("fingerprints") or {}
+
+
+_YEARS_EXP: dict[str, int] | None = None
+
+
+def _years_exp_of(name: str) -> int | None:
+    """years_exp (2026 catalog: 0 = this year's rookies) by normalized
+    name; catalog loaded once."""
+    global _YEARS_EXP
+    if _YEARS_EXP is None:
+        catalog = json.loads(
+            (ROOT / "data" / "sleeper" / "players_nfl.json").read_text())
+        _YEARS_EXP = {}
+        for p in catalog.values():
+            nm = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
+            if nm and p.get("years_exp") is not None:
+                _YEARS_EXP.setdefault(_norm(nm), p["years_exp"])
+    return _YEARS_EXP.get(_norm(name))
+
+
+# Fingerprint tilt scale: 0.12 score per round of median positional reach
+# (capped ±0.35 ≈ most of a need tick); youth tilts vs league base rates
+# (rookie ~16%, yr2 ~15%). Reach cells need n >= 4 to fire.
+FP_REACH_SCALE, FP_REACH_CAP = 0.12, 0.35
+FP_ROOKIE_BASE, FP_YR2_BASE = 0.16, 0.15
+
+
+def _fingerprint_bonus(team_mgr: str | None, player,
+                       fingerprints: dict) -> float:
+    if not team_mgr or not fingerprints:
+        return 0.0
+    fp = fingerprints.get(team_mgr)
+    if not fp:
+        return 0.0
+    b = 0.0
+    r = (fp.get("reach") or {}).get(player.position)
+    if r and r.get("n", 0) >= 4:
+        b += max(-FP_REACH_CAP, min(FP_REACH_CAP,
+                                    FP_REACH_SCALE * r["median"]))
+    exp = _years_exp_of(player.name)
+    if exp == 0:
+        b += max(-0.25, min(0.25, 1.2 * (fp.get("rookie_share", FP_ROOKIE_BASE)
+                                         - FP_ROOKIE_BASE)))
+    elif exp == 1:
+        b += max(-0.20, min(0.20, 1.0 * (fp.get("yr2_share", FP_YR2_BASE)
+                                         - FP_YR2_BASE)))
+    return b
+
+
 def _tendency_bonus(team_mgr: str | None, pos: str, current_round: int,
                     mgr_expected: dict, league_first: dict) -> float:
     """Bonus added to a candidate's score when current_round is near this
@@ -194,6 +249,7 @@ def simulate_full_draft_with_tendencies(
     draft: Draft, players: list, my_team_idx: int,
     temperature: float, top_k: int, rng: random.Random,
     mgr_expected: dict, league_first: dict, team_idx_to_mgr: dict,
+    fingerprints: dict | None = None,
 ):
     """Replays simulate_full_draft but injects per-manager position bias
     into each candidate's score before sampling."""
@@ -271,6 +327,8 @@ def simulate_full_draft_with_tendencies(
             for c in candidates:
                 bonus = _tendency_bonus(mgr, c.player.position,
                                         pick.round_num, mgr_expected, league_first)
+                if fingerprints:
+                    bonus += _fingerprint_bonus(mgr, c.player, fingerprints)
                 scored.append((c.score + bonus, c.player))
             chosen = _softmax_choice(scored, temperature, rng)
 
@@ -427,7 +485,9 @@ def main():
         m = manager_for_sleeper_roster(rid)
         if m:
             team_idx_to_mgr[slot - 1] = m['id']
-    print(f"Loaded tendencies for {len(team_idx_to_mgr)} managers")
+    fingerprints = load_fingerprints()
+    print(f"Loaded tendencies for {len(team_idx_to_mgr)} managers "
+          f"(+{len(fingerprints)} fingerprints)")
 
     # One full sim for the draft board — deterministic so the visible board
     # has no implausible reaches (e.g. Chase falling past pick 5).
@@ -436,7 +496,7 @@ def main():
         draft, players, my_team_idx,
         temperature=DISPLAY_TEMPERATURE, top_k=TOP_K, rng=rng,
         mgr_expected=mgr_expected, league_first=league_first,
-        team_idx_to_mgr=team_idx_to_mgr,
+        team_idx_to_mgr=team_idx_to_mgr, fingerprints=fingerprints,
     )
     picks_dicts = [_pick_to_dict(fp, players_by_name) for fp in full]
     PICKS_OUT.write_text(json.dumps(picks_dicts, indent=2))
@@ -491,7 +551,7 @@ def main():
             sim_draft, players, my_team_idx,
             temperature=MC_TEMPERATURE, top_k=TOP_K, rng=sim_rng,
             mgr_expected=mgr_expected, league_first=league_first,
-            team_idx_to_mgr=team_idx_to_mgr,
+            team_idx_to_mgr=team_idx_to_mgr, fingerprints=fingerprints,
         )
         team_totals = defaultdict(float)
         team_picks: dict[int, list[tuple[int, int, str]]] = defaultdict(list)

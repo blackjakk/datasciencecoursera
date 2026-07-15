@@ -29,6 +29,79 @@ LEAGUES = [
 POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF']
 
 
+def build_fingerprints() -> dict:
+    """Robust per-owner draft fingerprints (July 2026 method):
+      - positional reach = MEDIAN of (period-ADP round − round taken),
+        positive = pays above market; picks with no real market price
+        (ADP >= pick 216) and keepers are EXCLUDED — one undrafted dart
+        (Chris Rodriguez, coop 2025) once fabricated a +5.7 "RB tax"
+        from a mean, hence median + cap;
+      - age_at_draft / rookie_share / yr2_share = veteran-vs-youth axis
+        (age backdated per season from the current catalog);
+      - discipline = median reach across all graded picks.
+    Consumed by the MC sim tilts, practice bots, dossiers, room card."""
+    import statistics as st
+    from scripts.stash_curve import _period_adp, _xlsx_owner_by_pick_no
+
+    players = json.loads(
+        (ROOT / "data/sleeper/players_nfl.json").read_text())
+    reach: dict[tuple[str, str], list[float]] = defaultdict(list)
+    ages: dict[str, list[float]] = defaultdict(list)
+    exp_counts: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"rookie": 0, "yr2": 0, "n": 0})
+
+    for year, ldir, did in LEAGUES:
+        season = int(year)
+        adp = _period_adp(season)
+        owners = _xlsx_owner_by_pick_no(season)
+        yrs_back = 2026 - season
+        picks = json.loads(
+            Path(f"{ldir}/draft_{did}_picks.json").read_text())
+        for p in picks:
+            mgr = owners.get(p["pick_no"])
+            pl = players.get(p["player_id"]) or {}
+            pos = pl.get("position")
+            if not mgr or pos not in ("QB", "RB", "WR", "TE"):
+                continue
+            age = pl.get("age")
+            if age is not None:
+                ages[mgr].append(age - yrs_back)
+            exp = pl.get("years_exp")
+            ec = exp_counts[mgr]
+            ec["n"] += 1
+            if exp is not None:
+                if exp - yrs_back == 0:
+                    ec["rookie"] += 1
+                elif exp - yrs_back == 1:
+                    ec["yr2"] += 1
+            a = adp.get(p["player_id"], 999.0)
+            if a >= 216:               # no real market price — ungradable
+                continue
+            ar = max(1.0, a / 12.0)
+            if bool(p.get("is_keeper")) or (p["round"] - ar) >= 1.5:
+                continue               # keepers were bought, not drafted
+            reach[(mgr, pos)].append(ar - p["round"])
+            reach[(mgr, "ALL")].append(ar - p["round"])
+
+    fingerprints: dict[str, dict] = {}
+    for mgr in exp_counts:
+        ec = exp_counts[mgr]
+        fp: dict = {
+            "age_at_draft": round(sum(ages[mgr]) / len(ages[mgr]), 1)
+            if ages[mgr] else None,
+            "rookie_share": round(ec["rookie"] / ec["n"], 2) if ec["n"] else 0,
+            "yr2_share": round(ec["yr2"] / ec["n"], 2) if ec["n"] else 0,
+            "reach": {},
+        }
+        for pos in ("QB", "RB", "WR", "TE", "ALL"):
+            rs = reach.get((mgr, pos), [])
+            if rs:
+                fp["reach"][pos] = {"median": round(st.median(rs), 2),
+                                    "n": len(rs)}
+        fingerprints[mgr] = fp
+    return fingerprints
+
+
 def main():
     # mgr_first_per_year[mgr][pos] = [first_round_in_2023, ..., 2024, 2025]
     mgr_first: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
@@ -95,6 +168,7 @@ def main():
                   'EARLIER than the league average; > 0 means they wait.'),
         'league_first_avg': {p: round(v, 2) for p, v in league_avg.items()},
         'tendencies': tendencies,
+        'fingerprints': build_fingerprints(),
     }
     OUT.write_text(json.dumps(out, indent=2))
     print(f"Wrote {OUT}")

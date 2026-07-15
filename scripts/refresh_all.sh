@@ -95,6 +95,8 @@ do_reports() {
   do_helper
   log "Render Round-by-Round Menu one-pager"
   python3 scripts/build_round_menu.py
+  log "Render draft-day Room Card one-pager"
+  python3 scripts/build_room_card.py
   log "Summarize week-over-week movers"
   python3 scripts/build_weekly_movers.py
   log "Research Desk: market screen, trade ledger, dossiers, autopsy"

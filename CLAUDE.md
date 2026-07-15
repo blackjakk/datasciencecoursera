@@ -193,8 +193,22 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   kept TEs underperform their price by −28.
 - Trade advisor (`scripts/trade_advisor.py`): swap pricing now prints
   redraft + keeper-option components (Option Book).
+- Owner fingerprints (Jul 2026, in manager_tendencies.json + sim + bots
+  + dossier-grade cards): robust method = MEDIAN positional reach with
+  ADP<216 cap (mean poisoning: one undrafted dart once faked a +5.7
+  "coop RB tax"), keepers excluded + rookie/yr2 shares + age. Durable
+  reads: ankur RB +2.5, figgy TE +2.7, donnie TE +1.9, troy drafts OLD
+  (27.9, 2% rookies), eric_m rookies 30%, trevor most disciplined
+  (+0.3; QB −0.7), troy/trevor get QBs under market. MC sim tilts by
+  these (survival curves room-aware); practice bots too.
+- Draft-day artifacts: MONEYLEAGUE_ROOM_CARD.pdf (1-page banknote crib
+  sheet: room fingerprints, reachable edges, let-them-pay, keeper math,
+  forward market; build_room_card.py, in release uploads). Keeper lock
+  = 5-min runbook: docs/KEEPER_LOCK.md + lock_keepers.py validator
+  (template data/keepers_2026_actual.TEMPLATE.json; enforces cap/floor/
+  bump/ownership; then refresh derive sim reports verify).
 - Helper features: live Sleeper sync (GO LIVE), PRACTICE (market-anchored
-  bots), CEILING, Next✓ survival, SIM column (= recs brain incl. 2027
+  bots + measured owner-fingerprint tilts), CEILING, Next✓ survival, SIM column (= recs brain incl. 2027
   option term R10+), sortable order book, movers tape + Δwk, LEAGUE
   PORTFOLIOS (auto-follows the clock), saves (Ctrl+S/Save As/Open, dirty
   dot), reset board (Back restores via pushState), full interaction

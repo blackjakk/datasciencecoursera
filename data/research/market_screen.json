@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated": "2026-07-12",
+    "generated": "2026-07-15",
     "sleeper_source": "adp_2qb (superflex), data/sleeper_projections_2026.json",
     "fp_source": "FantasyPros OP half-PPR consensus, 62 experts, updated 7/12",
     "players_screened": 138,
@@ -374,7 +374,7 @@
   ],
   "model_vs_paper": {
     "meta": {
-      "generated": "2026-07-12",
+      "generated": "2026-07-15",
       "model_source": "helper data.json superflex VBD board (K/DEF excluded)",
       "paper_source": "FP OP consensus (62 experts) \u2014 the room brings superflex paper",
       "players_compared": 109,
@@ -382,6 +382,38 @@
       "sheets_sleep_sort": "gap \u00d7 reach (edge_score), desc"
     },
     "sheets_sleep": [
+      {
+        "name": "Mark Andrews",
+        "position": "TE",
+        "team": "BAL",
+        "model_rank": 109,
+        "model_round": 10,
+        "fp_rank": 133,
+        "fp_round": 12,
+        "gap": 24,
+        "read": "our board R10 \u00b7 their paper R12",
+        "reach": 0.691,
+        "reach_pct": 69,
+        "reach_pick": 139,
+        "reach_round": 12,
+        "edge_score": 16.6
+      },
+      {
+        "name": "Dalton Kincaid",
+        "position": "TE",
+        "team": "BUF",
+        "model_rank": 99,
+        "model_round": 9,
+        "fp_rank": 122,
+        "fp_round": 11,
+        "gap": 23,
+        "read": "our board R9 \u00b7 their paper R11",
+        "reach": 0.694,
+        "reach_pct": 69,
+        "reach_pick": 126,
+        "reach_round": 11,
+        "edge_score": 16.0
+      },
       {
         "name": "Brock Bowers",
         "position": "TE",
@@ -399,38 +431,6 @@
         "edge_score": 16.0
       },
       {
-        "name": "Dalton Kincaid",
-        "position": "TE",
-        "team": "BUF",
-        "model_rank": 99,
-        "model_round": 9,
-        "fp_rank": 122,
-        "fp_round": 11,
-        "gap": 23,
-        "read": "our board R9 \u00b7 their paper R11",
-        "reach": 0.67,
-        "reach_pct": 67,
-        "reach_pick": 126,
-        "reach_round": 11,
-        "edge_score": 15.4
-      },
-      {
-        "name": "Mark Andrews",
-        "position": "TE",
-        "team": "BAL",
-        "model_rank": 109,
-        "model_round": 10,
-        "fp_rank": 133,
-        "fp_round": 12,
-        "gap": 24,
-        "read": "our board R10 \u00b7 their paper R12",
-        "reach": 0.607,
-        "reach_pct": 61,
-        "reach_pick": 139,
-        "reach_round": 12,
-        "edge_score": 14.6
-      },
-      {
         "name": "Brenton Strange",
         "position": "TE",
         "team": "JAC",
@@ -440,11 +440,11 @@
         "fp_round": 13,
         "gap": 20,
         "read": "our board R11 \u00b7 their paper R13",
-        "reach": 0.582,
-        "reach_pct": 58,
+        "reach": 0.6,
+        "reach_pct": 60,
         "reach_pick": 150,
         "reach_round": 13,
-        "edge_score": 11.6
+        "edge_score": 12.0
       },
       {
         "name": "Omarion Hampton",
@@ -463,22 +463,6 @@
         "edge_score": 10.0
       },
       {
-        "name": "Saquon Barkley",
-        "position": "RB",
-        "team": "PHI",
-        "model_rank": 15,
-        "model_round": 2,
-        "fp_rank": 32,
-        "fp_round": 3,
-        "gap": 17,
-        "read": "our board R2 \u00b7 their paper R3",
-        "reach": 0.467,
-        "reach_pct": 47,
-        "reach_pick": 30,
-        "reach_round": 3,
-        "edge_score": 7.9
-      },
-      {
         "name": "Davante Adams",
         "position": "WR",
         "team": "LAR",
@@ -488,11 +472,11 @@
         "fp_round": 6,
         "gap": 34,
         "read": "our board R3 \u00b7 their paper R6",
-        "reach": 0.22,
-        "reach_pct": 22,
+        "reach": 0.26,
+        "reach_pct": 26,
         "reach_pick": 67,
         "reach_round": 6,
-        "edge_score": 7.5
+        "edge_score": 8.8
       },
       {
         "name": "Ashton Jeanty",
@@ -527,20 +511,36 @@
         "edge_score": 6.4
       },
       {
-        "name": "James Cook III",
-        "position": "RB",
-        "team": "BUF",
-        "model_rank": 9,
-        "model_round": 1,
-        "fp_rank": 23,
-        "fp_round": 2,
-        "gap": 14,
-        "read": "our board R1 \u00b7 their paper R2",
-        "reach": 0.433,
-        "reach_pct": 43,
-        "reach_pick": 19,
-        "reach_round": 2,
-        "edge_score": 6.1
+        "name": "Quentin Johnston",
+        "position": "WR",
+        "team": "LAC",
+        "model_rank": 82,
+        "model_round": 7,
+        "fp_rank": 113,
+        "fp_round": 10,
+        "gap": 31,
+        "read": "our board R7 \u00b7 their paper R10",
+        "reach": 0.188,
+        "reach_pct": 19,
+        "reach_pick": 115,
+        "reach_round": 10,
+        "edge_score": 5.8
+      },
+      {
+        "name": "Jakobi Meyers",
+        "position": "WR",
+        "team": "JAC",
+        "model_rank": 81,
+        "model_round": 7,
+        "fp_rank": 112,
+        "fp_round": 10,
+        "gap": 31,
+        "read": "our board R7 \u00b7 their paper R10",
+        "reach": 0.183,
+        "reach_pct": 18,
+        "reach_pick": 115,
+        "reach_round": 10,
+        "edge_score": 5.7
       }
     ],
     "sheets_love": [

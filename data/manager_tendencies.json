@@ -485,5 +485,358 @@
         "n_samples": 1
       }
     }
+  },
+  "fingerprints": {
+    "donnie": {
+      "age_at_draft": 26.4,
+      "rookie_share": 0.15,
+      "yr2_share": 0.04,
+      "reach": {
+        "QB": {
+          "median": 1.04,
+          "n": 9
+        },
+        "RB": {
+          "median": 0.47,
+          "n": 14
+        },
+        "WR": {
+          "median": 0.31,
+          "n": 14
+        },
+        "TE": {
+          "median": 1.95,
+          "n": 4
+        },
+        "ALL": {
+          "median": 0.66,
+          "n": 41
+        }
+      }
+    },
+    "eric_m": {
+      "age_at_draft": 24.3,
+      "rookie_share": 0.3,
+      "yr2_share": 0.13,
+      "reach": {
+        "QB": {
+          "median": -0.22,
+          "n": 6
+        },
+        "RB": {
+          "median": 0.42,
+          "n": 11
+        },
+        "WR": {
+          "median": 1.22,
+          "n": 15
+        },
+        "TE": {
+          "median": -0.22,
+          "n": 3
+        },
+        "ALL": {
+          "median": 0.47,
+          "n": 35
+        }
+      }
+    },
+    "brower_barry": {
+      "age_at_draft": 24.5,
+      "rookie_share": 0.22,
+      "yr2_share": 0.22,
+      "reach": {
+        "QB": {
+          "median": -0.55,
+          "n": 8
+        },
+        "RB": {
+          "median": 0.74,
+          "n": 10
+        },
+        "WR": {
+          "median": 0.66,
+          "n": 16
+        },
+        "TE": {
+          "median": 1.39,
+          "n": 1
+        },
+        "ALL": {
+          "median": 0.53,
+          "n": 35
+        }
+      }
+    },
+    "troy_mullings": {
+      "age_at_draft": 27.9,
+      "rookie_share": 0.02,
+      "yr2_share": 0.06,
+      "reach": {
+        "QB": {
+          "median": -0.57,
+          "n": 8
+        },
+        "RB": {
+          "median": 1.03,
+          "n": 10
+        },
+        "WR": {
+          "median": 0.64,
+          "n": 10
+        },
+        "TE": {
+          "median": -0.62,
+          "n": 2
+        },
+        "ALL": {
+          "median": 0.43,
+          "n": 30
+        }
+      }
+    },
+    "brian_bigguap": {
+      "age_at_draft": 25.0,
+      "rookie_share": 0.15,
+      "yr2_share": 0.26,
+      "reach": {
+        "QB": {
+          "median": 0.59,
+          "n": 4
+        },
+        "RB": {
+          "median": 1.41,
+          "n": 8
+        },
+        "WR": {
+          "median": 1.23,
+          "n": 15
+        },
+        "TE": {
+          "median": -0.69,
+          "n": 5
+        },
+        "ALL": {
+          "median": 1.0,
+          "n": 32
+        }
+      }
+    },
+    "dave_aka_wang": {
+      "age_at_draft": 24.3,
+      "rookie_share": 0.18,
+      "yr2_share": 0.24,
+      "reach": {
+        "QB": {
+          "median": 0.0,
+          "n": 3
+        },
+        "RB": {
+          "median": 1.25,
+          "n": 8
+        },
+        "WR": {
+          "median": 0.93,
+          "n": 9
+        },
+        "TE": {
+          "median": 0.0,
+          "n": 1
+        },
+        "ALL": {
+          "median": 0.63,
+          "n": 21
+        }
+      }
+    },
+    "trevor_bergerboy": {
+      "age_at_draft": 24.4,
+      "rookie_share": 0.14,
+      "yr2_share": 0.24,
+      "reach": {
+        "QB": {
+          "median": -0.67,
+          "n": 5
+        },
+        "RB": {
+          "median": 0.41,
+          "n": 14
+        },
+        "WR": {
+          "median": 0.94,
+          "n": 13
+        },
+        "TE": {
+          "median": 0.32,
+          "n": 1
+        },
+        "ALL": {
+          "median": 0.32,
+          "n": 33
+        }
+      }
+    },
+    "tim_breswick": {
+      "age_at_draft": 24.7,
+      "rookie_share": 0.2,
+      "yr2_share": 0.13,
+      "reach": {
+        "QB": {
+          "median": -0.1,
+          "n": 6
+        },
+        "RB": {
+          "median": 1.27,
+          "n": 16
+        },
+        "WR": {
+          "median": 0.56,
+          "n": 11
+        },
+        "TE": {
+          "median": -0.04,
+          "n": 3
+        },
+        "ALL": {
+          "median": 0.58,
+          "n": 36
+        }
+      }
+    },
+    "coop": {
+      "age_at_draft": 25.8,
+      "rookie_share": 0.15,
+      "yr2_share": 0.08,
+      "reach": {
+        "QB": {
+          "median": 0.44,
+          "n": 9
+        },
+        "RB": {
+          "median": 1.32,
+          "n": 8
+        },
+        "WR": {
+          "median": 1.03,
+          "n": 14
+        },
+        "TE": {
+          "median": 0.67,
+          "n": 3
+        },
+        "ALL": {
+          "median": 0.92,
+          "n": 34
+        }
+      }
+    },
+    "kyle_figgy": {
+      "age_at_draft": 26.0,
+      "rookie_share": 0.13,
+      "yr2_share": 0.13,
+      "reach": {
+        "QB": {
+          "median": 1.12,
+          "n": 2
+        },
+        "RB": {
+          "median": 1.15,
+          "n": 12
+        },
+        "WR": {
+          "median": 0.42,
+          "n": 10
+        },
+        "TE": {
+          "median": 2.72,
+          "n": 4
+        },
+        "ALL": {
+          "median": 1.24,
+          "n": 28
+        }
+      }
+    },
+    "lem": {
+      "age_at_draft": 26.9,
+      "rookie_share": 0.11,
+      "yr2_share": 0.07,
+      "reach": {
+        "QB": {
+          "median": 0.83,
+          "n": 3
+        },
+        "RB": {
+          "median": 1.21,
+          "n": 11
+        },
+        "WR": {
+          "median": 0.6,
+          "n": 17
+        },
+        "TE": {
+          "median": 1.57,
+          "n": 6
+        },
+        "ALL": {
+          "median": 1.2,
+          "n": 37
+        }
+      }
+    },
+    "ankur_patel": {
+      "age_at_draft": 24.7,
+      "rookie_share": 0.2,
+      "yr2_share": 0.24,
+      "reach": {
+        "QB": {
+          "median": 0.22,
+          "n": 5
+        },
+        "RB": {
+          "median": 2.51,
+          "n": 7
+        },
+        "WR": {
+          "median": 0.85,
+          "n": 14
+        },
+        "TE": {
+          "median": -0.27,
+          "n": 7
+        },
+        "ALL": {
+          "median": 1.22,
+          "n": 33
+        }
+      }
+    },
+    "josh_wildboy": {
+      "age_at_draft": 27.1,
+      "rookie_share": 0.07,
+      "yr2_share": 0.07,
+      "reach": {
+        "QB": {
+          "median": -0.34,
+          "n": 2
+        },
+        "RB": {
+          "median": 1.03,
+          "n": 4
+        },
+        "WR": {
+          "median": 0.78,
+          "n": 5
+        },
+        "TE": {
+          "median": 3.4,
+          "n": 1
+        },
+        "ALL": {
+          "median": 0.69,
+          "n": 12
+        }
+      }
+    }
   }
 }

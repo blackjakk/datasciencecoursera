@@ -1,0 +1,19 @@
+[
+  "_instructions: KEEPER LOCK TEMPLATE (August 2026). Step 1: copy this file to data/keepers_2026_actual.json. Step 2: fill in ONE entry per ACTUAL declared keeper, LEAGUE-WIDE (every team, not just Brian's) and DELETE the unused placeholder entries below (and this string is ignored, leave or delete it). Only three fields are REQUIRED per entry: player_name (full name as Sleeper spells it), roster_id (1-12, same ids as data/keepers_2026.json), prior_round (the round the player cost in 2025; waiver/undrafted pickups = 17). Everything else -- forfeit_round, effective seat, years_kept, position, adp, vbd fields, is_waiver -- is derived by the validator from data/keepers_2026.json and data/sleeper/players_nfl.json. Optional overrides per entry: years_kept (years kept BEFORE 2026, if the predicted file is wrong), position, forfeit_round, is_waiver. Step 3: run `python3 scripts/lock_keepers.py data/keepers_2026_actual.json`. It validates every league rule (2-round escalation, 3-year cap, R1/R2 forfeits ineligible, pick ownership + bump-up seating, max 4 keepers/team), prints a per-team summary, and on OK rewrites data/keepers_2026_actual.json schema-complete so the pipeline regrades from it. Full runbook: docs/KEEPER_LOCK.md.",
+  {
+    "player_name": "FirstName LastName",
+    "roster_id": 1,
+    "prior_round": 9
+  },
+  {
+    "player_name": "FirstName Lastnametwo",
+    "roster_id": 6,
+    "prior_round": 17
+  },
+  {
+    "player_name": "FirstName Lastnamethree",
+    "roster_id": 12,
+    "prior_round": 13,
+    "years_kept": 2
+  }
+]

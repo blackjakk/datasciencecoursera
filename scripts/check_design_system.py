@@ -46,6 +46,7 @@ HEX_SCAN_TARGETS = [
     "scripts/build_preseason_2026.py",
     "scripts/build_mock_draft_report.py",
     "scripts/build_round_menu.py",
+    "scripts/build_room_card.py",
     "scripts/build_market_screen.py",
     "scripts/build_trade_ledger.py",
     "scripts/build_autopsy_2025.py",

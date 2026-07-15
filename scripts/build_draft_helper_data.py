@@ -354,6 +354,7 @@ def main():
     managers = load_managers()
     schedule = build_pick_schedule()
     tendencies = load_tendencies()
+    fingerprints = tendencies.get("fingerprints") or {}
     n_sv = attach_survival(players)
     print(f"Attached survival curves to {n_sv} players")
     movers = build_movers(players)
@@ -388,6 +389,12 @@ def main():
         "managers": managers,
         "schedule": schedule,
         "tendencies": tendencies,
+        # Robust owner fingerprints keyed by team_idx (practice bots tilt
+        # picks by each rival's measured positional reach + youth appetite).
+        "fingerprints": {
+            str(m["team_idx"]): fingerprints[m["id"]]
+            for m in managers if m["id"] in fingerprints
+        },
         "mc_summary": my_mc_summary(),
         "league_rules": {
             "round_penalty": 2,

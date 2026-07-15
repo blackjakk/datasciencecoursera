@@ -428,6 +428,22 @@ function botPick(slot) {
   const rnd = slot.round;
   const kdefFloor = 15;
 
+  // Measured owner fingerprints (median positional reach, rookie/2nd-yr
+  // appetite) — bots pay the premiums their humans actually pay.
+  function fingerprintBonus(teamIdx, p, pos) {
+    const fp = (DATA.fingerprints || {})[String(teamIdx)];
+    if (!fp) return 0;
+    let b = 0;
+    const r = (fp.reach || {})[pos];
+    if (r && r.n >= 4) b += Math.max(-0.35, Math.min(0.35, 0.12 * r.median));
+    if (p.years_exp === 0) {
+      b += Math.max(-0.25, Math.min(0.25, 1.2 * ((fp.rookie_share ?? 0.16) - 0.16)));
+    } else if (p.years_exp === 1) {
+      b += Math.max(-0.2, Math.min(0.2, 1.0 * ((fp.yr2_share ?? 0.15) - 0.15)));
+    }
+    return b;
+  }
+
   const cands = [];
   for (const p of DATA.players) {
     if (drafted.has(p.name)) continue;
@@ -452,7 +468,8 @@ function botPick(slot) {
     const reach = Math.max(0, (adp - slot.overall) / 12);   // rounds early
     const fall = Math.max(0, (slot.overall - adp) / 12);    // rounds late
     const anchor = -0.45 * Math.min(reach, 4) + 0.1 * Math.min(fall, 2);
-    cands.push({ p, s: v + 0.6 * need + tendencyBonus(mgr, pos, rnd) + anchor });
+    cands.push({ p, s: v + 0.6 * need + tendencyBonus(mgr, pos, rnd)
+                       + anchor + fingerprintBonus(ti, p, pos) });
   }
   if (!cands.length) return null;
   cands.sort((a, b) => b.s - a.s);
