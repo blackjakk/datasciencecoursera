@@ -225,7 +225,20 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   (|PAR| 100 vs 79 mid, 45 deadline). (e) Brian ex-Trevor = −162/24
   ≈ league-average; his two fixable leaks: early-window deals
   (−62/deal, don't trade before W6) and QB swap-acquisitions
-  (−51/deal n=14 — draft QBs, never swap for them).
+  (−51/deal n=14 — draft QBs, never swap for them). House rules print
+  atop every trade_advisor.py run; Decade Book table lives in desk II.
+  RIVALS' OTHER YAHOO LEAGUES: not pullable systematically (Yahoo
+  redacts GUIDs/nicknames, no per-user league listing — unlike
+  Sleeper). Shared-league mining works: archive holds Brian's 39
+  other league-seasons; team-name matching confirmed Trevor =
+  "Reno Mahe 911" (Playoffs? 2012-13), Donnie = "Mrs. Doubtfire"
+  (Bean Counters 2017-18). More rivals likely in the Playoffs?
+  series under unknown names — 2022 rosters were shown to Brian for
+  identification (pending); any ID he gives unlocks that owner's
+  decade outside-book (per-team trade/move counts sit in every
+  archived standings file). Repo Actions secrets YAHOO_CLIENT_ID/
+  SECRET hold the working fantasy-scoped app (the old GroupMe-bot
+  app); yahoo_backfill.yml is rerunnable with a fresh auth code.
 - Benchmark corpus (out-of-sample validation, July 2026): 13 owner-free
   MONEYLEAGUE-format league-seasons (6th Floor Crew, Ciely-Style 12tm;
   Warren 10tm) found by snowball crawl through rivals' leaguemates;
