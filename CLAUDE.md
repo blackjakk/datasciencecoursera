@@ -199,6 +199,19 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   (one-off all-in, not a profile). Timing eternal: 60% of all decade
   trades in W6-10; deadline always thin (14/136). Tim: 9 trades in 12
   years — one deal per season; a seat offer to him IS his annual trade.
+  DECADE LEDGER VALUE-GRADED (build_decade_ledger.py; Sleeper weekly
+  stats reach 2011, fetched via fetch_trade_intel.fetch_stats into
+  scouting/stats — ~5MB committed; PAR method mirrors the Sleeper
+  ledger, replacement scaled to league size): Yahoo-era standings
+  Trevor +1070 (39 deals) / coop +683 / troy +624 ... BRIAN −848,
+  ALL-TIME LAST. THE PAIR VERDICT: Brian↔Trevor 11 deals = −686 TO
+  BRIAN (−62/deal) — 81% of Brian's career deficit is ONE counterparty;
+  combined eras Brian ≈ −1035 over 47 deals. Ankur 2022 heist graded
+  +234/5 deals (w7 Henry+Diggs from donnie +128 was the title trade).
+  Biggest single heist ever: coop +325 v Tim (2017 w5). Tim −55/deal
+  worst rate in history. STANDING RULE: no deal with Trevor without
+  running the advisor first — and 2026 is the year the leverage flips
+  (he's the forced seller; Brian holds the picks).
 - Benchmark corpus (out-of-sample validation, July 2026): 13 owner-free
   MONEYLEAGUE-format league-seasons (6th Floor Crew, Ciely-Style 12tm;
   Warren 10tm) found by snowball crawl through rivals' leaguemates;

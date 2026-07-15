@@ -1,0 +1,229 @@
+{
+  "meta": {
+    "seasons": "2011-2022",
+    "sides_graded": 270,
+    "unresolved_players": {
+      "Josh Palmer": 2,
+      "Bills": 1,
+      "Jake Locker": 1,
+      "Stevie Johnson": 1,
+      "Will Fuller V": 1,
+      "Cardinals": 1,
+      "Kenny Gainwell": 1,
+      "Raiders": 1
+    },
+    "method": "rest-of-season half-PPR PAR after the trade week; replacement = median weekly score at rank N scaled to league size; absent weeks cost full replacement"
+  },
+  "standings": {
+    "trevor_bergerboy": {
+      "deals": 39,
+      "net_par": 1070.1
+    },
+    "coop": {
+      "deals": 35,
+      "net_par": 682.8
+    },
+    "troy_mullings": {
+      "deals": 19,
+      "net_par": 624.0
+    },
+    "brower_barry": {
+      "deals": 11,
+      "net_par": 272.9
+    },
+    "ankur_patel": {
+      "deals": 7,
+      "net_par": 271.1
+    },
+    "dave_aka_wang": {
+      "deals": 22,
+      "net_par": 157.9
+    },
+    "nick_lewis_left": {
+      "deals": 4,
+      "net_par": 68.9
+    },
+    "lem": {
+      "deals": 18,
+      "net_par": 51.9
+    },
+    "eric_m": {
+      "deals": 7,
+      "net_par": -87.5
+    },
+    "kyle_figgy": {
+      "deals": 21,
+      "net_par": -100.7
+    },
+    "notebooks_left": {
+      "deals": 1,
+      "net_par": -142.6
+    },
+    "jp_former": {
+      "deals": 2,
+      "net_par": -279.8
+    },
+    "tim_breswick": {
+      "deals": 9,
+      "net_par": -495.0
+    },
+    "nark": {
+      "deals": 10,
+      "net_par": -620.4
+    },
+    "donnie": {
+      "deals": 30,
+      "net_par": -625.5
+    },
+    "brian_bigguap": {
+      "deals": 35,
+      "net_par": -848.1
+    }
+  },
+  "pairs": {
+    "brian_bigguap vs trevor_bergerboy": {
+      "deals": 11,
+      "net_to_first": -686.2
+    },
+    "donnie vs trevor_bergerboy": {
+      "deals": 7,
+      "net_to_first": -163.1
+    },
+    "kyle_figgy vs trevor_bergerboy": {
+      "deals": 7,
+      "net_to_first": -184.1
+    },
+    "brian_bigguap vs donnie": {
+      "deals": 6,
+      "net_to_first": 192.2
+    },
+    "dave_aka_wang vs donnie": {
+      "deals": 6,
+      "net_to_first": 166.1
+    },
+    "coop vs kyle_figgy": {
+      "deals": 5,
+      "net_to_first": -378.2
+    },
+    "coop vs troy_mullings": {
+      "deals": 5,
+      "net_to_first": -107.7
+    },
+    "coop vs donnie": {
+      "deals": 5,
+      "net_to_first": 238.0
+    },
+    "brian_bigguap vs eric_m": {
+      "deals": 4,
+      "net_to_first": -178.6
+    },
+    "lem vs trevor_bergerboy": {
+      "deals": 4,
+      "net_to_first": 83.4
+    },
+    "brian_bigguap vs coop": {
+      "deals": 3,
+      "net_to_first": -54.3
+    },
+    "coop vs nark": {
+      "deals": 3,
+      "net_to_first": 272.4
+    },
+    "nark vs trevor_bergerboy": {
+      "deals": 3,
+      "net_to_first": -192.5
+    },
+    "dave_aka_wang vs lem": {
+      "deals": 3,
+      "net_to_first": 35.1
+    },
+    "dave_aka_wang vs trevor_bergerboy": {
+      "deals": 3,
+      "net_to_first": 213.0
+    },
+    "coop vs lem": {
+      "deals": 3,
+      "net_to_first": 68.7
+    },
+    "brower_barry vs coop": {
+      "deals": 3,
+      "net_to_first": 147.5
+    },
+    "ankur_patel vs lem": {
+      "deals": 3,
+      "net_to_first": 136.6
+    }
+  },
+  "biggest": [
+    {
+      "season": 2017,
+      "week": 5,
+      "manager": "coop",
+      "counterparty": "tim_breswick",
+      "par": 324.5
+    },
+    {
+      "season": 2011,
+      "week": 4,
+      "manager": "kyle_figgy",
+      "counterparty": "coop",
+      "par": 227.0
+    },
+    {
+      "season": 2013,
+      "week": 4,
+      "manager": "nick_lewis_left",
+      "counterparty": "brian_bigguap",
+      "par": 225.6
+    },
+    {
+      "season": 2021,
+      "week": 10,
+      "manager": "troy_mullings",
+      "counterparty": "eric_m",
+      "par": 221.6
+    },
+    {
+      "season": 2019,
+      "week": 10,
+      "manager": "brian_bigguap",
+      "counterparty": "tim_breswick",
+      "par": 219.7
+    },
+    {
+      "season": 2019,
+      "week": 5,
+      "manager": "lem",
+      "counterparty": "brian_bigguap",
+      "par": 213.6
+    },
+    {
+      "season": 2017,
+      "week": 8,
+      "manager": "donnie",
+      "counterparty": "trevor_bergerboy",
+      "par": 207.2
+    },
+    {
+      "season": 2013,
+      "week": 5,
+      "manager": "troy_mullings",
+      "counterparty": "nick_lewis_left",
+      "par": 190.5
+    },
+    {
+      "season": 2014,
+      "week": 3,
+      "manager": "trevor_bergerboy",
+      "counterparty": "brian_bigguap",
+      "par": 188.9
+    },
+    {
+      "season": 2020,
+      "week": 8,
+      "manager": "coop",
+      "counterparty": "donnie",
+      "par": 186.2
+    }
+  ]
+}
