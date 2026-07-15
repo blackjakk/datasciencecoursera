@@ -51,7 +51,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "yahoo"
-REDIRECT_URI = "https://localhost:8080"
+# Must EXACTLY match the Yahoo app's registered redirect. The user's
+# working (fantasy-scoped) app predates this project and is registered
+# to a long-dead Heroku bot — which is fine: a dead redirect behaves
+# like localhost (page fails, code stays readable in the address bar).
+REDIRECT_URI = "https://groupmebotlmao5.herokuapp.com/auth"
 TOKEN_URL = "https://api.login.yahoo.com/oauth2/get_token"
 API = "https://fantasysports.yahooapis.com/fantasy/v2"
 FIRST_SEASON, LAST_SEASON = 2011, 2022
