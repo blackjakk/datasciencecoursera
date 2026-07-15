@@ -116,6 +116,57 @@ def compute() -> dict:
         for r in demand_by_round
     }
 
+    # THE SEAT MARKET — natural pairs (user-prompted, Jul 2026: "am I
+    # Tim's natural partner?" — answer was NO, Donnie was). A bare seller
+    # list hides FIT: a seller holding a SPARE of the round gives up
+    # nothing structural, and a seller missing exactly the rounds the
+    # buyer owns doubles of can be paid in scraps. Rank every demand
+    # case's sellers by (spare, barter fit) so the desk always shows who
+    # undercuts whom before a negotiation opens.
+    def team_profile(ti: int):
+        frees = {r: free(ti, r) for r in range(1, 18)}
+        missing = [r for r in range(1, 18) if owned[ti].get(r, 0) == 0]
+        spares = [r for r, c in frees.items() if c > 1]
+        return frees, missing, spares
+
+    profiles = {ti: team_profile(ti) for ti in ti2name}
+    name2ti = {v: k for k, v in ti2name.items()}
+    seen_case = set()
+    seat_market = []
+    for src, tag in ((hard, "HARD"), (blocked, "")):
+        for b in src:
+            key = (b["manager"], b["round"])
+            if key in seen_case:
+                continue
+            seen_case.add(key)
+            bti = name2ti[b["manager"]]
+            _, _bmiss, bspares = profiles[bti]
+            offers = []
+            for ti in ti2name:
+                if ti == bti:
+                    continue
+                frees, smiss, sspares = profiles[ti]
+                if frees.get(b["round"], 0) <= 0:
+                    continue
+                spare = b["round"] in sspares
+                barter = sorted(set(smiss) & set(bspares))
+                offers.append({
+                    "seller": ti2name[ti], "spare": spare,
+                    "barter_rounds": barter,
+                    "fit": (2 if spare else 0) + len(barter),
+                    "is_me": ti == bt,
+                })
+            offers.sort(key=lambda o: (-o["fit"], o["seller"]))
+            seat_market.append({
+                "buyer": b["manager"], "round": b["round"],
+                "for_player": b["player"], "hard": bool(tag),
+                "natural": offers[0]["seller"] if offers else None,
+                "my_rank": next((i for i, o in enumerate(offers, 1)
+                                 if o["is_me"]), None),
+                "sellers": offers[:4],
+            })
+    seat_market.sort(key=lambda c: (not c["hard"], c["round"]))
+
     return {
         "meta": {
             "generated": date.today().isoformat(),
@@ -126,6 +177,7 @@ def compute() -> dict:
         },
         "hard": hard,
         "blocked": blocked,
+        "seat_market": seat_market,
         "round_market": [
             {"round": r, "buyers": demand_by_round[r],
              "sellers": sellers_by_round.get(r, [])}
@@ -171,11 +223,30 @@ def build_fragment(res: dict) -> str:
         '<tr><td colspan="6" class="ml-empty">Every positive alternate has '
         "a free seat.</td></tr>")
 
+    def seller_txt(o: dict) -> str:
+        bits = [e(o["seller"])]
+        if o["is_me"]:
+            bits[0] = f"<strong>{bits[0]} (me)</strong>"
+        if o["spare"]:
+            bits.append('<span class="ml-badge">SPARE</span>')
+        if o["barter_rounds"]:
+            bits.append('<span class="ml-note">wants '
+                        + "/".join(f"R{r}" for r in o["barter_rounds"][:3])
+                        + " — buyer holds them</span>")
+        return " ".join(bits)
+
     market = "".join(
-        f'<span class="ml-stat"><strong>R{m["round"]}</strong> '
-        f'{m["buyers"]} buyer{"s" if m["buyers"] != 1 else ""} · '
-        f'sellers: {e(", ".join(m["sellers"][:5]) or "none")}</span> '
-        for m in res["round_market"])
+        "<tr>"
+        f'<td>{e(c["buyer"])}{" <b>(HARD)</b>" if c["hard"] else ""}</td>'
+        f'<td class="ml-num">R{c["round"]}</td>'
+        f'<td>{e(c["for_player"])}</td>'
+        f'<td>{seller_txt(c["sellers"][0]) if c["sellers"] else "—"}</td>'
+        f'<td>{", ".join(seller_txt(o) for o in c["sellers"][1:3]) or "—"}</td>'
+        f'<td class="ml-num">{("#%d" % c["my_rank"]) if c["my_rank"] else "—"}</td>'
+        "</tr>"
+        for c in res["seat_market"]) or (
+        '<tr><td colspan="6" class="ml-empty">No seat demand — every '
+        "keeper has a home.</td></tr>")
 
     return f"""<section class="ml-panel" id="pick-squeeze">
 <h2>Pick Squeeze — who is missing the pick their keeper needs</h2>
@@ -195,11 +266,20 @@ both (your sales leads)</div>
 <th class="ml-num">Needs</th><th class="ml-num">Worth (GUAP)</th>
 <th>Cheap out (house rule)</th><th>Your position</th></tr></thead>
 <tbody>{rows_blocked}</tbody></table>
-<div class="ml-h-label">Round market</div>
-<p>{market}</p>
-<p class="ml-fineprint">Demand for a keeper's round is inelastic — there is
-no substitute pick, which is exactly what makes these seats sellable above
-chart value. Waiver keeps all cost R15, so the R15 seat is the scarcest
+<div class="ml-h-label">The seat market — natural pairs (who undercuts
+whom)</div>
+<table class="ml-table ml-table--compact">
+<thead><tr><th>Buyer</th><th class="ml-num">Seat</th><th>To keep</th>
+<th>Natural partner</th><th>Also can sell</th>
+<th class="ml-num">My rank</th></tr></thead>
+<tbody>{market}</tbody></table>
+<p class="ml-fineprint">Natural partner = best FIT, not just a free seat:
+a SPARE (seller owns two of the round) costs nothing structural to sell,
+and barter fit means the seller is missing exactly the rounds the buyer
+holds doubles of — payable in scraps. A full pick set is NOT a monopoly:
+whoever holds a spare undercuts you. Demand for a keeper's round is
+inelastic — there is no substitute pick, which is exactly what makes
+these seats sellable above chart value. Waiver keeps all cost R15, so the R15 seat is the scarcest
 asset in the league. Based on PREDICTED keepers until the league locks
 (then data/keepers_2026_actual.json takes over); house rule (confirmed): a keeper
 missing its exact round seats at the next EARLIER owned free round — so

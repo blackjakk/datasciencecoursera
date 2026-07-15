@@ -516,14 +516,44 @@ def render_ledger_fragment(ledger: dict) -> str:
 """
 
 
+_FP_BY_DISPLAY: dict | None = None
+
+
+def _draft_fingerprint(display_name: str) -> str | None:
+    """The measured draft-table read (median positional reach, youth
+    appetite) for a rival, by Sleeper display name — same rendering the
+    Room Card uses, so the two surfaces can't drift apart."""
+    global _FP_BY_DISPLAY
+    if _FP_BY_DISPLAY is None:
+        _FP_BY_DISPLAY = {}
+        try:
+            from fantasy_draft.team_identity import load_identity
+            from scripts.build_room_card import fingerprint_text
+            tend = json.loads(
+                (ROOT / "data" / "manager_tendencies.json").read_text())
+            fps = tend.get("fingerprints") or {}
+            ident = load_identity(ROOT / "data" / "team_identity.json")
+            for mid, rec in ident["managers"].items():
+                disp = rec.get("sleeper_display_name")
+                if disp and mid in fps:
+                    _FP_BY_DISPLAY[disp] = fingerprint_text(fps[mid])
+        except Exception:
+            pass  # fingerprints are enrichment, never a dossier blocker
+    return _FP_BY_DISPLAY.get(display_name)
+
+
 def dossier_card(name: str, d: dict) -> str:
     o = d["outside"]
     inl = d["in_league_trades_2023_25"]
+    fp = _draft_fingerprint(name)
+    fp_line = (f'<p><span class="ml-serial">AT THE DRAFT TABLE</span> '
+               f'{esc(fp)}</p>' if fp else "")
     if o["leagues_total"] == 0:
         return f"""<div class="ml-card">
 <h3 class="ml-h-label">{esc(name)}</h3>
 <span class="ml-serial">DOSSIER &middot; NO OUTSIDE BOOK</span>
 <p>No other Sleeper leagues on record, 2023&ndash;25. Everything known about this counterparty is already in the ledger above: <strong class="ml-num">{inl}</strong> in-league deal{"s" if inl != 1 else ""} closed.</p>
+{fp_line}
 </div>"""
     fmt_lines = []
     for season, sv in sorted(d["seasons"].items()):
@@ -540,6 +570,7 @@ def dossier_card(name: str, d: dict) -> str:
 <p><span class="ml-stat">elsewhere <strong>{o["raw_deals_per_yr"]:g}/yr</strong></span> <span class="ml-stat">SF-weighted <strong>{o["weighted_deals_per_yr"]:g}/yr</strong></span> <span class="ml-stat">here <strong>{round(inl / 3, 1):g}/yr</strong> ({inl} in 3yr)</span></p>
 <p>{"<br>".join(fmt_lines)}</p>
 <p>Timing: early <b class="ml-num">{h["early"]}</b> &middot; mid <b class="ml-num">{h["mid"]}</b> &middot; deadline <b class="ml-num">{h["deadline"]}</b>. Positional flow: {flow}. Picks moved: <b class="ml-num">{o["picks_moved"]}</b>. Superflex deals: <b class="ml-num">{o["sf_trades"]}</b> of {o["trades_total"]}.</p>
+{fp_line}
 </div>"""
 
 

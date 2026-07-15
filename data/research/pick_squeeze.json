@@ -140,6 +140,384 @@
       "brian_can_sell": true
     }
   ],
+  "seat_market": [
+    {
+      "buyer": "tim_breswick",
+      "round": 3,
+      "for_player": "George Pickens",
+      "hard": false,
+      "natural": "donnie",
+      "my_rank": 5,
+      "sellers": [
+        {
+          "seller": "donnie",
+          "spare": true,
+          "barter_rounds": [
+            13,
+            14
+          ],
+          "fit": 4,
+          "is_me": false
+        },
+        {
+          "seller": "kyle_figgy",
+          "spare": false,
+          "barter_rounds": [
+            13,
+            14
+          ],
+          "fit": 2,
+          "is_me": false
+        },
+        {
+          "seller": "lem",
+          "spare": false,
+          "barter_rounds": [
+            14
+          ],
+          "fit": 1,
+          "is_me": false
+        },
+        {
+          "seller": "ankur_patel",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        }
+      ]
+    },
+    {
+      "buyer": "tim_breswick",
+      "round": 11,
+      "for_player": "Kyle Monangai",
+      "hard": false,
+      "natural": "donnie",
+      "my_rank": 4,
+      "sellers": [
+        {
+          "seller": "donnie",
+          "spare": false,
+          "barter_rounds": [
+            13,
+            14
+          ],
+          "fit": 2,
+          "is_me": false
+        },
+        {
+          "seller": "kyle_figgy",
+          "spare": false,
+          "barter_rounds": [
+            13,
+            14
+          ],
+          "fit": 2,
+          "is_me": false
+        },
+        {
+          "seller": "ankur_patel",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "brian_bigguap",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": true
+        }
+      ]
+    },
+    {
+      "buyer": "lem",
+      "round": 12,
+      "for_player": "Dylan Sampson",
+      "hard": false,
+      "natural": "ankur_patel",
+      "my_rank": 3,
+      "sellers": [
+        {
+          "seller": "ankur_patel",
+          "spare": false,
+          "barter_rounds": [
+            2,
+            4
+          ],
+          "fit": 2,
+          "is_me": false
+        },
+        {
+          "seller": "josh_wildboy",
+          "spare": false,
+          "barter_rounds": [
+            2
+          ],
+          "fit": 1,
+          "is_me": false
+        },
+        {
+          "seller": "brian_bigguap",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": true
+        },
+        {
+          "seller": "brower_barry",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        }
+      ]
+    },
+    {
+      "buyer": "josh_wildboy",
+      "round": 15,
+      "for_player": "Daniel Jones",
+      "hard": false,
+      "natural": "ankur_patel",
+      "my_rank": null,
+      "sellers": [
+        {
+          "seller": "ankur_patel",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "donnie",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "eric_m",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "trevor_bergerboy",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        }
+      ]
+    },
+    {
+      "buyer": "coop",
+      "round": 15,
+      "for_player": "Quentin Johnston",
+      "hard": false,
+      "natural": "ankur_patel",
+      "my_rank": null,
+      "sellers": [
+        {
+          "seller": "ankur_patel",
+          "spare": false,
+          "barter_rounds": [
+            2
+          ],
+          "fit": 1,
+          "is_me": false
+        },
+        {
+          "seller": "trevor_bergerboy",
+          "spare": false,
+          "barter_rounds": [
+            2
+          ],
+          "fit": 1,
+          "is_me": false
+        },
+        {
+          "seller": "donnie",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "eric_m",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        }
+      ]
+    },
+    {
+      "buyer": "kyle_figgy",
+      "round": 15,
+      "for_player": "Cade Otton",
+      "hard": false,
+      "natural": "ankur_patel",
+      "my_rank": null,
+      "sellers": [
+        {
+          "seller": "ankur_patel",
+          "spare": false,
+          "barter_rounds": [
+            1,
+            2
+          ],
+          "fit": 2,
+          "is_me": false
+        },
+        {
+          "seller": "trevor_bergerboy",
+          "spare": false,
+          "barter_rounds": [
+            1,
+            2
+          ],
+          "fit": 2,
+          "is_me": false
+        },
+        {
+          "seller": "donnie",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "eric_m",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        }
+      ]
+    },
+    {
+      "buyer": "lem",
+      "round": 15,
+      "for_player": "Keaton Mitchell",
+      "hard": false,
+      "natural": "ankur_patel",
+      "my_rank": null,
+      "sellers": [
+        {
+          "seller": "ankur_patel",
+          "spare": false,
+          "barter_rounds": [
+            2,
+            4
+          ],
+          "fit": 2,
+          "is_me": false
+        },
+        {
+          "seller": "trevor_bergerboy",
+          "spare": false,
+          "barter_rounds": [
+            2
+          ],
+          "fit": 1,
+          "is_me": false
+        },
+        {
+          "seller": "donnie",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "eric_m",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        }
+      ]
+    },
+    {
+      "buyer": "brower_barry",
+      "round": 15,
+      "for_player": "Romeo Doubs",
+      "hard": false,
+      "natural": "ankur_patel",
+      "my_rank": null,
+      "sellers": [
+        {
+          "seller": "ankur_patel",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "donnie",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "eric_m",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "trevor_bergerboy",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        }
+      ]
+    },
+    {
+      "buyer": "brian_bigguap",
+      "round": 15,
+      "for_player": "Woody Marks",
+      "hard": false,
+      "natural": "ankur_patel",
+      "my_rank": null,
+      "sellers": [
+        {
+          "seller": "ankur_patel",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "donnie",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "eric_m",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        },
+        {
+          "seller": "trevor_bergerboy",
+          "spare": false,
+          "barter_rounds": [],
+          "fit": 0,
+          "is_me": false
+        }
+      ]
+    }
+  ],
   "round_market": [
     {
       "round": 3,

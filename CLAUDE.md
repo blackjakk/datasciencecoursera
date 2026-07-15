@@ -132,7 +132,16 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
 - Market screen: MODEL vs THE ROOM'S PAPER is the edge (truth #7); edges
   carry reach% (survival to Brian's seat) — Bowers top reachable edge.
 - Pick Squeeze: bump rule (truth #5) + negative-tail curve ⇒ keeper
-  seats ~free; pick market that matters is R1-R8.
+  seats ~free; pick market that matters is R1-R8. + SEAT MARKET (Jul 15,
+  user-prompted): natural pairs by spare+barter fit — a full pick set ≠
+  monopoly; Donnie (spare R3, missing R13/R14 = Tim's doubles) undercuts
+  Brian on BOTH of Tim's seats (Brian ranks #5/#4). Check "my rank"
+  before opening any seat negotiation.
+- Desk hygiene (Jul 15 cleanup): assembler strips each fragment's own
+  <h2> (numbered desk titles canonical; fragments keep h2 standalone);
+  market screen leads with MODEL vs PAPER (edge before context);
+  dossier cards carry AT THE DRAFT TABLE fingerprint lines (shared
+  renderer with the Room Card).
 - Keeper sensitivity: no rival declaration hurts Brian; upside if coop
   keeps Rodriguez over Darnold (+7.6) or Tim keeps Monangai (+4.9).
 - Survival calibration (period-honest 2025): Brier 0.10 vs 0.23 base

@@ -1,19 +1,19 @@
 """MONEYLEAGUE Research Desk — the analyst report.
 
-Assembles the four research fragments (built by their own scripts into
-data/research/) under the shared banknote chrome:
-
-  market_screen          scripts/build_market_screen.py
-  trade_ledger           scripts/build_trade_ledger.py
-  counterparty_dossiers  scripts/build_trade_ledger.py
-  autopsy_2025           scripts/build_autopsy_2025.py
+Assembles the research fragments (built by their own scripts into
+data/research/ — see SECTIONS below for the current table of contents)
+under the shared banknote chrome.
 
 Output: data/MONEYLEAGUE_RESEARCH_DESK.pdf (portrait letter, multipage).
 Fragments are self-contained <section>s styled only with ml.css classes —
-this script owns the page chrome and layout, never the analysis.
+this script owns the page chrome and layout, never the analysis. Each
+fragment carries its own <h2> for standalone use; at assembly time that
+h2 is STRIPPED because the numbered desk heading is canonical (the
+double-title stutter was the July 2026 cleanup's headline fix).
 """
 from __future__ import annotations
 
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -63,7 +63,11 @@ def main() -> None:
         frag = RESEARCH / f"{name}.html"
         parts.append(f'<div class="desk-section"><h2 class="desk-h">{title}</h2>')
         if frag.exists():
-            parts.append(frag.read_text())
+            # Drop the fragment's own <h2> — the numbered desk heading
+            # above is canonical; two near-identical titles read as a
+            # stutter. (Fragments keep their h2 on disk for standalone use.)
+            parts.append(re.sub(r"<h2>.*?</h2>", "", frag.read_text(),
+                                count=1, flags=re.S))
         else:
             missing.append(name)
             parts.append('<div class="ml-empty">Section pending — its builder '

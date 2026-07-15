@@ -428,22 +428,29 @@ def build_model_block(mvp: dict | None = None) -> str:
 def build_fragment(result: dict) -> str:
     meta = result["meta"]
     late, early = result["room_late"], result["room_early"]
-    hero_late = (f"{late[0]['name']}: {late[0]['read']}" if late
-                 else "the room and the experts are aligned")
+    # The EDGE leads (truth #7: model-vs-paper is what's tradeable); the
+    # Sleeper-vs-FP blocks are market context and follow it.
+    mvp = result.get("model_vs_paper") or {}
+    sleep = (mvp.get("sheets_sleep") or [{}])
+    hero = (f"{sleep[0]['name']}: our board R{sleep[0]['model_round']} · "
+            f"their paper R{sleep[0]['fp_round']} · reach "
+            f"{sleep[0]['reach_pct']}%" if sleep and sleep[0].get("name")
+            else (f"{late[0]['name']}: {late[0]['read']}" if late
+                  else "the room and the experts are aligned"))
     parts = [
         '<section class="ml-panel" id="market-screen">',
         "<h2>Market Inefficiency Screen</h2>",
         f'<p class="ml-serial">SLEEPER ADP_2QB vs FANTASYPROS OP CONSENSUS '
         f'· {meta["players_screened"]} ASSETS · '
         f'{html.escape(meta["generated"])}</p>',
-        f"<p>Top of the tape — {html.escape(hero_late)}.</p>",
-        '<div class="ml-h-label">Underpriced — the room is late '
-        "(your value window)</div>",
-        _table(late, "ml-sv-hi"),
-        '<div class="ml-h-label">Overpriced — the room is early '
-        "(let them reach)</div>",
-        _table(early, "ml-sv-lo"),
+        f"<p>Top edge — {html.escape(hero)}.</p>",
         build_model_block(result.get("model_vs_paper")),
+        '<div class="ml-h-label">Market context — underpriced vs the '
+        "experts (the room is late)</div>",
+        _table(late, "ml-sv-hi"),
+        '<div class="ml-h-label">Market context — overpriced vs the '
+        "experts (the room is early)</div>",
+        _table(early, "ml-sv-lo"),
         '<p class="ml-fineprint">How to read: the room drafts on Sleeper, '
         "so Sleeper superflex ADP is the price MONEYLEAGUE actually pays; "
         "FantasyPros is what the experts say the asset is worth. When the "
