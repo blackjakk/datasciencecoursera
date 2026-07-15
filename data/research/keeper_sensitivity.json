@@ -4,7 +4,7 @@
   "max_flips": 10,
   "baseline_mean": 2044.5,
   "identity_check_max_diff": 0.0,
-  "runtime_seconds": 229.1,
+  "runtime_seconds": 245.8,
   "flips": [
     {
       "rival": "josh_wildboy",
