@@ -156,6 +156,32 @@ def _years_exp_of(name: str) -> int | None:
     return _YEARS_EXP.get(_norm(name))
 
 
+# Market-faller injection: candidates are VBD-ranked, so a keeper-league
+# priced player with poor redraft value (rookie QB stash: Mendoza, ADP
+# R10, VBD -93) never enters ANY bot's consideration set and free-falls
+# to R17. Real rooms notice fallers and price the keeper option — this
+# league's rings were built on exactly those picks. Inject the biggest
+# fallers as candidates; the fingerprint youth tilt then decides who bites.
+FALLER_MIN_ROUNDS = 2.0     # eligible after falling this many rounds
+FALLER_FALL_SCALE = 0.12    # score per fallen round (base 0.30, cap 5 rds)
+FALLER_TOP_N = 3
+
+# The mirror anchor: candidates more than ~1.5 rounds AHEAD of their 2QB
+# market get penalized (measured room median reach is ~+1 round; nobody
+# takes a market-R16 TE in R8). Same doctrine as the helper bots.
+REACH_GRACE = 1.5           # rounds of reach that cost nothing
+REACH_SCALE = 0.22          # score penalty per round beyond the grace
+REACH_CAP = 4.0
+
+
+def _reach_penalty(player, current_round: int) -> float:
+    if not player.adp or player.adp >= 216:
+        return 0.0
+    reach = player.adp / 12.0 - current_round
+    if reach <= REACH_GRACE:
+        return 0.0
+    return REACH_SCALE * min(reach - REACH_GRACE, REACH_CAP)
+
 # Fingerprint tilt scale: 0.12 score per round of median positional reach
 # (capped ±0.35 ≈ most of a need tick); youth tilts vs league base rates
 # (rookie ~16%, yr2 ~15%). Reach cells need n >= 4 to fire.
@@ -313,6 +339,29 @@ def simulate_full_draft_with_tendencies(
                 reason=f'tendency: {mgr} drafts {early_pos} early',
             ))
 
+        # MARKET FALLERS (see constants above): give every bot a shot at
+        # players sliding >= FALLER_MIN_ROUNDS past their market round.
+        cand_names = {c.player.name for c in candidates}
+        fallers = []
+        for p in avail:
+            if (p.name in cand_names
+                    or p.position not in ("QB", "RB", "WR", "TE")
+                    or team_counts.get(p.position, 0)
+                    >= pos_caps.get(p.position, 99)
+                    or not p.adp or p.adp >= 216):
+                continue
+            fall = pick.round_num - p.adp / 12.0
+            if fall >= FALLER_MIN_ROUNDS:
+                fallers.append((fall, p))
+        fallers.sort(key=lambda t: -t[0])
+        if fallers:
+            from fantasy_draft.predict import Candidate
+            for fall, p in fallers[:FALLER_TOP_N]:
+                base = 0.30 + FALLER_FALL_SCALE * min(fall, 5.0)
+                candidates.append(Candidate(
+                    player=p, score=base, value_score=base, need_score=0.0,
+                    reason=f"market faller: {fall:.1f} rds past ADP"))
+
         if not candidates:
             # Cap-aware fallback: only consider positions the team isn't
             # already capped on. Otherwise BPA hands out 2nd K/DEFs.
@@ -329,6 +378,7 @@ def simulate_full_draft_with_tendencies(
                                         pick.round_num, mgr_expected, league_first)
                 if fingerprints:
                     bonus += _fingerprint_bonus(mgr, c.player, fingerprints)
+                bonus -= _reach_penalty(c.player, pick.round_num)
                 scored.append((c.score + bonus, c.player))
             chosen = _softmax_choice(scored, temperature, rng)
 

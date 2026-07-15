@@ -89,6 +89,18 @@ jobs:
           git commit -m "Weekly refresh: sync draft helper $(date -u +%Y-%m-%d)"
           git push origin claude/football-sim-blockchain-game-b3sdq
 
+      - name: Deploy the Pages site (GITHUB_TOKEN pushes never trigger it)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Pushes made with the workflow token are exempt from triggering
+          # other workflows — every weekly sync updated the branch but the
+          # site kept serving stale content. workflow_dispatch IS allowed
+          # with GITHUB_TOKEN, so kick the deploy explicitly.
+          gh workflow run pages.yml \
+            --ref claude/football-sim-blockchain-game-b3sdq || \
+            echo "pages dispatch failed (deploy manually if helper changed)"
+
       - name: Open an issue if the run failed
         if: failure()
         env:

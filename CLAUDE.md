@@ -200,7 +200,12 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   reads: ankur RB +2.5, figgy TE +2.7, donnie TE +1.9, troy drafts OLD
   (27.9, 2% rookies), eric_m rookies 30%, trevor most disciplined
   (+0.3; QB −0.7), troy/trevor get QBs under market. MC sim tilts by
-  these (survival curves room-aware); practice bots too.
+  these (survival curves room-aware); practice bots too. Market
+  anchors BOTH ways (user-caught: Mendoza, rookie QB stash ADP R10,
+  free-fell to R17 because candidates are VBD-ranked): sim injects
+  top-3 market FALLERS (≥2 rds past ADP) into every bot's candidate
+  set + symmetric reach penalty (>1.5 rds ahead of market); helper
+  bots got stronger fall-catch + R10+ stash term. Mendoza now R12.
 - Draft-day artifacts: MONEYLEAGUE_ROOM_CARD.pdf (1-page banknote crib
   sheet: room fingerprints, reachable edges, let-them-pay, keeper math,
   forward market; build_room_card.py, in release uploads). Keeper lock
@@ -217,7 +222,13 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
 ## Deploy mechanics (hard-won)
 - Pages = STATIC workflow on the hosting branch (assembles _site: hq/ →
   root, draft_helper/); pushing files to the branch ≠ live until its
-  workflow runs. Manual sync = temp worktree of the hosting branch, write
+  workflow runs. GITHUB_TOKEN pushes NEVER trigger it (GitHub loop
+  guard) — the weekly sync silently served a stale site for days until
+  weekly_refresh gained an explicit `gh workflow run pages.yml`
+  dispatch (workflow_dispatch IS exempt from the token restriction).
+  Also: data/backtest (41MB, gitignored) is fetched on demand by
+  scripts/fetch_backtest_data.py — CI died for 3 days on its absence
+  (issues #2-#10). Verify a triggered run's CONCLUSION, not the queue. Manual sync = temp worktree of the hosting branch, write
   files, push (cd OUT of a worktree before `git worktree remove`).
 - Release PDFs republish via workflow_dispatch of weekly_refresh.yml
   (MCP actions_run_trigger). Weekly runs push to master → expect races:
