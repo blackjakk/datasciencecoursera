@@ -60,5 +60,5 @@
   }
  ],
  "verdict": "Directionally right but miscalibrated: Brier 0.102 beats the base rate (0.233), but the 60-80% bucket realizes 58% vs 70% predicted \u2014 pad that band before betting a pick on it.",
- "runtime_sec": 8.2
+ "runtime_sec": 8.0
 }
