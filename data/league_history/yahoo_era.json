@@ -1,0 +1,1314 @@
+{
+  "2011": {
+    "num_teams": 8,
+    "champion": "nark",
+    "teams": [
+      {
+        "team_name": "The Danny O'Shea's",
+        "rank": 1,
+        "playoff_seed": 1,
+        "wins": 11,
+        "losses": 3,
+        "pf": 1862.34,
+        "pa": 1653.22,
+        "manager": "nark"
+      },
+      {
+        "team_name": "Reno Mahe 911",
+        "rank": 2,
+        "playoff_seed": 3,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1909.8,
+        "pa": 1848.46,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "Rushinators",
+        "rank": 3,
+        "playoff_seed": 2,
+        "wins": 9,
+        "losses": 5,
+        "pf": 1815.28,
+        "pa": 1676.58,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Bibi Jones Gangbang",
+        "rank": 4,
+        "playoff_seed": 4,
+        "wins": 7,
+        "losses": 7,
+        "pf": 1875.68,
+        "pa": 1809.7200000000003,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "Dirty Old Men",
+        "rank": 5,
+        "playoff_seed": 5,
+        "wins": 7,
+        "losses": 7,
+        "pf": 1687.62,
+        "pa": 1671.28,
+        "manager": "coop"
+      },
+      {
+        "team_name": "HOLD MA DICK",
+        "rank": 6,
+        "playoff_seed": 7,
+        "wins": 4,
+        "losses": 10,
+        "pf": 1683.1,
+        "pa": 1821.1799999999998,
+        "manager": "jp_former"
+      },
+      {
+        "team_name": "Figgy",
+        "rank": 7,
+        "playoff_seed": 6,
+        "wins": 7,
+        "losses": 7,
+        "pf": 1664.66,
+        "pa": 1782.6799999999998,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "LockOut w my CockOut",
+        "rank": 8,
+        "playoff_seed": 8,
+        "wins": 3,
+        "losses": 11,
+        "pf": 1624.96,
+        "pa": 1860.3200000000002,
+        "manager": "eric_m"
+      }
+    ]
+  },
+  "2012": {
+    "num_teams": 8,
+    "champion": "kyle_figgy",
+    "teams": [
+      {
+        "team_name": "Figgy",
+        "rank": 1,
+        "playoff_seed": 4,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1702.78,
+        "pa": 1724.3200000000002,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "LockOut w my CockOut",
+        "rank": 2,
+        "playoff_seed": 2,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1857.54,
+        "pa": 1718.94,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "Dirty Old Men",
+        "rank": 3,
+        "playoff_seed": 1,
+        "wins": 9,
+        "losses": 5,
+        "pf": 1999.68,
+        "pa": 1805.1799999999998,
+        "manager": "coop"
+      },
+      {
+        "team_name": "Kelce's Beard Cheese",
+        "rank": 4,
+        "playoff_seed": 3,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1798.94,
+        "pa": 1792.8400000000001,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "THIS SINBAD HOUSE",
+        "rank": 5,
+        "playoff_seed": 6,
+        "wins": 7,
+        "losses": 7,
+        "pf": 1692.08,
+        "pa": 1784.2,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "The Danny O'Shea's",
+        "rank": 6,
+        "playoff_seed": 5,
+        "wins": 7,
+        "losses": 7,
+        "pf": 1826.52,
+        "pa": 1839.2999999999997,
+        "manager": "nark"
+      },
+      {
+        "team_name": "Rushinators",
+        "rank": 7,
+        "playoff_seed": 8,
+        "wins": 4,
+        "losses": 10,
+        "pf": 1671.44,
+        "pa": 1770.0400000000002,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Nut up or shut up",
+        "rank": 8,
+        "playoff_seed": 7,
+        "wins": 5,
+        "losses": 9,
+        "pf": 1560.76,
+        "pa": 1674.92,
+        "manager": "jp_former"
+      }
+    ]
+  },
+  "2013": {
+    "num_teams": 10,
+    "champion": "coop",
+    "teams": [
+      {
+        "team_name": "Dirty Old Men",
+        "rank": 1,
+        "playoff_seed": 1,
+        "wins": 11,
+        "losses": 3,
+        "pf": 2008.84,
+        "pa": 1673.56,
+        "manager": "coop"
+      },
+      {
+        "team_name": "Figgy",
+        "rank": 2,
+        "playoff_seed": 2,
+        "wins": 9,
+        "losses": 5,
+        "pf": 1933.9,
+        "pa": 1708.02,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "LEMVP & Associates",
+        "rank": 3,
+        "playoff_seed": 3,
+        "wins": 9,
+        "losses": 5,
+        "pf": 1777.82,
+        "pa": 1632.66,
+        "manager": "lem"
+      },
+      {
+        "team_name": "The Danny O'Shea's",
+        "rank": 4,
+        "playoff_seed": 4,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1814.64,
+        "pa": 1929.26,
+        "manager": "nark"
+      },
+      {
+        "team_name": "Byrd's Nest",
+        "rank": 5,
+        "playoff_seed": 8,
+        "wins": 5,
+        "losses": 9,
+        "pf": 1606.88,
+        "pa": 1622.9,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "Mud Monkeys",
+        "rank": 6,
+        "playoff_seed": 6,
+        "wins": 7,
+        "losses": 7,
+        "pf": 1771.06,
+        "pa": 1756.42,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "BrownsToTheSuperBowl",
+        "rank": 7,
+        "playoff_seed": 7,
+        "wins": 6,
+        "losses": 8,
+        "pf": 1532.88,
+        "pa": 1713.0600000000002,
+        "manager": "dave_aka_wang"
+      },
+      {
+        "team_name": "PEDs 'til I DDT",
+        "rank": 8,
+        "playoff_seed": 5,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1724.24,
+        "pa": 1580.2600000000002,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "Gu's Ricemobile",
+        "rank": 9,
+        "playoff_seed": null,
+        "wins": 5,
+        "losses": 9,
+        "pf": 1583.46,
+        "pa": 1694.0599999999997,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "Mr. Y. Mirosho",
+        "rank": 10,
+        "playoff_seed": null,
+        "wins": 2,
+        "losses": 12,
+        "pf": 1429.96,
+        "pa": 1873.4800000000005,
+        "manager": "nick_lewis_left"
+      }
+    ]
+  },
+  "2014": {
+    "num_teams": 10,
+    "champion": "trevor_bergerboy",
+    "teams": [
+      {
+        "team_name": "BergerBoy Brigade",
+        "rank": 1,
+        "playoff_seed": 1,
+        "wins": 13,
+        "losses": 1,
+        "pf": 2007.8,
+        "pa": 1536.6200000000001,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "LEMVP & Associates",
+        "rank": 2,
+        "playoff_seed": 2,
+        "wins": 9,
+        "losses": 5,
+        "pf": 1958.14,
+        "pa": 1716.86,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Dirty Old Men",
+        "rank": 3,
+        "playoff_seed": 4,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1761.38,
+        "pa": 1653.72,
+        "manager": "coop"
+      },
+      {
+        "team_name": "Deez Hos Ain't Royal",
+        "rank": 4,
+        "playoff_seed": 3,
+        "wins": 9,
+        "losses": 5,
+        "pf": 1782.86,
+        "pa": 1666.0400000000002,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "PillowBoy Posse",
+        "rank": 5,
+        "playoff_seed": 5,
+        "wins": 7,
+        "losses": 7,
+        "pf": 1634.78,
+        "pa": 1755.1400000000003,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "Sammetius Watkinutus",
+        "rank": 6,
+        "playoff_seed": 6,
+        "wins": 6,
+        "losses": 8,
+        "pf": 1622.94,
+        "pa": 1656.54,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "Jville Jizz",
+        "rank": 7,
+        "playoff_seed": 8,
+        "wins": 4,
+        "losses": 10,
+        "pf": 1635.0,
+        "pa": 1826.6800000000003,
+        "manager": "donnie"
+      },
+      {
+        "team_name": "The Danny O'Shea's",
+        "rank": 8,
+        "playoff_seed": 7,
+        "wins": 6,
+        "losses": 8,
+        "pf": 1547.88,
+        "pa": 1762.9599999999998,
+        "manager": "nark"
+      },
+      {
+        "team_name": "ButtersBottomBitches",
+        "rank": 9,
+        "playoff_seed": null,
+        "wins": 4,
+        "losses": 10,
+        "pf": 1631.62,
+        "pa": 1858.8199999999997,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "LeGarratte Blunt",
+        "rank": 10,
+        "playoff_seed": null,
+        "wins": 4,
+        "losses": 10,
+        "pf": 1552.74,
+        "pa": 1701.76,
+        "manager": "dave_aka_wang"
+      }
+    ]
+  },
+  "2015": {
+    "num_teams": 10,
+    "champion": "donnie",
+    "teams": [
+      {
+        "team_name": "Big Don's Cuties",
+        "rank": 1,
+        "playoff_seed": 1,
+        "wins": 11,
+        "losses": 3,
+        "pf": 1888.02,
+        "pa": 1635.62,
+        "manager": "donnie"
+      },
+      {
+        "team_name": "Tyrodasaurus Rex",
+        "rank": 2,
+        "playoff_seed": 2,
+        "wins": 11,
+        "losses": 3,
+        "pf": 1857.32,
+        "pa": 1639.04,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "LeGarratte Blunt",
+        "rank": 3,
+        "playoff_seed": 3,
+        "wins": 10,
+        "losses": 4,
+        "pf": 1936.1,
+        "pa": 1655.4200000000003,
+        "manager": "dave_aka_wang"
+      },
+      {
+        "team_name": "BergerBoy Brigade",
+        "rank": 4,
+        "playoff_seed": 4,
+        "wins": 10,
+        "losses": 4,
+        "pf": 1856.16,
+        "pa": 1659.9800000000005,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "ButtersBottomBitches",
+        "rank": 5,
+        "playoff_seed": 7,
+        "wins": 6,
+        "losses": 8,
+        "pf": 1575.9,
+        "pa": 1718.1599999999999,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "Dirty Old Men",
+        "rank": 6,
+        "playoff_seed": 8,
+        "wins": 3,
+        "losses": 11,
+        "pf": 1528.06,
+        "pa": 1841.5199999999998,
+        "manager": "coop"
+      },
+      {
+        "team_name": "The Danny O'Shea's",
+        "rank": 7,
+        "playoff_seed": 6,
+        "wins": 6,
+        "losses": 8,
+        "pf": 1701.82,
+        "pa": 1686.4399999999998,
+        "manager": "nark"
+      },
+      {
+        "team_name": "LEMVP & Associates",
+        "rank": 8,
+        "playoff_seed": 5,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1707.8,
+        "pa": 1652.6599999999996,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Deez Hos Ain't Royal",
+        "rank": 9,
+        "playoff_seed": null,
+        "wins": 3,
+        "losses": 11,
+        "pf": 1367.98,
+        "pa": 1634.1200000000001,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "RIP Brittney Murphy",
+        "rank": 10,
+        "playoff_seed": null,
+        "wins": 2,
+        "losses": 12,
+        "pf": 1465.86,
+        "pa": 1762.06,
+        "manager": "brian_bigguap"
+      }
+    ]
+  },
+  "2016": {
+    "num_teams": 10,
+    "champion": "kyle_figgy",
+    "teams": [
+      {
+        "team_name": "Trust the Process",
+        "rank": 1,
+        "playoff_seed": 1,
+        "wins": 12,
+        "losses": 1,
+        "pf": 1897.9,
+        "pa": 1464.2999999999997,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "Deez Hos Ain't Royal",
+        "rank": 2,
+        "playoff_seed": 2,
+        "wins": 9,
+        "losses": 4,
+        "pf": 1640.46,
+        "pa": 1563.7399999999998,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "Dirty Old Men",
+        "rank": 3,
+        "playoff_seed": 3,
+        "wins": 8,
+        "losses": 5,
+        "pf": 1743.44,
+        "pa": 1649.8799999999997,
+        "manager": "coop"
+      },
+      {
+        "team_name": "Joffrey Sucks",
+        "rank": 4,
+        "playoff_seed": 5,
+        "wins": 8,
+        "losses": 5,
+        "pf": 1559.64,
+        "pa": 1497.4599999999998,
+        "manager": "dave_aka_wang"
+      },
+      {
+        "team_name": "BergerBoy Brigade",
+        "rank": 5,
+        "playoff_seed": 6,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1672.2,
+        "pa": 1580.4199999999998,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "Sunday Scaries",
+        "rank": 6,
+        "playoff_seed": 4,
+        "wins": 8,
+        "losses": 5,
+        "pf": 1614.08,
+        "pa": 1582.72,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "Arnold Palmer Lite",
+        "rank": 7,
+        "playoff_seed": 8,
+        "wins": 4,
+        "losses": 9,
+        "pf": 1536.42,
+        "pa": 1609.06,
+        "manager": "nark"
+      },
+      {
+        "team_name": "Raichu a Love Song",
+        "rank": 8,
+        "playoff_seed": 7,
+        "wins": 5,
+        "losses": 8,
+        "pf": 1564.34,
+        "pa": 1628.6799999999998,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Tyrodasaurus Rex",
+        "rank": 9,
+        "playoff_seed": 9,
+        "wins": 4,
+        "losses": 9,
+        "pf": 1416.72,
+        "pa": 1631.3600000000001,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "Bing Bong Brothers",
+        "rank": 10,
+        "playoff_seed": 10,
+        "wins": 1,
+        "losses": 12,
+        "pf": 1179.52,
+        "pa": 1617.1,
+        "manager": "donnie"
+      }
+    ]
+  },
+  "2017": {
+    "num_teams": 10,
+    "champion": "coop",
+    "teams": [
+      {
+        "team_name": "The Dream Team",
+        "rank": 1,
+        "playoff_seed": 5,
+        "wins": 7,
+        "losses": 6,
+        "pf": 1683.7,
+        "pa": 1579.44,
+        "manager": "coop"
+      },
+      {
+        "team_name": "Fuck the Process",
+        "rank": 2,
+        "playoff_seed": 2,
+        "wins": 9,
+        "losses": 4,
+        "pf": 1506.6,
+        "pa": 1382.86,
+        "manager": "dave_aka_wang"
+      },
+      {
+        "team_name": "Mrs. Doubtfire",
+        "rank": 3,
+        "playoff_seed": 3,
+        "wins": 8,
+        "losses": 5,
+        "pf": 1599.02,
+        "pa": 1541.6000000000001,
+        "manager": "donnie"
+      },
+      {
+        "team_name": "Deez Hos Ain't Royal",
+        "rank": 4,
+        "playoff_seed": 1,
+        "wins": 10,
+        "losses": 3,
+        "pf": 1621.36,
+        "pa": 1379.98,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "The Mandingo...",
+        "rank": 5,
+        "playoff_seed": 4,
+        "wins": 8,
+        "losses": 5,
+        "pf": 1551.7,
+        "pa": 1422.96,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "Baking Dabs",
+        "rank": 6,
+        "playoff_seed": 6,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1535.64,
+        "pa": 1586.34,
+        "manager": "lem"
+      },
+      {
+        "team_name": "RIP August Ames",
+        "rank": 7,
+        "playoff_seed": 9,
+        "wins": 3,
+        "losses": 10,
+        "pf": 1406.1,
+        "pa": 1574.2,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "Trust the Process",
+        "rank": 8,
+        "playoff_seed": 10,
+        "wins": 3,
+        "losses": 10,
+        "pf": 1405.8,
+        "pa": 1713.86,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "Arnold Palmer Lite",
+        "rank": 9,
+        "playoff_seed": 7,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1395.06,
+        "pa": 1461.94,
+        "manager": "tim_breswick"
+      },
+      {
+        "team_name": "BergerBoy Brigade",
+        "rank": 10,
+        "playoff_seed": 8,
+        "wins": 5,
+        "losses": 8,
+        "pf": 1472.94,
+        "pa": 1534.74,
+        "manager": "trevor_bergerboy"
+      }
+    ]
+  },
+  "2018": {
+    "num_teams": 10,
+    "champion": "dave_aka_wang",
+    "teams": [
+      {
+        "team_name": "Land of the Freemans",
+        "rank": 1,
+        "playoff_seed": 2,
+        "wins": 10,
+        "losses": 3,
+        "pf": 1994.46,
+        "pa": 1611.2599999999998,
+        "manager": "dave_aka_wang"
+      },
+      {
+        "team_name": "LEMVP & Associates",
+        "rank": 2,
+        "playoff_seed": 4,
+        "wins": 7,
+        "losses": 6,
+        "pf": 1871.12,
+        "pa": 1724.84,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Barkley\u2019s Biddies",
+        "rank": 3,
+        "playoff_seed": 6,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1743.38,
+        "pa": 1725.04,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "Kareem Hunt did 9/11",
+        "rank": 4,
+        "playoff_seed": 1,
+        "wins": 11,
+        "losses": 2,
+        "pf": 2018.14,
+        "pa": 1606.94,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "Arnold Palmer Lite",
+        "rank": 5,
+        "playoff_seed": 5,
+        "wins": 7,
+        "losses": 6,
+        "pf": 1640.84,
+        "pa": 1743.62,
+        "manager": "tim_breswick"
+      },
+      {
+        "team_name": "Deez Hos Ain't Royal",
+        "rank": 6,
+        "playoff_seed": 3,
+        "wins": 8,
+        "losses": 5,
+        "pf": 1708.72,
+        "pa": 1669.9599999999998,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "BergerBoy Brigade",
+        "rank": 7,
+        "playoff_seed": 8,
+        "wins": 5,
+        "losses": 8,
+        "pf": 1588.58,
+        "pa": 1460.9399999999996,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "The Dream Team",
+        "rank": 8,
+        "playoff_seed": 7,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1413.54,
+        "pa": 1592.02,
+        "manager": "coop"
+      },
+      {
+        "team_name": "The Mandingo...",
+        "rank": 9,
+        "playoff_seed": 9,
+        "wins": 3,
+        "losses": 10,
+        "pf": 1358.12,
+        "pa": 1729.2600000000002,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "Mrs. Doubtfire",
+        "rank": 10,
+        "playoff_seed": 10,
+        "wins": 2,
+        "losses": 11,
+        "pf": 1267.32,
+        "pa": 1740.34,
+        "manager": "donnie"
+      }
+    ]
+  },
+  "2019": {
+    "num_teams": 12,
+    "champion": "troy_mullings",
+    "teams": [
+      {
+        "team_name": "Terror Squad",
+        "rank": 1,
+        "playoff_seed": 1,
+        "wins": 10,
+        "losses": 3,
+        "pf": 1972.78,
+        "pa": 1750.1,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "No Chubby Strippers",
+        "rank": 2,
+        "playoff_seed": 2,
+        "wins": 9,
+        "losses": 4,
+        "pf": 1907.18,
+        "pa": 1693.8000000000002,
+        "manager": "dave_aka_wang"
+      },
+      {
+        "team_name": "The Dream Team",
+        "rank": 3,
+        "playoff_seed": 5,
+        "wins": 7,
+        "losses": 6,
+        "pf": 1766.42,
+        "pa": 1771.62,
+        "manager": "coop"
+      },
+      {
+        "team_name": "Barry Sandals",
+        "rank": 4,
+        "playoff_seed": 6,
+        "wins": 7,
+        "losses": 6,
+        "pf": 1661.98,
+        "pa": 1749.1199999999997,
+        "manager": "brower_barry"
+      },
+      {
+        "team_name": "Figgy",
+        "rank": 5,
+        "playoff_seed": 3,
+        "wins": 9,
+        "losses": 4,
+        "pf": 1891.84,
+        "pa": 1691.1600000000003,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "Sam Darnolds a Slut",
+        "rank": 6,
+        "playoff_seed": 4,
+        "wins": 9,
+        "losses": 4,
+        "pf": 1837.0,
+        "pa": 1658.7399999999998,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "Guap Gang",
+        "rank": 7,
+        "playoff_seed": 7,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1755.1,
+        "pa": 1662.4,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "BergerBoy Brigade",
+        "rank": 8,
+        "playoff_seed": 8,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1754.94,
+        "pa": 1775.38,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "Trevor\u2019s Semifinals",
+        "rank": 9,
+        "playoff_seed": 9,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1594.54,
+        "pa": 1531.7600000000002,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Troll Toll",
+        "rank": 10,
+        "playoff_seed": 10,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1490.34,
+        "pa": 1711.72,
+        "manager": "notebooks_left"
+      },
+      {
+        "team_name": "Weird Flex but OK",
+        "rank": 11,
+        "playoff_seed": 11,
+        "wins": 3,
+        "losses": 10,
+        "pf": 1377.7,
+        "pa": 1629.22,
+        "manager": "tim_breswick"
+      },
+      {
+        "team_name": "Carli Lloyd Banks",
+        "rank": 12,
+        "playoff_seed": 12,
+        "wins": 0,
+        "losses": 13,
+        "pf": 1326.64,
+        "pa": 1711.44,
+        "manager": "donnie"
+      }
+    ]
+  },
+  "2020": {
+    "num_teams": 12,
+    "champion": "trevor_bergerboy",
+    "teams": [
+      {
+        "team_name": "BergerBoy Brigade",
+        "rank": 1,
+        "playoff_seed": 4,
+        "wins": 9,
+        "losses": 4,
+        "pf": 1870.94,
+        "pa": 1686.4800000000002,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "Barry Sandals",
+        "rank": 2,
+        "playoff_seed": 2,
+        "wins": 10,
+        "losses": 3,
+        "pf": 1923.92,
+        "pa": 1570.34,
+        "manager": "brower_barry"
+      },
+      {
+        "team_name": "Wet Ass Posluzny",
+        "rank": 3,
+        "playoff_seed": 3,
+        "wins": 9,
+        "losses": 4,
+        "pf": 1902.24,
+        "pa": 1591.76,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "The Dream Team",
+        "rank": 4,
+        "playoff_seed": 1,
+        "wins": 10,
+        "losses": 3,
+        "pf": 2027.86,
+        "pa": 1602.6199999999997,
+        "manager": "coop"
+      },
+      {
+        "team_name": "Figgy",
+        "rank": 5,
+        "playoff_seed": 6,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1662.06,
+        "pa": 1790.2600000000002,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "Weird Flex but OK",
+        "rank": 6,
+        "playoff_seed": 5,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1793.66,
+        "pa": 1793.7799999999997,
+        "manager": "tim_breswick"
+      },
+      {
+        "team_name": "LewLew Ferrari",
+        "rank": 7,
+        "playoff_seed": 8,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1596.08,
+        "pa": 1593.1399999999999,
+        "manager": "nick_lewis_left"
+      },
+      {
+        "team_name": "Guap Gang",
+        "rank": 8,
+        "playoff_seed": 7,
+        "wins": 6,
+        "losses": 7,
+        "pf": 1609.54,
+        "pa": 1752.26,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "#1 Pokemon Master",
+        "rank": 9,
+        "playoff_seed": 12,
+        "wins": 2,
+        "losses": 11,
+        "pf": 1709.0,
+        "pa": 1995.9199999999996,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Terror Squad",
+        "rank": 10,
+        "playoff_seed": 10,
+        "wins": 5,
+        "losses": 8,
+        "pf": 1503.34,
+        "pa": 1771.8999999999999,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "Waiting For 2021",
+        "rank": 11,
+        "playoff_seed": 9,
+        "wins": 5,
+        "losses": 8,
+        "pf": 1652.88,
+        "pa": 1789.2600000000002,
+        "manager": "dave_aka_wang"
+      },
+      {
+        "team_name": "Don\u2019s Special Guys",
+        "rank": 12,
+        "playoff_seed": 11,
+        "wins": 4,
+        "losses": 9,
+        "pf": 1545.4,
+        "pa": 1859.2,
+        "manager": "donnie"
+      }
+    ]
+  },
+  "2021": {
+    "num_teams": 12,
+    "champion": "dave_aka_wang",
+    "teams": [
+      {
+        "team_name": "Walking Off Like Antonio",
+        "rank": 1,
+        "playoff_seed": 1,
+        "wins": 12,
+        "losses": 2,
+        "pf": 2231.66,
+        "pa": 1728.2600000000002,
+        "manager": "dave_aka_wang"
+      },
+      {
+        "team_name": "Terror Squad",
+        "rank": 2,
+        "playoff_seed": 3,
+        "wins": 9,
+        "losses": 5,
+        "pf": 2050.22,
+        "pa": 1873.7600000000004,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "BergerBoy Brigade",
+        "rank": 3,
+        "playoff_seed": 4,
+        "wins": 9,
+        "losses": 5,
+        "pf": 2035.0,
+        "pa": 1883.8799999999999,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "Barry Sandals",
+        "rank": 4,
+        "playoff_seed": 2,
+        "wins": 11,
+        "losses": 3,
+        "pf": 2027.7,
+        "pa": 1788.56,
+        "manager": "brower_barry"
+      },
+      {
+        "team_name": "Guap Gang",
+        "rank": 5,
+        "playoff_seed": 5,
+        "wins": 9,
+        "losses": 5,
+        "pf": 1933.46,
+        "pa": 1933.66,
+        "manager": "brian_bigguap"
+      },
+      {
+        "team_name": "#1 Pokemon Master",
+        "rank": 6,
+        "playoff_seed": 6,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1858.22,
+        "pa": 1811.06,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Figgy",
+        "rank": 7,
+        "playoff_seed": 11,
+        "wins": 3,
+        "losses": 11,
+        "pf": 1650.0,
+        "pa": 1967.3200000000002,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "The Dream Team",
+        "rank": 8,
+        "playoff_seed": 8,
+        "wins": 6,
+        "losses": 8,
+        "pf": 1676.36,
+        "pa": 1760.5199999999998,
+        "manager": "coop"
+      },
+      {
+        "team_name": "Weird Flex but OK",
+        "rank": 9,
+        "playoff_seed": 7,
+        "wins": 6,
+        "losses": 8,
+        "pf": 1756.14,
+        "pa": 1820.7199999999998,
+        "manager": "tim_breswick"
+      },
+      {
+        "team_name": "Moaning Myrtle",
+        "rank": 10,
+        "playoff_seed": 12,
+        "wins": 2,
+        "losses": 12,
+        "pf": 1505.98,
+        "pa": 1911.8000000000002,
+        "manager": "donnie"
+      },
+      {
+        "team_name": "Zero Win Percentage",
+        "rank": 11,
+        "playoff_seed": 10,
+        "wins": 4,
+        "losses": 10,
+        "pf": 1659.74,
+        "pa": 1811.4400000000005,
+        "manager": "ankur_patel"
+      },
+      {
+        "team_name": "Wet Ass Posluzny",
+        "rank": 12,
+        "playoff_seed": 9,
+        "wins": 5,
+        "losses": 9,
+        "pf": 1743.06,
+        "pa": 1836.56,
+        "manager": "eric_m"
+      }
+    ]
+  },
+  "2022": {
+    "num_teams": 12,
+    "champion": "ankur_patel",
+    "teams": [
+      {
+        "team_name": "Hail Koo",
+        "rank": 1,
+        "playoff_seed": 3,
+        "wins": 10,
+        "losses": 4,
+        "pf": 1828.3,
+        "pa": 1674.24,
+        "manager": "ankur_patel"
+      },
+      {
+        "team_name": "The Dream Team",
+        "rank": 2,
+        "playoff_seed": 4,
+        "wins": 9,
+        "losses": 5,
+        "pf": 2002.54,
+        "pa": 1720.5199999999998,
+        "manager": "coop"
+      },
+      {
+        "team_name": "Weird Flex but OK",
+        "rank": 3,
+        "playoff_seed": 1,
+        "wins": 11,
+        "losses": 3,
+        "pf": 1863.08,
+        "pa": 1628.0200000000002,
+        "manager": "tim_breswick"
+      },
+      {
+        "team_name": "BergerBoy Brigade",
+        "rank": 4,
+        "playoff_seed": 2,
+        "wins": 10,
+        "losses": 4,
+        "pf": 1939.22,
+        "pa": 1623.5799999999997,
+        "manager": "trevor_bergerboy"
+      },
+      {
+        "team_name": "Figgy",
+        "rank": 5,
+        "playoff_seed": 5,
+        "wins": 9,
+        "losses": 5,
+        "pf": 1982.22,
+        "pa": 1725.1400000000003,
+        "manager": "kyle_figgy"
+      },
+      {
+        "team_name": "Community Day Lamb",
+        "rank": 6,
+        "playoff_seed": 6,
+        "wins": 8,
+        "losses": 6,
+        "pf": 2067.26,
+        "pa": 1895.6,
+        "manager": "dave_aka_wang"
+      },
+      {
+        "team_name": "The Washington Football Team",
+        "rank": 7,
+        "playoff_seed": 10,
+        "wins": 4,
+        "losses": 10,
+        "pf": 1532.42,
+        "pa": 1747.08,
+        "manager": "lem"
+      },
+      {
+        "team_name": "Tom Hanks",
+        "rank": 8,
+        "playoff_seed": 9,
+        "wins": 4,
+        "losses": 10,
+        "pf": 1582.6,
+        "pa": 1734.5800000000002,
+        "manager": "donnie"
+      },
+      {
+        "team_name": "Wet Ass Posluzny",
+        "rank": 9,
+        "playoff_seed": 7,
+        "wins": 8,
+        "losses": 6,
+        "pf": 1924.38,
+        "pa": 1696.48,
+        "manager": "eric_m"
+      },
+      {
+        "team_name": "Barry Sandals",
+        "rank": 10,
+        "playoff_seed": 8,
+        "wins": 6,
+        "losses": 8,
+        "pf": 1464.24,
+        "pa": 1827.78,
+        "manager": "brower_barry"
+      },
+      {
+        "team_name": "Cadillac Crippling Crusaders",
+        "rank": 11,
+        "playoff_seed": 11,
+        "wins": 3,
+        "losses": 11,
+        "pf": 1441.98,
+        "pa": 1925.7400000000002,
+        "manager": "troy_mullings"
+      },
+      {
+        "team_name": "The pigeon outside Lems window",
+        "rank": 12,
+        "playoff_seed": 12,
+        "wins": 2,
+        "losses": 12,
+        "pf": 1405.1,
+        "pa": 1834.58,
+        "manager": "brian_bigguap"
+      }
+    ]
+  }
+}

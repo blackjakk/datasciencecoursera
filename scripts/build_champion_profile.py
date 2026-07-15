@@ -341,14 +341,32 @@ def compute() -> dict:
             rec = manager_for_sleeper_roster(m["champ"])
             if rec:
                 champ_mid_by_year[s] = rec["id"]
+        era_f = ROOT / "data" / "league_history" / "yahoo_era.json"
+        era = ({int(k): v for k, v in
+                json.loads(era_f.read_text()).items()}
+               if era_f.exists() else {})
+
+        def champ_pf_rank(y: int, mid: str):
+            blob = era.get(y)
+            if not blob:
+                return None
+            order = sorted(blob["teams"], key=lambda t: -t["pf"])
+            for i, t in enumerate(order, 1):
+                if t["manager"] == mid:
+                    return i, blob["num_teams"]
+            return None
+
         for y in sorted(champ_mid_by_year):
             mid = champ_mid_by_year[y]
             yr = (hist.get(mid) or {}).get("by_year", {}).get(str(y)) or \
                  (hist.get(mid) or {}).get("by_year", {}).get(y)
             if yr and yr.get("qb2") is not None:
+                pfr = champ_pf_rank(y, mid)
                 decade.append({"year": y, "champ": mid,
                                "qb1": yr["qb1"], "qb2": yr["qb2"],
-                               "early": yr["qb2"] <= EARLY_QB_ROUND})
+                               "early": yr["qb2"] <= EARLY_QB_ROUND,
+                               "pf_rank": pfr[0] if pfr else None,
+                               "n_teams": pfr[1] if pfr else None})
     except Exception:
         pass
 
@@ -418,7 +436,15 @@ def build_fragment(res: dict) -> str:
         rows_d = " · ".join(
             f'{d["year"]} {e(d["champ"])} R{d["qb1"]}+R{d["qb2"]}'
             + ("&nbsp;✓" if d["early"] else "")
+            + (f' (PF#{d["pf_rank"]})' if d.get("pf_rank") else "")
             for d in dc)
+        pf_known = [d for d in dc if d.get("pf_rank")]
+        pf_line = ""
+        if pf_known:
+            top3 = sum(1 for d in pf_known if d["pf_rank"] <= 3)
+            pf_line = (f" PF is the decade law too: {top3} of "
+                       f"{len(pf_known)} champions with parsed Yahoo/"
+                       "Sleeper standings finished top-3 in scoring.")
         decade_block = f"""
 <p class="ml-fineprint">Decade check (xlsx boards; same 2QB format all
 era): only <strong>{n_early} of {len(dc)}</strong> recorded champions had
@@ -429,7 +455,7 @@ kept elite at a discount seat — the decade refutes early QB
 <em>spending</em> as champion law, not QB <em>capital</em>. Together with
 the outside benchmark (which also fails this signal), treat 2QB-by-R6 as
 a current-regime exploit of this room's QB-late minority — real, priced,
-and revocable — not a law of winning.</p>"""
+and revocable — not a law of winning.{pf_line}</p>"""
 
     champ_badge = ' <span class="ml-badge ml-badge--bluechip">CHAMP</span>'
     buys_rows = "".join(

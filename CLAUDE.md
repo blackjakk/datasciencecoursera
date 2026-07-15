@@ -170,9 +170,24 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   CONFOUND: Yahoo rounds include unflagged keepers at cost (late "QB2"
   may be kept elite), so it refutes early QB SPENDING as law, not QB
   capital. Verdict everywhere now: 2QB-by-R6 = current-regime room
-  exploit, revocable. Yahoo API needs user OAuth for standings/PF/
-  matchups/trades 2011-22 (would power the burn tests); champions
-  2011-2022 known (KNOWN_CHAMPIONS incl. nark 2011, a departed member).
+  exploit, revocable. YAHOO API BACKFILL LANDED (Jul 15): user's OLD
+  Yahoo app (GroupMe-bot era, registered redirect
+  groupmebotlmao5.herokuapp.com/auth — dead redirect is fine, code
+  reads from address bar) carried the fantasy scope the new app
+  couldn't get; yahoo_backfill.yml (one-shot workflow_dispatch, auth
+  code as input, no token stored) archived 51 league-seasons raw to
+  data/yahoo/ (30MB): moneyleague EVERY season 2011-2022 (8tm→10tm→
+  12tm growth) + Brian's other leagues (Bean Counters, Playoffs?,
+  Ruffians...). build_yahoo_history.py normalizes standings →
+  data/league_history/yahoo_era.json; VALIDATED: 12/12 champions match
+  KNOWN_CHAMPIONS, 0 unmatched team names. FINDINGS: adjustment null
+  now DEFINITIVE (n=103 transitions: burned dQB2 3.66 vs fine 3.39);
+  CHAMPION PF LAW over 15 titles — median PF rank #1, 8/15 were the
+  top scorer, 11/15 top-3 (exceptions: ankur '22 heist at PF#7, figgy
+  '12 at #5/8); TIM career = 7 bottom-half PF in 2017-24 BUT 2025
+  PF#4 w/ 10 wins — rehabilitated, not a soft touch. Old cookie-scraper
+  output also already committed (data/yahoo/league_*: matchups/trades
+  per league-year, from a pre-compaction session) — reconcile someday.
 - Benchmark corpus (out-of-sample validation, July 2026): 13 owner-free
   MONEYLEAGUE-format league-seasons (6th Floor Crew, Ciely-Style 12tm;
   Warren 10tm) found by snowball crawl through rivals' leaguemates;
