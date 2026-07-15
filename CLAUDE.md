@@ -188,6 +188,17 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   PF#4 w/ 10 wins — rehabilitated, not a soft touch. Old cookie-scraper
   output also already committed (data/yahoo/league_*: matchups/trades
   per league-year, from a pre-compaction session) — reconcile someday.
+  DECADE TRADE LOG (parsed Jul 15, behavioral only — no weekly stats
+  pre-2023 so no value grades): 136 trades 2011-2022. Champs 3.1
+  deals/yr vs field 2.0 — champions-out-trade is a 15-YEAR pattern
+  (outside rooms' MIXED verdict was about THEIR thin markets). Career:
+  Trevor 39, BRIAN 35 (#2 all-time), coop 35, donnie 31; top pair ALL
+  TIME = Brian↔Trevor 11 deals (and Brian grades PAR fish in the
+  Sleeper era — decade-long farming suspicion, ungradeable pre-2023).
+  Ankur's 2022 heist title = 5 of his 7 career trades in ONE season
+  (one-off all-in, not a profile). Timing eternal: 60% of all decade
+  trades in W6-10; deadline always thin (14/136). Tim: 9 trades in 12
+  years — one deal per season; a seat offer to him IS his annual trade.
 - Benchmark corpus (out-of-sample validation, July 2026): 13 owner-free
   MONEYLEAGUE-format league-seasons (6th Floor Crew, Ciely-Style 12tm;
   Warren 10tm) found by snowball crawl through rivals' leaguemates;
