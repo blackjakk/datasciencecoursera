@@ -34,6 +34,12 @@ ensure_player_catalog() {
   fi
 }
 
+ensure_backtest_data() {
+  # ~41MB of gitignored period archives (proj_/stats_ per season) that the
+  # historical analytics grade against; cache-first, no-op when present.
+  python3 scripts/fetch_backtest_data.py
+}
+
 # ---------- LAYER 1: external fetches ----------
 do_fetch() {
   log "Fetch Sleeper (league + projections + transactions)"
@@ -53,6 +59,7 @@ do_fetch() {
 # ---------- LAYER 2: derived data ----------
 do_derive() {
   ensure_player_catalog
+  ensure_backtest_data
   log "Regenerate design-system artifacts from tokens"
   python3 design/build_design.py
   log "Rebuild players_2026.csv from Sleeper projections"
@@ -84,6 +91,7 @@ do_sim() {
 
 # ---------- LAYER 4: reports ----------
 do_reports() {
+  ensure_backtest_data
   log "Option Book: empirical stash curve (feeds helper data + advisor)"
   python3 scripts/stash_curve.py
   log "Render Power Rankings PDF"
