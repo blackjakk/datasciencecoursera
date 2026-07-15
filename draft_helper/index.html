@@ -467,9 +467,13 @@ function botPick(slot) {
     const adp = p.adp && p.adp < 900 ? p.adp : slot.overall + 24;
     const reach = Math.max(0, (adp - slot.overall) / 12);   // rounds early
     const fall = Math.max(0, (slot.overall - adp) / 12);    // rounds late
-    const anchor = -0.45 * Math.min(reach, 4) + 0.1 * Math.min(fall, 2);
+    // Fall bonus strong enough to catch keeper-priced sliders (a rookie
+    // QB stash at ADP R10 must not free-fall to R17); stash term = the
+    // room prices 2027 options in the double-digit rounds.
+    const anchor = -0.45 * Math.min(reach, 4) + 0.15 * Math.min(fall, 4);
+    const stashB = rnd >= 10 ? 0.2 * (p.stash || 0) : 0;
     cands.push({ p, s: v + 0.6 * need + tendencyBonus(mgr, pos, rnd)
-                       + anchor + fingerprintBonus(ti, p, pos) });
+                       + anchor + stashB + fingerprintBonus(ti, p, pos) });
   }
   if (!cands.length) return null;
   cands.sort((a, b) => b.s - a.s);
