@@ -1,0 +1,55 @@
+name: Yahoo history backfill (one-shot)
+
+# Pulls the league's Yahoo era (2011-2022: standings, weekly matchups,
+# transactions, draft boards) into data/yahoo/ via the Fantasy API.
+#
+# HOW TO RUN (once):
+#   1. Authorize in a browser:
+#      https://api.login.yahoo.com/oauth2/request_auth?client_id=<YOUR_CLIENT_ID>&redirect_uri=https%3A%2F%2Flocalhost%3A8080&response_type=code
+#   2. The browser "fails" to load localhost — expected. Copy the value
+#      of `code=` from the address bar (single-use, expires in minutes).
+#   3. Actions tab -> this workflow -> Run workflow -> paste the code.
+#
+# No refresh token is ever stored: historical seasons don't change, so
+# one successful run is terminal. Credentials live only in repo secrets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      auth_code:
+        description: "One-time Yahoo authorization code (from the redirect URL)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch Yahoo era
+        env:
+          YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
+          YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
+          YAHOO_AUTH_CODE: ${{ github.event.inputs.auth_code }}
+        run: python3 scripts/fetch_yahoo_api.py
+
+      - name: Commit the archive
+        run: |
+          git config user.name "moneyleague-refresh-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/yahoo/
+          if git diff --cached --quiet; then
+            echo "Nothing new."
+            exit 0
+          fi
+          git commit -m "Yahoo era backfill: raw API archive 2011-2022"
+          git push origin master
