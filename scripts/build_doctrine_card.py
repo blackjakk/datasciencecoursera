@@ -183,11 +183,19 @@ def build_html(font_pt: float, n_targets: int) -> str:
     h.append(cal("W1-5 · HOLD",
                  '<span class="no">NO DEALS.</span> Early swaps are '
                  "history's most lopsided window and Brian's worst "
-                 "(&minus;62/deal)."))
+                 "(&minus;62/deal). Watch POINTS, not record — champions "
+                 "have started 1-3 (coop '17) and PF#10 (Trevor '20); "
+                 "early wins with bottom-half scoring are a lie."))
     h.append(cal("W6-10 · WINDOW",
-                 "the market opens (60% of all trades, every era). "
-                 "Top-half? Buy the best piece from below. Bottom-half? "
-                 "Sell production for picks — never feed the sharks above."))
+                 "the market opens (60% of all trades, every era) and the "
+                 "W6 scoring table is decision-grade — THE FORK: "
+                 "<b>top-3 PF &rarr; buy with conviction</b> (69/40/33% "
+                 "finals rates); <b>bottom-3 PF &rarr; sell with "
+                 "conviction</b> — 0 finalists in 43 team-seasons ever, "
+                 "and mid-season sells are the best-paid (+33/deal); "
+                 "ranks 4-9 &rarr; force the answer by W8 (bottom-half at "
+                 "W8 &asymp; dead; the one escape was Ankur '22, who "
+                 "BOUGHT his way out)."))
     seller_txt = ("rental shelf opens — expiring keepers are pure rentals "
                   "to any buyer (the 3-yr clock follows the player). ")
     if sellers:

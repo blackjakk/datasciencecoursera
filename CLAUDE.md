@@ -283,6 +283,18 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   trade-rebuilt, eric'23 boom-bust), coin flip (1). Lesson: PF law is
   a QUALIFICATION law; December roster > season-long roster (mid-season
   trades reprice you for the bracket).
+- EARLY-SEASON FORK (Jul 16, user-prompted; scratch analysis, on record
+  here + in the Doctrine Card calendar): W4 knows only the extreme top
+  (top-2 PF = 62/40% finals; everything else mush — champs have started
+  W4 PF#10/1-3 Trevor'20, PF#7 Ankur'22/eric'23, 1-3 coop'17). Watch
+  POINTS not record (W4 good-record/bad-PF teams: 0 finalists). W6 is
+  decision-grade: top-3 PF → buy with conviction (#1 = 69% finals/46%
+  title); BOTTOM-3 PF AT W6 = 0 FINALISTS IN 43 TEAM-SEASONS over 15
+  yrs → sell with conviction into the best-paid window; ranks 4-9 →
+  force it by W8 (bottom-half at W8 ≈ dead; sole escape Ankur'22
+  BOUGHT his way out W7). 13/15 champs top-half PF by W6. Buckets are
+  n=9-15 each, ranks scaled /12 across league sizes — floors are
+  strong, not physics.
 - TRADE-STYLE COHORTS (Jul 16, 342 sides both eras, by season outcome):
   finalists +46.5/deal at 70% win rate vs field −12.2 at 45%; champs
   3.1 deals/yr (runners-up trade LEAST, 1.7). Star-buy (got the deal's
