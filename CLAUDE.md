@@ -72,6 +72,20 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
    Achane+Puka simultaneously, coop loses McBride+Jamo — half the
    league holds ≥1 expiring asset; Brian holds ZERO (all fresh) and a
    full 2027 pick set (the currency forced sellers want).
+10. LOW-SCORE TAX (user, Jul 2026): each week the LOW scorer pays the
+    TOP scorer $15, escalating +$5 per additional low week by the same
+    owner that season (4th low week = $30). ASSUMED regular-season
+    weeks only — playoff-week treatment unconfirmed. All-time ledger
+    (scratch, on record): donnie all-time worst (31 low wks, −$525
+    net), Brian 3rd-worst (27 low wks, paid $555, net −$355, $90 in
+    2025 alone); Dave the biggest career collector (+$495, then left);
+    coop most top weeks (36). Worst bleed: donnie 2019, 6 lows, $165.
+    Fold-rule interaction measured: bottom-3-PF-at-W6 teams average
+    only ~$31 in W7+ fines (max $130) — the tax does NOT overturn
+    sell-with-conviction, but it prices punting the lineup: sell
+    PLAYERS, never stop setting the best remaining lineup. Sept
+    war-room item: weekly briefing should carry the live tax tape
+    (who paid whom, season tabs) once 2026 scores flow.
 
 ## Season plumbing (2026)
 - 2026 Sleeper league EXISTS: id `1364055104709230592` (auto-discovered
