@@ -377,7 +377,15 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   his true 2025 talent gap was smaller than standings said.
 - Draft-day artifacts: MONEYLEAGUE_ROOM_CARD.pdf (1-page banknote crib
   sheet: room fingerprints, reachable edges, let-them-pay, keeper math,
-  forward market; build_room_card.py, in release uploads). Keeper lock
+  forward market; build_room_card.py, in release uploads).
+  + MONEYLEAGUE_DOCTRINE.pdf (Jul 16, build_doctrine_card.py, in
+  release uploads + verify): the SEASON one-pager — 6 laws (PF
+  qualifies/variance crowns, be the stronger side, take the best
+  player, buy elite when contending, discount−tax, the room repeats),
+  the W-by-W 2026 operating calendar (lock→draft→hold W1-5→window
+  W6-10→rent W9-11→free deadline→bracket), and the live board (call
+  sheet top rows, sharks, Brian's four do-nots, assets+the play).
+  Live JSONs; runs AFTER build_trade_targets in the pipeline. Keeper lock
   = 5-min runbook: docs/KEEPER_LOCK.md + lock_keepers.py validator
   (template data/keepers_2026_actual.TEMPLATE.json; enforces cap/floor/
   bump/ownership; then refresh derive sim reports verify).
