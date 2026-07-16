@@ -308,6 +308,16 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   (52% star concession, highest), #5 coop (FORCED SELLER + shark
   caution). SELL-ONLY sharks: figgy (live +35!), ankur, troy, josh.
   rid-10 attribution fixed: Dave through 2024, josh 2025-only.
+  + ELITE-BUY PAYOFF (Jul 16, in XII; cache
+  data/research/elite_buy_payoff.json, season-stamped — regrinds 15
+  seasons of stats only when a new completed season lands): acquiring
+  a league top-3 ROS asset mid-season → 33% title (4x base) / 56%
+  finals; top-10 → 24%/45%; 8/15 champions made a top-10 buy in their
+  title year (Bell bought by figgy'16 AND coop'17, Jacobs by ankur'22
+  — all rings; CMC'19/Cam'15 buys lost the final; Adams bought twice,
+  no ring). Conditions: buyer must already be top-half (axis) and pay
+  in picks. Hindsight caveat on record. This is the empirical case
+  for the Trevor W9-11 rental play — Brian holds the picks.
 
 ## Key analyses on record
 - Backtest (`scripts/backtest_recommender.py`): tool vs real-Brian

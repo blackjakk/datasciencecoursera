@@ -1,0 +1,106 @@
+{
+  "through_season": 2025,
+  "sides_ranked": 338,
+  "tiers": [
+    {
+      "top_n": 3,
+      "team_seasons": 9,
+      "title_rate": 0.33,
+      "finals_rate": 0.56,
+      "titles": 3,
+      "finals": 5
+    },
+    {
+      "top_n": 10,
+      "team_seasons": 33,
+      "title_rate": 0.24,
+      "finals_rate": 0.45,
+      "titles": 8,
+      "finals": 15
+    },
+    {
+      "top_n": 25,
+      "team_seasons": 59,
+      "title_rate": 0.17,
+      "finals_rate": 0.31,
+      "titles": 10,
+      "finals": 18
+    }
+  ],
+  "top3_buys": [
+    {
+      "season": 2015,
+      "week": 10,
+      "manager": "troy_mullings",
+      "player": "Cam Newton",
+      "ros_rank": 3,
+      "outcome": "runner-up"
+    },
+    {
+      "season": 2016,
+      "week": 4,
+      "manager": "kyle_figgy",
+      "player": "Le'Veon Bell",
+      "ros_rank": 2,
+      "outcome": "CHAMPION"
+    },
+    {
+      "season": 2016,
+      "week": 10,
+      "manager": "coop",
+      "player": "LeSean McCoy",
+      "ros_rank": 3,
+      "outcome": "out"
+    },
+    {
+      "season": 2017,
+      "week": 5,
+      "manager": "coop",
+      "player": "Le'Veon Bell",
+      "ros_rank": 3,
+      "outcome": "CHAMPION"
+    },
+    {
+      "season": 2019,
+      "week": 7,
+      "manager": "dave_aka_wang",
+      "player": "Christian McCaffrey",
+      "ros_rank": 1,
+      "outcome": "runner-up"
+    },
+    {
+      "season": 2020,
+      "week": 8,
+      "manager": "coop",
+      "player": "Davante Adams",
+      "ros_rank": 2,
+      "outcome": "out"
+    },
+    {
+      "season": 2021,
+      "week": 9,
+      "manager": "trevor_bergerboy",
+      "player": "Davante Adams",
+      "ros_rank": 2,
+      "outcome": "out"
+    },
+    {
+      "season": 2022,
+      "week": 7,
+      "manager": "ankur_patel",
+      "player": "Josh Jacobs",
+      "ros_rank": 3,
+      "outcome": "CHAMPION"
+    },
+    {
+      "season": 2023,
+      "week": 5,
+      "manager": "tim_breswick",
+      "player": "Rachaad White",
+      "ros_rank": 3,
+      "outcome": "out"
+    }
+  ],
+  "champions_with_top10_buy": 8,
+  "champions_total": 15
+}

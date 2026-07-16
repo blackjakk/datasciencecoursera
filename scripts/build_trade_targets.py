@@ -23,6 +23,14 @@ question "who do I call and what do I ask for" has a standing answer:
      rank (capital-poor teams sell), and seat-market lanes where Brian
      is a ranked natural seller.
 
+Plus THE ELITE-BUY PAYOFF: every acquired player 2011-25 ranked against
+the league-wide rest-of-season PAR pool from the trade week — buying a
+top-3 ROS asset ran a 33% title rate (4x base) and 56% finals rate;
+8 of 15 champions made a top-10 buy in their title year. Cached in
+data/research/elite_buy_payoff.json (season-stamped: recomputed only
+when a new completed season appears, because it re-grinds 15 seasons of
+weekly stats).
+
 Output: data/research/trade_targets.{json,html} (Research Desk XII)
 and the table behind `trade_advisor.py --partners`.
 """
@@ -99,6 +107,151 @@ def sleeper_sides() -> list[dict]:
                     for q in others for pl in q["received"]["players"]),
             })
     return sides
+
+
+ELITE_CACHE = RESEARCH / "elite_buy_payoff.json"
+LAST_COMPLETED = 2025
+
+
+def _season_engine(season: int, teams_n: int):
+    """League-wide rest-of-season PAR ranking from any trade week."""
+    from collections import defaultdict as dd
+    from scripts.build_decade_ledger import replacement_levels
+    weeks = {int(w): v for w, v in json.loads(
+        (ROOT / "data/scouting/stats" / f"stats_{season}.json")
+        .read_text()).items() if w != "_meta"}
+    repl = replacement_levels(weeks, teams_n)
+    cache: dict[int, tuple[dict, dict]] = {}
+    posns = {"QB", "RB", "WR", "TE"}
+
+    def _pts(rec):
+        p = rec.get("pts_half_ppr")
+        if p is None:
+            p = (rec.get("pts_ppr") or 0) - 0.5 * (rec.get("rec") or 0)
+        return float(p)
+
+    def all_ros(after_week: int):
+        if after_week not in cache:
+            tot, pos_of = dd(float), {}
+            for w in range(after_week + 1, 18):
+                for pid, rec in weeks.get(w, {}).items():
+                    if rec.get("pos") in posns:
+                        pos_of[pid] = rec["pos"]
+                        tot[pid] += _pts(rec)
+            n_weeks = 17 - after_week
+            par = {pid: t - repl.get(pos_of[pid], 0.0) * n_weeks
+                   for pid, t in tot.items()}
+            order = sorted(par, key=lambda p: -par[p])
+            cache[after_week] = {pid: i + 1 for i, pid in enumerate(order)}
+        return cache[after_week]
+
+    return all_ros
+
+
+def elite_buy_payoff() -> dict:
+    """Title/finals rates by the league-wide ROS rank of the best player
+    each trade side acquired. Season-stamped cache: the grind (weekly
+    stats for 15 seasons) reruns only when a new completed season lands."""
+    if ELITE_CACHE.exists():
+        cached = json.loads(ELITE_CACHE.read_text())
+        if cached.get("through_season") == LAST_COMPLETED:
+            return cached
+
+    from scripts.build_decade_ledger import parse_trades, norm
+    from scripts.build_history_charts import KNOWN_CHAMPIONS
+    from fantasy_draft.name_aliases import resolve_xlsx_name
+    import glob
+
+    era = {int(k): v for k, v in json.loads(
+        (ROOT / "data/league_history/yahoo_era.json").read_text()).items()}
+    ident = json.loads((ROOT / "data/team_identity.json").read_text())
+    name_mid = {}
+    for mid, rec in ident["managers"].items():
+        for s, nm in (rec.get("yahoo_team_names") or {}).items():
+            if str(s).isdigit() and isinstance(nm, str):
+                name_mid[(int(s), nm.strip().lower())] = mid
+    catalog = json.loads((ROOT / "data/sleeper/players_nfl.json").read_text())
+    pid_by_name = {}
+    for pid, p in catalog.items():
+        nm = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
+        if nm:
+            pid_by_name.setdefault(norm(nm), pid)
+
+    champ = dict(KNOWN_CHAMPIONS)
+    runner = {s: next((r["manager"] for r in era[s]["teams"]
+                       if r["rank"] == 2), None) for s in era}
+    rid_map = _rid_maps()
+    for d in glob.glob(str(ROOT / "data/sleeper/league_*")):
+        lg = json.loads(open(d + "/league.json").read())
+        season = int(lg["season"])
+        wb = json.loads(open(d + "/winners_bracket.json").read())
+        final = max(wb, key=lambda g: g.get("r", 0))
+        champ[season] = rid_map[season].get(final.get("w"))
+        runner[season] = rid_map[season].get(final.get("l"))
+
+    sides = []
+    for season in range(2011, 2023):
+        rank_from = _season_engine(season, era[season]["num_teams"])
+        for t in parse_trades(season, name_mid):
+            if t["week"] < 1:
+                continue
+            for who in (t["a"], t["b"]):
+                best_rank, best_name = 9999, None
+                for p in t["got"][who]:
+                    canon = resolve_xlsx_name(p["name"]) or p["name"]
+                    pid = pid_by_name.get(norm(canon))
+                    r = rank_from(t["week"]).get(pid, 9999) if pid else 9999
+                    if r < best_rank:
+                        best_rank, best_name = r, p["name"]
+                sides.append({"season": season, "week": t["week"],
+                              "manager": who, "best_rank": best_rank,
+                              "best_name": best_name})
+    tl = json.loads((RESEARCH / "trade_ledger.json").read_text())
+    for season in SLEEPER_SEASONS:
+        rank_from = _season_engine(season, 12)
+        for t in tl["trades"]:
+            if t["season"] != season or not any(
+                    p["received"]["players"] for p in t["parties"]):
+                continue
+            for p in t["parties"]:
+                mid = rid_map[season].get(p["roster_id"], p["manager"])
+                best_rank, best_name = 9999, None
+                for pl in p["received"]["players"]:
+                    r = rank_from(t["week"]).get(pl["id"], 9999)
+                    if r < best_rank:
+                        best_rank, best_name = r, pl["name"]
+                sides.append({"season": season, "week": t["week"],
+                              "manager": mid, "best_rank": best_rank,
+                              "best_name": best_name})
+
+    tiers = []
+    for n in (3, 10, 25):
+        mgrs = {(s["season"], s["manager"])
+                for s in sides if s["best_rank"] <= n}
+        t_ct = sum(1 for k in mgrs if champ.get(k[0]) == k[1])
+        f_ct = sum(1 for k in mgrs
+                   if k[1] in (champ.get(k[0]), runner.get(k[0])))
+        tiers.append({"top_n": n, "team_seasons": len(mgrs),
+                      "title_rate": round(t_ct / len(mgrs), 2),
+                      "finals_rate": round(f_ct / len(mgrs), 2),
+                      "titles": t_ct, "finals": f_ct})
+    champ_top10 = {k[0] for s in sides if s["best_rank"] <= 10
+                   for k in [(s["season"], s["manager"])]
+                   if champ.get(k[0]) == k[1]}
+    top3_buys = [{
+        "season": s["season"], "week": s["week"], "manager": s["manager"],
+        "player": s["best_name"], "ros_rank": s["best_rank"],
+        "outcome": ("CHAMPION" if champ.get(s["season"]) == s["manager"]
+                    else "runner-up"
+                    if runner.get(s["season"]) == s["manager"] else "out"),
+    } for s in sorted(sides, key=lambda s: (s["season"], s["week"]))
+        if s["best_rank"] <= 3]
+    res = {"through_season": LAST_COMPLETED, "sides_ranked": len(sides),
+           "tiers": tiers, "top3_buys": top3_buys,
+           "champions_with_top10_buy": len(champ_top10),
+           "champions_total": len(champ)}
+    ELITE_CACHE.write_text(json.dumps(res, indent=2))
+    return res
 
 
 def compute() -> dict:
@@ -234,6 +387,7 @@ def compute() -> dict:
                      "+ pairHistory(+-25)",
         },
         "targets": rows,
+        "elite": elite_buy_payoff(),
     }
 
 
@@ -271,6 +425,22 @@ def build_fragment(res: dict) -> str:
         f'<td>{r["verdict"]}</td></tr>'
         for r in res["targets"])
 
+    elite = res["elite"]
+    elite_rows = "".join(
+        f'<tr><td>top-{t["top_n"]} rest-of-season asset</td>'
+        f'<td class="ml-num">{t["team_seasons"]}</td>'
+        f'<td class="ml-num">{t["title_rate"]:.0%} '
+        f'({t["titles"]}/{t["team_seasons"]})</td>'
+        f'<td class="ml-num">{t["finals_rate"]:.0%} '
+        f'({t["finals"]}/{t["team_seasons"]})</td></tr>'
+        for t in elite["tiers"])
+    _out = {"CHAMPION": "RING", "runner-up": "runner-up", "out": "out"}
+    top3_list = "; ".join(
+        f'{b["season"]} {b["manager"]} &rarr; {b["player"]} '
+        f'({_out[b["outcome"]]})' for b in elite["top3_buys"])
+    champ_share = elite["champions_with_top10_buy"]
+    champ_total = elite["champions_total"]
+
     return f"""<section class="ml-panel" id="trade-targets">
 <h2>The Call Sheet — who to call, what to ask for</h2>
 <p class="ml-serial">2026 PARTNER/TARGET BOARD · SIGNALS FROM 342 GRADED
@@ -289,6 +459,26 @@ field: 28%), and timing separates nobody — every cohort deals in weeks
 <th class="ml-num">Concedes star</th><th class="ml-num">Deals/yr</th>
 <th>2026 motive</th><th>The play</th></tr></thead>
 <tbody>{body}</tbody></table>
+<div class="ml-h-label">The elite-buy payoff — does buying the best
+asset win?</div>
+<table class="ml-table ml-table--compact">
+<thead><tr><th>Buyer acquired a league&hellip;</th>
+<th class="ml-num">Team-seasons</th><th class="ml-num">Won title</th>
+<th class="ml-num">Made finals</th></tr></thead>
+<tbody>{elite_rows}</tbody></table>
+<p>{champ_share} of the league's {champ_total} champions made a top-10
+rest-of-season acquisition during their title year — buying elite is
+the most title-correlated move on the book. The complete top-3 buy
+list: {top3_list}. The conditions that separated the rings from the
+busts: the champion buyers were already top-half when they bought (the
+axis — elite buys accelerate contenders, they do not rescue
+strugglers), and they paid in picks, not their own best player.</p>
+<p class="ml-fineprint">Hindsight caveat: "top-3 rest-of-season" is
+scored after the fact — it counts the buys whose star stayed healthy.
+At decision time you buy the expectation, so the live edge is somewhat
+smaller than the table reads; the tier gradient (better asset, better
+outcome) is the robust part. Rates vs base: title base 8% (1 of 12),
+finals base 17%.</p>
 <p class="ml-fineprint">Score = exploitability (career PAR/deal against
 them, capped 60) + live-form bleed/shark adjustment (skill persistence is
 weak — the 2023-25 read outranks the decade book) + star-concession rate
@@ -316,6 +506,13 @@ def main() -> None:
     (RESEARCH / "trade_targets.html").write_text(build_fragment(res))
     print(f"[trade_targets] {len(res['targets'])} rivals scored -> "
           "data/research/trade_targets.{json,html}")
+    el = res["elite"]
+    t3 = el["tiers"][0]
+    print(f"[elite_buy] {el['sides_ranked']} sides ranked through "
+          f"{el['through_season']}; top-3 buy -> {t3['title_rate']:.0%} "
+          f"title / {t3['finals_rate']:.0%} finals; "
+          f"{el['champions_with_top10_buy']}/{el['champions_total']} champs "
+          "made a top-10 buy")
     for r in res["targets"]:
         print(f"  {r['score']:>6.1f}  {r['manager']:<18} "
               f"career {_fmt_pd(r['career_par_per_deal'], r['career_deals']):>15} "
