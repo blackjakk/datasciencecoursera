@@ -17,67 +17,197 @@
   "standings": {
     "trevor_bergerboy": {
       "deals": 39,
-      "net_par": 1070.1
+      "net_par": 1070.1,
+      "deals_2017plus": 21,
+      "net_par_2017plus": -155.8
     },
     "coop": {
       "deals": 35,
-      "net_par": 682.8
+      "net_par": 682.8,
+      "deals_2017plus": 18,
+      "net_par_2017plus": 638.4
     },
     "troy_mullings": {
       "deals": 19,
-      "net_par": 624.0
+      "net_par": 624.0,
+      "deals_2017plus": 9,
+      "net_par_2017plus": 241.1
     },
     "brower_barry": {
       "deals": 11,
-      "net_par": 272.9
+      "net_par": 272.9,
+      "deals_2017plus": 11,
+      "net_par_2017plus": 272.9
     },
     "ankur_patel": {
       "deals": 7,
-      "net_par": 271.1
+      "net_par": 271.1,
+      "deals_2017plus": 7,
+      "net_par_2017plus": 271.1
     },
     "dave_aka_wang": {
       "deals": 22,
-      "net_par": 157.9
+      "net_par": 157.9,
+      "deals_2017plus": 15,
+      "net_par_2017plus": 450.6
     },
     "nick_lewis_left": {
       "deals": 4,
-      "net_par": 68.9
+      "net_par": 68.9,
+      "deals_2017plus": 0,
+      "net_par_2017plus": 0.0
     },
     "lem": {
       "deals": 18,
-      "net_par": 51.9
+      "net_par": 51.9,
+      "deals_2017plus": 14,
+      "net_par_2017plus": -264.8
     },
     "eric_m": {
       "deals": 7,
-      "net_par": -87.5
+      "net_par": -87.5,
+      "deals_2017plus": 5,
+      "net_par_2017plus": -97.7
     },
     "kyle_figgy": {
       "deals": 21,
-      "net_par": -100.7
+      "net_par": -100.7,
+      "deals_2017plus": 6,
+      "net_par_2017plus": 334.1
     },
     "notebooks_left": {
       "deals": 1,
-      "net_par": -142.6
+      "net_par": -142.6,
+      "deals_2017plus": 1,
+      "net_par_2017plus": -142.6
     },
     "jp_former": {
       "deals": 2,
-      "net_par": -279.8
+      "net_par": -279.8,
+      "deals_2017plus": 0,
+      "net_par_2017plus": 0.0
     },
     "tim_breswick": {
       "deals": 9,
-      "net_par": -495.0
+      "net_par": -495.0,
+      "deals_2017plus": 9,
+      "net_par_2017plus": -495.0
     },
     "nark": {
       "deals": 10,
-      "net_par": -620.4
+      "net_par": -620.4,
+      "deals_2017plus": 0,
+      "net_par_2017plus": 0.0
     },
     "donnie": {
       "deals": 30,
-      "net_par": -625.5
+      "net_par": -625.5,
+      "deals_2017plus": 18,
+      "net_par_2017plus": -789.3
     },
     "brian_bigguap": {
       "deals": 35,
-      "net_par": -848.1
+      "net_par": -848.1,
+      "deals_2017plus": 22,
+      "net_par_2017plus": -263.0
+    }
+  },
+  "style": {
+    "brian_bigguap": {
+      "sides": 35,
+      "star_buys": 8,
+      "star_concessions": 14,
+      "qb_in": 14
+    },
+    "kyle_figgy": {
+      "sides": 21,
+      "star_buys": 7,
+      "star_concessions": 5,
+      "qb_in": 8
+    },
+    "jp_former": {
+      "sides": 2,
+      "star_buys": 0,
+      "star_concessions": 0,
+      "qb_in": 1
+    },
+    "coop": {
+      "sides": 35,
+      "star_buys": 14,
+      "star_concessions": 12,
+      "qb_in": 8
+    },
+    "trevor_bergerboy": {
+      "sides": 39,
+      "star_buys": 18,
+      "star_concessions": 6,
+      "qb_in": 18
+    },
+    "nark": {
+      "sides": 10,
+      "star_buys": 0,
+      "star_concessions": 8,
+      "qb_in": 2
+    },
+    "nick_lewis_left": {
+      "sides": 4,
+      "star_buys": 1,
+      "star_concessions": 1,
+      "qb_in": 2
+    },
+    "troy_mullings": {
+      "sides": 19,
+      "star_buys": 7,
+      "star_concessions": 4,
+      "qb_in": 7
+    },
+    "eric_m": {
+      "sides": 7,
+      "star_buys": 3,
+      "star_concessions": 1,
+      "qb_in": 2
+    },
+    "donnie": {
+      "sides": 30,
+      "star_buys": 4,
+      "star_concessions": 11,
+      "qb_in": 11
+    },
+    "dave_aka_wang": {
+      "sides": 22,
+      "star_buys": 8,
+      "star_concessions": 2,
+      "qb_in": 12
+    },
+    "lem": {
+      "sides": 18,
+      "star_buys": 3,
+      "star_concessions": 9,
+      "qb_in": 6
+    },
+    "tim_breswick": {
+      "sides": 9,
+      "star_buys": 2,
+      "star_concessions": 3,
+      "qb_in": 5
+    },
+    "brower_barry": {
+      "sides": 11,
+      "star_buys": 4,
+      "star_concessions": 4,
+      "qb_in": 2
+    },
+    "notebooks_left": {
+      "sides": 1,
+      "star_buys": 0,
+      "star_concessions": 1,
+      "qb_in": 1
+    },
+    "ankur_patel": {
+      "sides": 7,
+      "star_buys": 3,
+      "star_concessions": 1,
+      "qb_in": 2
     }
   },
   "pairs": {
@@ -160,70 +290,100 @@
       "week": 5,
       "manager": "coop",
       "counterparty": "tim_breswick",
-      "par": 324.5
+      "par": 324.5,
+      "star_buy": true,
+      "star_concede": false,
+      "qb_in": true
     },
     {
       "season": 2011,
       "week": 4,
       "manager": "kyle_figgy",
       "counterparty": "coop",
-      "par": 227.0
+      "par": 227.0,
+      "star_buy": true,
+      "star_concede": false,
+      "qb_in": true
     },
     {
       "season": 2013,
       "week": 4,
       "manager": "nick_lewis_left",
       "counterparty": "brian_bigguap",
-      "par": 225.6
+      "par": 225.6,
+      "star_buy": false,
+      "star_concede": false,
+      "qb_in": true
     },
     {
       "season": 2021,
       "week": 10,
       "manager": "troy_mullings",
       "counterparty": "eric_m",
-      "par": 221.6
+      "par": 221.6,
+      "star_buy": true,
+      "star_concede": false,
+      "qb_in": false
     },
     {
       "season": 2019,
       "week": 10,
       "manager": "brian_bigguap",
       "counterparty": "tim_breswick",
-      "par": 219.7
+      "par": 219.7,
+      "star_buy": true,
+      "star_concede": false,
+      "qb_in": true
     },
     {
       "season": 2019,
       "week": 5,
       "manager": "lem",
       "counterparty": "brian_bigguap",
-      "par": 213.6
+      "par": 213.6,
+      "star_buy": true,
+      "star_concede": false,
+      "qb_in": true
     },
     {
       "season": 2017,
       "week": 8,
       "manager": "donnie",
       "counterparty": "trevor_bergerboy",
-      "par": 207.2
+      "par": 207.2,
+      "star_buy": true,
+      "star_concede": false,
+      "qb_in": false
     },
     {
       "season": 2013,
       "week": 5,
       "manager": "troy_mullings",
       "counterparty": "nick_lewis_left",
-      "par": 190.5
+      "par": 190.5,
+      "star_buy": true,
+      "star_concede": false,
+      "qb_in": false
     },
     {
       "season": 2014,
       "week": 3,
       "manager": "trevor_bergerboy",
       "counterparty": "brian_bigguap",
-      "par": 188.9
+      "par": 188.9,
+      "star_buy": false,
+      "star_concede": false,
+      "qb_in": true
     },
     {
       "season": 2020,
       "week": 8,
       "manager": "coop",
       "counterparty": "donnie",
-      "par": 186.2
+      "par": 186.2,
+      "star_buy": true,
+      "star_concede": false,
+      "qb_in": false
     }
   ]
 }

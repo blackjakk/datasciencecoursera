@@ -113,7 +113,7 @@ restoration in refresh()), SR live regions (#sr-clock), phone-clean at
 `scripts/check_a11y.py` (inside verify) guards it; use the `a11y-review`
 skill for any helper/design diff. Record: docs/A11Y_AUDIT.md.
 
-## Research Desk (July 2026 — the analyst layer, 11 sections)
+## Research Desk (July 2026 — the analyst layer, 12 sections)
 `data/MONEYLEAGUE_RESEARCH_DESK.pdf`, assembled by
 `scripts/build_research_desk.py` from fragments in `data/research/`
 (contract: docs/GOAL_RESEARCH.md — one <section>, ml classes, no hex;
@@ -213,9 +213,13 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   running the advisor first — and 2026 is the year the leverage flips
   (he's the forced seller; Brian holds the picks).
   DECADE CROSS-CUTS (Jul 15): (a) COUNTERPARTY-CONTENDER is the
-  biggest edge axis ever measured: trading vs top-half-PF teams
-  −38/deal, vs bottom-half +34/deal (n=270) — SELL TO CONTENDERS,
-  user-guessed, confirmed. (b) Skill persistence WEAK (3/8 same-sign
+  biggest edge axis ever measured — RE-MEASURED Jul 16 at TRADE TIME
+  (both eras, n=342 sides, endogeneity-proof): the side AHEAD in PF
+  when the deal closes wins mixed-strength trades +44/deal; equal
+  halves wash to 0 (T→B +44 / B→T −44 / T→T and B→B ≈ 0). Doctrine =
+  BE THE STRONGER SIDE / farm below, never call up out of weakness;
+  the original "SELL TO CONTENDERS" label had the direction BACKWARDS
+  (advisor rule 1 rewritten Jul 16). (b) Skill persistence WEAK (3/8 same-sign
   across halves): Trevor's +1226 was ALL 2011-16 (since 2017: −156 +
   Sleeper −55 — reputation now exceeds reality, exploitable); the LIVE
   shark is COOP (+638 recent + biggest heist ever + strong Sleeper) —
@@ -266,6 +270,44 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   Trevor is NOT the 2025 configuration. Champ war ranks 6/3/1 (mildly
   better signal than surplus 6/9/1). Auto-regrades on real declarations
   when keepers_2026_actual.json lands.
+- PF-LEADER AUTOPSY (Jul 16, user-prompted; scratch analysis, on record
+  here + qualifies the PF law): PF leader won 8/15 titles; all 7 upsets
+  were ONE-WEEK variance, never a better roster — 5 were the leader's
+  own dud (−17 to −45 under season avg; Brian 2018 11-2/PF#1 lost the
+  semi 121.5-126.8 to a BELOW-average Lem week), 2 were opponent
+  heaters (coop 2020 scored above avg in both playoff games and lost
+  both; coop also lost the 2012 semi 124.60-124.62 = 0.02 pts, the
+  cruelest beat ever — coop owns BOTH mega-upsets). Winner archetypes:
+  adjacent contender who avoided the dud (3), December-hot team whose
+  W15-17 strength > season PF (3: Trevor'20 heater, Ankur'22
+  trade-rebuilt, eric'23 boom-bust), coin flip (1). Lesson: PF law is
+  a QUALIFICATION law; December roster > season-long roster (mid-season
+  trades reprice you for the bracket).
+- TRADE-STYLE COHORTS (Jul 16, 342 sides both eras, by season outcome):
+  finalists +46.5/deal at 70% win rate vs field −12.2 at 45%; champs
+  3.1 deals/yr (runners-up trade LEAST, 1.7). Star-buy (got the deal's
+  single best ROS player) is the biggest shape separator: finalists 54%
+  vs field 28% (Brian career 22% — THE leak). Champs deal 76% with
+  bottom-half teams; missed teams deal 74% with top-half (feeding
+  sharks). TIMING SEPARATES NOBODY (all cohorts ~60% W6-10) — who you
+  call and what you insist on separates. QB-in: champs 30% = field.
+  10/14 champion title books positive (mean +137); the exceptions:
+  figgy'12/coop'24 barely traded, and BOTH Trevor rings ('20 −131,
+  '25 −106) came with LOSING books (heater + keeper surplus carried).
+  Causality caveat on record: trade PAR partly causes the outcome.
+- THE CALL SHEET (XII, `build_trade_targets.py`, Jul 16): ranked 2026
+  partner/target board fusing the axis + exploitability (career
+  PAR/deal) + LIVE FORM (2017+ both eras — decade ledger now exports
+  deals/net_par_2017plus + per-manager style: star_buys/concessions/
+  qb_in) + star-concession% + liquidity + 2026 motive (expiry board,
+  war-chest rank, seat lanes) ± Brian pair history. Also behind
+  `trade_advisor.py --partners`. Board (predicted keepers, regrades
+  weekly): #1 Tim (SLOW FARM, −28/deal, one call = his seats), #2
+  donnie (CONTENDER SHOP: war-rich, live −36/deal, sell him
+  production), #3 Trevor (FORCED SELLER W9-11 + standing rule), #4 lem
+  (52% star concession, highest), #5 coop (FORCED SELLER + shark
+  caution). SELL-ONLY sharks: figgy (live +35!), ankur, troy, josh.
+  rid-10 attribution fixed: Dave through 2024, josh 2025-only.
 
 ## Key analyses on record
 - Backtest (`scripts/backtest_recommender.py`): tool vs real-Brian

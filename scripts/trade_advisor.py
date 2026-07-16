@@ -115,19 +115,52 @@ def price_trade(give: list[int], get: list[int]) -> None:
 
 HOUSE_RULES = """\
 HOUSE RULES (graded from 15 years of this league's book — see
-Research Desk II and CLAUDE.md decade cross-cuts):
-  1. SELL TO CONTENDERS. Counterparty status is the biggest measured
-     edge: trading with a top-half points-for team nets +34/deal to
-     you; being the contender who buys costs -38/deal.
-  2. NO DEALS BEFORE WEEK 6. Early-season swaps are history's most
+Research Desk II/XII and CLAUDE.md decade cross-cuts):
+  1. BE THE STRONGER SIDE. Re-measured at trade time (n=342 sides,
+     2011-25): the side AHEAD in points-for when the deal closes wins
+     mixed-strength trades +44/deal; equal-strength trades wash to 0.
+     Trade DOWN the table; never call up out of weakness. (This
+     corrects the old 'sell to contenders' phrasing — backwards.)
+  2. TAKE THE DEAL'S BEST PLAYER. Finalists captured the single best
+     rest-of-season player on 54% of their trade sides; the field 28%.
+     Brian's career rate is 22% — this is the leak.
+  3. NO DEALS BEFORE WEEK 6. Early-season swaps are history's most
      lopsided window and Brian's personal worst (-62/deal).
-  3. NEVER SWAP FOR A QB. Brian's QB acquisitions grade -51/deal over
+  4. NEVER SWAP FOR A QB. Brian's QB acquisitions grade -51/deal over
      14 tries. QBs come from the draft, where the structure works.
-  4. THE LIVE SHARK IS COOP (wins in every era). Trevor's edge was
-     2011-16 vintage — respect the pair history (-686 over 11 deals),
-     but price his 2026 desperation, not his reputation.
-  5. Champions WIN their swaps (+174 title-year mean). Only accept a
-     paper loss when paying in PICKS, never in a player swap."""
+  5. THE LIVE SHARK IS COOP (+23/deal since 2017; Trevor since 2017:
+     -6). Respect the Trevor pair history (-686 over 11 deals), but
+     price his 2026 desperation, not his reputation.
+  6. Champions WIN their swaps (+174 title-year mean; 10/14 books
+     positive). Only accept a paper loss when paying in PICKS.
+Run with --partners for the ranked Call Sheet (who to call, the play)."""
+
+
+def partners_table() -> None:
+    """The Call Sheet (Research Desk XII): ranked partner/target board."""
+    path = ROOT / "data" / "research" / "trade_targets.json"
+    if not path.exists():
+        sys.exit("run scripts/build_trade_targets.py first")
+    res = json.loads(path.read_text())
+    print(f"THE CALL SHEET — {res['meta']['generated']}")
+    print(f"axis: {res['meta']['axis']}\n")
+    for i, r in enumerate(res["targets"], 1):
+        live = (f"{r['recent_par_per_deal']:+.0f}/deal"
+                if r["recent_par_per_deal"] is not None else "—")
+        print(f"{i:>2}. {r['manager']:<18} score {r['score']:>5.1f}  "
+              f"career {r['career_par_per_deal']:+.0f}/deal "
+              f"({r['career_deals']})  live {live}  "
+              f"concedes star {r['star_concession_rate']:.0%}")
+        motive = []
+        if r["expiring_keepers"]:
+            motive.append(f"{r['expiring_keepers']} expiring: "
+                          + ", ".join(r["expiring_assets"]))
+        for ln in r["seat_lanes"]:
+            motive.append(f"seat R{ln['round']} ({ln['player']}, "
+                          f"you rank #{ln['my_rank']})")
+        if motive:
+            print(f"      motive: {'; '.join(motive)}")
+        print(f"      play:   {r['verdict']}")
 
 
 def main():
@@ -136,9 +169,13 @@ def main():
                     help="picks you give, e.g. R3 R7 or eric:R3")
     ap.add_argument("--get", nargs="+", default=[],
                     help="picks you receive")
+    ap.add_argument("--partners", action="store_true",
+                    help="ranked Call Sheet: who to call, what to ask for")
     args = ap.parse_args()
     print(HOUSE_RULES + "\n")
-    if args.give or args.get:
+    if args.partners:
+        partners_table()
+    elif args.give or args.get:
         price_trade(parse_picks(args.give), parse_picks(args.get))
     else:
         capital_table()

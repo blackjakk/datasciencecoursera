@@ -179,25 +179,53 @@ def main() -> None:
 
         for t in parse_trades(season, name_mid):
             sides = {}
+            legs: dict[str, list[dict]] = {}
             for who in (t["a"], t["b"]):
                 par = 0.0
+                legs[who] = []
                 for p in t["got"][who]:
                     canon = resolve_xlsx_name(p["name"]) or p["name"]
                     pid = pid_by_name.get(norm(canon))
                     if pid is None:
                         unresolved[p["name"]] += 1
                         continue
-                    par += ros_par(pid, p["pos"], t["week"])
+                    p_par = ros_par(pid, p["pos"], t["week"])
+                    legs[who].append({"pos": p["pos"], "par": p_par})
+                    par += p_par
                 sides[who] = par
+            best = max((leg["par"] for who in legs for leg in legs[who]),
+                       default=0.0)
             a, b = t["a"], t["b"]
             for who, other in ((a, b), (b, a)):
                 all_sides.append({
                     "season": t["season"], "week": t["week"],
                     "manager": who, "counterparty": other,
                     "par": round(sides[who] - sides[other], 1),
+                    # star flags: did the single best rest-of-season player
+                    # in the deal land here (buy) or leave here (concede)?
+                    "star_buy": best > 0 and any(
+                        leg["par"] == best for leg in legs[who]),
+                    "star_concede": best > 0 and any(
+                        leg["par"] == best for leg in legs[other]),
+                    "qb_in": any(leg["pos"] == "QB" for leg in legs[who]),
                 })
 
-    standings = defaultdict(lambda: {"deals": 0, "par": 0.0})
+    standings = defaultdict(lambda: {"deals": 0, "par": 0.0,
+                                     "deals_2017plus": 0, "par_2017plus": 0.0})
+    style = defaultdict(lambda: {"sides": 0, "star_buys": 0,
+                                 "star_concessions": 0, "qb_in": 0})
+    for s in all_sides:
+        st2 = style[s["manager"]]
+        st2["sides"] += 1
+        st2["star_buys"] += int(s["star_buy"])
+        st2["star_concessions"] += int(s["star_concede"])
+        st2["qb_in"] += int(s["qb_in"])
+        # 2017+ split: skill persistence is weak (3/8 same-sign across
+        # halves), so consumers weigh the recent half separately.
+        if s["season"] >= 2017:
+            st3 = standings[s["manager"]]
+            st3["deals_2017plus"] += 1
+            st3["par_2017plus"] += s["par"]
     pair_net = defaultdict(float)
     for s in all_sides:
         st_ = standings[s["manager"]]
@@ -222,9 +250,12 @@ def main() -> None:
                            "week; replacement = median weekly score at "
                            "rank N scaled to league size; absent weeks "
                            "cost full replacement"},
-        "standings": {m: {"deals": v["deals"], "net_par": round(v["par"], 1)}
+        "standings": {m: {"deals": v["deals"], "net_par": round(v["par"], 1),
+                          "deals_2017plus": v["deals_2017plus"],
+                          "net_par_2017plus": round(v["par_2017plus"], 1)}
                       for m, v in sorted(standings.items(),
                                          key=lambda kv: -kv[1]["par"])},
+        "style": dict(style),
         "pairs": {f"{k[0]} vs {k[1]}": {"deals": pair_deals[k],
                                         "net_to_first": round(v, 1)}
                   for k, v in sorted(pair_view.items(),

@@ -143,7 +143,8 @@ def main() -> None:
     for frag in ("market_screen", "trade_ledger", "counterparty_dossiers",
                  "pick_squeeze", "autopsy_2025", "stash_curve",
                  "keeper_sensitivity", "survival_calibration",
-                 "timing_study", "champion_profile", "keeper_stack_screen"):
+                 "timing_study", "champion_profile", "keeper_stack_screen",
+                 "trade_targets"):
         p = ROOT / "data" / "research" / f"{frag}.html"
         check(f"research fragment {frag}",
               p.exists() and p.stat().st_size > 500,

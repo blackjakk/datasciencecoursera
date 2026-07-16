@@ -39,6 +39,7 @@ SECTIONS = [
     ("timing_study", "IX. The Timing Study — trading against the calendar"),
     ("champion_profile", "X. The Champion Profile — what finals teams do differently"),
     ("keeper_stack_screen", "XI. The Stack Screen — keeper firepower, priced honestly"),
+    ("trade_targets", "XII. The Call Sheet — who to call, what to ask for"),
 ]
 
 PAGE_CSS = """
