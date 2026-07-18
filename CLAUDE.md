@@ -62,8 +62,12 @@ fetch|derive|sim|reports|helper|verify). **Read docs/PIPELINE.md first.**
    fandom (Bills-fan Troy drafts zero Bills). Do not model a fan tax;
    the room drafts mercenary. Caveat: team-at-draft tests need
    historical rosters (players_nfl.json carries CURRENT team only —
-   burned once on Bigsby JAX→PHI). Live test pending: 2026 PSU rookie
-   class (Allar/Singleton) + Tyler Warren (Figgy paid +1.8 in 2025).
+   burned once on Bigsby JAX→PHI). PARTIAL FIX (Jul 17): backtest
+   proj/stats rows carry a TOP-LEVEL at-time `team` field (validated:
+   Saquon NYG'23/PHI'24) — historical team available 2023-25; the
+   team-at-draft retest is now possible. Live test pending: 2026 PSU
+   rookie class (Allar/Singleton) + Tyler Warren (Figgy paid +1.8 in
+   2025).
 9. Keeper contract rules (user-confirmed, Jul 2026): cost escalates 2
    rounds/yr, MAX 3 consecutive years kept, R1/R2 forfeits ineligible —
    and the 3-year clock FOLLOWS THE PLAYER; it does NOT reset on trade.
@@ -127,7 +131,7 @@ restoration in refresh()), SR live regions (#sr-clock), phone-clean at
 `scripts/check_a11y.py` (inside verify) guards it; use the `a11y-review`
 skill for any helper/design diff. Record: docs/A11Y_AUDIT.md.
 
-## Research Desk (July 2026 — the analyst layer, 12 sections)
+## Research Desk (July 2026 — the analyst layer, 13 sections)
 `data/MONEYLEAGUE_RESEARCH_DESK.pdf`, assembled by
 `scripts/build_research_desk.py` from fragments in `data/research/`
 (contract: docs/GOAL_RESEARCH.md — one <section>, ml classes, no hex;
@@ -344,6 +348,22 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   no ring). Conditions: buyer must already be top-half (axis) and pay
   in picks. Hindsight caveat on record. This is the empirical case
   for the Trevor W9-11 rental play — Brian holds the picks.
+- COACHING TAPE (XIII, `build_coaching_tape.py`, Jul 17, user-prompted
+  tree model): dataset data/coaching/coaches.json (play-caller + scheme
+  family + tree, 32 teams 2022-2026, per-entry confidence, conf-L
+  excluded; 2026 verified vs Jul trackers — 10 HC changes/21 new OCs,
+  and a hallucinated "Chip Kelly to SF" from one fetch was CAUGHT by
+  cross-checking: Shanahan remains). Backtest 2023-25 vs preseason
+  projections using the at-time team field: SAME-TREE HANDOFFS ARE THE
+  MARKET'S BLIND SPOT (actual/proj 0.929 vs continuity 0.861; RB cell
+  1.035 = only cell beating projection); scheme flips priced right on
+  average (0.867) EXCEPT WRs (0.801, worst cell — never pay full
+  freight for a WR in a scheme flip). 2026 same-tree buys: ATL (Bijan
+  under Stefanski), ARI, MIA (McDaniel→Slowik), SEA. KC = Reid
+  continuity (Walker's move there is player-side, not a coaching
+  event); WAS = scheme flip to first-time caller (Kaytron Allen).
+  Tilt not law: n=51 blind-spot cell, one vendor, 3 seasons; regrades
+  when 2026 closes.
 
 ## Key analyses on record
 - Backtest (`scripts/backtest_recommender.py`): tool vs real-Brian

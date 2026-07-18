@@ -1,0 +1,873 @@
+{
+ "meta": {
+  "updated": "2026-07-17",
+  "semantics": "play_caller = who calls offensive plays at season start; family: WZ=Shanahan/McVay wide-zone, REID=Reid West Coast, AR=Air Raid, PWR=power run, PAT=Patriots/Erhardt, PAY=Payton, WC=classic West Coast, OTH=other. conf: H/M usable, L excluded from any backtest.",
+  "sources": "authored from knowledge through Jan 2026; 2026 cycle verified via CBS/Sharp/FantasyLife trackers Jul 2026 (10 HC changes, 21 new OCs; a bogus 'Chip Kelly to SF' claim was caught and excluded \u2014 Shanahan remains)"
+ },
+ "teams": {
+  "ARI": {
+   "2022": {
+    "play_caller": "Kingsbury",
+    "family": "AR",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Petzing",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Petzing",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Petzing",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "M.LaFleur",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "ATL": {
+   "2022": {
+    "play_caller": "A.Smith",
+    "family": "WZ",
+    "conf": "M"
+   },
+   "2023": {
+    "play_caller": "A.Smith",
+    "family": "WZ",
+    "conf": "M"
+   },
+   "2024": {
+    "play_caller": "Z.Robinson",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Z.Robinson",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Stefanski/Rees",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "BAL": {
+   "2022": {
+    "play_caller": "Roman",
+    "family": "PWR",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Monken",
+    "family": "AR",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Monken",
+    "family": "AR",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Monken",
+    "family": "AR",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Doyle",
+    "family": "PAY",
+    "conf": "M"
+   }
+  },
+  "BUF": {
+   "2022": {
+    "play_caller": "Dorsey",
+    "family": "PAT",
+    "conf": "M"
+   },
+   "2023": {
+    "play_caller": "Dorsey",
+    "family": "PAT",
+    "conf": "M"
+   },
+   "2024": {
+    "play_caller": "Brady",
+    "family": "PAT",
+    "conf": "M"
+   },
+   "2025": {
+    "play_caller": "Brady",
+    "family": "PAT",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Brady",
+    "family": "PAT",
+    "conf": "H"
+   }
+  },
+  "CAR": {
+   "2022": {
+    "play_caller": "McAdoo",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2023": {
+    "play_caller": "Brown",
+    "family": "OTH",
+    "conf": "L"
+   },
+   "2024": {
+    "play_caller": "Canales",
+    "family": "WZ",
+    "conf": "M"
+   },
+   "2025": {
+    "play_caller": "Canales",
+    "family": "WZ",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "Idzik",
+    "family": "WZ",
+    "conf": "L"
+   }
+  },
+  "CHI": {
+   "2022": {
+    "play_caller": "Getsy",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Getsy",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Waldron",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "B.Johnson",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "B.Johnson",
+    "family": "OTH",
+    "conf": "H"
+   }
+  },
+  "CIN": {
+   "2022": {
+    "play_caller": "Z.Taylor",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Z.Taylor",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Z.Taylor",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Z.Taylor",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Z.Taylor",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "CLE": {
+   "2022": {
+    "play_caller": "Stefanski",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Stefanski",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Stefanski",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Stefanski",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Monken",
+    "family": "AR",
+    "conf": "H"
+   }
+  },
+  "DAL": {
+   "2022": {
+    "play_caller": "K.Moore",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2023": {
+    "play_caller": "McCarthy",
+    "family": "WC",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "McCarthy",
+    "family": "WC",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Schottenheimer",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "Schottenheimer",
+    "family": "OTH",
+    "conf": "M"
+   }
+  },
+  "DEN": {
+   "2022": {
+    "play_caller": "Hackett",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Payton",
+    "family": "PAY",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Payton",
+    "family": "PAY",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Payton",
+    "family": "PAY",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Webb",
+    "family": "AR",
+    "conf": "H"
+   }
+  },
+  "DET": {
+   "2022": {
+    "play_caller": "B.Johnson",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "B.Johnson",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "B.Johnson",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Morton",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "Petzing",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "GB": {
+   "2022": {
+    "play_caller": "M.LaFleur",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "M.LaFleur",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "M.LaFleur",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "M.LaFleur",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "M.LaFleur",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "HOU": {
+   "2022": {
+    "play_caller": "Hamilton",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2023": {
+    "play_caller": "Slowik",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Slowik",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Caley",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "Caley",
+    "family": "OTH",
+    "conf": "L"
+   }
+  },
+  "IND": {
+   "2022": {
+    "play_caller": "Reich",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2023": {
+    "play_caller": "Steichen",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Steichen",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Steichen",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Steichen",
+    "family": "REID",
+    "conf": "H"
+   }
+  },
+  "JAX": {
+   "2022": {
+    "play_caller": "Pederson",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Pederson",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Pederson",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Coen",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Coen",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "KC": {
+   "2022": {
+    "play_caller": "Reid",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Reid",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Reid",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Reid",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Reid",
+    "family": "REID",
+    "conf": "H"
+   }
+  },
+  "LAC": {
+   "2022": {
+    "play_caller": "Lombardi",
+    "family": "PAY",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "K.Moore",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2024": {
+    "play_caller": "Roman",
+    "family": "PWR",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Roman",
+    "family": "PWR",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "McDaniel",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "LAR": {
+   "2022": {
+    "play_caller": "McVay",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "McVay",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "McVay",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "McVay",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "McVay",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "LV": {
+   "2022": {
+    "play_caller": "McDaniels",
+    "family": "PAT",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "McDaniels",
+    "family": "PAT",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Getsy",
+    "family": "WZ",
+    "conf": "M"
+   },
+   "2025": {
+    "play_caller": "C.Kelly",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Kubiak",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "MIA": {
+   "2022": {
+    "play_caller": "McDaniel",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "McDaniel",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "McDaniel",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "McDaniel",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Slowik",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "MIN": {
+   "2022": {
+    "play_caller": "O'Connell",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "O'Connell",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "O'Connell",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "O'Connell",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "O'Connell",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "NE": {
+   "2022": {
+    "play_caller": "Patricia",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "O'Brien",
+    "family": "PAT",
+    "conf": "M"
+   },
+   "2024": {
+    "play_caller": "Van Pelt",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2025": {
+    "play_caller": "McDaniels",
+    "family": "PAT",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "McDaniels",
+    "family": "PAT",
+    "conf": "M"
+   }
+  },
+  "NO": {
+   "2022": {
+    "play_caller": "Carmichael",
+    "family": "PAY",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Carmichael",
+    "family": "PAY",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Kubiak",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "K.Moore",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "K.Moore",
+    "family": "OTH",
+    "conf": "M"
+   }
+  },
+  "NYG": {
+   "2022": {
+    "play_caller": "Daboll",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2023": {
+    "play_caller": "Daboll",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2024": {
+    "play_caller": "Daboll",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2025": {
+    "play_caller": "Daboll",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "Nagy",
+    "family": "REID",
+    "conf": "H"
+   }
+  },
+  "NYJ": {
+   "2022": {
+    "play_caller": "M.LaFleur",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Hackett",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Hackett",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Engstrand",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "Reich",
+    "family": "OTH",
+    "conf": "M"
+   }
+  },
+  "PHI": {
+   "2022": {
+    "play_caller": "Steichen",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "B.Johnson(PHI)",
+    "family": "REID",
+    "conf": "M"
+   },
+   "2024": {
+    "play_caller": "K.Moore",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Patullo",
+    "family": "REID",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "Mannion",
+    "family": "WZ",
+    "conf": "M"
+   }
+  },
+  "PIT": {
+   "2022": {
+    "play_caller": "Canada",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Canada",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "A.Smith",
+    "family": "WZ",
+    "conf": "M"
+   },
+   "2025": {
+    "play_caller": "A.Smith",
+    "family": "WZ",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "McCarthy",
+    "family": "WC",
+    "conf": "H"
+   }
+  },
+  "SEA": {
+   "2022": {
+    "play_caller": "Waldron",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Waldron",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Grubb",
+    "family": "AR",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Kubiak",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Fleury",
+    "family": "WZ",
+    "conf": "M"
+   }
+  },
+  "SF": {
+   "2022": {
+    "play_caller": "Shanahan",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Shanahan",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Shanahan",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Shanahan",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Shanahan",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "TB": {
+   "2022": {
+    "play_caller": "Leftwich",
+    "family": "OTH",
+    "conf": "H"
+   },
+   "2023": {
+    "play_caller": "Canales",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Coen",
+    "family": "WZ",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Grizzard",
+    "family": "WZ",
+    "conf": "L"
+   },
+   "2026": {
+    "play_caller": "Z.Robinson",
+    "family": "WZ",
+    "conf": "H"
+   }
+  },
+  "TEN": {
+   "2022": {
+    "play_caller": "Downing",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2023": {
+    "play_caller": "T.Kelly",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2024": {
+    "play_caller": "Callahan",
+    "family": "WZ",
+    "conf": "M"
+   },
+   "2025": {
+    "play_caller": "Callahan",
+    "family": "WZ",
+    "conf": "M"
+   },
+   "2026": {
+    "play_caller": "Daboll",
+    "family": "OTH",
+    "conf": "H"
+   }
+  },
+  "WAS": {
+   "2022": {
+    "play_caller": "Turner",
+    "family": "OTH",
+    "conf": "M"
+   },
+   "2023": {
+    "play_caller": "Bieniemy",
+    "family": "REID",
+    "conf": "H"
+   },
+   "2024": {
+    "play_caller": "Kingsbury",
+    "family": "AR",
+    "conf": "H"
+   },
+   "2025": {
+    "play_caller": "Kingsbury",
+    "family": "AR",
+    "conf": "H"
+   },
+   "2026": {
+    "play_caller": "Blough",
+    "family": "OTH",
+    "conf": "M"
+   }
+  }
+ }
+}

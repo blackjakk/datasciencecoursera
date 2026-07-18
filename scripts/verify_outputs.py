@@ -145,7 +145,7 @@ def main() -> None:
                  "pick_squeeze", "autopsy_2025", "stash_curve",
                  "keeper_sensitivity", "survival_calibration",
                  "timing_study", "champion_profile", "keeper_stack_screen",
-                 "trade_targets"):
+                 "trade_targets", "coaching_tape"):
         p = ROOT / "data" / "research" / f"{frag}.html"
         check(f"research fragment {frag}",
               p.exists() and p.stat().st_size > 500,

@@ -1,0 +1,494 @@
+{
+  "generated": "2026-07-18",
+  "backtest": {
+    "classes": {
+      "CONTINUITY": {
+        "n": 370,
+        "mean_ratio": 0.861
+      },
+      "SAME_FAMILY": {
+        "n": 51,
+        "mean_ratio": 0.929
+      },
+      "NEW_FAMILY": {
+        "n": 180,
+        "mean_ratio": 0.867
+      }
+    },
+    "positions": {
+      "CONTINUITY:QB": {
+        "n": 65,
+        "mean_ratio": 0.804
+      },
+      "SAME_FAMILY:QB": {
+        "n": 9,
+        "mean_ratio": 0.895
+      },
+      "CONTINUITY:WR": {
+        "n": 153,
+        "mean_ratio": 0.835
+      },
+      "NEW_FAMILY:QB": {
+        "n": 32,
+        "mean_ratio": 0.875
+      },
+      "CONTINUITY:RB": {
+        "n": 100,
+        "mean_ratio": 0.916
+      },
+      "CONTINUITY:TE": {
+        "n": 52,
+        "mean_ratio": 0.905
+      },
+      "NEW_FAMILY:RB": {
+        "n": 48,
+        "mean_ratio": 0.922
+      },
+      "SAME_FAMILY:WR": {
+        "n": 20,
+        "mean_ratio": 0.911
+      },
+      "NEW_FAMILY:WR": {
+        "n": 78,
+        "mean_ratio": 0.801
+      },
+      "SAME_FAMILY:RB": {
+        "n": 14,
+        "mean_ratio": 1.035
+      },
+      "NEW_FAMILY:TE": {
+        "n": 22,
+        "mean_ratio": 0.97
+      },
+      "SAME_FAMILY:TE": {
+        "n": 8,
+        "mean_ratio": 0.831
+      }
+    }
+  },
+  "map_2026": [
+    {
+      "team": "ARI",
+      "class": "SAME_FAMILY",
+      "from": "Petzing (WZ)",
+      "to": "M.LaFleur (WZ)",
+      "players": [
+        {
+          "name": "Trey McBride",
+          "pos": "TE",
+          "adp_round": 3.3
+        },
+        {
+          "name": "Jeremiyah Love",
+          "pos": "RB",
+          "adp_round": 4.3
+        },
+        {
+          "name": "Jacoby Brissett",
+          "pos": "QB",
+          "adp_round": 7.4
+        },
+        {
+          "name": "Marvin Harrison",
+          "pos": "WR",
+          "adp_round": 8.6
+        }
+      ]
+    },
+    {
+      "team": "ATL",
+      "class": "SAME_FAMILY",
+      "from": "Z.Robinson (WZ)",
+      "to": "Stefanski/Rees (WZ)",
+      "players": [
+        {
+          "name": "Bijan Robinson",
+          "pos": "RB",
+          "adp_round": 0.8
+        },
+        {
+          "name": "Drake London",
+          "pos": "WR",
+          "adp_round": 2.4
+        },
+        {
+          "name": "Kyle Pitts",
+          "pos": "TE",
+          "adp_round": 7.6
+        },
+        {
+          "name": "Brian Robinson",
+          "pos": "RB",
+          "adp_round": 10.2
+        }
+      ]
+    },
+    {
+      "team": "MIA",
+      "class": "SAME_FAMILY",
+      "from": "McDaniel (WZ)",
+      "to": "Slowik (WZ)",
+      "players": [
+        {
+          "name": "De'Von Achane",
+          "pos": "RB",
+          "adp_round": 2.6
+        },
+        {
+          "name": "Malik Willis",
+          "pos": "QB",
+          "adp_round": 4.6
+        }
+      ]
+    },
+    {
+      "team": "NYJ",
+      "class": "SAME_FAMILY",
+      "from": "Engstrand (OTH)",
+      "to": "Reich (OTH)",
+      "players": [
+        {
+          "name": "Garrett Wilson",
+          "pos": "WR",
+          "adp_round": 4.7
+        },
+        {
+          "name": "Breece Hall",
+          "pos": "RB",
+          "adp_round": 4.7
+        },
+        {
+          "name": "Geno Smith",
+          "pos": "QB",
+          "adp_round": 8.6
+        }
+      ]
+    },
+    {
+      "team": "SEA",
+      "class": "SAME_FAMILY",
+      "from": "Kubiak (WZ)",
+      "to": "Fleury (WZ)",
+      "players": [
+        {
+          "name": "Jaxon Smith-Njigba",
+          "pos": "WR",
+          "adp_round": 1.1
+        },
+        {
+          "name": "Sam Darnold",
+          "pos": "QB",
+          "adp_round": 5.4
+        },
+        {
+          "name": "Jadarian Price",
+          "pos": "RB",
+          "adp_round": 7.3
+        },
+        {
+          "name": "Zach Charbonnet",
+          "pos": "RB",
+          "adp_round": 12.0
+        }
+      ]
+    },
+    {
+      "team": "BAL",
+      "class": "NEW_FAMILY",
+      "from": "Monken (AR)",
+      "to": "Doyle (PAY)",
+      "players": [
+        {
+          "name": "Lamar Jackson",
+          "pos": "QB",
+          "adp_round": 0.2
+        },
+        {
+          "name": "Derrick Henry",
+          "pos": "RB",
+          "adp_round": 3.3
+        },
+        {
+          "name": "Zay Flowers",
+          "pos": "WR",
+          "adp_round": 4.4
+        },
+        {
+          "name": "Mark Andrews",
+          "pos": "TE",
+          "adp_round": 11.7
+        }
+      ]
+    },
+    {
+      "team": "CLE",
+      "class": "NEW_FAMILY",
+      "from": "Stefanski (WZ)",
+      "to": "Monken (AR)",
+      "players": [
+        {
+          "name": "Quinshon Judkins",
+          "pos": "RB",
+          "adp_round": 6.3
+        },
+        {
+          "name": "Harold Fannin",
+          "pos": "TE",
+          "adp_round": 6.6
+        },
+        {
+          "name": "KC Concepcion",
+          "pos": "WR",
+          "adp_round": 12.0
+        }
+      ]
+    },
+    {
+      "team": "DEN",
+      "class": "NEW_FAMILY",
+      "from": "Payton (PAY)",
+      "to": "Webb (AR)",
+      "players": [
+        {
+          "name": "Bo Nix",
+          "pos": "QB",
+          "adp_round": 2.2
+        },
+        {
+          "name": "Jaylen Waddle",
+          "pos": "WR",
+          "adp_round": 5.1
+        },
+        {
+          "name": "Courtland Sutton",
+          "pos": "WR",
+          "adp_round": 8.3
+        },
+        {
+          "name": "RJ Harvey",
+          "pos": "RB",
+          "adp_round": 8.9
+        }
+      ]
+    },
+    {
+      "team": "DET",
+      "class": "NEW_FAMILY",
+      "from": "Morton (OTH)",
+      "to": "Petzing (WZ)",
+      "players": [
+        {
+          "name": "Jahmyr Gibbs",
+          "pos": "RB",
+          "adp_round": 0.8
+        },
+        {
+          "name": "Amon-Ra St. Brown",
+          "pos": "WR",
+          "adp_round": 1.3
+        },
+        {
+          "name": "Jared Goff",
+          "pos": "QB",
+          "adp_round": 2.9
+        },
+        {
+          "name": "Jameson Williams",
+          "pos": "WR",
+          "adp_round": 6.0
+        }
+      ]
+    },
+    {
+      "team": "LAC",
+      "class": "NEW_FAMILY",
+      "from": "Roman (PWR)",
+      "to": "McDaniel (WZ)",
+      "players": [
+        {
+          "name": "Justin Herbert",
+          "pos": "QB",
+          "adp_round": 1.0
+        },
+        {
+          "name": "Omarion Hampton",
+          "pos": "RB",
+          "adp_round": 3.0
+        },
+        {
+          "name": "Ladd McConkey",
+          "pos": "WR",
+          "adp_round": 4.8
+        },
+        {
+          "name": "Oronde Gadsden",
+          "pos": "TE",
+          "adp_round": 8.9
+        }
+      ]
+    },
+    {
+      "team": "LV",
+      "class": "NEW_FAMILY",
+      "from": "C.Kelly (OTH)",
+      "to": "Kubiak (WZ)",
+      "players": [
+        {
+          "name": "Ashton Jeanty",
+          "pos": "RB",
+          "adp_round": 2.3
+        },
+        {
+          "name": "Brock Bowers",
+          "pos": "TE",
+          "adp_round": 2.8
+        },
+        {
+          "name": "Fernando Mendoza",
+          "pos": "QB",
+          "adp_round": 9.6
+        }
+      ]
+    },
+    {
+      "team": "NYG",
+      "class": "NEW_FAMILY",
+      "from": "Daboll (OTH)",
+      "to": "Nagy (REID)",
+      "players": [
+        {
+          "name": "Jaxson Dart",
+          "pos": "QB",
+          "adp_round": 1.7
+        },
+        {
+          "name": "Malik Nabers",
+          "pos": "WR",
+          "adp_round": 4.8
+        },
+        {
+          "name": "Cam Skattebo",
+          "pos": "RB",
+          "adp_round": 6.0
+        },
+        {
+          "name": "Isaiah Likely",
+          "pos": "TE",
+          "adp_round": 11.1
+        }
+      ]
+    },
+    {
+      "team": "PHI",
+      "class": "NEW_FAMILY",
+      "from": "Patullo (REID)",
+      "to": "Mannion (WZ)",
+      "players": [
+        {
+          "name": "Jalen Hurts",
+          "pos": "QB",
+          "adp_round": 0.6
+        },
+        {
+          "name": "A.J. Brown",
+          "pos": "WR",
+          "adp_round": 2.7
+        },
+        {
+          "name": "Saquon Barkley",
+          "pos": "RB",
+          "adp_round": 2.8
+        },
+        {
+          "name": "DeVonta Smith",
+          "pos": "WR",
+          "adp_round": 4.0
+        }
+      ]
+    },
+    {
+      "team": "PIT",
+      "class": "NEW_FAMILY",
+      "from": "A.Smith (WZ)",
+      "to": "McCarthy (WC)",
+      "players": [
+        {
+          "name": "Jaylen Warren",
+          "pos": "RB",
+          "adp_round": 7.6
+        },
+        {
+          "name": "DK Metcalf",
+          "pos": "WR",
+          "adp_round": 8.1
+        },
+        {
+          "name": "Rico Dowdle",
+          "pos": "RB",
+          "adp_round": 8.4
+        },
+        {
+          "name": "Aaron Rodgers",
+          "pos": "QB",
+          "adp_round": 8.5
+        }
+      ]
+    },
+    {
+      "team": "TEN",
+      "class": "NEW_FAMILY",
+      "from": "Callahan (WZ)",
+      "to": "Daboll (OTH)",
+      "players": [
+        {
+          "name": "Cam Ward",
+          "pos": "QB",
+          "adp_round": 5.8
+        },
+        {
+          "name": "Carnell Tate",
+          "pos": "WR",
+          "adp_round": 7.5
+        },
+        {
+          "name": "Tony Pollard",
+          "pos": "RB",
+          "adp_round": 8.2
+        },
+        {
+          "name": "Wan'Dale Robinson",
+          "pos": "WR",
+          "adp_round": 9.9
+        }
+      ]
+    },
+    {
+      "team": "WAS",
+      "class": "NEW_FAMILY",
+      "from": "Kingsbury (AR)",
+      "to": "Blough (OTH)",
+      "players": [
+        {
+          "name": "Jayden Daniels",
+          "pos": "QB",
+          "adp_round": 0.6
+        },
+        {
+          "name": "Terry McLaurin",
+          "pos": "WR",
+          "adp_round": 5.4
+        },
+        {
+          "name": "Rachaad White",
+          "pos": "RB",
+          "adp_round": 10.3
+        },
+        {
+          "name": "Jacory Croskey-Merritt",
+          "pos": "RB",
+          "adp_round": 10.7
+        }
+      ]
+    }
+  ]
+}
