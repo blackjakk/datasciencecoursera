@@ -588,75 +588,87 @@
   "young_book": {
     "cells": {
       "VET": {
-        "n": 309,
-        "excess_per_pick": 5.7,
+        "n": 262,
+        "excess_per_pick": 4.6,
         "hit_pct": 50
       },
       "ROOKIE": {
-        "n": 90,
-        "excess_per_pick": -18.7,
-        "hit_pct": 33
+        "n": 87,
+        "excess_per_pick": -13.8,
+        "hit_pct": 38
       },
       "ROOKIE_R1-4": {
         "n": 12,
-        "excess_per_pick": 2.4,
+        "excess_per_pick": 3.6,
         "hit_pct": 50
       },
       "YR3": {
-        "n": 64,
-        "excess_per_pick": -4.1,
-        "hit_pct": 42
+        "n": 49,
+        "excess_per_pick": -7.1,
+        "hit_pct": 47
       },
       "YR2_PRICED": {
-        "n": 42,
-        "excess_per_pick": 4.3,
-        "hit_pct": 55
+        "n": 29,
+        "excess_per_pick": -4.3,
+        "hit_pct": 52
       },
       "ROOKIE_R5-8": {
         "n": 23,
-        "excess_per_pick": -23.3,
-        "hit_pct": 35
+        "excess_per_pick": -18.7,
+        "hit_pct": 39
       },
       "YR2_POSTHYPE": {
-        "n": 32,
-        "excess_per_pick": -20.5,
-        "hit_pct": 41
+        "n": 30,
+        "excess_per_pick": -11.2,
+        "hit_pct": 40
       },
       "ROOKIE_R9-12": {
         "n": 25,
-        "excess_per_pick": -11.4,
-        "hit_pct": 36
+        "excess_per_pick": -5.2,
+        "hit_pct": 44
       },
       "ROOKIE_R13-17": {
-        "n": 30,
-        "excess_per_pick": -29.8,
-        "hit_pct": 23
+        "n": 27,
+        "excess_per_pick": -25.4,
+        "hit_pct": 26
       }
     },
     "rookie_owners": {
-      "ankur_patel": {
-        "n": 6,
-        "avg_round": 5.5,
-        "excess_per_pick": 19.1,
-        "hit_pct": 67
-      },
       "trevor_bergerboy": {
         "n": 8,
-        "avg_round": 10.1,
-        "excess_per_pick": -3.0,
-        "hit_pct": 38
+        "avg_round": 10.4,
+        "excess_per_pick": 28.1,
+        "hit_pct": 62
+      },
+      "ankur_patel": {
+        "n": 8,
+        "avg_round": 6.6,
+        "excess_per_pick": 11.7,
+        "hit_pct": 62
+      },
+      "dave_aka_wang": {
+        "n": 5,
+        "avg_round": 6.4,
+        "excess_per_pick": 3.8,
+        "hit_pct": 60
+      },
+      "coop": {
+        "n": 7,
+        "avg_round": 8.6,
+        "excess_per_pick": -6.0,
+        "hit_pct": 43
+      },
+      "brian_bigguap": {
+        "n": 7,
+        "avg_round": 10.9,
+        "excess_per_pick": -13.0,
+        "hit_pct": 29
       },
       "tim_breswick": {
-        "n": 10,
-        "avg_round": 10.2,
-        "excess_per_pick": -5.4,
-        "hit_pct": 50
-      },
-      "eric_m": {
-        "n": 11,
-        "avg_round": 11.7,
-        "excess_per_pick": -10.9,
-        "hit_pct": 45
+        "n": 8,
+        "avg_round": 9.4,
+        "excess_per_pick": -13.6,
+        "hit_pct": 38
       },
       "josh_wildboy": {
         "n": 1,
@@ -664,47 +676,41 @@
         "excess_per_pick": -14.3,
         "hit_pct": 0
       },
-      "brower_barry": {
-        "n": 14,
-        "avg_round": 12.1,
-        "excess_per_pick": -15.5,
-        "hit_pct": 29
-      },
-      "dave_aka_wang": {
+      "lem": {
         "n": 5,
-        "avg_round": 7,
-        "excess_per_pick": -18.4,
+        "avg_round": 7.2,
+        "excess_per_pick": -19.1,
         "hit_pct": 40
       },
-      "brian_bigguap": {
-        "n": 8,
-        "avg_round": 9.4,
-        "excess_per_pick": -22.2,
-        "hit_pct": 25
+      "eric_m": {
+        "n": 13,
+        "avg_round": 10.9,
+        "excess_per_pick": -20.6,
+        "hit_pct": 31
       },
-      "coop": {
-        "n": 7,
-        "avg_round": 9.4,
-        "excess_per_pick": -24.1,
-        "hit_pct": 29
+      "brower_barry": {
+        "n": 11,
+        "avg_round": 13.3,
+        "excess_per_pick": -23.0,
+        "hit_pct": 36
       },
       "kyle_figgy": {
         "n": 6,
-        "avg_round": 11.7,
-        "excess_per_pick": -43.1,
-        "hit_pct": 17
+        "avg_round": 11.2,
+        "excess_per_pick": -27.1,
+        "hit_pct": 33
       },
       "donnie": {
-        "n": 10,
-        "avg_round": 9.9,
-        "excess_per_pick": -48.1,
-        "hit_pct": 10
+        "n": 7,
+        "avg_round": 10.4,
+        "excess_per_pick": -57.3,
+        "hit_pct": 0
       },
-      "lem": {
-        "n": 4,
-        "avg_round": 8.8,
-        "excess_per_pick": -48.1,
-        "hit_pct": 25
+      "troy_mullings": {
+        "n": 1,
+        "avg_round": 4,
+        "excess_per_pick": -102.1,
+        "hit_pct": 0
       }
     }
   }

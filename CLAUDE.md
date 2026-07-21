@@ -147,31 +147,34 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   carry real 2027 keeper option value — R9 +30 (50% hit), R7 +17, R17
   +13; composed_round_values() = max(0,redraft)+option feeds advisor,
   squeeze, helper SIM.
-  + ROOKIE & YOUNG PLAYER BOOK (in VI, Jul 18, user-prompted; graded
-  vs round-cohort mean, 3 drafts): PRODUCTION IS THE SIGNAL, YOUTH IS
-  NOT — rookies −19/pick (33% hit), yr-2 POST-HYPE dip-buys WORSE
-  (−20.5, folklore fails), yr-3 window null (−4), yr-2 PRICED (rookie
-  yr hit 100+) +4.3/55% = best young cell (market under-escalates true
-  sophomores — validates Burden/Loveland keeps), vets +5.7 = quiet
-  value class. Young-producer-moved-teams n=4 inconclusive (use
-  Coaching Tape for scheme half). Owner rookie grades: ONLY ankur
-  positive (+19/pick, 67%, few picks R5-9 fallen-value selection —
-  mimic that); eric volume-negative but 2 keeper conversions; donnie
-  worst (−48, 10%). ALL 6 rookie→kept-next-yr conversions came R9-R14
-  (ring-fuel pattern). BAND SPLIT (user-caught: early rookies carry a
-  guaranteed ROLE): R1-4 rookies +2.4/pick, 8% bust = market-fair
-  floor; the tax concentrates in R5-8 (−23.3, the hype zone) and
-  R13-17 (−29.8, priced as option darts). Doctrine: R1-4 fine at
-  market; R5-8 only fallen values (the ankur filter); R10+ darts as
-  2027 option purchases. Waiver corollary (chat-level, Jul 21): 30
-  drafted rookies were CUT by their owners, median W2, 75% by W5;
-  breakouts land median 2 wks post-drop — wire-watch W3-8 for R9+
-  rookie cuts (Monangai W5-cut→Tim-scoop→keeper = the jackpot; R15
-  waiver-keep rule makes every scoop an option buy); early-round
-  rookie frustration exits by TRADE not waiver (Daniels W9'24 to
-  Brian — his textbook elite-buy). 2026
-  yr-2-priced pool: Dart R2, Jeanty R2, Hampton R3, McMillan R4,
-  Egbuka R5, Ward/Judkins/Warren/Henderson R6, RJ Harvey R9.
+  + ROOKIE & YOUNG PLAYER BOOK (in VI, Jul 18; CORRECTED Jul 21 after
+  the user's example request exposed two bugs — implicit 2023/24
+  keepers counted as draft picks (keeper discounts masquerading as
+  market prices: "R13 ARSB", "R15 Purdy") and 2023 owner attribution
+  from the misattributing Sleeper feed (truth #1 violation; now xlsx-
+  joined + ADP-gap excluded): NO young class beats its market price —
+  rookies −13.8/pick, yr-2 POST-HYPE −11.2, yr-2 PRICED −4.3 (the
+  earlier +4.3 "market under-escalates sophomores" verdict was the
+  keeper artifact and FLIPPED; the sophomore edge lives in the KEEP at
+  a discount, never at sticker), yr-3 null (−7), vets +4.6 = the value
+  class. BAND SPLIT (user-caught: high-capital rookies carry a
+  guaranteed ROLE — fantasy round proxies committed NFL volume): R1-4
+  +3.6/pick, 8% bust = market-fair floor (variance is efficiency, not
+  opportunity); tax concentrates in R5-8 hype zone (−18.7, capital
+  without guaranteed volume); R9-12 −5.2 ≈ free before the option
+  premium; R13-17 −25.4. Owner rookie grades (xlsx-true): trevor +28
+  (Daniels R3), ankur +12 (Nix R9/Thomas R7 — selection not volume),
+  dave +4; Brian −13; donnie 0-for-7 (−57). Doctrine: R1-4 fine at
+  market; R5-8 only fallen values; R10+ darts as 2027 option
+  purchases. Waiver corollary (chat-level, Jul 21): 30 drafted rookies
+  CUT by owners, median W2, 75% by W5; breakouts land median 2 wks
+  post-drop — wire-watch W3-8 for R9+ rookie cuts (Monangai
+  W5-cut→Tim-scoop→keeper; R15 waiver-keep rule makes every scoop an
+  option buy); early-round rookie frustration exits by TRADE not
+  waiver (Daniels W9'24 traded to Brian — his textbook elite-buy).
+  2026 draftable yr-2 pool (grade at MARKET now, not premium): Dart
+  R2, Jeanty R2, Hampton R3, McMillan R4, Egbuka R5, Ward/Judkins/
+  Warren/Henderson R6, RJ Harvey R9.
 - Market screen: MODEL vs THE ROOM'S PAPER is the edge (truth #7); edges
   carry reach% (survival to Brian's seat) — Bowers top reachable edge.
 - Pick Squeeze: bump rule (truth #5) + negative-tail curve ⇒ keeper

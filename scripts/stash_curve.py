@@ -463,8 +463,23 @@ def young_player_book() -> dict:
     for d in sorted(glob.glob(str(ROOT / "data/sleeper/league_*"))):
         season = int(json.loads(open(d + "/league.json").read())["season"])
         picks = json.loads(open(glob.glob(d + "/draft_*_picks.json")[0]).read())
-        live = [pk for pk in picks if not (
-            (pk.get("metadata") or {}).get("is_keeper") or pk.get("is_keeper"))]
+        # Keeper exclusion must include the IMPLICIT ADP-gap rule — 2023/24
+        # keepers were entered as ordinary picks (truth #2); counting them
+        # as draft picks lets keeper DISCOUNTS masquerade as market prices
+        # (user-exposed: "R13 ARSB", "R15 Purdy" were keeps, not picks).
+        adp = _period_adp(season)
+        live = []
+        for pk in picks:
+            a = adp.get(str(pk["player_id"]), 999.0)
+            implicit = a < 999 and (pk["round"] - max(1.0, a / 12.0)) >= 1.5
+            if ((pk.get("metadata") or {}).get("is_keeper")
+                    or pk.get("is_keeper") or implicit):
+                continue
+            live.append(pk)
+        # Owner attribution: Sleeper's 2023 feed misattributes 194/204
+        # picks (truth #1) — join the xlsx for 2023/24; 2025 is clean.
+        xlsx_owner = (_xlsx_owner_by_pick_no(season)
+                      if season in (2023, 2024) else {})
         by_round = defaultdict(list)
         for pk in live:
             by_round[pk["round"]].append(actual[season].get(pk["player_id"], 0.0))
@@ -483,7 +498,9 @@ def young_player_book() -> dict:
             cells[cls]["excess"].append(ex)
             cells[cls]["hits"] += int(ex > 0)
             if cls == "ROOKIE":
-                o = owners[rid_of[season].get(pk["roster_id"], "?")]
+                mgr = (xlsx_owner.get(pk.get("pick_no"))
+                       or rid_of[season].get(pk["roster_id"], "?"))
+                o = owners[mgr]
                 o["excess"].append(ex)
                 o["hits"] += int(ex > 0)
                 o["rounds"].append(pk["round"])
@@ -663,17 +680,19 @@ scenarios, graded vs the round they cost (Sleeper-era drafts)</div>
 <thead><tr><th>Scenario</th><th class="ml-num">n</th>
 <th class="ml-num">Excess/pick</th><th class="ml-num">Hit</th></tr></thead>
 <tbody>{cell_rows}</tbody></table>
-<p><strong>Production is the signal; youth is not.</strong> The only
-young players who beat their price already produced — and the market
-UNDER-escalates them (yr-2 priced, the best young cell). The folklore
-trades fail: post-hype dip-buying grades WORSE than drafting rookies
-(the discount is never deep enough), and the yr-3 breakout window is a
-null. The rookie tax is NOT uniform (user-caught): R1-4 rookies carry a
-guaranteed ROLE and grade market-fair with an 8% bust rate — the bleed
-concentrates in the R5-8 hype zone (real draft capital, no guaranteed
-volume), and R9+ darts are purchases of the 2027 keeper option priced
-above. Rules: R1-4 rookies fine at market; R5-8 only when one FALLS to
-clear value (the ankur filter); R10+ darts on purpose.</p>
+<p><strong>No young-player class beats its market price.</strong> With
+implicit keepers excluded (their discounts once masqueraded as draft
+prices here), yr-2 sophomores — proven OR post-hype — grade at or
+below market, the yr-3 breakout window is a null, and veterans remain
+the draft's quiet value class. The sophomore edge is real but it lives
+in the KEEP (a yr-2 producer held at a round discount), never in
+paying his sticker. The rookie tax is NOT uniform (user-caught): R1-4
+rookies carry a guaranteed ROLE and grade market-fair with an 8% bust
+rate — the bleed concentrates in the R5-8 hype zone (real draft
+capital, no guaranteed volume), while R9-12 darts run nearly free
+before the 2027 option premium priced above. Rules: R1-4 rookies fine
+at market; R5-8 only when one FALLS to clear value; R10+ darts on
+purpose.</p>
 <table class="ml-table ml-table--compact">
 <thead><tr><th>Owner rookie record</th><th class="ml-num">Picks</th>
 <th class="ml-num">Avg rd</th><th class="ml-num">Excess/pick</th>
@@ -681,13 +700,16 @@ clear value (the ankur filter); R10+ darts on purpose.</p>
 <tbody>{own_rows}</tbody></table>
 <p class="ml-fineprint">Excess = actual half-PPR points minus the mean
 of ALL players drafted in the same round that season — "did this pick
-beat the one you passed on". Keepers excluded. Only ankur grades
-positive on rookies: few picks, R5-9, only fallen values — selection,
-not volume. Every rookie&rarr;kept-next-year conversion in the sample
-came from R9-R14, the ring-fuel pattern (Puka R13 / ARSB R13 / McBride
-R15). Young-producers-who-changed-teams: n=4, no verdict — price the
-scheme half with the Coaching Tape (XIII). Three drafts of data; cells
-are directional, not laws.</p>"""
+beat the one you passed on". Keepers excluded by explicit flag AND the
+implicit ADP-gap rule; 2023/24 pick ownership joined to the xlsx
+(Sleeper's 2023 feed misattributes — truth #1). Rookie honors: trevor
+(+28/pick — Daniels R3) and ankur (+12 — Nix R9, Thomas R7) grade
+positive by SELECTION, not volume; donnie is 0-for-7. Every
+rookie&rarr;kept-next-year conversion in the sample came from R9-R14,
+the ring-fuel pattern (Puka R13 / ARSB R13 / McBride R15).
+Young-producers-who-changed-teams: n=4, no verdict — price the scheme
+half with the Coaching Tape (XIII). Three drafts of data; cells are
+directional, not laws.</p>"""
 
 
 # ---------------------------------------------------------------- main
