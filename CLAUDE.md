@@ -147,6 +147,21 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   carry real 2027 keeper option value — R9 +30 (50% hit), R7 +17, R17
   +13; composed_round_values() = max(0,redraft)+option feeds advisor,
   squeeze, helper SIM.
+  + ROOKIE & YOUNG PLAYER BOOK (in VI, Jul 18, user-prompted; graded
+  vs round-cohort mean, 3 drafts): PRODUCTION IS THE SIGNAL, YOUTH IS
+  NOT — rookies −19/pick (33% hit), yr-2 POST-HYPE dip-buys WORSE
+  (−20.5, folklore fails), yr-3 window null (−4), yr-2 PRICED (rookie
+  yr hit 100+) +4.3/55% = best young cell (market under-escalates true
+  sophomores — validates Burden/Loveland keeps), vets +5.7 = quiet
+  value class. Young-producer-moved-teams n=4 inconclusive (use
+  Coaching Tape for scheme half). Owner rookie grades: ONLY ankur
+  positive (+19/pick, 67%, few picks R5-9 fallen-value selection —
+  mimic that); eric volume-negative but 2 keeper conversions; donnie
+  worst (−48, 10%). ALL 6 rookie→kept-next-yr conversions came R9-R14
+  (ring-fuel pattern). Doctrine: no rookie gambles before R5; R5-9
+  only fallen values; R10+ darts as 2027 option purchases. 2026
+  yr-2-priced pool: Dart R2, Jeanty R2, Hampton R3, McMillan R4,
+  Egbuka R5, Ward/Judkins/Warren/Henderson R6, RJ Harvey R9.
 - Market screen: MODEL vs THE ROOM'S PAPER is the edge (truth #7); edges
   carry reach% (survival to Brian's seat) — Bowers top reachable edge.
 - Pick Squeeze: bump rule (truth #5) + negative-tail curve ⇒ keeper

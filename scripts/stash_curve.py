@@ -416,6 +416,93 @@ def keeper_regression_tax() -> dict[str, float]:
 
 # ----------------------------------------------------------- fragment
 
+def young_player_book() -> dict:
+    """Grade every Sleeper-era draft pick by career-stage scenario
+    (excess vs round-cohort mean), plus per-owner rookie strategy
+    grades. The Rookie/Young Book (user-prompted, Jul 2026)."""
+    import glob
+    from collections import defaultdict
+    from statistics import mean
+    from scripts import fetch_backtest_data
+    fetch_backtest_data.main()
+
+    rookie_year = {}
+    for season in (2023, 2024, 2025):
+        for r in json.loads((ROOT / f"data/backtest/proj_{season}.json").read_text()):
+            ry = ((r.get("player") or {}).get("metadata") or {}).get("rookie_year")
+            if ry:
+                rookie_year[r["player_id"]] = int(ry)
+    actual: dict[int, dict[str, float]] = {}
+    wk22 = json.loads((ROOT / "data/scouting/stats/stats_2022.json").read_text())
+    m22: dict[str, float] = defaultdict(float)
+    for w, players in wk22.items():
+        if w == "_meta":
+            continue
+        for pid, rec in players.items():
+            pts = rec.get("pts_half_ppr")
+            if pts is None:
+                pts = (rec.get("pts_ppr") or 0) - 0.5 * (rec.get("rec") or 0)
+            m22[pid] += float(pts)
+    actual[2022] = dict(m22)
+    for season in (2023, 2024, 2025):
+        actual[season] = {
+            r["player_id"]: float(r["stats"]["pts_half_ppr"])
+            for r in json.loads((ROOT / f"data/backtest/stats_{season}.json").read_text())
+            if (r.get("stats") or {}).get("pts_half_ppr") is not None}
+
+    ident = json.loads((ROOT / "data/team_identity.json").read_text())
+    rid_mid = {rec["sleeper_roster_id"]: mid
+               for mid, rec in ident["managers"].items()
+               if rec.get("sleeper_roster_id")}
+    rid_of = {s: dict(rid_mid) for s in (2023, 2024, 2025)}
+    rid_of[2023][10] = rid_of[2024][10] = "dave_aka_wang"
+    rid_of[2025][10] = "josh_wildboy"
+
+    cells = defaultdict(lambda: {"excess": [], "hits": 0})
+    owners = defaultdict(lambda: {"excess": [], "hits": 0, "rounds": []})
+    for d in sorted(glob.glob(str(ROOT / "data/sleeper/league_*"))):
+        season = int(json.loads(open(d + "/league.json").read())["season"])
+        picks = json.loads(open(glob.glob(d + "/draft_*_picks.json")[0]).read())
+        live = [pk for pk in picks if not (
+            (pk.get("metadata") or {}).get("is_keeper") or pk.get("is_keeper"))]
+        by_round = defaultdict(list)
+        for pk in live:
+            by_round[pk["round"]].append(actual[season].get(pk["player_id"], 0.0))
+        rmean = {r: mean(v) for r, v in by_round.items()}
+        for pk in live:
+            pid = pk["player_id"]
+            ry = rookie_year.get(pid)
+            if ry is None:
+                continue
+            yrs = season - ry
+            prior = actual.get(season - 1, {}).get(pid, 0.0)
+            cls = ("ROOKIE" if yrs == 0 else
+                   ("YR2_PRICED" if prior >= 100 else "YR2_POSTHYPE")
+                   if yrs == 1 else "YR3" if yrs == 2 else "VET")
+            ex = actual[season].get(pid, 0.0) - rmean[pk["round"]]
+            cells[cls]["excess"].append(ex)
+            cells[cls]["hits"] += int(ex > 0)
+            if cls == "ROOKIE":
+                o = owners[rid_of[season].get(pk["roster_id"], "?")]
+                o["excess"].append(ex)
+                o["hits"] += int(ex > 0)
+                o["rounds"].append(pk["round"])
+    return {
+        "cells": {c: {"n": len(v["excess"]),
+                      "excess_per_pick": round(mean(v["excess"]), 1),
+                      "hit_pct": round(v["hits"] / len(v["excess"]) * 100)}
+                  for c, v in cells.items() if v["excess"]},
+        "rookie_owners": {mid: {"n": len(v["excess"]),
+                                "avg_round": round(mean(v["rounds"]), 1),
+                                "excess_per_pick": round(mean(v["excess"]), 1),
+                                "hit_pct": round(v["hits"] / len(v["excess"]) * 100)}
+                          for mid, v in sorted(
+                              owners.items(),
+                              key=lambda kv: -mean(kv[1]["excess"]))
+                          if v["excess"]},
+    }
+
+
 def build_fragment(res: dict, board: list[dict]) -> str:
     e = _html.escape
 
@@ -528,8 +615,65 @@ longer free — it is a lottery ticket with a measured league-own premium.
 Stash candidates use the CEILING-mode breakout proxy (expert disagreement
 + youth) and the Monte-Carlo survival quantiles.</p>
 {tier_block}
+{young_block(res)}
 </section>
 """
+
+
+CELL_LABELS = [
+    ("ROOKIE", "Rookies (yr 0)"),
+    ("YR2_POSTHYPE", "Yr-2 post-hype (rookie yr flopped)"),
+    ("YR2_PRICED", "Yr-2 priced (rookie yr hit 100+)"),
+    ("YR3", "Yr-3 (the folklore breakout window)"),
+    ("VET", "Veterans (4+ yrs)"),
+]
+
+
+def young_block(res: dict) -> str:
+    yb = res.get("young_book")
+    if not yb:
+        return ""
+    cell_rows = "".join(
+        f'<tr><td>{label}</td><td class="ml-num">{c["n"]}</td>'
+        f'<td class="ml-num">{c["excess_per_pick"]:+.1f}</td>'
+        f'<td class="ml-num">{c["hit_pct"]}%</td></tr>'
+        for key, label in CELL_LABELS
+        if (c := yb["cells"].get(key)))
+    own_rows = "".join(
+        f'<tr><td>{mid}</td><td class="ml-num">{o["n"]}</td>'
+        f'<td class="ml-num">{o["avg_round"]}</td>'
+        f'<td class="ml-num">{o["excess_per_pick"]:+.1f}</td>'
+        f'<td class="ml-num">{o["hit_pct"]}%</td></tr>'
+        for mid, o in yb["rookie_owners"].items())
+    return f"""
+<div class="ml-h-label">The Rookie &amp; Young Player Book — career-stage
+scenarios, graded vs the round they cost (Sleeper-era drafts)</div>
+<table class="ml-table ml-table--compact">
+<thead><tr><th>Scenario</th><th class="ml-num">n</th>
+<th class="ml-num">Excess/pick</th><th class="ml-num">Hit</th></tr></thead>
+<tbody>{cell_rows}</tbody></table>
+<p><strong>Production is the signal; youth is not.</strong> The only
+young players who beat their price already produced — and the market
+UNDER-escalates them (yr-2 priced, the best young cell). The folklore
+trades fail: post-hype dip-buying grades WORSE than drafting rookies
+(the discount is never deep enough), and the yr-3 breakout window is a
+null. Rookies are a tax bought for the 2027 keeper option priced above —
+draft them where the option premium covers the tax (R10+), or in the
+R5-9 value zone only when one falls.</p>
+<table class="ml-table ml-table--compact">
+<thead><tr><th>Owner rookie record</th><th class="ml-num">Picks</th>
+<th class="ml-num">Avg rd</th><th class="ml-num">Excess/pick</th>
+<th class="ml-num">Hit</th></tr></thead>
+<tbody>{own_rows}</tbody></table>
+<p class="ml-fineprint">Excess = actual half-PPR points minus the mean
+of ALL players drafted in the same round that season — "did this pick
+beat the one you passed on". Keepers excluded. Only ankur grades
+positive on rookies: few picks, R5-9, only fallen values — selection,
+not volume. Every rookie&rarr;kept-next-year conversion in the sample
+came from R9-R14, the ring-fuel pattern (Puka R13 / ARSB R13 / McBride
+R15). Young-producers-who-changed-teams: n=4, no verdict — price the
+scheme half with the Coaching Tape (XIII). Three drafts of data; cells
+are directional, not laws.</p>"""
 
 
 # ---------------------------------------------------------------- main
@@ -539,6 +683,7 @@ def main() -> None:
     board = brian_stash_board(res["option_values"])
     res["brian_stash_board"] = board
     res["keeper_tiers"] = keeper_tier_analysis()
+    res["young_book"] = young_player_book()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     CURVE_JSON.write_text(json.dumps(res, indent=2))
     (OUT_DIR / "stash_curve.html").write_text(build_fragment(res, board))

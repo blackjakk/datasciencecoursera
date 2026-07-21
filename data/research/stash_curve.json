@@ -584,5 +584,108 @@
       "TE": 24.6
     },
     "formula": "keeper value \u2248 locked discount (blind-curve pts) \u2212 regression tax (QB 0 \u00b7 RB 14 \u00b7 WR 14 \u00b7 TE 25); keep only if clearly positive"
+  },
+  "young_book": {
+    "cells": {
+      "VET": {
+        "n": 309,
+        "excess_per_pick": 5.7,
+        "hit_pct": 50
+      },
+      "ROOKIE": {
+        "n": 90,
+        "excess_per_pick": -18.7,
+        "hit_pct": 33
+      },
+      "YR3": {
+        "n": 64,
+        "excess_per_pick": -4.1,
+        "hit_pct": 42
+      },
+      "YR2_PRICED": {
+        "n": 42,
+        "excess_per_pick": 4.3,
+        "hit_pct": 55
+      },
+      "YR2_POSTHYPE": {
+        "n": 32,
+        "excess_per_pick": -20.5,
+        "hit_pct": 41
+      }
+    },
+    "rookie_owners": {
+      "ankur_patel": {
+        "n": 6,
+        "avg_round": 5.5,
+        "excess_per_pick": 19.1,
+        "hit_pct": 67
+      },
+      "trevor_bergerboy": {
+        "n": 8,
+        "avg_round": 10.1,
+        "excess_per_pick": -3.0,
+        "hit_pct": 38
+      },
+      "tim_breswick": {
+        "n": 10,
+        "avg_round": 10.2,
+        "excess_per_pick": -5.4,
+        "hit_pct": 50
+      },
+      "eric_m": {
+        "n": 11,
+        "avg_round": 11.7,
+        "excess_per_pick": -10.9,
+        "hit_pct": 45
+      },
+      "josh_wildboy": {
+        "n": 1,
+        "avg_round": 4,
+        "excess_per_pick": -14.3,
+        "hit_pct": 0
+      },
+      "brower_barry": {
+        "n": 14,
+        "avg_round": 12.1,
+        "excess_per_pick": -15.5,
+        "hit_pct": 29
+      },
+      "dave_aka_wang": {
+        "n": 5,
+        "avg_round": 7,
+        "excess_per_pick": -18.4,
+        "hit_pct": 40
+      },
+      "brian_bigguap": {
+        "n": 8,
+        "avg_round": 9.4,
+        "excess_per_pick": -22.2,
+        "hit_pct": 25
+      },
+      "coop": {
+        "n": 7,
+        "avg_round": 9.4,
+        "excess_per_pick": -24.1,
+        "hit_pct": 29
+      },
+      "kyle_figgy": {
+        "n": 6,
+        "avg_round": 11.7,
+        "excess_per_pick": -43.1,
+        "hit_pct": 17
+      },
+      "donnie": {
+        "n": 10,
+        "avg_round": 9.9,
+        "excess_per_pick": -48.1,
+        "hit_pct": 10
+      },
+      "lem": {
+        "n": 4,
+        "avg_round": 8.8,
+        "excess_per_pick": -48.1,
+        "hit_pct": 25
+      }
+    }
   }
 }
