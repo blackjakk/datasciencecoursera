@@ -487,6 +487,13 @@ def young_player_book() -> dict:
                 o["excess"].append(ex)
                 o["hits"] += int(ex > 0)
                 o["rounds"].append(pk["round"])
+                # band split (user-caught: early rookies carry a ROLE
+                # floor; the tax concentrates in the R5-8 hype zone)
+                band = ("R1-4" if pk["round"] <= 4 else
+                        "R5-8" if pk["round"] <= 8 else
+                        "R9-12" if pk["round"] <= 12 else "R13-17")
+                cells[f"ROOKIE_{band}"]["excess"].append(ex)
+                cells[f"ROOKIE_{band}"]["hits"] += int(ex > 0)
     return {
         "cells": {c: {"n": len(v["excess"]),
                       "excess_per_pick": round(mean(v["excess"]), 1),
@@ -621,7 +628,11 @@ Stash candidates use the CEILING-mode breakout proxy (expert disagreement
 
 
 CELL_LABELS = [
-    ("ROOKIE", "Rookies (yr 0)"),
+    ("ROOKIE", "Rookies (yr 0, all rounds)"),
+    ("ROOKIE_R1-4", "&nbsp;&nbsp;&middot; rookies R1-4 (role-guaranteed)"),
+    ("ROOKIE_R5-8", "&nbsp;&nbsp;&middot; rookies R5-8 (the hype zone)"),
+    ("ROOKIE_R9-12", "&nbsp;&nbsp;&middot; rookies R9-12"),
+    ("ROOKIE_R13-17", "&nbsp;&nbsp;&middot; rookies R13-17 (option darts)"),
     ("YR2_POSTHYPE", "Yr-2 post-hype (rookie yr flopped)"),
     ("YR2_PRICED", "Yr-2 priced (rookie yr hit 100+)"),
     ("YR3", "Yr-3 (the folklore breakout window)"),
@@ -657,9 +668,12 @@ young players who beat their price already produced — and the market
 UNDER-escalates them (yr-2 priced, the best young cell). The folklore
 trades fail: post-hype dip-buying grades WORSE than drafting rookies
 (the discount is never deep enough), and the yr-3 breakout window is a
-null. Rookies are a tax bought for the 2027 keeper option priced above —
-draft them where the option premium covers the tax (R10+), or in the
-R5-9 value zone only when one falls.</p>
+null. The rookie tax is NOT uniform (user-caught): R1-4 rookies carry a
+guaranteed ROLE and grade market-fair with an 8% bust rate — the bleed
+concentrates in the R5-8 hype zone (real draft capital, no guaranteed
+volume), and R9+ darts are purchases of the 2027 keeper option priced
+above. Rules: R1-4 rookies fine at market; R5-8 only when one FALLS to
+clear value (the ankur filter); R10+ darts on purpose.</p>
 <table class="ml-table ml-table--compact">
 <thead><tr><th>Owner rookie record</th><th class="ml-num">Picks</th>
 <th class="ml-num">Avg rd</th><th class="ml-num">Excess/pick</th>

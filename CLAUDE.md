@@ -158,8 +158,18 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   positive (+19/pick, 67%, few picks R5-9 fallen-value selection —
   mimic that); eric volume-negative but 2 keeper conversions; donnie
   worst (−48, 10%). ALL 6 rookie→kept-next-yr conversions came R9-R14
-  (ring-fuel pattern). Doctrine: no rookie gambles before R5; R5-9
-  only fallen values; R10+ darts as 2027 option purchases. 2026
+  (ring-fuel pattern). BAND SPLIT (user-caught: early rookies carry a
+  guaranteed ROLE): R1-4 rookies +2.4/pick, 8% bust = market-fair
+  floor; the tax concentrates in R5-8 (−23.3, the hype zone) and
+  R13-17 (−29.8, priced as option darts). Doctrine: R1-4 fine at
+  market; R5-8 only fallen values (the ankur filter); R10+ darts as
+  2027 option purchases. Waiver corollary (chat-level, Jul 21): 30
+  drafted rookies were CUT by their owners, median W2, 75% by W5;
+  breakouts land median 2 wks post-drop — wire-watch W3-8 for R9+
+  rookie cuts (Monangai W5-cut→Tim-scoop→keeper = the jackpot; R15
+  waiver-keep rule makes every scoop an option buy); early-round
+  rookie frustration exits by TRADE not waiver (Daniels W9'24 to
+  Brian — his textbook elite-buy). 2026
   yr-2-priced pool: Dart R2, Jeanty R2, Hampton R3, McMillan R4,
   Egbuka R5, Ward/Judkins/Warren/Henderson R6, RJ Harvey R9.
 - Market screen: MODEL vs THE ROOM'S PAPER is the edge (truth #7); edges

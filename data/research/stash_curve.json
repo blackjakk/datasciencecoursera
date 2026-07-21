@@ -266,7 +266,7 @@
           "name": "Jonathon Brooks",
           "pos": "RB",
           "stash": 1.0,
-          "survival": 0.75,
+          "survival": 0.76,
           "adp": 129.5,
           "keeper_cost": "R8"
         },
@@ -275,7 +275,7 @@
           "pos": "RB",
           "stash": 1.0,
           "survival": 1.0,
-          "adp": 163.3,
+          "adp": 163.1,
           "keeper_cost": "R8"
         }
       ]
@@ -297,15 +297,15 @@
           "name": "Denzel Boston",
           "pos": "WR",
           "stash": 1.0,
-          "survival": 0.55,
-          "adp": 167.6,
+          "survival": 0.57,
+          "adp": 167.8,
           "keeper_cost": "R9"
         },
         {
           "name": "Jalen McMillan",
           "pos": "WR",
           "stash": 1.0,
-          "survival": 0.68,
+          "survival": 0.7,
           "adp": 171.8,
           "keeper_cost": "R9"
         }
@@ -320,7 +320,7 @@
           "name": "Travis Hunter",
           "pos": "WR",
           "stash": 1.0,
-          "survival": 0.52,
+          "survival": 0.54,
           "adp": 175.8,
           "keeper_cost": "R10"
         },
@@ -382,7 +382,7 @@
           "name": "Troy Franklin",
           "pos": "WR",
           "stash": 1.0,
-          "survival": 0.7,
+          "survival": 0.64,
           "adp": 192.8,
           "keeper_cost": "R12"
         },
@@ -444,7 +444,7 @@
           "name": "Terrance Ferguson",
           "pos": "TE",
           "stash": 1.0,
-          "survival": 0.8,
+          "survival": 0.79,
           "adp": 214.9,
           "keeper_cost": "R14"
         },
@@ -597,6 +597,11 @@
         "excess_per_pick": -18.7,
         "hit_pct": 33
       },
+      "ROOKIE_R1-4": {
+        "n": 12,
+        "excess_per_pick": 2.4,
+        "hit_pct": 50
+      },
       "YR3": {
         "n": 64,
         "excess_per_pick": -4.1,
@@ -607,10 +612,25 @@
         "excess_per_pick": 4.3,
         "hit_pct": 55
       },
+      "ROOKIE_R5-8": {
+        "n": 23,
+        "excess_per_pick": -23.3,
+        "hit_pct": 35
+      },
       "YR2_POSTHYPE": {
         "n": 32,
         "excess_per_pick": -20.5,
         "hit_pct": 41
+      },
+      "ROOKIE_R9-12": {
+        "n": 25,
+        "excess_per_pick": -11.4,
+        "hit_pct": 36
+      },
+      "ROOKIE_R13-17": {
+        "n": 30,
+        "excess_per_pick": -29.8,
+        "hit_pct": 23
       }
     },
     "rookie_owners": {
