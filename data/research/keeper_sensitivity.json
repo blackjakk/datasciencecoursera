@@ -4,7 +4,7 @@
   "max_flips": 10,
   "baseline_mean": 2048.3,
   "identity_check_max_diff": 0.0,
-  "runtime_seconds": 234.6,
+  "runtime_seconds": 246.8,
   "flips": [
     {
       "rival": "kyle_figgy",
