@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-18",
+  "generated": "2026-07-21",
   "backtest": {
     "classes": {
       "CONTINUITY": {
@@ -81,7 +81,7 @@
         {
           "name": "Jeremiyah Love",
           "pos": "RB",
-          "adp_round": 4.3
+          "adp_round": 4.4
         },
         {
           "name": "Jacoby Brissett",
@@ -137,7 +137,7 @@
         {
           "name": "Malik Willis",
           "pos": "QB",
-          "adp_round": 4.6
+          "adp_round": 4.7
         }
       ]
     },
@@ -148,13 +148,13 @@
       "to": "Reich (OTH)",
       "players": [
         {
-          "name": "Garrett Wilson",
-          "pos": "WR",
+          "name": "Breece Hall",
+          "pos": "RB",
           "adp_round": 4.7
         },
         {
-          "name": "Breece Hall",
-          "pos": "RB",
+          "name": "Garrett Wilson",
+          "pos": "WR",
           "adp_round": 4.7
         },
         {
@@ -183,12 +183,12 @@
         {
           "name": "Jadarian Price",
           "pos": "RB",
-          "adp_round": 7.4
+          "adp_round": 7.5
         },
         {
           "name": "Zach Charbonnet",
           "pos": "RB",
-          "adp_round": 12.2
+          "adp_round": 12.3
         }
       ]
     },
@@ -206,7 +206,7 @@
         {
           "name": "Derrick Henry",
           "pos": "RB",
-          "adp_round": 3.2
+          "adp_round": 3.3
         },
         {
           "name": "Zay Flowers",
@@ -252,12 +252,12 @@
         {
           "name": "Bo Nix",
           "pos": "QB",
-          "adp_round": 2.2
+          "adp_round": 2.1
         },
         {
           "name": "Jaylen Waddle",
           "pos": "WR",
-          "adp_round": 5.1
+          "adp_round": 5.0
         },
         {
           "name": "Courtland Sutton",
@@ -267,7 +267,7 @@
         {
           "name": "RJ Harvey",
           "pos": "RB",
-          "adp_round": 9.0
+          "adp_round": 9.1
         }
       ]
     },
@@ -295,7 +295,7 @@
         {
           "name": "Jameson Williams",
           "pos": "WR",
-          "adp_round": 6.0
+          "adp_round": 6.1
         }
       ]
     },
@@ -313,7 +313,7 @@
         {
           "name": "Omarion Hampton",
           "pos": "RB",
-          "adp_round": 3.1
+          "adp_round": 2.9
         },
         {
           "name": "Ladd McConkey",
@@ -346,7 +346,7 @@
         {
           "name": "Fernando Mendoza",
           "pos": "QB",
-          "adp_round": 9.6
+          "adp_round": 9.5
         }
       ]
     },
@@ -364,7 +364,7 @@
         {
           "name": "Malik Nabers",
           "pos": "WR",
-          "adp_round": 5.0
+          "adp_round": 5.2
         },
         {
           "name": "Cam Skattebo",
@@ -374,7 +374,7 @@
         {
           "name": "Isaiah Likely",
           "pos": "TE",
-          "adp_round": 11.1
+          "adp_round": 10.9
         }
       ]
     },
@@ -415,17 +415,17 @@
         {
           "name": "Jaylen Warren",
           "pos": "RB",
-          "adp_round": 7.6
+          "adp_round": 7.7
         },
         {
           "name": "DK Metcalf",
           "pos": "WR",
-          "adp_round": 8.1
+          "adp_round": 8.2
         },
         {
           "name": "Rico Dowdle",
           "pos": "RB",
-          "adp_round": 8.4
+          "adp_round": 8.5
         },
         {
           "name": "Aaron Rodgers",
@@ -453,7 +453,7 @@
         {
           "name": "Tony Pollard",
           "pos": "RB",
-          "adp_round": 8.1
+          "adp_round": 8.0
         },
         {
           "name": "Wan'Dale Robinson",
@@ -471,17 +471,17 @@
         {
           "name": "Jayden Daniels",
           "pos": "QB",
-          "adp_round": 0.6
+          "adp_round": 0.5
         },
         {
           "name": "Terry McLaurin",
           "pos": "WR",
-          "adp_round": 5.4
+          "adp_round": 5.3
         },
         {
           "name": "Rachaad White",
           "pos": "RB",
-          "adp_round": 10.1
+          "adp_round": 10.0
         },
         {
           "name": "Jacory Croskey-Merritt",
