@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-21",
+  "generated": "2026-07-22",
   "backtest": {
     "classes": {
       "CONTINUITY": {
@@ -81,7 +81,7 @@
         {
           "name": "Jeremiyah Love",
           "pos": "RB",
-          "adp_round": 4.4
+          "adp_round": 4.3
         },
         {
           "name": "Jacoby Brissett",
@@ -148,19 +148,19 @@
       "to": "Reich (OTH)",
       "players": [
         {
-          "name": "Breece Hall",
-          "pos": "RB",
-          "adp_round": 4.7
-        },
-        {
           "name": "Garrett Wilson",
           "pos": "WR",
           "adp_round": 4.7
         },
         {
+          "name": "Breece Hall",
+          "pos": "RB",
+          "adp_round": 4.7
+        },
+        {
           "name": "Geno Smith",
           "pos": "QB",
-          "adp_round": 8.7
+          "adp_round": 8.8
         }
       ]
     },
@@ -183,12 +183,12 @@
         {
           "name": "Jadarian Price",
           "pos": "RB",
-          "adp_round": 7.5
+          "adp_round": 7.4
         },
         {
           "name": "Zach Charbonnet",
           "pos": "RB",
-          "adp_round": 12.3
+          "adp_round": 12.2
         }
       ]
     },
@@ -262,12 +262,12 @@
         {
           "name": "Courtland Sutton",
           "pos": "WR",
-          "adp_round": 8.3
+          "adp_round": 8.4
         },
         {
           "name": "RJ Harvey",
           "pos": "RB",
-          "adp_round": 9.1
+          "adp_round": 9.0
         }
       ]
     },
@@ -308,12 +308,12 @@
         {
           "name": "Justin Herbert",
           "pos": "QB",
-          "adp_round": 1.0
+          "adp_round": 0.9
         },
         {
           "name": "Omarion Hampton",
           "pos": "RB",
-          "adp_round": 3.0
+          "adp_round": 2.9
         },
         {
           "name": "Ladd McConkey",
@@ -425,7 +425,7 @@
         {
           "name": "Rico Dowdle",
           "pos": "RB",
-          "adp_round": 8.4
+          "adp_round": 8.5
         },
         {
           "name": "Aaron Rodgers",
@@ -481,7 +481,7 @@
         {
           "name": "Rachaad White",
           "pos": "RB",
-          "adp_round": 10.0
+          "adp_round": 10.1
         },
         {
           "name": "Jacory Croskey-Merritt",
