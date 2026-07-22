@@ -31,8 +31,12 @@ MY_ROSTER_ID = 9
 
 # players per position column (shrink ladder trims these)
 DEPTH = {"QB": 32, "RB": 62, "WR": 68, "TE": 26}
-# VBD drop between consecutive players that opens a new tier
+# VBD drop between consecutive players that opens a new tier (a cliff),
+# plus a band cap: a tier also closes once it spans this much VBD top to
+# bottom — gap-only tiering never breaks on smooth slopes, which
+# collapsed the back half of every column into one mega-tier.
 TIER_GAP = {"QB": 22, "RB": 18, "WR": 16, "TE": 14}
+TIER_BAND = {"QB": 42, "RB": 34, "WR": 30, "TE": 26}
 
 MISSING: list[str] = []
 
@@ -99,11 +103,15 @@ def build_html(font_pt: float, depth_scale: float) -> str:
     def rows(pos: str) -> str:
         out, tier = [], 1
         lst = pools[pos][: int(DEPTH[pos] * depth_scale)]
-        prev_vbd = None
+        prev_vbd = tier_top = None
         for p in lst:
             vbd = p.get("vbd") or 0.0
-            if prev_vbd is not None and prev_vbd - vbd >= TIER_GAP[pos]:
+            if tier_top is None:
+                tier_top = vbd
+            elif (prev_vbd - vbd >= TIER_GAP[pos]
+                    or tier_top - vbd >= TIER_BAND[pos]):
                 tier += 1
+                tier_top = vbd
                 out.append(f'<tr class="tier"><td colspan="7">'
                            f"TIER {tier}</td></tr>")
             prev_vbd = vbd
