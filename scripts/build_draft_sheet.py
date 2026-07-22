@@ -59,7 +59,12 @@ def build_html(font_pt: float, depth_scale: float) -> str:
     keepers = load_json(ROOT / "data/keepers_2026.json") or []
     screen = load_json(ROOT / "data/research/market_screen.json") or {}
     fp = load_json(ROOT / "data/rankings_fantasypros.json") or {}
-    bye_of = {p["name"]: p.get("bye") for p in fp.get("players", [])}
+    # byes are TEAM-level — a name-join missed variants and deep players
+    team_bye: dict[str, str] = {}
+    for p in fp.get("players", []):
+        if p.get("team") and p.get("bye"):
+            team_bye.setdefault(p["team"], p["bye"])
+    team_bye["JAX"] = team_bye.get("JAX") or team_bye.get("JAC")
     nfl_draft = (load_json(ROOT / "data/nfl_draft_2026.json") or {}).get("rounds", {})
 
     def _norm(s: str) -> str:
@@ -74,25 +79,6 @@ def build_html(font_pt: float, depth_scale: float) -> str:
     mvp = screen.get("model_vs_paper") or {}
     sleep = {r["name"] for r in mvp.get("sheets_sleep") or []}
     love = {r["name"] for r in mvp.get("sheets_love") or []}
-
-    # ---- Brian's picks strip (keeper-consumed rounds parenthesised) ----
-    managers = helper.get("managers") or []
-    me = next((m for m in managers if m.get("roster_id") == MY_ROSTER_ID), None)
-    keeper_rounds = {k.get("effective_forfeit_round") or k.get("forfeit_round")
-                     for k in keepers
-                     if k.get("roster_id") == MY_ROSTER_ID
-                     and k.get("status") == "carryover"}
-    picks_line = ""
-    if me and helper.get("schedule"):
-        parts = []
-        for s in helper["schedule"]:
-            if s["team_idx"] != me["team_idx"]:
-                continue
-            n = f'#{s["overall"]}'
-            parts.append(f"({n})" if s["round"] in keeper_rounds else n)
-        picks_line = " ".join(parts)
-    else:
-        MISSING.append("draft schedule (roster 9)")
 
     # ---- position pools ----
     pools: dict[str, list[dict]] = {p: [] for p in DEPTH}
@@ -152,7 +138,7 @@ def build_html(font_pt: float, depth_scale: float) -> str:
                 rk += ' <span class="kp">K?</span>'
             stash = ("★" if adp >= 108 and (p.get("stash") or 0) >= 0.5
                      else "")
-            bye = bye_of.get(p["name"])
+            bye = team_bye.get(p.get("team") or "")
             out.append(
                 f'<tr><td class="ml-num">R{our_r}</td>'
                 f'<td class="nm">{esc(p["name"])}{rk}</td>'
@@ -207,17 +193,15 @@ def build_html(font_pt: float, depth_scale: float) -> str:
         "THE DRAFT SHEET",
         "the league board · tiers by VBD cliff · potential keepers marked · "
         f"generated {date.today():%b %d, %Y}", compact=True))
-    if picks_line:
-        h.append('<div class="ml-banner picks">'
-                 '<span class="ml-h-label">MY PICKS · SEAT 6</span>'
-                 f'<span class="ml-num">{esc(picks_line)}</span>'
-                 '<span class="ml-fineprint">(#) = keeper-consumed · '
-                 'cols: mkt round · name · team · bye · proj · VBD · '
-                 '▲ paper sleeps / ▼ paper overpays · ★ R9+ option dart '
-                 '(2027 keeper stash) · <span class="rk">RK#</span> = '
-                 'rookie, NFL draft round (bare RK = UDFA/unknown) · '
-                 '<span class="kp">K?</span> = potential keeper '
-                 '(predicted; final at lock)</span></div>')
+    h.append('<div class="ml-banner picks">'
+             '<span class="ml-h-label">LEGEND</span>'
+             '<span class="ml-fineprint">'
+             'cols: mkt round · name · team · bye · proj · VBD · '
+             '▲ paper sleeps / ▼ paper overpays · ★ R9+ option dart '
+             '(2027 keeper stash) · <span class="rk">RK#</span> = '
+             'rookie, NFL draft round (bare RK = UDFA/unknown) · '
+             '<span class="kp">K?</span> = potential keeper '
+             '(predicted; final at lock)</span></div>')
     h.append('<div class="cols">')
     for pos, label in (("QB", "QUARTERBACKS (2 by R6 — the room exploit)"),
                        ("RB", "RUNNING BACKS"),
