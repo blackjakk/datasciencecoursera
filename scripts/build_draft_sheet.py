@@ -98,8 +98,6 @@ def build_html(font_pt: float, depth_scale: float) -> str:
     pools: dict[str, list[dict]] = {p: [] for p in DEPTH}
     kdst: list[dict] = []
     for p in helper.get("players") or []:
-        if p.get("name") in kept:
-            continue
         pos = p.get("pos")
         if pos in pools:
             pools[pos].append(p)
@@ -150,6 +148,8 @@ def build_html(font_pt: float, depth_scale: float) -> str:
                 nfl_r = nfl_draft.get(_norm(p["name"]))
                 rk = (f' <span class="rk">RK{nfl_r}</span>' if nfl_r
                       else ' <span class="rk">RK</span>')
+            if p["name"] in kept:
+                rk += ' <span class="kp">K?</span>'
             stash = ("★" if adp >= 108 and (p.get("stash") or 0) >= 0.5
                      else "")
             bye = bye_of.get(p["name"])
@@ -189,6 +189,10 @@ def build_html(font_pt: float, depth_scale: float) -> str:
            letter-spacing: .5px; color: var(--ml-accent);
            border: 1px solid var(--ml-border-strong);
            border-radius: 2px; padding: 0 2px; }}
+    .kp {{ font-size: {max(font_pt - 1.4, 4.6):.1f}pt; font-weight: 700;
+           letter-spacing: .5px; color: var(--ml-warn);
+           border: 1px solid var(--ml-border-strong);
+           border-radius: 2px; padding: 0 2px; }}
     .tier td {{ border-top: 1px solid var(--ml-border-strong);
                 color: var(--ml-muted); font-size: {max(font_pt - 1, 5):.1f}pt;
                 letter-spacing: 1px; padding-top: 1px; }}
@@ -201,7 +205,7 @@ def build_html(font_pt: float, depth_scale: float) -> str:
 
     h.append(bpr.banknote_masthead(
         "THE DRAFT SHEET",
-        "the board · tiers by VBD cliff · keepers stripped · "
+        "the league board · tiers by VBD cliff · potential keepers marked · "
         f"generated {date.today():%b %d, %Y}", compact=True))
     if picks_line:
         h.append('<div class="ml-banner picks">'
@@ -211,8 +215,9 @@ def build_html(font_pt: float, depth_scale: float) -> str:
                  'cols: mkt round · name · team · bye · proj · VBD · '
                  '▲ paper sleeps / ▼ paper overpays · ★ R9+ option dart '
                  '(2027 keeper stash) · <span class="rk">RK#</span> = '
-                 'rookie, NFL draft round (bare RK = UDFA/unknown)'
-                 '</span></div>')
+                 'rookie, NFL draft round (bare RK = UDFA/unknown) · '
+                 '<span class="kp">K?</span> = potential keeper '
+                 '(predicted; final at lock)</span></div>')
     h.append('<div class="cols">')
     for pos, label in (("QB", "QUARTERBACKS (2 by R6 — the room exploit)"),
                        ("RB", "RUNNING BACKS"),
@@ -229,8 +234,9 @@ def build_html(font_pt: float, depth_scale: float) -> str:
 
     gen = (f"Generated {date.today():%b %d, %Y} · rounds = market ADP; "
            "tiers break on VBD cliffs (draft the tier, not the name); "
-           "▲/▼ from the model-vs-paper screen; predicted keepers "
-           "excluded — regenerates at keeper lock")
+           "▲/▼ from the model-vs-paper screen; K? = predicted keeper "
+           "(likely off the board) — regenerates at keeper lock with "
+           "actual declarations")
     if MISSING:
         gen += " · missing at build: " + "; ".join(sorted(set(MISSING)))
     h.append(bpr.banknote_fineprint(gen))
@@ -262,7 +268,7 @@ def page_count(path: Path) -> int | None:
 
 
 def main() -> None:
-    attempts = [(6.6, 1.0), (6.0, 0.9), (5.6, 0.78)]
+    attempts = [(6.6, 1.0), (6.0, 0.9), (5.6, 0.78), (5.2, 0.68)]
     n_pages = None
     for font_pt, scale in attempts:
         MISSING.clear()
