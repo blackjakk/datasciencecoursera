@@ -356,8 +356,11 @@ def page_count(path: Path) -> int | None:
 
 
 def main() -> None:
-    # Shrink ladder: (font pt, max bias chips per rival, sleep rows)
-    attempts = [(7.4, 4, 8), (6.8, 3, 8), (6.2, 2, 6)]
+    # Size ladder: START LARGE and shrink only if needed — the old
+    # 7.4pt first rung left the bottom 40% of the page empty (formatting
+    # audit, Jul 2026). (font pt, max bias chips per rival, sleep rows)
+    attempts = [(9.6, 4, 10), (8.8, 4, 9), (8.0, 4, 8),
+                (7.4, 4, 8), (6.8, 3, 8), (6.2, 2, 6)]
     n_pages = None
     for font_pt, max_bits, sleep_rows in attempts:
         MISSING.clear()

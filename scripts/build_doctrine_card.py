@@ -289,7 +289,9 @@ def page_count(path: Path) -> int | None:
 
 
 def main() -> None:
-    attempts = [(7.4, 6), (6.8, 5), (6.2, 4)]   # (font pt, board rows)
+    # start large, shrink only if needed (audit: 7.4pt under-filled the
+    # page by ~35%)  (font pt, board rows)
+    attempts = [(9.4, 6), (8.6, 6), (7.8, 6), (7.4, 6), (6.8, 5), (6.2, 4)]
     n_pages = None
     for font_pt, n_targets in attempts:
         MISSING.clear()

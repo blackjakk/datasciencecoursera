@@ -114,6 +114,9 @@ def banknote_css() -> str:
                   color: var(--ml-text); margin: 6px 0 0; }
     .bn-sub { color: var(--ml-muted); margin: 5px 0 0; }
     .bn-mast--compact { padding: 7px 12px 6px; margin-bottom: 6px; }
+    /* compact band is too short for the top-left rosette — it clips
+       into a dark wedge over the title (formatting audit, Jul 2026) */
+    .bn-mast--compact .bn-corner--tl { display: none; }
     .bn-mast--compact .bn-league { font-size: 7.5pt; letter-spacing: 2px; }
     .bn-mast--compact h1 { margin: 1px 0 0; }
     .bn-mast--compact .bn-sub { margin: 1px 0 0; }

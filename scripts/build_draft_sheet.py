@@ -236,9 +236,12 @@ def render(html: str, out: Path) -> None:
         page = b.new_context(viewport={"width": 1400, "height": 1000}).new_page()
         page.set_content(html, wait_until="networkidle")
         page.evaluate("document.fonts.ready")
+        # 0.3in margins: most physical printers cannot print inside
+        # ~0.25in of the edge — tighter margins print clipped or spill
+        # to a second sheet even though the PDF is "one page".
         page.pdf(path=str(out), format="Letter", landscape=True,
-                 margin={"top": "0.18in", "bottom": "0.18in",
-                         "left": "0.22in", "right": "0.22in"},
+                 margin={"top": "0.3in", "bottom": "0.3in",
+                         "left": "0.3in", "right": "0.3in"},
                  print_background=True)
         b.close()
 
@@ -252,7 +255,9 @@ def page_count(path: Path) -> int | None:
 
 
 def main() -> None:
-    attempts = [(6.6, 1.0), (6.0, 0.9), (5.6, 0.78), (5.2, 0.68)]
+    # font floor 5.5pt — below that print is unreadable; trim depth
+    # instead of shrinking further
+    attempts = [(6.6, 1.0), (6.2, 0.9), (5.8, 0.78), (5.5, 0.66)]
     n_pages = None
     for font_pt, scale in attempts:
         MISSING.clear()
