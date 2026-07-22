@@ -46,6 +46,7 @@ do_fetch() {
   scripts/fetch_sleeper.sh
   log "Fetch FantasyPros consensus rankings"
   python3 scripts/fetch_fantasypros.py
+  python3 scripts/fetch_vegas_rankings.py
   log "Fetch FantasyCalc trade values"
   python3 scripts/fetch_fantasycalc.py
   log "Refresh trade intelligence cache (current season)"

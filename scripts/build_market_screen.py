@@ -495,6 +495,75 @@ def build_sharp_block() -> str:
     ]) + "\n"
 
 
+def build_vegas_block() -> str:
+    """THE VEGAS BOOK — season projections implied by Vegas player props
+    (firstdown.studio, user-requested) vs the room's superflex paper.
+    Money, not opinion. POSITION ranks only (the site's scoring format
+    never touches our points), all four positions valid — including QBs,
+    since pos-rank order is format-free."""
+    veg_f = ROOT / "data" / "rankings_vegas.json"
+    paper_f = ROOT / "data" / "rankings_fantasypros.json"
+    if not (veg_f.exists() and paper_f.exists()):
+        return ""
+    veg = json.loads(veg_f.read_text())
+    paper = json.loads(paper_f.read_text())
+    # paper position ranks from the superflex consensus
+    by_pos: dict[str, list] = {}
+    for p in paper.get("players", []):
+        if p.get("position") in ("QB", "RB", "WR", "TE"):
+            by_pos.setdefault(p["position"], []).append(p)
+    paper_rank = {}
+    for pos, lst in by_pos.items():
+        lst.sort(key=lambda p: p.get("fp_rank_overall") or 9999)
+        for i, p in enumerate(lst, 1):
+            paper_rank[(pos, _norm(p["name"]))] = i
+    rows = []
+    for v in veg.get("players", []):
+        pr = paper_rank.get((v["position"], _norm(v["name"])))
+        if pr is None or (pr > 40 and v["vegas_pos_rank"] > 40):
+            continue
+        gap = pr - v["vegas_pos_rank"]   # positive = Vegas HIGHER
+        if abs(gap) >= 6:
+            rows.append({"name": v["name"], "pos": v["position"],
+                         "vegas": v["vegas_pos_rank"], "paper": pr,
+                         "gap": gap})
+    rows.sort(key=lambda r: -abs(r["gap"]))
+    if not rows:
+        return ""
+
+    def tbl(entries, cls):
+        body = "".join(
+            f'<tr><td>{html.escape(r["name"])}</td><td>{_badge(r["pos"])}</td>'
+            f'<td class="ml-num">{r["pos"]}{r["vegas"]}</td>'
+            f'<td class="ml-num">{r["pos"]}{r["paper"]}</td>'
+            f'<td class="ml-num {cls}"><b>{r["gap"]:+d}</b></td></tr>'
+            for r in entries)
+        return ('<table class="ml-table ml-table--compact"><thead><tr>'
+                '<th>Player</th><th>Pos</th><th class="ml-num">Vegas</th>'
+                '<th class="ml-num">Room paper</th>'
+                '<th class="ml-num">Gap</th></tr></thead>'
+                f"<tbody>{body}</tbody></table>")
+    love = [r for r in rows if r["gap"] > 0][:7]
+    fade = [r for r in rows if r["gap"] < 0][:7]
+    return "\n".join([
+        '<div class="ml-h-label">The Vegas book — props-implied season '
+        "ranks vs the room's paper (money, not opinion)</div>",
+        '<div class="ml-h-label">Vegas higher than the paper</div>',
+        tbl(love, "ml-sv-hi"),
+        '<div class="ml-h-label">Vegas lower — the books are not '
+        "paying for the hype</div>", tbl(fade, "ml-sv-lo"),
+        '<p class="ml-fineprint">Source: firstdown.studio season '
+        "projections implied by Vegas player props — the only board on "
+        "this page backed by money rather than opinion. POSITION ranks "
+        "compared (the site's scoring format never touches our VBD "
+        "math); gaps of 6+ positional spots shown. Props price VOLUME "
+        "commitments (yardage/TD markets) and are strongest exactly "
+        "where projections argue — role questions. A third voice for "
+        "coin flips: when our model, the paper, and the money point the "
+        "same way, stop hesitating.</p>",
+    ]) + "\n"
+
+
 def build_fragment(result: dict) -> str:
     meta = result["meta"]
     late, early = result["room_late"], result["room_early"]
@@ -515,6 +584,7 @@ def build_fragment(result: dict) -> str:
         f'{html.escape(meta["generated"])}</p>',
         f"<p>Top edge — {html.escape(hero)}.</p>",
         build_model_block(result.get("model_vs_paper")),
+        build_vegas_block(),
         build_sharp_block(),
         '<div class="ml-h-label">Market context — underpriced vs the '
         "experts (the room is late)</div>",

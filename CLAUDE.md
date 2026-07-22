@@ -193,6 +193,15 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   is a commodity, the edge is league context. FP accuracy contest:
   2025 winner Seth Miller; 3-yr sharps Jody Smith/Koerner/Wright/
   Ratcliffe/Kluge (not in FP's submitting pool).
+  + VEGAS BOOK block (Jul 22, user-requested): firstdown.studio
+  Vegas-props season projections (fetch_vegas_rankings.py, Next.js
+  server-rendered tables at /season-rankings{,/rb,/wr,/te}; structural
+  span parse; cache-first per position on failure →
+  data/rankings_vegas.json). POSITION RANKS ONLY consumed (site
+  scoring format never touches VBD); ±6 pos-rank gaps vs the room's
+  paper rendered in I. Money-not-opinion third voice; props price
+  committed VOLUME, strongest on role questions. Notable at build:
+  Vegas WR37 on unsigned Diggs (books expect a real landing spot).
 - Pick Squeeze: bump rule (truth #5) + negative-tail curve ⇒ keeper
   seats ~free; pick market that matters is R1-R8. + SEAT MARKET (Jul 15,
   user-prompted): natural pairs by spare+barter fit — a full pick set ≠
