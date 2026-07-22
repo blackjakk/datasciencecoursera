@@ -2,6 +2,12 @@
  "fetched": true,
  "experts": [
   {
+   "id": 9,
+   "name": "Scott Pianowski",
+   "site": "Yahoo! Sports",
+   "draft_rank": "108"
+  },
+  {
    "id": 7357,
    "name": "Justin Bauerle",
    "site": "FantasyNow+",
@@ -114,12 +120,6 @@
    "name": "Matthew Korn",
    "site": "DFS Dashboard",
    "draft_rank": "193"
-  },
-  {
-   "id": 9,
-   "name": "Scott Pianowski",
-   "site": "Yahoo! Sports",
-   "draft_rank": "108"
   },
   {
    "id": 1576,

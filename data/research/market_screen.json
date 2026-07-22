@@ -46,11 +46,11 @@
       "sleeper_adp": 143.0,
       "sleeper_round": 12,
       "sleeper_slot": "R12.11",
-      "fp_pick": 89.3,
+      "fp_pick": 89.2,
       "fp_rank": 86,
       "fp_round": 8,
       "fp_slot": "R8.05",
-      "gap": 53.7,
+      "gap": 53.8,
       "gap_rounds": 4.5,
       "read": "experts see R8 \u00b7 the room pays R12"
     },
@@ -61,7 +61,7 @@
       "sleeper_adp": 169.1,
       "sleeper_round": 15,
       "sleeper_slot": "R15.01",
-      "fp_pick": 120.9,
+      "fp_pick": 120.8,
       "fp_rank": 120,
       "fp_round": 10,
       "fp_slot": "R10.12",
@@ -166,12 +166,12 @@
       "sleeper_adp": 155.4,
       "sleeper_round": 13,
       "sleeper_slot": "R13.11",
-      "fp_pick": 130.9,
+      "fp_pick": 130.8,
       "fp_rank": 128,
       "fp_round": 11,
       "fp_slot": "R11.10",
-      "gap": 24.5,
-      "gap_rounds": 2.0,
+      "gap": 24.6,
+      "gap_rounds": 2.1,
       "read": "experts see R11 \u00b7 the room pays R13"
     },
     {
@@ -267,6 +267,21 @@
       "read": "the room pays R14 \u00b7 experts see R20"
     },
     {
+      "name": "Theo Johnson",
+      "position": "TE",
+      "team": "NYG",
+      "sleeper_adp": 170.6,
+      "sleeper_round": 15,
+      "sleeper_slot": "R15.02",
+      "fp_pick": 239.7,
+      "fp_rank": 254,
+      "fp_round": 20,
+      "fp_slot": "R20.11",
+      "gap": -69.1,
+      "gap_rounds": -5.8,
+      "read": "the room pays R15 \u00b7 experts see R20"
+    },
+    {
       "name": "Colby Parkinson",
       "position": "TE",
       "team": "LAR",
@@ -280,21 +295,6 @@
       "gap": -68.5,
       "gap_rounds": -5.7,
       "read": "the room pays R14 \u00b7 experts see R19"
-    },
-    {
-      "name": "Theo Johnson",
-      "position": "TE",
-      "team": "NYG",
-      "sleeper_adp": 170.6,
-      "sleeper_round": 15,
-      "sleeper_slot": "R15.02",
-      "fp_pick": 238.9,
-      "fp_rank": 254,
-      "fp_round": 20,
-      "fp_slot": "R20.10",
-      "gap": -68.3,
-      "gap_rounds": -5.7,
-      "read": "the room pays R15 \u00b7 experts see R20"
     },
     {
       "name": "David Njoku",
@@ -348,11 +348,11 @@
       "sleeper_adp": 136.9,
       "sleeper_round": 12,
       "sleeper_slot": "R12.04",
-      "fp_pick": 186.0,
+      "fp_pick": 186.1,
       "fp_rank": 179,
       "fp_round": 16,
       "fp_slot": "R16.06",
-      "gap": -49.1,
+      "gap": -49.2,
       "gap_rounds": -4.1,
       "read": "the room pays R12 \u00b7 experts see R16"
     },
@@ -386,17 +386,17 @@
         "name": "Isaiah Likely",
         "position": "TE",
         "team": "NYG",
-        "model_rank": 96,
-        "model_round": 8,
+        "model_rank": 98,
+        "model_round": 9,
         "fp_rank": 132,
         "fp_round": 11,
-        "gap": 36,
-        "read": "our board R8 \u00b7 their paper R11",
+        "gap": 34,
+        "read": "our board R9 \u00b7 their paper R11",
         "reach": 0.694,
         "reach_pct": 69,
         "reach_pick": 126,
         "reach_round": 11,
-        "edge_score": 25.0
+        "edge_score": 23.6
       },
       {
         "name": "Dalton Kincaid",
@@ -424,11 +424,11 @@
         "fp_round": 12,
         "gap": 18,
         "read": "our board R10 \u00b7 their paper R12",
-        "reach": 0.68,
-        "reach_pct": 68,
+        "reach": 0.657,
+        "reach_pct": 66,
         "reach_pick": 139,
         "reach_round": 12,
-        "edge_score": 12.2
+        "edge_score": 11.8
       },
       {
         "name": "Brenton Strange",
@@ -447,6 +447,22 @@
         "edge_score": 10.8
       },
       {
+        "name": "Omarion Hampton",
+        "position": "RB",
+        "team": "LAC",
+        "model_rank": 16,
+        "model_round": 2,
+        "fp_rank": 36,
+        "fp_round": 3,
+        "gap": 20,
+        "read": "our board R2 \u00b7 their paper R3",
+        "reach": 0.5,
+        "reach_pct": 50,
+        "reach_pick": 30,
+        "reach_round": 3,
+        "edge_score": 10.0
+      },
+      {
         "name": "Brock Bowers",
         "position": "TE",
         "team": "LV",
@@ -461,22 +477,6 @@
         "reach_pick": 30,
         "reach_round": 3,
         "edge_score": 10.0
-      },
-      {
-        "name": "Omarion Hampton",
-        "position": "RB",
-        "team": "LAC",
-        "model_rank": 16,
-        "model_round": 2,
-        "fp_rank": 36,
-        "fp_round": 3,
-        "gap": 20,
-        "read": "our board R2 \u00b7 their paper R3",
-        "reach": 0.4,
-        "reach_pct": 40,
-        "reach_pick": 30,
-        "reach_round": 3,
-        "edge_score": 8.0
       },
       {
         "name": "Saquon Barkley",
