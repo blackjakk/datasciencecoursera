@@ -425,6 +425,76 @@ def build_model_block(mvp: dict | None = None) -> str:
     ]) + "\n"
 
 
+def build_sharp_block() -> str:
+    """THE SHARP MINORITY — trimmed consensus of FP's top-8 draft-accuracy
+    experts (equal weight, select-crowd construction) vs the full
+    consensus the room prints. RB/WR/TE only: the sharp file is
+    1QB-format, so its QB ordering is meaningless in a superflex room.
+    Divergence >= 1.5 rounds flags where the informed minority disagrees
+    with the room's paper."""
+    sharp_f = ROOT / "data" / "rankings_fantasypros_sharp.json"
+    paper_f = ROOT / "data" / "rankings_fantasypros_1qb.json"
+    if not (sharp_f.exists() and paper_f.exists()):
+        return ""
+    sharp = json.loads(sharp_f.read_text())
+    paper = json.loads(paper_f.read_text())
+    experts = sharp.get("experts") or []
+    paper_rank = {_norm(p["name"]): p.get("fp_rank_overall")
+                  for p in paper.get("players", [])
+                  if p.get("position") in ("RB", "WR", "TE")}
+    rows = []
+    for p in sharp.get("players", []):
+        if p.get("position") not in ("RB", "WR", "TE"):
+            continue
+        pr = paper_rank.get(_norm(p["name"]))
+        sr = p.get("sharp_rank")
+        if pr is None or sr is None or (pr > 150 and sr > 150):
+            continue
+        gap = pr - sr          # positive = sharps HIGHER than the paper
+        if abs(gap) >= 12:
+            rows.append({"name": p["name"], "pos": p["position"],
+                         "sharp": sr, "paper": pr, "gap": gap})
+    rows.sort(key=lambda r: -abs(r["gap"]))
+    if not rows:
+        return ""
+
+    def tbl(entries, cls):
+        body = "".join(
+            f'<tr><td>{html.escape(r["name"])}</td><td>{_badge(r["pos"])}</td>'
+            f'<td class="ml-num">#{r["sharp"]}</td>'
+            f'<td class="ml-num">#{r["paper"]}</td>'
+            f'<td class="ml-num {cls}"><b>{r["gap"]:+d}</b></td></tr>'
+            for r in entries)
+        return ('<table class="ml-table ml-table--compact"><thead><tr>'
+                '<th>Player</th><th>Pos</th><th class="ml-num">Sharp-8</th>'
+                '<th class="ml-num">Room paper</th>'
+                '<th class="ml-num">Gap</th></tr></thead>'
+                f"<tbody>{body}</tbody></table>")
+    love = [r for r in rows if r["gap"] > 0][:6]
+    fade = [r for r in rows if r["gap"] < 0][:6]
+    names = ", ".join(f'{html.escape(e["name"] or "?")} '
+                      f'(#{e["draft_rank"]})' for e in experts[:8])
+    return "\n".join([
+        '<div class="ml-h-label">The sharp minority — top-8 accuracy '
+        "experts vs the room's paper (RB/WR/TE)</div>",
+        '<div class="ml-h-label">Sharps higher than the paper '
+        "(hidden value)</div>", tbl(love, "ml-sv-hi"),
+        '<div class="ml-h-label">Sharps lower — extra reason to let '
+        "the room pay</div>", tbl(fade, "ml-sv-lo"),
+        '<p class="ml-fineprint">Trimmed consensus = equal-weight average '
+        "of the top 8 experts by FantasyPros draft-accuracy placement "
+        "(select-crowd construction: selection by past accuracy, boring "
+        "weights, K large enough to dilute single-season contest noise). "
+        f"Current panel: {names}. 1QB-format ranks — QBs excluded as "
+        "meaningless for this superflex room. HEADLINE FINDING: the sharp "
+        "panel agrees with the full consensus within about one round on "
+        "nearly every player — the rows above are the ONLY daylight, none "
+        "beyond a round and a half. Whispers for coin-flip picks, never a "
+        "board; the measured edges (VBD, keeper context, room tendencies) "
+        "remain the real product.</p>",
+    ]) + "\n"
+
+
 def build_fragment(result: dict) -> str:
     meta = result["meta"]
     late, early = result["room_late"], result["room_early"]
@@ -445,6 +515,7 @@ def build_fragment(result: dict) -> str:
         f'{html.escape(meta["generated"])}</p>',
         f"<p>Top edge — {html.escape(hero)}.</p>",
         build_model_block(result.get("model_vs_paper")),
+        build_sharp_block(),
         '<div class="ml-h-label">Market context — underpriced vs the '
         "experts (the room is late)</div>",
         _table(late, "ml-sv-hi"),

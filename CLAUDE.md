@@ -177,6 +177,22 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   Warren/Henderson R6, RJ Harvey R9.
 - Market screen: MODEL vs THE ROOM'S PAPER is the edge (truth #7); edges
   carry reach% (survival to Brian's seat) — Bowers top reachable edge.
+  + SHARP MINORITY block (Jul 22, user-prompted): trimmed consensus of
+  FP's top-8 draft-accuracy experts (select-crowd: chosen on past
+  accuracy, EQUAL weight, K=8 ≈ top decile to dilute contest noise;
+  fetch_fantasypros.py scrapes the cheatsheet page's embedded expert
+  directory w/ draft_rank, cache data/fp_experts.json, then hits the
+  keyless partner endpoint with filters=id:id → rankings_fantasypros_
+  sharp.json). RB/WR/TE ONLY (1QB ranks; QB ordering superflex-
+  meaningless). MEASURED HEADLINE: the sharp-8 agree with the full
+  86-expert consensus within ~1 round on nearly everyone (max gap 17
+  rank spots) — whispers for coin flips, never a board. Context on
+  file: projection-accuracy tests (chat, Jul 22) — rotowire beat
+  superflex ADP .68/.51 Spearman every year, naive composites and a
+  LOSO coaching-adjusted proj both FAILED to beat it; forecast accuracy
+  is a commodity, the edge is league context. FP accuracy contest:
+  2025 winner Seth Miller; 3-yr sharps Jody Smith/Koerner/Wright/
+  Ratcliffe/Kluge (not in FP's submitting pool).
 - Pick Squeeze: bump rule (truth #5) + negative-tail curve ⇒ keeper
   seats ~free; pick market that matters is R1-R8. + SEAT MARKET (Jul 15,
   user-prompted): natural pairs by spare+barter fit — a full pick set ≠
