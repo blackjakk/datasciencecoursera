@@ -475,7 +475,19 @@ goal docs: GOAL_RESEARCH.md, GOAL_OPTIONS.md). Caches: `data/scouting/`
   the W-by-W 2026 operating calendar (lock→draft→hold W1-5→window
   W6-10→rent W9-11→free deadline→bracket), and the live board (call
   sheet top rows, sharks, Brian's four do-nots, assets+the play).
-  Live JSONs; runs AFTER build_trade_targets in the pipeline. Keeper lock
+  Live JSONs; runs AFTER build_trade_targets in the pipeline.
+  + MONEYLEAGUE_DRAFT_SHEET.pdf (Jul 22, build_draft_sheet.py, in
+  release uploads + verify): the BeerSheets-style one-page LEAGUE
+  BOARD — QB/RB/WR/TE columns tiered on VBD cliffs (bounded-band rule:
+  cliff OR band-width break; gap-only collapsed the tails), per-row
+  bye/proj/VBD, ▲/▼ model-vs-paper badges, ★ R9+ option darts, RK#
+  chips w/ NFL draft round (data/nfl_draft_2026.json, web-sourced,
+  cosmetic only; user caught Lemon/Concepcion R1 gaps), K? chips for
+  predicted keepers (kept ON sheet at true VBD), all-rookie guarantee
+  (ADP≤204 darts always on board — Kaytron Allen case), full QB pool
+  (exempt from shrink). Two user-caught bugs fixed here: falsy-zero
+  VBD sort (Jadarian Price, VBD exactly 0.0 → 'or -999' sorted him
+  last) and the rookie-map gaps. Regenerates weekly + at keeper lock. Keeper lock
   = 5-min runbook: docs/KEEPER_LOCK.md + lock_keepers.py validator
   (template data/keepers_2026_actual.TEMPLATE.json; enforces cap/floor/
   bump/ownership; then refresh derive sim reports verify).
