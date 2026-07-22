@@ -183,7 +183,7 @@
       "fp_rank_overall": 13,
       "fp_rank_pos": "WR7",
       "fp_tier": 2,
-      "fp_adp_avg": "15.05",
+      "fp_adp_avg": "15.04",
       "fp_rank_min": "8",
       "fp_rank_max": "27",
       "fp_rank_std": "4.49",
@@ -337,10 +337,10 @@
       "fp_rank_overall": 24,
       "fp_rank_pos": "RB12",
       "fp_tier": 3,
-      "fp_adp_avg": "24.73",
+      "fp_adp_avg": "24.74",
       "fp_rank_min": "12",
       "fp_rank_max": "52",
-      "fp_rank_std": "8.88",
+      "fp_rank_std": "8.87",
       "fp_expert_count": 86
     },
     {
@@ -421,10 +421,10 @@
       "fp_rank_overall": 30,
       "fp_rank_pos": "WR15",
       "fp_tier": 4,
-      "fp_adp_avg": "34.04",
+      "fp_adp_avg": "34.05",
       "fp_rank_min": "19",
       "fp_rank_max": "53",
-      "fp_rank_std": "7.28",
+      "fp_rank_std": "7.27",
       "fp_expert_count": 86
     },
     {
@@ -435,10 +435,10 @@
       "fp_rank_overall": 31,
       "fp_rank_pos": "WR16",
       "fp_tier": 4,
-      "fp_adp_avg": "34.23",
+      "fp_adp_avg": "34.21",
       "fp_rank_min": "11",
       "fp_rank_max": "51",
-      "fp_rank_std": "7.96",
+      "fp_rank_std": "7.98",
       "fp_expert_count": 86
     },
     {
@@ -2675,10 +2675,10 @@
       "fp_rank_overall": 191,
       "fp_rank_pos": "DST6",
       "fp_tier": 9,
-      "fp_adp_avg": "191.73",
+      "fp_adp_avg": "191.72",
       "fp_rank_min": "153",
       "fp_rank_max": "353",
-      "fp_rank_std": "26.93",
+      "fp_rank_std": "26.94",
       "fp_expert_count": 86
     },
     {
@@ -2773,10 +2773,10 @@
       "fp_rank_overall": 198,
       "fp_rank_pos": "DST7",
       "fp_tier": 9,
-      "fp_adp_avg": "191.42",
+      "fp_adp_avg": "191.44",
       "fp_rank_min": "166",
       "fp_rank_max": "359",
-      "fp_rank_std": "26.77",
+      "fp_rank_std": "26.76",
       "fp_expert_count": 86
     },
     {
@@ -2843,10 +2843,10 @@
       "fp_rank_overall": 203,
       "fp_rank_pos": "DST9",
       "fp_tier": 9,
-      "fp_adp_avg": "189.34",
+      "fp_adp_avg": "189.41",
       "fp_rank_min": "154",
       "fp_rank_max": "327",
-      "fp_rank_std": "25.81",
+      "fp_rank_std": "25.79",
       "fp_expert_count": 86
     },
     {
@@ -2913,10 +2913,10 @@
       "fp_rank_overall": 208,
       "fp_rank_pos": "DST10",
       "fp_tier": 9,
-      "fp_adp_avg": "197.76",
+      "fp_adp_avg": "197.68",
       "fp_rank_min": "161",
       "fp_rank_max": "385",
-      "fp_rank_std": "33.53",
+      "fp_rank_std": "33.56",
       "fp_expert_count": 86
     },
     {

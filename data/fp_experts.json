@@ -2,6 +2,12 @@
  "fetched": true,
  "experts": [
   {
+   "id": 22,
+   "name": "Pat Fitzmaurice",
+   "site": "FantasyPros",
+   "draft_rank": "47"
+  },
+  {
    "id": 9,
    "name": "Scott Pianowski",
    "site": "Yahoo! Sports",
@@ -72,12 +78,6 @@
    "name": "Jamie Calandro",
    "site": "RotoBaller",
    "draft_rank": "103"
-  },
-  {
-   "id": 22,
-   "name": "Pat Fitzmaurice",
-   "site": "FantasyPros",
-   "draft_rank": "47"
   },
   {
    "id": 3688,
