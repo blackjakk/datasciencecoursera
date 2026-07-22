@@ -30,7 +30,7 @@ PDF_OUT = ROOT / "data" / "MONEYLEAGUE_DRAFT_SHEET.pdf"
 MY_ROSTER_ID = 9
 
 # players per position column (shrink ladder trims these)
-DEPTH = {"QB": 26, "RB": 48, "WR": 54, "TE": 20}
+DEPTH = {"QB": 32, "RB": 62, "WR": 68, "TE": 26}
 # VBD drop between consecutive players that opens a new tier
 TIER_GAP = {"QB": 22, "RB": 18, "WR": 16, "TE": 14}
 
@@ -53,6 +53,8 @@ def build_html(font_pt: float, depth_scale: float) -> str:
     helper = load_json(ROOT / "docs/draft_helper/data.json") or {}
     keepers = load_json(ROOT / "data/keepers_2026.json") or []
     screen = load_json(ROOT / "data/research/market_screen.json") or {}
+    fp = load_json(ROOT / "data/rankings_fantasypros.json") or {}
+    bye_of = {p["name"]: p.get("bye") for p in fp.get("players", [])}
 
     kept = {k["player_name"] for k in keepers if isinstance(k, dict)
             and k.get("status") == "carryover"}
@@ -102,19 +104,26 @@ def build_html(font_pt: float, depth_scale: float) -> str:
             vbd = p.get("vbd") or 0.0
             if prev_vbd is not None and prev_vbd - vbd >= TIER_GAP[pos]:
                 tier += 1
-                out.append(f'<tr class="tier"><td colspan="4">'
+                out.append(f'<tr class="tier"><td colspan="7">'
                            f"TIER {tier}</td></tr>")
             prev_vbd = vbd
-            our_r = max(1, round((p.get("adp") or 999) / 12))
-            model_r = p.get("model_round")
+            adp = p.get("adp") or 999
+            our_r = max(1, round(adp / 12))
             badge = ("▲" if p["name"] in sleep else
                      "▼" if p["name"] in love else "")
             bcls = ("up" if badge == "▲" else "dn" if badge == "▼" else "")
+            rk = ' <span class="rk">RK</span>' if p.get("years_exp") == 0 else ""
+            stash = ("★" if adp >= 108 and (p.get("stash") or 0) >= 0.5
+                     else "")
+            bye = bye_of.get(p["name"])
             out.append(
                 f'<tr><td class="ml-num">R{our_r}</td>'
-                f'<td class="nm">{esc(p["name"])}</td>'
+                f'<td class="nm">{esc(p["name"])}{rk}</td>'
                 f'<td class="tm">{esc(p.get("team") or "")}</td>'
-                f'<td class="bg {bcls}">{badge}</td></tr>')
+                f'<td class="tm">{esc(bye) if bye else ""}</td>'
+                f'<td class="ml-num">{p.get("proj") or 0:.0f}</td>'
+                f'<td class="ml-num vb">{vbd:+.0f}</td>'
+                f'<td class="bg {bcls}">{badge}{stash}</td></tr>')
         return "".join(out)
 
     kdst_line = " · ".join(
@@ -135,9 +144,14 @@ def build_html(font_pt: float, depth_scale: float) -> str:
     td {{ padding: 0 3px; font-size: {font_pt}pt; white-space: nowrap; }}
     .nm {{ overflow: hidden; text-overflow: ellipsis; max-width: 11em; }}
     .tm {{ color: var(--ml-muted); font-size: {max(font_pt - 0.8, 5.2):.1f}pt; }}
-    .bg {{ width: 1em; font-weight: 700; }}
+    .bg {{ width: 1.6em; font-weight: 700; }}
     .up {{ color: var(--ml-success); }}
     .dn {{ color: var(--ml-danger); }}
+    .vb {{ color: var(--ml-muted); }}
+    .rk {{ font-size: {max(font_pt - 1.4, 4.6):.1f}pt; font-weight: 700;
+           letter-spacing: .5px; color: var(--ml-accent);
+           border: 1px solid var(--ml-border-strong);
+           border-radius: 2px; padding: 0 2px; }}
     .tier td {{ border-top: 1px solid var(--ml-border-strong);
                 color: var(--ml-muted); font-size: {max(font_pt - 1, 5):.1f}pt;
                 letter-spacing: 1px; padding-top: 1px; }}
@@ -157,8 +171,10 @@ def build_html(font_pt: float, depth_scale: float) -> str:
                  '<span class="ml-h-label">MY PICKS · SEAT 6</span>'
                  f'<span class="ml-num">{esc(picks_line)}</span>'
                  '<span class="ml-fineprint">(#) = keeper-consumed · '
-                 'R = ADP round · ▲ paper sleeps (value slides) · '
-                 '▼ paper overpays (let them)</span></div>')
+                 'cols: mkt round · name · team · bye · proj · VBD · '
+                 '▲ paper sleeps / ▼ paper overpays · ★ R9+ option dart '
+                 '(2027 keeper stash) · <span class="rk">RK</span> = '
+                 'rookie</span></div>')
     h.append('<div class="cols">')
     for pos, label in (("QB", "QUARTERBACKS (2 by R6 — the room exploit)"),
                        ("RB", "RUNNING BACKS"),
