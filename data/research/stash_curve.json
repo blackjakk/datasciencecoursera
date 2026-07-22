@@ -266,7 +266,7 @@
           "name": "Jonathon Brooks",
           "pos": "RB",
           "stash": 1.0,
-          "survival": 0.78,
+          "survival": 0.77,
           "adp": 130.4,
           "keeper_cost": "R8"
         },
@@ -290,7 +290,7 @@
           "pos": "QB",
           "stash": 1.0,
           "survival": 1.0,
-          "adp": 165.0,
+          "adp": 165.7,
           "keeper_cost": "R9"
         },
         {
@@ -306,7 +306,7 @@
           "pos": "WR",
           "stash": 1.0,
           "survival": 0.67,
-          "adp": 171.9,
+          "adp": 171.8,
           "keeper_cost": "R9"
         }
       ]
@@ -333,11 +333,11 @@
           "keeper_cost": "R10"
         },
         {
-          "name": "Kimani Vidal",
+          "name": "Emmett Johnson",
           "pos": "RB",
           "stash": 1.0,
           "survival": 1.0,
-          "adp": 186.6,
+          "adp": 186.3,
           "keeper_cost": "R10"
         }
       ]
@@ -348,7 +348,7 @@
       "option_value": 5.1,
       "candidates": [
         {
-          "name": "Emmett Johnson",
+          "name": "Kimani Vidal",
           "pos": "RB",
           "stash": 1.0,
           "survival": 1.0,
@@ -367,7 +367,7 @@
           "name": "Troy Franklin",
           "pos": "WR",
           "stash": 1.0,
-          "survival": 0.72,
+          "survival": 0.73,
           "adp": 192.2,
           "keeper_cost": "R11"
         }
@@ -383,14 +383,14 @@
           "pos": "RB",
           "stash": 1.0,
           "survival": 1.0,
-          "adp": 194.0,
+          "adp": 194.1,
           "keeper_cost": "R12"
         },
         {
           "name": "Jaylin Noel",
           "pos": "WR",
           "stash": 1.0,
-          "survival": 0.64,
+          "survival": 0.7,
           "adp": 194.8,
           "keeper_cost": "R12"
         },
@@ -492,7 +492,7 @@
           "pos": "RB",
           "stash": 1.0,
           "survival": 1.0,
-          "adp": 223.3,
+          "adp": 223.5,
           "keeper_cost": "R15"
         }
       ]

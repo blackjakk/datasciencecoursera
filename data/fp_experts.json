@@ -2,6 +2,12 @@
  "fetched": true,
  "experts": [
   {
+   "id": 5874,
+   "name": "Justin Fuhr",
+   "site": "Pro Football Mania",
+   "draft_rank": "61"
+  },
+  {
    "id": 9,
    "name": "Scott Pianowski",
    "site": "Yahoo! Sports",
@@ -132,12 +138,6 @@
    "name": "Jonathan Stone",
    "site": "Stone Cold Fantasy",
    "draft_rank": ""
-  },
-  {
-   "id": 5874,
-   "name": "Justin Fuhr",
-   "site": "Pro Football Mania",
-   "draft_rank": "61"
   },
   {
    "id": 284,
