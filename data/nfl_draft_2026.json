@@ -1,7 +1,8 @@
 {
  "meta": {
   "source": "Wikipedia 2026 NFL draft, skill positions, fetched Jul 2026; spot-verified (Mendoza #1 overall); single-source \u2014 rounds are cosmetic labels, not inputs",
-  "unlisted": "rookie not in map = UDFA or missed by extraction"
+  "unlisted": "rookie not in map = UDFA or missed by extraction",
+  "patches": "user-caught gaps filled from targeted searches: Lemon R1 (PHI), Concepcion R1 #24 (CLE), Mike Washington Jr R4 #122 (LV)"
  },
  "rounds": {
   "fernando mendoza": 1,
@@ -46,6 +47,9 @@
   "riley nowakowski": 5,
   "joe royer": 5,
   "josh cuevas": 5,
-  "bauer sharp": 6
+  "bauer sharp": 6,
+  "makai lemon": 1,
+  "kc concepcion": 1,
+  "mike washington": 4
  }
 }
