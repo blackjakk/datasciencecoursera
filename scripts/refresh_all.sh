@@ -123,6 +123,8 @@ do_reports() {
   python3 scripts/build_research_desk.py
   log "Render Doctrine Card one-pager (laws / calendar / board — needs trade_targets)"
   python3 scripts/build_doctrine_card.py
+  log "Render Draft Sheet one-pager (the board — needs market screen + helper)"
+  python3 scripts/build_draft_sheet.py
 }
 
 # ---------- Draft helper ----------

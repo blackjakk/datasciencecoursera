@@ -71,6 +71,7 @@ jobs:
             data/MONEYLEAGUE_RESEARCH_DESK.pdf \
             data/MONEYLEAGUE_ROOM_CARD.pdf \
             data/MONEYLEAGUE_DOCTRINE.pdf \
+            data/MONEYLEAGUE_DRAFT_SHEET.pdf \
             --clobber
 
       - name: Sync draft helper to the Pages branch
