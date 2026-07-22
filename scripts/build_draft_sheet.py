@@ -106,7 +106,11 @@ def build_html(font_pt: float, depth_scale: float) -> str:
         elif pos in ("K", "DEF"):
             kdst.append(p)          # ADP is 999 for K/DST — rank by proj
     for pos in pools:
-        pools[pos].sort(key=lambda p: -(p.get("vbd") or -999))
+        # NOT `or -999`: VBD of exactly 0.0 is falsy and would sort a
+        # replacement-level player (Jadarian Price, user-caught) to the
+        # very bottom instead of mid-column.
+        pools[pos].sort(key=lambda p: -(p["vbd"] if p.get("vbd") is not None
+                                        else -999))
     kdst.sort(key=lambda p: -(p.get("proj") or 0))
 
     def pool_slice(pos: str, depth_scale: float) -> list[dict]:
