@@ -407,10 +407,10 @@
       "fp_rank_overall": 29,
       "fp_rank_pos": "WR8",
       "fp_tier": 4,
-      "fp_adp_avg": "31.95",
+      "fp_adp_avg": "31.91",
       "fp_rank_min": "21",
       "fp_rank_max": "54",
-      "fp_rank_std": "7.73",
+      "fp_rank_std": "7.70",
       "fp_expert_count": 83
     },
     {
@@ -421,10 +421,10 @@
       "fp_rank_overall": 30,
       "fp_rank_pos": "WR9",
       "fp_tier": 4,
-      "fp_adp_avg": "32.62",
+      "fp_adp_avg": "32.63",
       "fp_rank_min": "23",
       "fp_rank_max": "43",
-      "fp_rank_std": "5.43",
+      "fp_rank_std": "5.42",
       "fp_expert_count": 83
     },
     {
@@ -435,10 +435,10 @@
       "fp_rank_overall": 31,
       "fp_rank_pos": "RB7",
       "fp_tier": 4,
-      "fp_adp_avg": "32.79",
+      "fp_adp_avg": "32.69",
       "fp_rank_min": "11",
       "fp_rank_max": "57",
-      "fp_rank_std": "8.11",
+      "fp_rank_std": "8.13",
       "fp_expert_count": 83
     },
     {
@@ -449,10 +449,10 @@
       "fp_rank_overall": 32,
       "fp_rank_pos": "TE1",
       "fp_tier": 4,
-      "fp_adp_avg": "33.26",
+      "fp_adp_avg": "33.22",
       "fp_rank_min": "23",
       "fp_rank_max": "42",
-      "fp_rank_std": "4.23",
+      "fp_rank_std": "4.17",
       "fp_expert_count": 83
     },
     {
@@ -463,10 +463,10 @@
       "fp_rank_overall": 33,
       "fp_rank_pos": "RB8",
       "fp_tier": 4,
-      "fp_adp_avg": "33.37",
+      "fp_adp_avg": "33.43",
       "fp_rank_min": "21",
       "fp_rank_max": "52",
-      "fp_rank_std": "6.75",
+      "fp_rank_std": "6.72",
       "fp_expert_count": 83
     },
     {
@@ -477,7 +477,7 @@
       "fp_rank_overall": 34,
       "fp_rank_pos": "RB9",
       "fp_tier": 4,
-      "fp_adp_avg": "33.78",
+      "fp_adp_avg": "33.79",
       "fp_rank_min": "20",
       "fp_rank_max": "57",
       "fp_rank_std": "7.64",
@@ -505,7 +505,7 @@
       "fp_rank_overall": 36,
       "fp_rank_pos": "RB10",
       "fp_tier": 4,
-      "fp_adp_avg": "35.25",
+      "fp_adp_avg": "35.36",
       "fp_rank_min": "21",
       "fp_rank_max": "69",
       "fp_rank_std": "8.45",
@@ -519,10 +519,10 @@
       "fp_rank_overall": 37,
       "fp_rank_pos": "WR10",
       "fp_tier": 4,
-      "fp_adp_avg": "37.53",
+      "fp_adp_avg": "37.54",
       "fp_rank_min": "21",
       "fp_rank_max": "53",
-      "fp_rank_std": "5.78",
+      "fp_rank_std": "5.77",
       "fp_expert_count": 83
     },
     {
@@ -547,10 +547,10 @@
       "fp_rank_overall": 39,
       "fp_rank_pos": "RB11",
       "fp_tier": 4,
-      "fp_adp_avg": "39.77",
+      "fp_adp_avg": "39.83",
       "fp_rank_min": "25",
       "fp_rank_max": "70",
-      "fp_rank_std": "7.95",
+      "fp_rank_std": "7.97",
       "fp_expert_count": 83
     },
     {
@@ -561,10 +561,10 @@
       "fp_rank_overall": 40,
       "fp_rank_pos": "TE2",
       "fp_tier": 4,
-      "fp_adp_avg": "39.91",
+      "fp_adp_avg": "39.84",
       "fp_rank_min": "28",
       "fp_rank_max": "67",
-      "fp_rank_std": "6.81",
+      "fp_rank_std": "6.88",
       "fp_expert_count": 83
     },
     {
@@ -575,10 +575,10 @@
       "fp_rank_overall": 41,
       "fp_rank_pos": "RB12",
       "fp_tier": 4,
-      "fp_adp_avg": "40.93",
+      "fp_adp_avg": "41.09",
       "fp_rank_min": "25",
       "fp_rank_max": "73",
-      "fp_rank_std": "9.85",
+      "fp_rank_std": "9.87",
       "fp_expert_count": 83
     },
     {
@@ -603,10 +603,10 @@
       "fp_rank_overall": 43,
       "fp_rank_pos": "WR12",
       "fp_tier": 5,
-      "fp_adp_avg": "43.75",
+      "fp_adp_avg": "43.59",
       "fp_rank_min": "27",
       "fp_rank_max": "68",
-      "fp_rank_std": "6.98",
+      "fp_rank_std": "7.01",
       "fp_expert_count": 83
     },
     {
@@ -687,7 +687,7 @@
       "fp_rank_overall": 49,
       "fp_rank_pos": "WR15",
       "fp_tier": 5,
-      "fp_adp_avg": "50.70",
+      "fp_adp_avg": "50.68",
       "fp_rank_min": "35",
       "fp_rank_max": "74",
       "fp_rank_std": "7.76",
@@ -701,7 +701,7 @@
       "fp_rank_overall": 50,
       "fp_rank_pos": "WR16",
       "fp_tier": 5,
-      "fp_adp_avg": "51.15",
+      "fp_adp_avg": "51.10",
       "fp_rank_min": "23",
       "fp_rank_max": "71",
       "fp_rank_std": "9.23",
@@ -715,7 +715,7 @@
       "fp_rank_overall": 51,
       "fp_rank_pos": "RB13",
       "fp_tier": 5,
-      "fp_adp_avg": "52.01",
+      "fp_adp_avg": "52.15",
       "fp_rank_min": "36",
       "fp_rank_max": "84",
       "fp_rank_std": "10.38",
@@ -729,10 +729,10 @@
       "fp_rank_overall": 52,
       "fp_rank_pos": "RB14",
       "fp_tier": 5,
-      "fp_adp_avg": "52.94",
+      "fp_adp_avg": "52.91",
       "fp_rank_min": "28",
       "fp_rank_max": "72",
-      "fp_rank_std": "8.93",
+      "fp_rank_std": "8.96",
       "fp_expert_count": 83
     },
     {
@@ -743,10 +743,10 @@
       "fp_rank_overall": 53,
       "fp_rank_pos": "RB15",
       "fp_tier": 5,
-      "fp_adp_avg": "55.49",
+      "fp_adp_avg": "55.57",
       "fp_rank_min": "33",
       "fp_rank_max": "78",
-      "fp_rank_std": "9.71",
+      "fp_rank_std": "9.74",
       "fp_expert_count": 83
     },
     {
@@ -771,7 +771,7 @@
       "fp_rank_overall": 55,
       "fp_rank_pos": "WR17",
       "fp_tier": 5,
-      "fp_adp_avg": "56.19",
+      "fp_adp_avg": "56.12",
       "fp_rank_min": "43",
       "fp_rank_max": "78",
       "fp_rank_std": "7.91",
@@ -799,10 +799,10 @@
       "fp_rank_overall": 57,
       "fp_rank_pos": "WR18",
       "fp_tier": 5,
-      "fp_adp_avg": "57.14",
+      "fp_adp_avg": "57.09",
       "fp_rank_min": "33",
       "fp_rank_max": "78",
-      "fp_rank_std": "7.80",
+      "fp_rank_std": "7.86",
       "fp_expert_count": 83
     },
     {
@@ -813,10 +813,10 @@
       "fp_rank_overall": 58,
       "fp_rank_pos": "WR19",
       "fp_tier": 5,
-      "fp_adp_avg": "57.32",
+      "fp_adp_avg": "57.25",
       "fp_rank_min": "27",
       "fp_rank_max": "82",
-      "fp_rank_std": "9.72",
+      "fp_rank_std": "9.62",
       "fp_expert_count": 83
     },
     {
@@ -827,10 +827,10 @@
       "fp_rank_overall": 59,
       "fp_rank_pos": "TE3",
       "fp_tier": 5,
-      "fp_adp_avg": "58.60",
+      "fp_adp_avg": "58.58",
       "fp_rank_min": "37",
       "fp_rank_max": "105",
-      "fp_rank_std": "15.22",
+      "fp_rank_std": "15.23",
       "fp_expert_count": 83
     },
     {
@@ -841,10 +841,10 @@
       "fp_rank_overall": 60,
       "fp_rank_pos": "RB17",
       "fp_tier": 5,
-      "fp_adp_avg": "60.25",
+      "fp_adp_avg": "60.41",
       "fp_rank_min": "36",
       "fp_rank_max": "77",
-      "fp_rank_std": "9.82",
+      "fp_rank_std": "9.72",
       "fp_expert_count": 83
     },
     {
@@ -855,10 +855,10 @@
       "fp_rank_overall": 61,
       "fp_rank_pos": "WR20",
       "fp_tier": 5,
-      "fp_adp_avg": "60.59",
+      "fp_adp_avg": "60.53",
       "fp_rank_min": "43",
       "fp_rank_max": "81",
-      "fp_rank_std": "8.43",
+      "fp_rank_std": "8.47",
       "fp_expert_count": 83
     },
     {
@@ -883,10 +883,10 @@
       "fp_rank_overall": 63,
       "fp_rank_pos": "WR21",
       "fp_tier": 5,
-      "fp_adp_avg": "62.38",
+      "fp_adp_avg": "62.32",
       "fp_rank_min": "23",
       "fp_rank_max": "99",
-      "fp_rank_std": "15.31",
+      "fp_rank_std": "15.30",
       "fp_expert_count": 83
     },
     {
@@ -897,10 +897,10 @@
       "fp_rank_overall": 64,
       "fp_rank_pos": "WR22",
       "fp_tier": 6,
-      "fp_adp_avg": "64.05",
+      "fp_adp_avg": "63.98",
       "fp_rank_min": "47",
       "fp_rank_max": "84",
-      "fp_rank_std": "9.13",
+      "fp_rank_std": "9.10",
       "fp_expert_count": 83
     },
     {
@@ -911,10 +911,10 @@
       "fp_rank_overall": 65,
       "fp_rank_pos": "RB18",
       "fp_tier": 6,
-      "fp_adp_avg": "65.38",
+      "fp_adp_avg": "65.46",
       "fp_rank_min": "39",
       "fp_rank_max": "91",
-      "fp_rank_std": "11.19",
+      "fp_rank_std": "11.23",
       "fp_expert_count": 83
     },
     {
@@ -925,10 +925,10 @@
       "fp_rank_overall": 66,
       "fp_rank_pos": "WR23",
       "fp_tier": 6,
-      "fp_adp_avg": "68.17",
+      "fp_adp_avg": "68.11",
       "fp_rank_min": "50",
       "fp_rank_max": "93",
-      "fp_rank_std": "8.15",
+      "fp_rank_std": "8.21",
       "fp_expert_count": 83
     },
     {
@@ -939,10 +939,10 @@
       "fp_rank_overall": 67,
       "fp_rank_pos": "WR24",
       "fp_tier": 6,
-      "fp_adp_avg": "68.30",
+      "fp_adp_avg": "68.22",
       "fp_rank_min": "51",
       "fp_rank_max": "89",
-      "fp_rank_std": "8.10",
+      "fp_rank_std": "8.16",
       "fp_expert_count": 83
     },
     {
@@ -981,10 +981,10 @@
       "fp_rank_overall": 70,
       "fp_rank_pos": "RB19",
       "fp_tier": 6,
-      "fp_adp_avg": "71.72",
+      "fp_adp_avg": "71.83",
       "fp_rank_min": "52",
       "fp_rank_max": "92",
-      "fp_rank_std": "8.02",
+      "fp_rank_std": "7.96",
       "fp_expert_count": 83
     },
     {
@@ -995,7 +995,7 @@
       "fp_rank_overall": 71,
       "fp_rank_pos": "WR25",
       "fp_tier": 6,
-      "fp_adp_avg": "73.28",
+      "fp_adp_avg": "73.23",
       "fp_rank_min": "51",
       "fp_rank_max": "106",
       "fp_rank_std": "8.73",
@@ -1009,24 +1009,10 @@
       "fp_rank_overall": 72,
       "fp_rank_pos": "RB20",
       "fp_tier": 6,
-      "fp_adp_avg": "75.38",
+      "fp_adp_avg": "75.46",
       "fp_rank_min": "52",
       "fp_rank_max": "93",
-      "fp_rank_std": "7.34",
-      "fp_expert_count": 83
-    },
-    {
-      "name": "Quinshon Judkins",
-      "position": "RB",
-      "team": "CLE",
-      "bye": "11",
-      "fp_rank_overall": 73,
-      "fp_rank_pos": "RB21",
-      "fp_tier": 6,
-      "fp_adp_avg": "75.49",
-      "fp_rank_min": "42",
-      "fp_rank_max": "91",
-      "fp_rank_std": "8.49",
+      "fp_rank_std": "7.36",
       "fp_expert_count": 83
     },
     {
@@ -1034,13 +1020,27 @@
       "position": "WR",
       "team": "SF",
       "bye": "8",
-      "fp_rank_overall": 74,
+      "fp_rank_overall": 73,
       "fp_rank_pos": "WR26",
       "fp_tier": 6,
-      "fp_adp_avg": "75.52",
+      "fp_adp_avg": "75.48",
       "fp_rank_min": "51",
       "fp_rank_max": "122",
       "fp_rank_std": "12.48",
+      "fp_expert_count": 83
+    },
+    {
+      "name": "Quinshon Judkins",
+      "position": "RB",
+      "team": "CLE",
+      "bye": "11",
+      "fp_rank_overall": 74,
+      "fp_rank_pos": "RB21",
+      "fp_tier": 6,
+      "fp_adp_avg": "75.57",
+      "fp_rank_min": "42",
+      "fp_rank_max": "91",
+      "fp_rank_std": "8.49",
       "fp_expert_count": 83
     },
     {
@@ -1051,7 +1051,7 @@
       "fp_rank_overall": 75,
       "fp_rank_pos": "TE4",
       "fp_tier": 6,
-      "fp_adp_avg": "75.63",
+      "fp_adp_avg": "75.62",
       "fp_rank_min": "45",
       "fp_rank_max": "109",
       "fp_rank_std": "13.63",
@@ -1065,10 +1065,10 @@
       "fp_rank_overall": 76,
       "fp_rank_pos": "RB22",
       "fp_tier": 6,
-      "fp_adp_avg": "77.01",
+      "fp_adp_avg": "77.11",
       "fp_rank_min": "58",
       "fp_rank_max": "92",
-      "fp_rank_std": "7.10",
+      "fp_rank_std": "6.93",
       "fp_expert_count": 83
     },
     {
@@ -1093,10 +1093,10 @@
       "fp_rank_overall": 78,
       "fp_rank_pos": "WR27",
       "fp_tier": 6,
-      "fp_adp_avg": "77.95",
+      "fp_adp_avg": "77.89",
       "fp_rank_min": "43",
       "fp_rank_max": "121",
-      "fp_rank_std": "12.48",
+      "fp_rank_std": "12.46",
       "fp_expert_count": 83
     },
     {
@@ -1107,10 +1107,10 @@
       "fp_rank_overall": 79,
       "fp_rank_pos": "WR28",
       "fp_tier": 6,
-      "fp_adp_avg": "78.36",
+      "fp_adp_avg": "78.31",
       "fp_rank_min": "58",
       "fp_rank_max": "122",
-      "fp_rank_std": "11.32",
+      "fp_rank_std": "11.30",
       "fp_expert_count": 83
     },
     {
@@ -1121,10 +1121,10 @@
       "fp_rank_overall": 80,
       "fp_rank_pos": "RB24",
       "fp_tier": 6,
-      "fp_adp_avg": "78.52",
+      "fp_adp_avg": "78.54",
       "fp_rank_min": "52",
       "fp_rank_max": "115",
-      "fp_rank_std": "9.83",
+      "fp_rank_std": "9.84",
       "fp_expert_count": 83
     },
     {
@@ -1149,7 +1149,7 @@
       "fp_rank_overall": 82,
       "fp_rank_pos": "WR29",
       "fp_tier": 6,
-      "fp_adp_avg": "80.86",
+      "fp_adp_avg": "80.89",
       "fp_rank_min": "54",
       "fp_rank_max": "107",
       "fp_rank_std": "9.96",
@@ -1177,10 +1177,10 @@
       "fp_rank_overall": 84,
       "fp_rank_pos": "RB25",
       "fp_tier": 6,
-      "fp_adp_avg": "85.72",
+      "fp_adp_avg": "85.79",
       "fp_rank_min": "67",
       "fp_rank_max": "131",
-      "fp_rank_std": "10.53",
+      "fp_rank_std": "10.50",
       "fp_expert_count": 83
     },
     {
@@ -1191,10 +1191,10 @@
       "fp_rank_overall": 85,
       "fp_rank_pos": "TE5",
       "fp_tier": 6,
-      "fp_adp_avg": "87.98",
+      "fp_adp_avg": "88.04",
       "fp_rank_min": "66",
       "fp_rank_max": "114",
-      "fp_rank_std": "10.14",
+      "fp_rank_std": "10.21",
       "fp_expert_count": 83
     },
     {
@@ -1205,10 +1205,10 @@
       "fp_rank_overall": 86,
       "fp_rank_pos": "RB26",
       "fp_tier": 6,
-      "fp_adp_avg": "89.23",
+      "fp_adp_avg": "89.32",
       "fp_rank_min": "60",
       "fp_rank_max": "119",
-      "fp_rank_std": "10.08",
+      "fp_rank_std": "10.12",
       "fp_expert_count": 83
     },
     {
@@ -1247,7 +1247,7 @@
       "fp_rank_overall": 89,
       "fp_rank_pos": "RB27",
       "fp_tier": 7,
-      "fp_adp_avg": "92.01",
+      "fp_adp_avg": "92.00",
       "fp_rank_min": "78",
       "fp_rank_max": "110",
       "fp_rank_std": "5.88",
@@ -1275,10 +1275,10 @@
       "fp_rank_overall": 91,
       "fp_rank_pos": "WR32",
       "fp_tier": 7,
-      "fp_adp_avg": "96.20",
+      "fp_adp_avg": "96.23",
       "fp_rank_min": "68",
       "fp_rank_max": "122",
-      "fp_rank_std": "10.51",
+      "fp_rank_std": "10.55",
       "fp_expert_count": 83
     },
     {
@@ -1289,7 +1289,7 @@
       "fp_rank_overall": 92,
       "fp_rank_pos": "RB28",
       "fp_tier": 7,
-      "fp_adp_avg": "96.64",
+      "fp_adp_avg": "96.62",
       "fp_rank_min": "75",
       "fp_rank_max": "125",
       "fp_rank_std": "8.80",
@@ -1303,10 +1303,10 @@
       "fp_rank_overall": 93,
       "fp_rank_pos": "WR33",
       "fp_tier": 7,
-      "fp_adp_avg": "98.07",
+      "fp_adp_avg": "98.06",
       "fp_rank_min": "71",
       "fp_rank_max": "124",
-      "fp_rank_std": "10.37",
+      "fp_rank_std": "10.38",
       "fp_expert_count": 83
     },
     {
@@ -1331,10 +1331,10 @@
       "fp_rank_overall": 95,
       "fp_rank_pos": "WR34",
       "fp_tier": 7,
-      "fp_adp_avg": "98.65",
+      "fp_adp_avg": "98.69",
       "fp_rank_min": "79",
       "fp_rank_max": "123",
-      "fp_rank_std": "10.70",
+      "fp_rank_std": "10.76",
       "fp_expert_count": 83
     },
     {
@@ -1345,10 +1345,10 @@
       "fp_rank_overall": 96,
       "fp_rank_pos": "RB30",
       "fp_tier": 7,
-      "fp_adp_avg": "98.89",
-      "fp_rank_min": "80",
+      "fp_adp_avg": "98.79",
+      "fp_rank_min": "73",
       "fp_rank_max": "134",
-      "fp_rank_std": "11.88",
+      "fp_rank_std": "12.06",
       "fp_expert_count": 83
     },
     {
@@ -1373,10 +1373,10 @@
       "fp_rank_overall": 98,
       "fp_rank_pos": "WR35",
       "fp_tier": 7,
-      "fp_adp_avg": "100.28",
+      "fp_adp_avg": "100.27",
       "fp_rank_min": "71",
       "fp_rank_max": "129",
-      "fp_rank_std": "11.65",
+      "fp_rank_std": "11.66",
       "fp_expert_count": 83
     },
     {
@@ -1415,7 +1415,7 @@
       "fp_rank_overall": 101,
       "fp_rank_pos": "TE8",
       "fp_tier": 7,
-      "fp_adp_avg": "103.20",
+      "fp_adp_avg": "103.21",
       "fp_rank_min": "85",
       "fp_rank_max": "122",
       "fp_rank_std": "7.24",
@@ -1443,10 +1443,10 @@
       "fp_rank_overall": 103,
       "fp_rank_pos": "WR37",
       "fp_tier": 7,
-      "fp_adp_avg": "107.05",
+      "fp_adp_avg": "107.20",
       "fp_rank_min": "74",
       "fp_rank_max": "156",
-      "fp_rank_std": "14.93",
+      "fp_rank_std": "15.02",
       "fp_expert_count": 83
     },
     {
@@ -1457,7 +1457,7 @@
       "fp_rank_overall": 104,
       "fp_rank_pos": "WR38",
       "fp_tier": 7,
-      "fp_adp_avg": "107.49",
+      "fp_adp_avg": "107.52",
       "fp_rank_min": "83",
       "fp_rank_max": "210",
       "fp_rank_std": "21.12",
@@ -1471,10 +1471,10 @@
       "fp_rank_overall": 105,
       "fp_rank_pos": "RB32",
       "fp_tier": 7,
-      "fp_adp_avg": "108.35",
+      "fp_adp_avg": "108.33",
       "fp_rank_min": "78",
       "fp_rank_max": "142",
-      "fp_rank_std": "13.78",
+      "fp_rank_std": "13.77",
       "fp_expert_count": 83
     },
     {
@@ -1485,24 +1485,10 @@
       "fp_rank_overall": 106,
       "fp_rank_pos": "RB33",
       "fp_tier": 7,
-      "fp_adp_avg": "110.32",
+      "fp_adp_avg": "110.28",
       "fp_rank_min": "88",
       "fp_rank_max": "131",
-      "fp_rank_std": "9.60",
-      "fp_expert_count": 83
-    },
-    {
-      "name": "Michael Pittman Jr.",
-      "position": "WR",
-      "team": "PIT",
-      "bye": "9",
-      "fp_rank_overall": 107,
-      "fp_rank_pos": "WR39",
-      "fp_tier": 7,
-      "fp_adp_avg": "112.21",
-      "fp_rank_min": "82",
-      "fp_rank_max": "139",
-      "fp_rank_std": "10.49",
+      "fp_rank_std": "9.61",
       "fp_expert_count": 83
     },
     {
@@ -1510,13 +1496,27 @@
       "position": "WR",
       "team": "ARI",
       "bye": "14",
+      "fp_rank_overall": 107,
+      "fp_rank_pos": "WR39",
+      "fp_tier": 7,
+      "fp_adp_avg": "112.05",
+      "fp_rank_min": "88",
+      "fp_rank_max": "146",
+      "fp_rank_std": "10.35",
+      "fp_expert_count": 83
+    },
+    {
+      "name": "Michael Pittman Jr.",
+      "position": "WR",
+      "team": "PIT",
+      "bye": "9",
       "fp_rank_overall": 108,
       "fp_rank_pos": "WR40",
       "fp_tier": 7,
-      "fp_adp_avg": "112.35",
-      "fp_rank_min": "88",
-      "fp_rank_max": "146",
-      "fp_rank_std": "10.20",
+      "fp_adp_avg": "112.20",
+      "fp_rank_min": "82",
+      "fp_rank_max": "139",
+      "fp_rank_std": "10.47",
       "fp_expert_count": 83
     },
     {
@@ -1527,10 +1527,10 @@
       "fp_rank_overall": 109,
       "fp_rank_pos": "RB34",
       "fp_tier": 7,
-      "fp_adp_avg": "112.63",
+      "fp_adp_avg": "112.57",
       "fp_rank_min": "88",
       "fp_rank_max": "141",
-      "fp_rank_std": "11.59",
+      "fp_rank_std": "11.60",
       "fp_expert_count": 83
     },
     {
@@ -1541,10 +1541,10 @@
       "fp_rank_overall": 110,
       "fp_rank_pos": "RB35",
       "fp_tier": 7,
-      "fp_adp_avg": "113.49",
+      "fp_adp_avg": "113.51",
       "fp_rank_min": "92",
       "fp_rank_max": "150",
-      "fp_rank_std": "10.62",
+      "fp_rank_std": "10.60",
       "fp_expert_count": 83
     },
     {
@@ -1555,10 +1555,10 @@
       "fp_rank_overall": 111,
       "fp_rank_pos": "WR41",
       "fp_tier": 7,
-      "fp_adp_avg": "115.25",
+      "fp_adp_avg": "115.36",
       "fp_rank_min": "89",
       "fp_rank_max": "140",
-      "fp_rank_std": "12.03",
+      "fp_rank_std": "12.15",
       "fp_expert_count": 83
     },
     {
@@ -1569,10 +1569,10 @@
       "fp_rank_overall": 112,
       "fp_rank_pos": "WR42",
       "fp_tier": 7,
-      "fp_adp_avg": "115.93",
+      "fp_adp_avg": "115.95",
       "fp_rank_min": "90",
       "fp_rank_max": "198",
-      "fp_rank_std": "20.46",
+      "fp_rank_std": "20.45",
       "fp_expert_count": 83
     },
     {
@@ -1583,10 +1583,10 @@
       "fp_rank_overall": 113,
       "fp_rank_pos": "WR43",
       "fp_tier": 7,
-      "fp_adp_avg": "117.02",
+      "fp_adp_avg": "117.00",
       "fp_rank_min": "95",
       "fp_rank_max": "145",
-      "fp_rank_std": "11.00",
+      "fp_rank_std": "10.99",
       "fp_expert_count": 83
     },
     {
@@ -1597,7 +1597,7 @@
       "fp_rank_overall": 114,
       "fp_rank_pos": "WR44",
       "fp_tier": 7,
-      "fp_adp_avg": "118.35",
+      "fp_adp_avg": "118.36",
       "fp_rank_min": "93",
       "fp_rank_max": "170",
       "fp_rank_std": "14.54",
@@ -1611,10 +1611,10 @@
       "fp_rank_overall": 115,
       "fp_rank_pos": "TE9",
       "fp_tier": 7,
-      "fp_adp_avg": "119.99",
+      "fp_adp_avg": "119.95",
       "fp_rank_min": "49",
       "fp_rank_max": "164",
-      "fp_rank_std": "17.31",
+      "fp_rank_std": "17.27",
       "fp_expert_count": 83
     },
     {
@@ -1625,7 +1625,7 @@
       "fp_rank_overall": 116,
       "fp_rank_pos": "RB36",
       "fp_tier": 7,
-      "fp_adp_avg": "119.99",
+      "fp_adp_avg": "119.96",
       "fp_rank_min": "93",
       "fp_rank_max": "150",
       "fp_rank_std": "11.90",
@@ -1639,10 +1639,10 @@
       "fp_rank_overall": 117,
       "fp_rank_pos": "TE10",
       "fp_tier": 7,
-      "fp_adp_avg": "120.06",
+      "fp_adp_avg": "120.01",
       "fp_rank_min": "96",
       "fp_rank_max": "163",
-      "fp_rank_std": "11.67",
+      "fp_rank_std": "11.65",
       "fp_expert_count": 83
     },
     {
@@ -1653,10 +1653,10 @@
       "fp_rank_overall": 118,
       "fp_rank_pos": "WR45",
       "fp_tier": 7,
-      "fp_adp_avg": "120.48",
+      "fp_adp_avg": "120.54",
       "fp_rank_min": "98",
       "fp_rank_max": "144",
-      "fp_rank_std": "9.74",
+      "fp_rank_std": "9.75",
       "fp_expert_count": 83
     },
     {
@@ -1667,10 +1667,10 @@
       "fp_rank_overall": 119,
       "fp_rank_pos": "WR46",
       "fp_tier": 7,
-      "fp_adp_avg": "120.59",
+      "fp_adp_avg": "120.58",
       "fp_rank_min": "89",
       "fp_rank_max": "155",
-      "fp_rank_std": "12.44",
+      "fp_rank_std": "12.43",
       "fp_expert_count": 83
     },
     {
@@ -1681,10 +1681,10 @@
       "fp_rank_overall": 120,
       "fp_rank_pos": "RB37",
       "fp_tier": 7,
-      "fp_adp_avg": "120.85",
+      "fp_adp_avg": "120.86",
       "fp_rank_min": "88",
       "fp_rank_max": "155",
-      "fp_rank_std": "13.18",
+      "fp_rank_std": "13.19",
       "fp_expert_count": 83
     },
     {
@@ -1695,10 +1695,10 @@
       "fp_rank_overall": 121,
       "fp_rank_pos": "WR47",
       "fp_tier": 8,
-      "fp_adp_avg": "122.46",
+      "fp_adp_avg": "122.47",
       "fp_rank_min": "91",
       "fp_rank_max": "154",
-      "fp_rank_std": "14.31",
+      "fp_rank_std": "14.29",
       "fp_expert_count": 83
     },
     {
@@ -1709,10 +1709,10 @@
       "fp_rank_overall": 122,
       "fp_rank_pos": "RB38",
       "fp_tier": 8,
-      "fp_adp_avg": "123.68",
+      "fp_adp_avg": "123.54",
       "fp_rank_min": "98",
       "fp_rank_max": "150",
-      "fp_rank_std": "11.90",
+      "fp_rank_std": "11.81",
       "fp_expert_count": 83
     },
     {
@@ -1723,10 +1723,10 @@
       "fp_rank_overall": 123,
       "fp_rank_pos": "WR48",
       "fp_tier": 8,
-      "fp_adp_avg": "125.74",
+      "fp_adp_avg": "125.77",
       "fp_rank_min": "92",
       "fp_rank_max": "153",
-      "fp_rank_std": "12.53",
+      "fp_rank_std": "12.55",
       "fp_expert_count": 83
     },
     {
@@ -1737,10 +1737,10 @@
       "fp_rank_overall": 124,
       "fp_rank_pos": "TE11",
       "fp_tier": 8,
-      "fp_adp_avg": "127.80",
+      "fp_adp_avg": "127.78",
       "fp_rank_min": "104",
       "fp_rank_max": "215",
-      "fp_rank_std": "18.28",
+      "fp_rank_std": "18.29",
       "fp_expert_count": 83
     },
     {
@@ -1765,10 +1765,10 @@
       "fp_rank_overall": 126,
       "fp_rank_pos": "TE12",
       "fp_tier": 8,
-      "fp_adp_avg": "128.96",
+      "fp_adp_avg": "128.93",
       "fp_rank_min": "112",
       "fp_rank_max": "156",
-      "fp_rank_std": "10.66",
+      "fp_rank_std": "10.68",
       "fp_expert_count": 83
     },
     {
@@ -1779,10 +1779,10 @@
       "fp_rank_overall": 127,
       "fp_rank_pos": "RB40",
       "fp_tier": 8,
-      "fp_adp_avg": "130.36",
+      "fp_adp_avg": "130.42",
       "fp_rank_min": "89",
       "fp_rank_max": "209",
-      "fp_rank_std": "23.44",
+      "fp_rank_std": "23.47",
       "fp_expert_count": 83
     },
     {
@@ -1793,10 +1793,10 @@
       "fp_rank_overall": 128,
       "fp_rank_pos": "RB41",
       "fp_tier": 8,
-      "fp_adp_avg": "130.80",
+      "fp_adp_avg": "130.86",
       "fp_rank_min": "107",
       "fp_rank_max": "155",
-      "fp_rank_std": "10.43",
+      "fp_rank_std": "10.41",
       "fp_expert_count": 83
     },
     {
@@ -1821,10 +1821,10 @@
       "fp_rank_overall": 130,
       "fp_rank_pos": "WR49",
       "fp_tier": 8,
-      "fp_adp_avg": "133.33",
+      "fp_adp_avg": "133.35",
       "fp_rank_min": "95",
       "fp_rank_max": "158",
-      "fp_rank_std": "12.62",
+      "fp_rank_std": "12.59",
       "fp_expert_count": 83
     },
     {
@@ -1849,10 +1849,10 @@
       "fp_rank_overall": 132,
       "fp_rank_pos": "TE14",
       "fp_tier": 8,
-      "fp_adp_avg": "130.95",
+      "fp_adp_avg": "130.94",
       "fp_rank_min": "103",
       "fp_rank_max": "217",
-      "fp_rank_std": "21.21",
+      "fp_rank_std": "21.22",
       "fp_expert_count": 83
     },
     {
@@ -1863,10 +1863,10 @@
       "fp_rank_overall": 133,
       "fp_rank_pos": "WR50",
       "fp_tier": 8,
-      "fp_adp_avg": "138.42",
+      "fp_adp_avg": "138.37",
       "fp_rank_min": "120",
       "fp_rank_max": "160",
-      "fp_rank_std": "8.95",
+      "fp_rank_std": "8.94",
       "fp_expert_count": 83
     },
     {
@@ -1877,10 +1877,10 @@
       "fp_rank_overall": 134,
       "fp_rank_pos": "TE15",
       "fp_tier": 8,
-      "fp_adp_avg": "139.17",
+      "fp_adp_avg": "139.21",
       "fp_rank_min": "112",
       "fp_rank_max": "186",
-      "fp_rank_std": "16.28",
+      "fp_rank_std": "16.30",
       "fp_expert_count": 83
     },
     {
@@ -1891,10 +1891,10 @@
       "fp_rank_overall": 135,
       "fp_rank_pos": "RB42",
       "fp_tier": 8,
-      "fp_adp_avg": "139.94",
+      "fp_adp_avg": "139.96",
       "fp_rank_min": "126",
       "fp_rank_max": "165",
-      "fp_rank_std": "8.19",
+      "fp_rank_std": "8.17",
       "fp_expert_count": 83
     },
     {
@@ -1905,10 +1905,10 @@
       "fp_rank_overall": 136,
       "fp_rank_pos": "WR51",
       "fp_tier": 8,
-      "fp_adp_avg": "140.83",
+      "fp_adp_avg": "140.80",
       "fp_rank_min": "121",
       "fp_rank_max": "169",
-      "fp_rank_std": "9.28",
+      "fp_rank_std": "9.26",
       "fp_expert_count": 83
     },
     {
@@ -1919,7 +1919,7 @@
       "fp_rank_overall": 137,
       "fp_rank_pos": "RB43",
       "fp_tier": 8,
-      "fp_adp_avg": "142.28",
+      "fp_adp_avg": "142.23",
       "fp_rank_min": "107",
       "fp_rank_max": "201",
       "fp_rank_std": "16.47",
@@ -1933,10 +1933,10 @@
       "fp_rank_overall": 138,
       "fp_rank_pos": "WR52",
       "fp_tier": 8,
-      "fp_adp_avg": "142.96",
+      "fp_adp_avg": "143.07",
       "fp_rank_min": "103",
       "fp_rank_max": "179",
-      "fp_rank_std": "13.99",
+      "fp_rank_std": "13.96",
       "fp_expert_count": 83
     },
     {
@@ -1947,10 +1947,10 @@
       "fp_rank_overall": 139,
       "fp_rank_pos": "RB44",
       "fp_tier": 8,
-      "fp_adp_avg": "145.00",
+      "fp_adp_avg": "144.96",
       "fp_rank_min": "119",
       "fp_rank_max": "175",
-      "fp_rank_std": "11.78",
+      "fp_rank_std": "11.82",
       "fp_expert_count": 83
     },
     {
@@ -1961,10 +1961,10 @@
       "fp_rank_overall": 140,
       "fp_rank_pos": "WR53",
       "fp_tier": 8,
-      "fp_adp_avg": "145.80",
+      "fp_adp_avg": "145.75",
       "fp_rank_min": "106",
       "fp_rank_max": "275",
-      "fp_rank_std": "29.39",
+      "fp_rank_std": "29.40",
       "fp_expert_count": 83
     },
     {
@@ -1975,7 +1975,7 @@
       "fp_rank_overall": 141,
       "fp_rank_pos": "RB45",
       "fp_tier": 8,
-      "fp_adp_avg": "146.94",
+      "fp_adp_avg": "146.91",
       "fp_rank_min": "97",
       "fp_rank_max": "209",
       "fp_rank_std": "17.87",
@@ -1989,10 +1989,10 @@
       "fp_rank_overall": 142,
       "fp_rank_pos": "WR54",
       "fp_tier": 8,
-      "fp_adp_avg": "148.35",
+      "fp_adp_avg": "148.47",
       "fp_rank_min": "125",
       "fp_rank_max": "198",
-      "fp_rank_std": "13.83",
+      "fp_rank_std": "13.76",
       "fp_expert_count": 83
     },
     {
@@ -2003,10 +2003,10 @@
       "fp_rank_overall": 143,
       "fp_rank_pos": "WR55",
       "fp_tier": 8,
-      "fp_adp_avg": "148.53",
+      "fp_adp_avg": "148.63",
       "fp_rank_min": "109",
       "fp_rank_max": "187",
-      "fp_rank_std": "16.85",
+      "fp_rank_std": "16.87",
       "fp_expert_count": 83
     },
     {
@@ -2017,10 +2017,10 @@
       "fp_rank_overall": 144,
       "fp_rank_pos": "RB46",
       "fp_tier": 8,
-      "fp_adp_avg": "150.67",
+      "fp_adp_avg": "150.68",
       "fp_rank_min": "130",
       "fp_rank_max": "172",
-      "fp_rank_std": "9.78",
+      "fp_rank_std": "9.79",
       "fp_expert_count": 83
     },
     {
@@ -2031,10 +2031,10 @@
       "fp_rank_overall": 145,
       "fp_rank_pos": "RB47",
       "fp_tier": 8,
-      "fp_adp_avg": "144.86",
+      "fp_adp_avg": "144.83",
       "fp_rank_min": "101",
       "fp_rank_max": "200",
-      "fp_rank_std": "14.86",
+      "fp_rank_std": "14.87",
       "fp_expert_count": 83
     },
     {
@@ -2045,7 +2045,7 @@
       "fp_rank_overall": 146,
       "fp_rank_pos": "RB48",
       "fp_tier": 8,
-      "fp_adp_avg": "154.60",
+      "fp_adp_avg": "154.59",
       "fp_rank_min": "132",
       "fp_rank_max": "186",
       "fp_rank_std": "11.21",
@@ -2087,10 +2087,10 @@
       "fp_rank_overall": 149,
       "fp_rank_pos": "TE16",
       "fp_tier": 8,
-      "fp_adp_avg": "156.83",
+      "fp_adp_avg": "156.78",
       "fp_rank_min": "114",
       "fp_rank_max": "231",
-      "fp_rank_std": "18.41",
+      "fp_rank_std": "18.44",
       "fp_expert_count": 83
     },
     {
@@ -2101,10 +2101,10 @@
       "fp_rank_overall": 150,
       "fp_rank_pos": "TE17",
       "fp_tier": 8,
-      "fp_adp_avg": "157.49",
+      "fp_adp_avg": "157.48",
       "fp_rank_min": "120",
       "fp_rank_max": "221",
-      "fp_rank_std": "18.49",
+      "fp_rank_std": "18.50",
       "fp_expert_count": 83
     },
     {
@@ -2115,10 +2115,10 @@
       "fp_rank_overall": 151,
       "fp_rank_pos": "RB50",
       "fp_tier": 8,
-      "fp_adp_avg": "158.47",
+      "fp_adp_avg": "158.63",
       "fp_rank_min": "126",
       "fp_rank_max": "223",
-      "fp_rank_std": "17.65",
+      "fp_rank_std": "18.07",
       "fp_expert_count": 83
     },
     {
@@ -2129,10 +2129,10 @@
       "fp_rank_overall": 152,
       "fp_rank_pos": "WR56",
       "fp_tier": 8,
-      "fp_adp_avg": "159.02",
+      "fp_adp_avg": "159.01",
       "fp_rank_min": "136",
       "fp_rank_max": "257",
-      "fp_rank_std": "16.19",
+      "fp_rank_std": "16.20",
       "fp_expert_count": 83
     },
     {
@@ -2143,7 +2143,7 @@
       "fp_rank_overall": 153,
       "fp_rank_pos": "RB51",
       "fp_tier": 8,
-      "fp_adp_avg": "160.27",
+      "fp_adp_avg": "160.28",
       "fp_rank_min": "127",
       "fp_rank_max": "219",
       "fp_rank_std": "19.57",
@@ -2157,7 +2157,7 @@
       "fp_rank_overall": 154,
       "fp_rank_pos": "TE18",
       "fp_tier": 8,
-      "fp_adp_avg": "160.74",
+      "fp_adp_avg": "160.67",
       "fp_rank_min": "114",
       "fp_rank_max": "198",
       "fp_rank_std": "15.26",
@@ -2171,10 +2171,10 @@
       "fp_rank_overall": 155,
       "fp_rank_pos": "TE19",
       "fp_tier": 8,
-      "fp_adp_avg": "162.20",
+      "fp_adp_avg": "162.30",
       "fp_rank_min": "104",
       "fp_rank_max": "227",
-      "fp_rank_std": "25.55",
+      "fp_rank_std": "25.58",
       "fp_expert_count": 83
     },
     {
@@ -2185,7 +2185,7 @@
       "fp_rank_overall": 156,
       "fp_rank_pos": "TE20",
       "fp_tier": 8,
-      "fp_adp_avg": "163.21",
+      "fp_adp_avg": "163.22",
       "fp_rank_min": "115",
       "fp_rank_max": "231",
       "fp_rank_std": "23.44",
@@ -2199,7 +2199,7 @@
       "fp_rank_overall": 157,
       "fp_rank_pos": "RB52",
       "fp_tier": 8,
-      "fp_adp_avg": "165.19",
+      "fp_adp_avg": "165.20",
       "fp_rank_min": "138",
       "fp_rank_max": "201",
       "fp_rank_std": "13.45",
@@ -2227,10 +2227,10 @@
       "fp_rank_overall": 159,
       "fp_rank_pos": "RB53",
       "fp_tier": 9,
-      "fp_adp_avg": "162.81",
+      "fp_adp_avg": "162.80",
       "fp_rank_min": "131",
       "fp_rank_max": "284",
-      "fp_rank_std": "24.40",
+      "fp_rank_std": "24.41",
       "fp_expert_count": 83
     },
     {
@@ -2269,10 +2269,10 @@
       "fp_rank_overall": 162,
       "fp_rank_pos": "WR58",
       "fp_tier": 9,
-      "fp_adp_avg": "163.54",
+      "fp_adp_avg": "163.47",
       "fp_rank_min": "113",
       "fp_rank_max": "256",
-      "fp_rank_std": "20.34",
+      "fp_rank_std": "20.32",
       "fp_expert_count": 83
     },
     {
@@ -2297,10 +2297,10 @@
       "fp_rank_overall": 164,
       "fp_rank_pos": "WR60",
       "fp_tier": 9,
-      "fp_adp_avg": "166.37",
+      "fp_adp_avg": "166.34",
       "fp_rank_min": "136",
       "fp_rank_max": "269",
-      "fp_rank_std": "19.61",
+      "fp_rank_std": "19.60",
       "fp_expert_count": 83
     },
     {
@@ -2311,7 +2311,7 @@
       "fp_rank_overall": 165,
       "fp_rank_pos": "WR61",
       "fp_tier": 9,
-      "fp_adp_avg": "167.81",
+      "fp_adp_avg": "167.82",
       "fp_rank_min": "133",
       "fp_rank_max": "279",
       "fp_rank_std": "24.06",
@@ -2325,10 +2325,10 @@
       "fp_rank_overall": 166,
       "fp_rank_pos": "TE21",
       "fp_tier": 9,
-      "fp_adp_avg": "180.94",
+      "fp_adp_avg": "180.95",
       "fp_rank_min": "125",
       "fp_rank_max": "215",
-      "fp_rank_std": "17.36",
+      "fp_rank_std": "17.37",
       "fp_expert_count": 83
     },
     {
@@ -2339,7 +2339,7 @@
       "fp_rank_overall": 167,
       "fp_rank_pos": "WR62",
       "fp_tier": 9,
-      "fp_adp_avg": "175.20",
+      "fp_adp_avg": "175.19",
       "fp_rank_min": "143",
       "fp_rank_max": "285",
       "fp_rank_std": "19.63",
@@ -2367,7 +2367,7 @@
       "fp_rank_overall": 169,
       "fp_rank_pos": "WR63",
       "fp_tier": 9,
-      "fp_adp_avg": "171.86",
+      "fp_adp_avg": "171.85",
       "fp_rank_min": "143",
       "fp_rank_max": "272",
       "fp_rank_std": "20.93",
@@ -2381,10 +2381,10 @@
       "fp_rank_overall": 170,
       "fp_rank_pos": "TE23",
       "fp_tier": 9,
-      "fp_adp_avg": "190.59",
+      "fp_adp_avg": "190.56",
       "fp_rank_min": "153",
       "fp_rank_max": "234",
-      "fp_rank_std": "16.09",
+      "fp_rank_std": "16.05",
       "fp_expert_count": 83
     },
     {
@@ -2395,10 +2395,10 @@
       "fp_rank_overall": 171,
       "fp_rank_pos": "RB55",
       "fp_tier": 9,
-      "fp_adp_avg": "167.04",
+      "fp_adp_avg": "167.01",
       "fp_rank_min": "130",
       "fp_rank_max": "226",
-      "fp_rank_std": "17.29",
+      "fp_rank_std": "17.28",
       "fp_expert_count": 83
     },
     {
@@ -2437,7 +2437,7 @@
       "fp_rank_overall": 174,
       "fp_rank_pos": "WR65",
       "fp_tier": 9,
-      "fp_adp_avg": "174.96",
+      "fp_adp_avg": "174.95",
       "fp_rank_min": "113",
       "fp_rank_max": "257",
       "fp_rank_std": "25.76",
@@ -2451,10 +2451,10 @@
       "fp_rank_overall": 175,
       "fp_rank_pos": "WR66",
       "fp_tier": 9,
-      "fp_adp_avg": "187.34",
+      "fp_adp_avg": "187.32",
       "fp_rank_min": "157",
       "fp_rank_max": "278",
-      "fp_rank_std": "20.98",
+      "fp_rank_std": "20.96",
       "fp_expert_count": 83
     },
     {
@@ -2479,10 +2479,10 @@
       "fp_rank_overall": 177,
       "fp_rank_pos": "QB31",
       "fp_tier": 9,
-      "fp_adp_avg": "133.87",
+      "fp_adp_avg": "133.33",
       "fp_rank_min": "64",
       "fp_rank_max": "186",
-      "fp_rank_std": "31.27",
+      "fp_rank_std": "30.83",
       "fp_expert_count": 83
     },
     {
@@ -2493,10 +2493,10 @@
       "fp_rank_overall": 178,
       "fp_rank_pos": "RB56",
       "fp_tier": 9,
-      "fp_adp_avg": "182.77",
+      "fp_adp_avg": "182.75",
       "fp_rank_min": "145",
       "fp_rank_max": "275",
-      "fp_rank_std": "23.88",
+      "fp_rank_std": "23.89",
       "fp_expert_count": 83
     },
     {
@@ -2507,10 +2507,10 @@
       "fp_rank_overall": 179,
       "fp_rank_pos": "RB57",
       "fp_tier": 9,
-      "fp_adp_avg": "186.05",
+      "fp_adp_avg": "186.04",
       "fp_rank_min": "119",
       "fp_rank_max": "279",
-      "fp_rank_std": "31.74",
+      "fp_rank_std": "31.76",
       "fp_expert_count": 83
     },
     {
@@ -2521,7 +2521,7 @@
       "fp_rank_overall": 180,
       "fp_rank_pos": "RB58",
       "fp_tier": 9,
-      "fp_adp_avg": "186.62",
+      "fp_adp_avg": "186.64",
       "fp_rank_min": "159",
       "fp_rank_max": "256",
       "fp_rank_std": "22.04",
@@ -2535,24 +2535,10 @@
       "fp_rank_overall": 181,
       "fp_rank_pos": "WR68",
       "fp_tier": 9,
-      "fp_adp_avg": "193.13",
+      "fp_adp_avg": "193.09",
       "fp_rank_min": "147",
       "fp_rank_max": "278",
-      "fp_rank_std": "21.21",
-      "fp_expert_count": 83
-    },
-    {
-      "name": "Isaac TeSlaa",
-      "position": "WR",
-      "team": "DET",
-      "bye": "6",
-      "fp_rank_overall": 182,
-      "fp_rank_pos": "WR69",
-      "fp_tier": 9,
-      "fp_adp_avg": "193.18",
-      "fp_rank_min": "168",
-      "fp_rank_max": "258",
-      "fp_rank_std": "17.01",
+      "fp_rank_std": "21.20",
       "fp_expert_count": 83
     },
     {
@@ -2560,13 +2546,27 @@
       "position": "WR",
       "team": "NE",
       "bye": "11",
+      "fp_rank_overall": 182,
+      "fp_rank_pos": "WR69",
+      "fp_tier": 9,
+      "fp_adp_avg": "187.19",
+      "fp_rank_min": "157",
+      "fp_rank_max": "239",
+      "fp_rank_std": "17.19",
+      "fp_expert_count": 83
+    },
+    {
+      "name": "Isaac TeSlaa",
+      "position": "WR",
+      "team": "DET",
+      "bye": "6",
       "fp_rank_overall": 183,
       "fp_rank_pos": "WR70",
       "fp_tier": 9,
-      "fp_adp_avg": "187.21",
-      "fp_rank_min": "157",
-      "fp_rank_max": "239",
-      "fp_rank_std": "17.18",
+      "fp_adp_avg": "193.19",
+      "fp_rank_min": "168",
+      "fp_rank_max": "258",
+      "fp_rank_std": "17.01",
       "fp_expert_count": 83
     },
     {
@@ -2577,10 +2577,10 @@
       "fp_rank_overall": 184,
       "fp_rank_pos": "RB59",
       "fp_tier": 9,
-      "fp_adp_avg": "188.51",
+      "fp_adp_avg": "188.47",
       "fp_rank_min": "152",
       "fp_rank_max": "235",
-      "fp_rank_std": "18.13",
+      "fp_rank_std": "18.10",
       "fp_expert_count": 83
     },
     {
@@ -2605,10 +2605,10 @@
       "fp_rank_overall": 186,
       "fp_rank_pos": "RB60",
       "fp_tier": 9,
-      "fp_adp_avg": "189.03",
+      "fp_adp_avg": "189.19",
       "fp_rank_min": "150",
       "fp_rank_max": "243",
-      "fp_rank_std": "19.42",
+      "fp_rank_std": "19.30",
       "fp_expert_count": 83
     },
     {
@@ -2633,24 +2633,10 @@
       "fp_rank_overall": 188,
       "fp_rank_pos": "TE25",
       "fp_tier": 9,
-      "fp_adp_avg": "204.05",
+      "fp_adp_avg": "204.03",
       "fp_rank_min": "150",
       "fp_rank_max": "253",
-      "fp_rank_std": "18.34",
-      "fp_expert_count": 83
-    },
-    {
-      "name": "Michael Penix Jr.",
-      "position": "QB",
-      "team": "ATL",
-      "bye": "11",
-      "fp_rank_overall": 189,
-      "fp_rank_pos": "QB32",
-      "fp_tier": 9,
-      "fp_adp_avg": "141.07",
-      "fp_rank_min": "83",
-      "fp_rank_max": "268",
-      "fp_rank_std": "33.86",
+      "fp_rank_std": "18.33",
       "fp_expert_count": 83
     },
     {
@@ -2658,13 +2644,27 @@
       "position": "WR",
       "team": "SF",
       "bye": "8",
-      "fp_rank_overall": 190,
+      "fp_rank_overall": 189,
       "fp_rank_pos": "WR73",
       "fp_tier": 9,
-      "fp_adp_avg": "217.90",
+      "fp_adp_avg": "216.94",
       "fp_rank_min": "163",
       "fp_rank_max": "352",
-      "fp_rank_std": "36.68",
+      "fp_rank_std": "36.12",
+      "fp_expert_count": 83
+    },
+    {
+      "name": "Michael Penix Jr.",
+      "position": "QB",
+      "team": "ATL",
+      "bye": "11",
+      "fp_rank_overall": 190,
+      "fp_rank_pos": "QB32",
+      "fp_tier": 9,
+      "fp_adp_avg": "141.07",
+      "fp_rank_min": "83",
+      "fp_rank_max": "268",
+      "fp_rank_std": "33.86",
       "fp_expert_count": 83
     },
     {
@@ -2675,10 +2675,10 @@
       "fp_rank_overall": 191,
       "fp_rank_pos": "WR74",
       "fp_tier": 9,
-      "fp_adp_avg": "197.25",
+      "fp_adp_avg": "197.21",
       "fp_rank_min": "166",
       "fp_rank_max": "263",
-      "fp_rank_std": "17.62",
+      "fp_rank_std": "17.61",
       "fp_expert_count": 83
     },
     {
@@ -2689,10 +2689,10 @@
       "fp_rank_overall": 192,
       "fp_rank_pos": "WR75",
       "fp_tier": 9,
-      "fp_adp_avg": "165.82",
+      "fp_adp_avg": "165.81",
       "fp_rank_min": "99",
       "fp_rank_max": "280",
-      "fp_rank_std": "35.14",
+      "fp_rank_std": "35.15",
       "fp_expert_count": 83
     },
     {
@@ -2703,10 +2703,10 @@
       "fp_rank_overall": 193,
       "fp_rank_pos": "WR76",
       "fp_tier": 9,
-      "fp_adp_avg": "204.86",
+      "fp_adp_avg": "204.87",
       "fp_rank_min": "180",
       "fp_rank_max": "295",
-      "fp_rank_std": "19.70",
+      "fp_rank_std": "19.69",
       "fp_expert_count": 83
     },
     {
@@ -2717,10 +2717,10 @@
       "fp_rank_overall": 194,
       "fp_rank_pos": "WR77",
       "fp_tier": 9,
-      "fp_adp_avg": "193.91",
+      "fp_adp_avg": "194.00",
       "fp_rank_min": "127",
       "fp_rank_max": "270",
-      "fp_rank_std": "33.33",
+      "fp_rank_std": "33.31",
       "fp_expert_count": 83
     },
     {
@@ -2731,10 +2731,10 @@
       "fp_rank_overall": 195,
       "fp_rank_pos": "RB61",
       "fp_tier": 9,
-      "fp_adp_avg": "194.04",
+      "fp_adp_avg": "194.05",
       "fp_rank_min": "145",
       "fp_rank_max": "285",
-      "fp_rank_std": "28.41",
+      "fp_rank_std": "28.39",
       "fp_expert_count": 83
     },
     {
@@ -2773,10 +2773,10 @@
       "fp_rank_overall": 198,
       "fp_rank_pos": "WR79",
       "fp_tier": 10,
-      "fp_adp_avg": "209.99",
+      "fp_adp_avg": "209.95",
       "fp_rank_min": "166",
       "fp_rank_max": "255",
-      "fp_rank_std": "19.66",
+      "fp_rank_std": "19.67",
       "fp_expert_count": 83
     },
     {
@@ -2787,10 +2787,10 @@
       "fp_rank_overall": 199,
       "fp_rank_pos": "TE27",
       "fp_tier": 10,
-      "fp_adp_avg": "215.82",
+      "fp_adp_avg": "215.81",
       "fp_rank_min": "161",
       "fp_rank_max": "267",
-      "fp_rank_std": "18.83",
+      "fp_rank_std": "18.82",
       "fp_expert_count": 83
     },
     {
@@ -2801,10 +2801,10 @@
       "fp_rank_overall": 200,
       "fp_rank_pos": "WR80",
       "fp_tier": 10,
-      "fp_adp_avg": "204.96",
+      "fp_adp_avg": "204.92",
       "fp_rank_min": "160",
       "fp_rank_max": "264",
-      "fp_rank_std": "18.98",
+      "fp_rank_std": "18.97",
       "fp_expert_count": 83
     },
     {
@@ -2829,10 +2829,10 @@
       "fp_rank_overall": 202,
       "fp_rank_pos": "RB63",
       "fp_tier": 10,
-      "fp_adp_avg": "187.77",
+      "fp_adp_avg": "187.74",
       "fp_rank_min": "150",
       "fp_rank_max": "278",
-      "fp_rank_std": "24.64",
+      "fp_rank_std": "24.66",
       "fp_expert_count": 83
     },
     {
@@ -2843,10 +2843,10 @@
       "fp_rank_overall": 203,
       "fp_rank_pos": "TE28",
       "fp_tier": 10,
-      "fp_adp_avg": "219.82",
+      "fp_adp_avg": "219.81",
       "fp_rank_min": "171",
       "fp_rank_max": "275",
-      "fp_rank_std": "17.84",
+      "fp_rank_std": "17.82",
       "fp_expert_count": 83
     },
     {
@@ -2857,7 +2857,7 @@
       "fp_rank_overall": 204,
       "fp_rank_pos": "TE29",
       "fp_tier": 10,
-      "fp_adp_avg": "220.32",
+      "fp_adp_avg": "220.31",
       "fp_rank_min": "161",
       "fp_rank_max": "267",
       "fp_rank_std": "17.71",
@@ -2871,10 +2871,10 @@
       "fp_rank_overall": 205,
       "fp_rank_pos": "WR81",
       "fp_tier": 10,
-      "fp_adp_avg": "209.72",
+      "fp_adp_avg": "209.71",
       "fp_rank_min": "171",
       "fp_rank_max": "265",
-      "fp_rank_std": "19.31",
+      "fp_rank_std": "19.30",
       "fp_expert_count": 83
     },
     {
@@ -2885,10 +2885,10 @@
       "fp_rank_overall": 206,
       "fp_rank_pos": "RB64",
       "fp_tier": 10,
-      "fp_adp_avg": "186.56",
+      "fp_adp_avg": "186.32",
       "fp_rank_min": "150",
       "fp_rank_max": "280",
-      "fp_rank_std": "27.26",
+      "fp_rank_std": "27.25",
       "fp_expert_count": 83
     },
     {
@@ -2899,7 +2899,7 @@
       "fp_rank_overall": 207,
       "fp_rank_pos": "RB65",
       "fp_tier": 10,
-      "fp_adp_avg": "204.91",
+      "fp_adp_avg": "204.86",
       "fp_rank_min": "155",
       "fp_rank_max": "256",
       "fp_rank_std": "19.88",
@@ -2913,10 +2913,10 @@
       "fp_rank_overall": 208,
       "fp_rank_pos": "WR82",
       "fp_tier": 10,
-      "fp_adp_avg": "217.91",
+      "fp_adp_avg": "217.89",
       "fp_rank_min": "172",
       "fp_rank_max": "279",
-      "fp_rank_std": "24.72",
+      "fp_rank_std": "24.71",
       "fp_expert_count": 83
     },
     {
@@ -2927,7 +2927,7 @@
       "fp_rank_overall": 209,
       "fp_rank_pos": "TE30",
       "fp_tier": 10,
-      "fp_adp_avg": "226.62",
+      "fp_adp_avg": "226.61",
       "fp_rank_min": "174",
       "fp_rank_max": "273",
       "fp_rank_std": "18.13",
@@ -2955,10 +2955,10 @@
       "fp_rank_overall": 211,
       "fp_rank_pos": "WR83",
       "fp_tier": 10,
-      "fp_adp_avg": "212.54",
+      "fp_adp_avg": "212.51",
       "fp_rank_min": "158",
       "fp_rank_max": "326",
-      "fp_rank_std": "33.48",
+      "fp_rank_std": "33.51",
       "fp_expert_count": 83
     },
     {
@@ -2969,7 +2969,7 @@
       "fp_rank_overall": 212,
       "fp_rank_pos": "WR84",
       "fp_tier": 10,
-      "fp_adp_avg": "185.55",
+      "fp_adp_avg": "185.57",
       "fp_rank_min": "133",
       "fp_rank_max": "286",
       "fp_rank_std": "29.07",
@@ -2983,7 +2983,7 @@
       "fp_rank_overall": 213,
       "fp_rank_pos": "RB67",
       "fp_tier": 10,
-      "fp_adp_avg": "213.75",
+      "fp_adp_avg": "213.74",
       "fp_rank_min": "165",
       "fp_rank_max": "261",
       "fp_rank_std": "18.91",
@@ -3011,10 +3011,10 @@
       "fp_rank_overall": 215,
       "fp_rank_pos": "TE31",
       "fp_tier": 10,
-      "fp_adp_avg": "266.75",
+      "fp_adp_avg": "266.31",
       "fp_rank_min": "204",
       "fp_rank_max": "328",
-      "fp_rank_std": "30.92",
+      "fp_rank_std": "31.25",
       "fp_expert_count": 83
     },
     {
@@ -3039,10 +3039,10 @@
       "fp_rank_overall": 217,
       "fp_rank_pos": "WR87",
       "fp_tier": 10,
-      "fp_adp_avg": "213.83",
+      "fp_adp_avg": "213.82",
       "fp_rank_min": "172",
       "fp_rank_max": "284",
-      "fp_rank_std": "26.26",
+      "fp_rank_std": "26.25",
       "fp_expert_count": 83
     },
     {
@@ -3067,7 +3067,7 @@
       "fp_rank_overall": 219,
       "fp_rank_pos": "WR89",
       "fp_tier": 10,
-      "fp_adp_avg": "226.69",
+      "fp_adp_avg": "226.68",
       "fp_rank_min": "185",
       "fp_rank_max": "270",
       "fp_rank_std": "22.75",
@@ -3095,10 +3095,10 @@
       "fp_rank_overall": 221,
       "fp_rank_pos": "WR91",
       "fp_tier": 10,
-      "fp_adp_avg": "232.25",
+      "fp_adp_avg": "232.24",
       "fp_rank_min": "180",
       "fp_rank_max": "294",
-      "fp_rank_std": "22.11",
+      "fp_rank_std": "22.10",
       "fp_expert_count": 83
     },
     {
@@ -3109,10 +3109,10 @@
       "fp_rank_overall": 222,
       "fp_rank_pos": "QB33",
       "fp_tier": 10,
-      "fp_adp_avg": "165.03",
+      "fp_adp_avg": "165.74",
       "fp_rank_min": "87",
       "fp_rank_max": "277",
-      "fp_rank_std": "34.98",
+      "fp_rank_std": "34.92",
       "fp_expert_count": 83
     },
     {
@@ -3123,10 +3123,10 @@
       "fp_rank_overall": 223,
       "fp_rank_pos": "TE32",
       "fp_tier": 10,
-      "fp_adp_avg": "231.34",
+      "fp_adp_avg": "231.32",
       "fp_rank_min": "175",
       "fp_rank_max": "262",
-      "fp_rank_std": "15.01",
+      "fp_rank_std": "14.99",
       "fp_expert_count": 83
     },
     {
@@ -3151,7 +3151,7 @@
       "fp_rank_overall": 225,
       "fp_rank_pos": "WR92",
       "fp_tier": 10,
-      "fp_adp_avg": "227.76",
+      "fp_adp_avg": "227.74",
       "fp_rank_min": "174",
       "fp_rank_max": "285",
       "fp_rank_std": "22.68",
@@ -3165,7 +3165,7 @@
       "fp_rank_overall": 226,
       "fp_rank_pos": "RB69",
       "fp_tier": 10,
-      "fp_adp_avg": "228.20",
+      "fp_adp_avg": "228.19",
       "fp_rank_min": "166",
       "fp_rank_max": "339",
       "fp_rank_std": "27.78",
@@ -3193,10 +3193,10 @@
       "fp_rank_overall": 228,
       "fp_rank_pos": "WR93",
       "fp_tier": 10,
-      "fp_adp_avg": "235.90",
+      "fp_adp_avg": "235.89",
       "fp_rank_min": "183",
       "fp_rank_max": "327",
-      "fp_rank_std": "22.52",
+      "fp_rank_std": "22.53",
       "fp_expert_count": 83
     },
     {
@@ -3207,7 +3207,7 @@
       "fp_rank_overall": 229,
       "fp_rank_pos": "RB70",
       "fp_tier": 10,
-      "fp_adp_avg": "232.80",
+      "fp_adp_avg": "232.79",
       "fp_rank_min": "155",
       "fp_rank_max": "290",
       "fp_rank_std": "22.76",
@@ -3249,10 +3249,10 @@
       "fp_rank_overall": 232,
       "fp_rank_pos": "RB73",
       "fp_tier": 10,
-      "fp_adp_avg": "223.34",
+      "fp_adp_avg": "223.49",
       "fp_rank_min": "154",
       "fp_rank_max": "299",
-      "fp_rank_std": "27.51",
+      "fp_rank_std": "27.63",
       "fp_expert_count": 83
     },
     {
@@ -3277,10 +3277,10 @@
       "fp_rank_overall": 234,
       "fp_rank_pos": "WR95",
       "fp_tier": 10,
-      "fp_adp_avg": "205.22",
+      "fp_adp_avg": "205.23",
       "fp_rank_min": "146",
       "fp_rank_max": "303",
-      "fp_rank_std": "34.43",
+      "fp_rank_std": "34.42",
       "fp_expert_count": 83
     },
     {
@@ -3305,7 +3305,7 @@
       "fp_rank_overall": 236,
       "fp_rank_pos": "WR96",
       "fp_tier": 10,
-      "fp_adp_avg": "225.67",
+      "fp_adp_avg": "225.66",
       "fp_rank_min": "170",
       "fp_rank_max": "292",
       "fp_rank_std": "27.64",
@@ -3319,7 +3319,7 @@
       "fp_rank_overall": 237,
       "fp_rank_pos": "RB75",
       "fp_tier": 10,
-      "fp_adp_avg": "229.85",
+      "fp_adp_avg": "229.84",
       "fp_rank_min": "152",
       "fp_rank_max": "289",
       "fp_rank_std": "29.24",
@@ -3333,10 +3333,10 @@
       "fp_rank_overall": 238,
       "fp_rank_pos": "WR97",
       "fp_tier": 10,
-      "fp_adp_avg": "238.57",
+      "fp_adp_avg": "238.55",
       "fp_rank_min": "180",
       "fp_rank_max": "287",
-      "fp_rank_std": "22.11",
+      "fp_rank_std": "22.12",
       "fp_expert_count": 83
     },
     {
@@ -3347,7 +3347,7 @@
       "fp_rank_overall": 239,
       "fp_rank_pos": "RB76",
       "fp_tier": 10,
-      "fp_adp_avg": "221.11",
+      "fp_adp_avg": "221.09",
       "fp_rank_min": "156",
       "fp_rank_max": "296",
       "fp_rank_std": "29.22",
@@ -3375,10 +3375,10 @@
       "fp_rank_overall": 241,
       "fp_rank_pos": "RB77",
       "fp_tier": 10,
-      "fp_adp_avg": "235.80",
+      "fp_adp_avg": "235.79",
       "fp_rank_min": "168",
       "fp_rank_max": "311",
-      "fp_rank_std": "28.90",
+      "fp_rank_std": "28.91",
       "fp_expert_count": 83
     },
     {
@@ -3389,10 +3389,10 @@
       "fp_rank_overall": 242,
       "fp_rank_pos": "QB34",
       "fp_tier": 10,
-      "fp_adp_avg": "153.78",
+      "fp_adp_avg": "153.67",
       "fp_rank_min": "70",
       "fp_rank_max": "278",
-      "fp_rank_std": "39.49",
+      "fp_rank_std": "39.42",
       "fp_expert_count": 83
     },
     {
@@ -3417,10 +3417,10 @@
       "fp_rank_overall": 244,
       "fp_rank_pos": "RB79",
       "fp_tier": 10,
-      "fp_adp_avg": "227.86",
+      "fp_adp_avg": "227.98",
       "fp_rank_min": "154",
       "fp_rank_max": "304",
-      "fp_rank_std": "32.42",
+      "fp_rank_std": "32.32",
       "fp_expert_count": 83
     },
     {
@@ -3431,10 +3431,10 @@
       "fp_rank_overall": 245,
       "fp_rank_pos": "RB80",
       "fp_tier": 10,
-      "fp_adp_avg": "234.63",
+      "fp_adp_avg": "234.62",
       "fp_rank_min": "192",
       "fp_rank_max": "309",
-      "fp_rank_std": "21.33",
+      "fp_rank_std": "21.31",
       "fp_expert_count": 83
     },
     {
@@ -3459,10 +3459,10 @@
       "fp_rank_overall": 247,
       "fp_rank_pos": "RB81",
       "fp_tier": 10,
-      "fp_adp_avg": "227.78",
+      "fp_adp_avg": "227.75",
       "fp_rank_min": "155",
       "fp_rank_max": "317",
-      "fp_rank_std": "29.81",
+      "fp_rank_std": "29.83",
       "fp_expert_count": 83
     },
     {
@@ -3487,7 +3487,7 @@
       "fp_rank_overall": 249,
       "fp_rank_pos": "WR101",
       "fp_tier": 10,
-      "fp_adp_avg": "235.64",
+      "fp_adp_avg": "235.63",
       "fp_rank_min": "163",
       "fp_rank_max": "307",
       "fp_rank_std": "28.11",
@@ -3501,10 +3501,10 @@
       "fp_rank_overall": 250,
       "fp_rank_pos": "WR102",
       "fp_tier": 10,
-      "fp_adp_avg": "215.28",
+      "fp_adp_avg": "215.30",
       "fp_rank_min": "129",
       "fp_rank_max": "304",
-      "fp_rank_std": "42.41",
+      "fp_rank_std": "42.40",
       "fp_expert_count": 83
     },
     {
@@ -3557,10 +3557,10 @@
       "fp_rank_overall": 254,
       "fp_rank_pos": "TE34",
       "fp_tier": 10,
-      "fp_adp_avg": "239.65",
+      "fp_adp_avg": "238.95",
       "fp_rank_min": "182",
       "fp_rank_max": "317",
-      "fp_rank_std": "26.20",
+      "fp_rank_std": "25.82",
       "fp_expert_count": 83
     },
     {
@@ -3571,10 +3571,10 @@
       "fp_rank_overall": 255,
       "fp_rank_pos": "TE35",
       "fp_tier": 11,
-      "fp_adp_avg": "240.74",
+      "fp_adp_avg": "240.73",
       "fp_rank_min": "197",
       "fp_rank_max": "312",
-      "fp_rank_std": "23.73",
+      "fp_rank_std": "23.74",
       "fp_expert_count": 83
     },
     {
@@ -3585,10 +3585,10 @@
       "fp_rank_overall": 256,
       "fp_rank_pos": "RB83",
       "fp_tier": 11,
-      "fp_adp_avg": "255.79",
+      "fp_adp_avg": "255.78",
       "fp_rank_min": "192",
       "fp_rank_max": "336",
-      "fp_rank_std": "21.91",
+      "fp_rank_std": "21.92",
       "fp_expert_count": 83
     },
     {
@@ -3599,10 +3599,10 @@
       "fp_rank_overall": 257,
       "fp_rank_pos": "WR104",
       "fp_tier": 11,
-      "fp_adp_avg": "257.22",
+      "fp_adp_avg": "257.21",
       "fp_rank_min": "216",
       "fp_rank_max": "325",
-      "fp_rank_std": "16.50",
+      "fp_rank_std": "16.52",
       "fp_expert_count": 83
     },
     {
@@ -3613,10 +3613,10 @@
       "fp_rank_overall": 258,
       "fp_rank_pos": "TE36",
       "fp_tier": 11,
-      "fp_adp_avg": "196.20",
+      "fp_adp_avg": "196.74",
       "fp_rank_min": "131",
       "fp_rank_max": "262",
-      "fp_rank_std": "30.47",
+      "fp_rank_std": "30.82",
       "fp_expert_count": 83
     },
     {
@@ -3627,10 +3627,10 @@
       "fp_rank_overall": 259,
       "fp_rank_pos": "RB84",
       "fp_tier": 11,
-      "fp_adp_avg": "247.68",
+      "fp_adp_avg": "247.67",
       "fp_rank_min": "162",
       "fp_rank_max": "372",
-      "fp_rank_std": "37.66",
+      "fp_rank_std": "37.67",
       "fp_expert_count": 83
     },
     {
@@ -3641,10 +3641,10 @@
       "fp_rank_overall": 260,
       "fp_rank_pos": "RB85",
       "fp_tier": 11,
-      "fp_adp_avg": "250.37",
+      "fp_adp_avg": "250.35",
       "fp_rank_min": "210",
       "fp_rank_max": "320",
-      "fp_rank_std": "20.25",
+      "fp_rank_std": "20.27",
       "fp_expert_count": 83
     },
     {
@@ -3662,31 +3662,17 @@
       "fp_expert_count": 83
     },
     {
-      "name": "Kaelon Black",
-      "position": "RB",
-      "team": "SF",
-      "bye": "8",
-      "fp_rank_overall": 262,
-      "fp_rank_pos": "RB86",
-      "fp_tier": 11,
-      "fp_adp_avg": "238.74",
-      "fp_rank_min": "171",
-      "fp_rank_max": "317",
-      "fp_rank_std": "36.08",
-      "fp_expert_count": 83
-    },
-    {
       "name": "Kyle Williams",
       "position": "WR",
       "team": "NE",
       "bye": "11",
-      "fp_rank_overall": 263,
+      "fp_rank_overall": 262,
       "fp_rank_pos": "WR106",
       "fp_tier": 11,
-      "fp_adp_avg": "240.47",
+      "fp_adp_avg": "240.43",
       "fp_rank_min": "175",
       "fp_rank_max": "335",
-      "fp_rank_std": "33.18",
+      "fp_rank_std": "33.21",
       "fp_expert_count": 83
     },
     {
@@ -3694,13 +3680,27 @@
       "position": "RB",
       "team": "KC",
       "bye": "5",
-      "fp_rank_overall": 264,
-      "fp_rank_pos": "RB87",
+      "fp_rank_overall": 263,
+      "fp_rank_pos": "RB86",
       "fp_tier": 11,
       "fp_adp_avg": "254.28",
       "fp_rank_min": "166",
       "fp_rank_max": "311",
       "fp_rank_std": "26.84",
+      "fp_expert_count": 83
+    },
+    {
+      "name": "Kaelon Black",
+      "position": "RB",
+      "team": "SF",
+      "bye": "8",
+      "fp_rank_overall": 264,
+      "fp_rank_pos": "RB87",
+      "fp_tier": 11,
+      "fp_adp_avg": "237.95",
+      "fp_rank_min": "171",
+      "fp_rank_max": "317",
+      "fp_rank_std": "35.89",
       "fp_expert_count": 83
     },
     {
@@ -3711,7 +3711,7 @@
       "fp_rank_overall": 265,
       "fp_rank_pos": "WR107",
       "fp_tier": 11,
-      "fp_adp_avg": "249.90",
+      "fp_adp_avg": "249.88",
       "fp_rank_min": "198",
       "fp_rank_max": "437",
       "fp_rank_std": "31.11",
@@ -3739,10 +3739,10 @@
       "fp_rank_overall": 267,
       "fp_rank_pos": "RB89",
       "fp_tier": 11,
-      "fp_adp_avg": "244.04",
+      "fp_adp_avg": "243.98",
       "fp_rank_min": "200",
       "fp_rank_max": "279",
-      "fp_rank_std": "23.52",
+      "fp_rank_std": "23.61",
       "fp_expert_count": 83
     },
     {
@@ -3802,31 +3802,31 @@
       "fp_expert_count": 83
     },
     {
-      "name": "Mike Gesicki",
-      "position": "TE",
-      "team": "CIN",
-      "bye": "6",
-      "fp_rank_overall": 272,
-      "fp_rank_pos": "TE37",
-      "fp_tier": 11,
-      "fp_adp_avg": "235.70",
-      "fp_rank_min": "194",
-      "fp_rank_max": "291",
-      "fp_rank_std": "23.48",
-      "fp_expert_count": 83
-    },
-    {
       "name": "Isaac Guerendo",
       "position": "RB",
       "team": "SF",
       "bye": "8",
-      "fp_rank_overall": 273,
+      "fp_rank_overall": 272,
       "fp_rank_pos": "RB93",
       "fp_tier": 11,
       "fp_adp_avg": "262.77",
       "fp_rank_min": "195",
       "fp_rank_max": "423",
       "fp_rank_std": "33.43",
+      "fp_expert_count": 83
+    },
+    {
+      "name": "Mike Gesicki",
+      "position": "TE",
+      "team": "CIN",
+      "bye": "6",
+      "fp_rank_overall": 273,
+      "fp_rank_pos": "TE37",
+      "fp_tier": 11,
+      "fp_adp_avg": "234.69",
+      "fp_rank_min": "194",
+      "fp_rank_max": "291",
+      "fp_rank_std": "22.63",
       "fp_expert_count": 83
     },
     {
@@ -3872,31 +3872,31 @@
       "fp_expert_count": 83
     },
     {
-      "name": "Skyler Bell",
-      "position": "WR",
-      "team": "BUF",
-      "bye": "7",
-      "fp_rank_overall": 277,
-      "fp_rank_pos": "WR109",
-      "fp_tier": 11,
-      "fp_adp_avg": "255.60",
-      "fp_rank_min": "193",
-      "fp_rank_max": "336",
-      "fp_rank_std": "29.64",
-      "fp_expert_count": 83
-    },
-    {
       "name": "Ja'Kobi Lane",
       "position": "WR",
       "team": "BAL",
       "bye": "13",
-      "fp_rank_overall": 278,
-      "fp_rank_pos": "WR110",
+      "fp_rank_overall": 277,
+      "fp_rank_pos": "WR109",
       "fp_tier": 11,
       "fp_adp_avg": "254.67",
       "fp_rank_min": "183",
       "fp_rank_max": "321",
       "fp_rank_std": "24.70",
+      "fp_expert_count": 83
+    },
+    {
+      "name": "Skyler Bell",
+      "position": "WR",
+      "team": "BUF",
+      "bye": "7",
+      "fp_rank_overall": 278,
+      "fp_rank_pos": "WR110",
+      "fp_tier": 11,
+      "fp_adp_avg": "254.93",
+      "fp_rank_min": "193",
+      "fp_rank_max": "336",
+      "fp_rank_std": "29.61",
       "fp_expert_count": 83
     },
     {
@@ -4012,26 +4012,12 @@
       "fp_expert_count": 83
     },
     {
-      "name": "Luke McCaffrey",
-      "position": "WR",
-      "team": "WAS",
-      "bye": "7",
-      "fp_rank_overall": 287,
-      "fp_rank_pos": "WR113",
-      "fp_tier": 12,
-      "fp_adp_avg": "280.03",
-      "fp_rank_min": "224",
-      "fp_rank_max": "567",
-      "fp_rank_std": "57.03",
-      "fp_expert_count": 83
-    },
-    {
       "name": "Tez Johnson",
       "position": "WR",
       "team": "TB",
       "bye": "10",
-      "fp_rank_overall": 288,
-      "fp_rank_pos": "WR114",
+      "fp_rank_overall": 287,
+      "fp_rank_pos": "WR113",
       "fp_tier": 12,
       "fp_adp_avg": "268.35",
       "fp_rank_min": "190",
@@ -4044,13 +4030,27 @@
       "position": "WR",
       "team": "LAR",
       "bye": "11",
-      "fp_rank_overall": 289,
-      "fp_rank_pos": "WR115",
+      "fp_rank_overall": 288,
+      "fp_rank_pos": "WR114",
       "fp_tier": 12,
       "fp_adp_avg": "269.13",
       "fp_rank_min": "219",
       "fp_rank_max": "507",
       "fp_rank_std": "51.84",
+      "fp_expert_count": 83
+    },
+    {
+      "name": "Luke McCaffrey",
+      "position": "WR",
+      "team": "WAS",
+      "bye": "7",
+      "fp_rank_overall": 289,
+      "fp_rank_pos": "WR115",
+      "fp_tier": 12,
+      "fp_adp_avg": "279.81",
+      "fp_rank_min": "224",
+      "fp_rank_max": "567",
+      "fp_rank_std": "57.93",
       "fp_expert_count": 83
     },
     {
