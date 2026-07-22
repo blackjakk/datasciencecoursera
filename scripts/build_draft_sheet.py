@@ -29,8 +29,9 @@ ROOT = Path(__file__).resolve().parent.parent
 PDF_OUT = ROOT / "data" / "MONEYLEAGUE_DRAFT_SHEET.pdf"
 MY_ROSTER_ID = 9
 
-# players per position column (shrink ladder trims these)
-DEPTH = {"QB": 32, "RB": 62, "WR": 68, "TE": 26}
+# players per position column (shrink ladder trims these; QB exempt —
+# all 32 starters must fit)
+DEPTH = {"QB": 34, "RB": 62, "WR": 68, "TE": 26}
 # VBD drop between consecutive players that opens a new tier (a cliff),
 # plus a band cap: a tier also closes once it spans this much VBD top to
 # bottom — gap-only tiering never breaks on smooth slopes, which
@@ -59,6 +60,14 @@ def build_html(font_pt: float, depth_scale: float) -> str:
     screen = load_json(ROOT / "data/research/market_screen.json") or {}
     fp = load_json(ROOT / "data/rankings_fantasypros.json") or {}
     bye_of = {p["name"]: p.get("bye") for p in fp.get("players", [])}
+    nfl_draft = (load_json(ROOT / "data/nfl_draft_2026.json") or {}).get("rounds", {})
+
+    def _norm(s: str) -> str:
+        s = s.lower().replace(".", "").replace("'", "").replace("-", " ").strip()
+        for suf in (" iii", " ii", " iv", " jr", " sr", " v"):
+            if s.endswith(suf):
+                s = s[: -len(suf)].strip()
+        return s
 
     kept = {k["player_name"] for k in keepers if isinstance(k, dict)
             and k.get("status") == "carryover"}
@@ -100,9 +109,21 @@ def build_html(font_pt: float, depth_scale: float) -> str:
         pools[pos].sort(key=lambda p: -(p.get("vbd") or -999))
     kdst.sort(key=lambda p: -(p.get("proj") or 0))
 
+    def pool_slice(pos: str, depth_scale: float) -> list[dict]:
+        """Top-N by VBD, QB exempt from shrink (all starters fit), PLUS
+        every draftable rookie (ADP <= 204) — the option darts belong on
+        the board even when their redraft VBD is tail-grade."""
+        scale = 1.0 if pos == "QB" else depth_scale
+        lst = pools[pos][: int(DEPTH[pos] * scale)]
+        have = {p["name"] for p in lst}
+        extra = [p for p in pools[pos]
+                 if p["name"] not in have and p.get("years_exp") == 0
+                 and (p.get("adp") or 999) <= 204]
+        return lst + extra          # extras keep VBD order at the tail
+
     def rows(pos: str) -> str:
         out, tier = [], 1
-        lst = pools[pos][: int(DEPTH[pos] * depth_scale)]
+        lst = pool_slice(pos, depth_scale)
         prev_vbd = tier_top = None
         for p in lst:
             vbd = p.get("vbd") or 0.0
@@ -120,7 +141,11 @@ def build_html(font_pt: float, depth_scale: float) -> str:
             badge = ("▲" if p["name"] in sleep else
                      "▼" if p["name"] in love else "")
             bcls = ("up" if badge == "▲" else "dn" if badge == "▼" else "")
-            rk = ' <span class="rk">RK</span>' if p.get("years_exp") == 0 else ""
+            rk = ""
+            if p.get("years_exp") == 0:
+                nfl_r = nfl_draft.get(_norm(p["name"]))
+                rk = (f' <span class="rk">RK{nfl_r}</span>' if nfl_r
+                      else ' <span class="rk">RK</span>')
             stash = ("★" if adp >= 108 and (p.get("stash") or 0) >= 0.5
                      else "")
             bye = bye_of.get(p["name"])
@@ -181,8 +206,9 @@ def build_html(font_pt: float, depth_scale: float) -> str:
                  '<span class="ml-fineprint">(#) = keeper-consumed · '
                  'cols: mkt round · name · team · bye · proj · VBD · '
                  '▲ paper sleeps / ▼ paper overpays · ★ R9+ option dart '
-                 '(2027 keeper stash) · <span class="rk">RK</span> = '
-                 'rookie</span></div>')
+                 '(2027 keeper stash) · <span class="rk">RK#</span> = '
+                 'rookie, NFL draft round (bare RK = UDFA/unknown)'
+                 '</span></div>')
     h.append('<div class="cols">')
     for pos, label in (("QB", "QUARTERBACKS (2 by R6 — the room exploit)"),
                        ("RB", "RUNNING BACKS"),
